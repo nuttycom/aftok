@@ -4,43 +4,44 @@ Start
 
 I want to create something.
 
-I have an idea for a project that I need help with. The project itself
-might be interesting, or it might not - I'll get to what I want to
-create in a bit - but the more important thing, the reason that I'm
+The project itself
+might be interesting, or it might not - I'll get to the project in a bit 
+- but the more important thing, the reason that I'm
 writing this, is that I want to try to create a new way for people to
 work together for profit. I'm tired of corporate feudalism. So, I want
 to try building something, as a side project, that people will be
-willing to pay money for. And I want to try a radical experiment in
-cooperative work and distribution of the wealth that we can
-collectively create. I apologize in advance if this runs a bit long. 
+willing to pay money for. At the same time I want to try a radical experiment 
+in the distribution of the wealth that we can
+collaboratively create. I apologize in advance if this runs a bit long. 
 
 The Experiment
 
 The experiment is, briefly, this: I have an idea for a form of
-"shareholding" partnership where a partner's equity is directly based
+partnership where a partner's equity is directly based
 upon the amount of time they've contributed to the effort, with a
 simple algorithm for allocating revenue among the partners. The thing
-that's somewhat radical about the experiment is that, unlike every
+that's somewhat different about the experiment is that, unlike every
 model I've seen for business, this one is designed explicitly to work
-only in an environment of absolute honesty and mutual trust. It's kind
+only in an environment of honesty and mutual trust. It's kind
 of intended to be the economic equivalent of functional programming,
 where instead of throwing out mutability and side effects to gain
 confidence about the correctness of our code, we throw out the
 assumption that we have to agressively defend ourselves against
-malicious actors with structures of control. Personally, beyond the
+malicious actors with structures of control. 
+
+Personally, beyond the
 love and well-being of my family, all I really want from life is to be
 able to do interesting, creative work with a group of good people in
-an environment of total honesty and openness. To see if I can make
-this happen is the purpose of this experiment.
+an environment of honesty and openness. The purpose of this experiment 
+is to see if I can make this happen.
 
 The Project
 
-So, back to the project for a moment. This is an almost trivial bit,
+Back to the project for a moment. This is an almost trivial bit,
 but I want to get the high-level "what" out of the way so that I can
 focus on the "how" without feeling like I'm dragging you along to get
 to the punchline. I want to create an online environment for
-collaboration on creative work. Now, I know that that statement is
-essentially content-free, so, think Github, for everything that's not
+collaboration on creative work: think Github, for everything that's not
 software - instead, for all the other creators, of music, video,
 3D-printing and CNC enthusiasts, hardware hackers, whatever - a place
 to version, derive, digitize, share, and document the artifacts and
@@ -55,15 +56,14 @@ So, there's something that I think I would like to build, something
 that I think has enough value that people might pay for it, and I'd
 eventually like to be able to maybe even support my family as a
 consequence of building it. The "natural" thing, according to the
-dominant culture, might be to start a company. but, as I said, I'm
-sick of corporate feudalism and its confident, smirking assertion that
-on person's work is self-evidently worth more than the work of
+dominant culture, might be to start a company. But, as I said, I'm
+sick of corporate feudalism and its assertion that the hours
+one person's work is self-evidently worth more than the hours of
 another. TO HELL WITH THAT. Each of us has just a few hundred thousand
 hours of life to live, in the best of circumstances, and to me the
-notion that the hours of my life that I might spend working are more,
-or less, valuable than someone else's is bloody offensive. I don't
-know what kind of vicious, subversive mind control has been worked
-upon us to make us accept it, but I think this idea is not merely
+notion that the hours of my life that I might spend working are more
+(or less) valuable than someone else's is bloody offensive. We have been 
+conditioned to think this, and expect it, but I think this idea is not merely
 wrong, but damned evil. So, I want to propose a gloriously naive other
 way. 
 
@@ -87,7 +87,7 @@ way. What I want to create is an opportunity to do profitable creative
 work, to create wealth, without compulsion to spend a certain number
 of hours in a certain place doing a certain task. The way I see it,
 such compulsion is only necessary in the absence of honesty and the
-absence of trust. 
+absence of trust. This so-called industrious state lacks true industry.
 
 Here's how I think that a group of people collaborating for profit
 should work. I hesitate to call this a "company" because of all of the
@@ -176,7 +176,7 @@ corruption.
 So, it seems to me that the only viable way to proceed is in the way
 that every open-source project (and a great number of successful private
 enterprises) does; to bootstrap ourselves. It seems to me to be the
-most honest and way to proceed; in bootstrapping, unlike in
+most honest way to proceed; in bootstrapping, unlike in
 investment-funded startups, it is impossible to hide from the truth
 about whether what you're doing is actually valuable or not. 
 
@@ -219,7 +219,7 @@ someone or some group wishes to fork the project, it does little
 harm. A harder question is how to collectively come to the conclusion
 that someone is untrustworthy or unwelcome and thus remove them from
 the company; here I suspect that some democratic process requiring a
-supermajority in favor of condemnation is the best we can do. It's an
+supermajority in favor of removal is the best we can do. It's an
 imperfect world. I can only hope that the foundation of only expanding the
 membership of the company by explicit invitation to individuals known
 worthy of profound trust will obviate the need for much of a formal process.
@@ -236,20 +236,16 @@ ones telling it.
 
 Finish
 
-Being at the end of these few hours of writing, I can see that there's
-a lot left unspecified by this proposal, and ultimately I can only
-trust that what remains can be argued over, refined, adopted or
+I can see that there's
+a lot left unspecified by this proposal, and ultimately I hope that 
+what remains can be argued over, refined, adopted or
 rejected by a group of people whom I respect for their honesty. The
 best that I can hope for is that this experiment is interesting, and
-perhaps makes a little way exploring the space of ways that people can
-work together. If it fails, or is laughed away, or explodes in a
-flaming ball of shrapnel I can only try to go do some other, good,
-uncompromised work inside of the current system. But if you're
-receiving this, and have read so far, I can only humbly hope that
-you'll do me the honor of giving it some thought. I invite you to
+perhaps makes a little headway exploring the ways that people can
+work together. I invite you to
 experiment with me.
 
-This is me, this is what I believe, this is what I want to create.
+This is what I want to create.
 
 kjn finish 16:37
 
@@ -258,3 +254,5 @@ I have willfully chosen to spend 3 hours and 59 minutes of my lifetime writing t
 Edits:
 kjn start 2013-03-03T08:55
 kjn stop 09:28
+sabrnu start 2013-03-03T11:25
+sabrnu stop 12:36
