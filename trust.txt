@@ -1,4 +1,4 @@
-start 11:54
+kjn start 2013-03-02T11:54
 
 Start
 
@@ -14,19 +14,24 @@ willing to pay money for. And I want to try a radical experiment in
 cooperative work and distribution of the wealth that we can
 collectively create. I apologize in advance if this runs a bit long. 
 
-It feels prosaic, even trite to write this, because our language has
-been so long corrupted by those who would abuse such words for
-personal gain (at others' loss), but I want to know what it is like to
-work with a group of people where the fundamental principle of all our
-interaction is trust, where I, and the people I work with on it, will
-be utterly honest and open with everyone we come into contact with
-(including, of course, each other.) I can feel the claws of a million
-corporate ethos statements, and our collective cynicism about them,
-rending my very will to write this down. But upon my life, if it is
-worth anything at all, I assert that this is true. After the love and
-well being of my family, to do meaningful, creative work in an
-environment of trust, honesty, and respect is all I really want from
-life. 
+The Experiment
+
+The experiment is, briefly, this: I have an idea for a form of
+"shareholding" partnership where a partner's equity is directly based
+upon the amount of time they've contributed to the effort, with a
+simple algorithm for allocating revenue among the partners. The thing
+that's somewhat radical about the experiment is that, unlike every
+model I've seen for business, this one is designed explicitly to work
+only in an environment of absolute honesty and mutual trust. It's kind
+of intended to be the economic equivalent of functional programming,
+where instead of throwing out mutability and side effects to gain
+confidence about the correctness of our code, we throw out the
+assumption that we have to agressively defend ourselves against
+malicious actors with structures of control. Personally, beyond the
+love and well-being of my family, all I really want from life is to be
+able to do interesting, creative work with a group of good people in
+an environment of total honesty and openness. To see if I can make
+this happen is the purpose of this experiment.
 
 The Project
 
@@ -62,8 +67,8 @@ upon us to make us accept it, but I think this idea is not merely
 wrong, but damned evil. So, I want to propose a gloriously naive other
 way. 
 
-stop 12:51
-start 13:12
+kjn stop 12:51
+kjn start 13:12
 
 The Value of Time
 
@@ -78,11 +83,11 @@ lost time with my children and my wife and parents and friends (even
 lost sleep) in compressed, hyperactive, unnatural segments of vacation
 or weekends. I guess I've been well-conditioned to believe that this
 is inevitable, but logic and history tells me that it's not the only
-way. What I want to create is an opportunity to do profitable work, to
-create wealth, without compulsion to spend a certain number of hours
-in a certain place doing a certain task. The way I see it, such
-compulsion is only necessary in the absence of honesty and the absence
-of trust. 
+way. What I want to create is an opportunity to do profitable creative
+work, to create wealth, without compulsion to spend a certain number
+of hours in a certain place doing a certain task. The way I see it,
+such compulsion is only necessary in the absence of honesty and the
+absence of trust. 
 
 Here's how I think that a group of people collaborating for profit
 should work. I hesitate to call this a "company" because of all of the
@@ -95,13 +100,13 @@ when you see it, think of the term as in "the company you keep."
 I believe that, when honestly applied, that the time a person spends
 working toward a goal has value - the value is exactly that of the
 hours of life that have passed, hastening toward that person's
-inevitable end. The question to be answered is, what is the value of
-of the work produced during that time? This, of course, can only
+inevitable end. The question to be answered is, what is the objective
+worth of the work produced during that time? This, of course, can only
 really be judged at present by the uncompromising metric of what
 someone else is willing to pay for it, over the lifetime of whatever
 "it" is. Ultimately this is just a proxy for the number of minutes, or
-hours, or days of *their* lives they're willing to devote to having
-what it is you've produced. For this moment in history, money is as
+hours, or days of *their* lives they're willing to devote to procuring
+whatever it is you've produced. For this moment in history, money is as
 good a proxy as any for this. So, basically, I believe that people
 should be paid for their work, according to the price that other
 people are willing to pay for it. Simple enough. What's a little
@@ -120,30 +125,29 @@ total value accrued by all of the participants is paid out to him or
 her, with one adjustment that is a prospective answer to the question
 "for how long is a given bit of labor valuable?"  
 
-I don't know exactly, but a scheme I'd like to try is something like,
-after 3 months, the value of an hour of labor in the pool begins to
-depreciate by something like two minutes per month. This means that
-the value of that labor goes to zero after two years and nine months;
-if we tried 6 months and one minute per month, it'd be five and a half
-years. It's probably an imperfect scheme, and it very deliberately
-ignores the question of good work versus bad, because to be honest I
-don't want to collaborate with someone who produces bad work; I'd much
-prefer to simply, sadly let them know that they're no longer welcome
-on the project (but that they will continue to be paid, as everyone
-else, for the value that they contributed while I/we trusted them.)
-The advantages, though, are prodigious. Each participant can expect to
-be fairly and impartially compensated for the time they've spent on
-the project, insofar as there's any compensation to be had. There is
-no lower bound, and a very natural upper bound, on the amount that
-anyone can work. If someone ceases contributing or becomes unwelcome,
-their share of the overall total will fall off at first slowly, then
-with increasing rapidity as the total amount of effort invested by
-others grows. And, if the project is to be successful, then the
-benefits will accrue to everyone who has participated in making it a
-success. 
+I don't know exactly, but a scheme I'd like to try is: after 6 months,
+the value of an hour of labor in the pool begins to depreciate by
+something like two minutes per month. This means that the value of
+that labor goes to zero after three years; if we tried 6 months and
+one minute per month, it'd be five and a half years. It's probably an
+imperfect scheme, and it very deliberately ignores the question of
+good work versus bad, because to be honest I don't want to collaborate
+with someone who produces bad work; I'd much prefer to simply, sadly
+let them know that they're no longer welcome on the project (but that
+they will continue to be paid, as everyone else, for the value that
+they contributed while I/we trusted them.) The advantages, though, are
+prodigious. Each participant can expect to be fairly and impartially
+compensated for the time they've spent on the project, insofar as
+there's any compensation to be had. There is no lower bound, and a
+very natural upper bound, on the amount that anyone can work. If
+someone ceases contributing or becomes unwelcome, their share of the
+overall total will fall off at first slowly, then with increasing
+rapidity as the total amount of effort invested by others grows. And,
+if the project is to be successful, then the benefits will accrue to
+everyone who has participated in making it a success.  
 
-stop 14:07 
-start 14:22
+kjn stop 14:07 
+kjn start 14:22
 
 Bootstrapping
 
@@ -162,7 +166,12 @@ for a one-time infusion of value, and this is antithetical to the
 underlying principles of the compensation scheme. There is, of course,
 nothing that should prevent a person from selling his or her accrued
 hours to a third party, if they wanted to bet against the success of
-the company in that way. 
+the company in that way. Second, there should be no central "entity"
+that accumulates money for any period longer than, say, a week or so,
+but any revenue should *immediately* be paid out to the
+participants. Avoiding the central accumulation of a pool of money
+seems like the most straightforward way to avoid any sort of
+corruption. 
 
 So, it seems to me that the only viable way to proceed is in the way
 that every open-source project (and a great number of successful private
@@ -177,21 +186,26 @@ This brings up another issue, that of how to handle ongoing costs, and
 here again, the answer is startlingly simple in an environment based
 on trust. If we genuinely trust one another, there is no inhibition to
 regularly pooling our resources to pay for the services we consume. I
-trust that if I spend some money to benefit everyone, that repayment of that will
-be treated as a moral (and no other) sort of obligation by those in
-company with me. I want for nothing stronger than the word of a good
-person as a guarantee. Likewise, if, at some point down the road we
-wished to invite a new member to our company and that person could not
-financially manage to survive on the value produced by their initial
-contributions of time (due to it being a small fraction of the amassed
-total value) I would have no compunction about issuing that person a
-series of loans, to be repaid as they are able (providing that doing
-so would not jeopardize my own well-being.) For, of course, inviting a
-new member requires that he or she be entrusted with far more than
-just a bit of money. 
+trust that if I spend some money to benefit everyone, that repayment
+of that will be treated as a moral (and no other) sort of obligation
+by those in company with me. I want for nothing stronger than the word
+of a good person as a guarantee. Likewise, if, at some point down the
+road we wished to invite a new member to our company and that person
+could not financially manage to survive on the value produced by their
+initial contributions of time (due to it being a small fraction of the
+amassed total value) I would have no compunction about issuing that
+person a series of loans, to be repaid as they are able (providing
+that doing so would not jeopardize my own well-being.) For, of course,
+inviting a new member requires that he or she be entrusted with far
+more than just a bit of money. Costs would have to be distributed in
+the same manner as compensation; this is of course equivalent to simply
+subtracting costs prior to the distribution of dividends if it's more
+convenient to do it that way, though I'd almost prefer distribution
+first and contribution to costs second. After all, this shouldn't be a
+problem in an environment of honor and trust.
 
-stop 15:05
-start 15:46
+kjn stop 15:05
+kjn start 15:46
 
 Decision Making
 
@@ -207,8 +221,8 @@ that someone is untrustworthy or unwelcome and thus remove them from
 the company; here I suspect that some democratic process requiring a
 supermajority in favor of condemnation is the best we can do. It's an
 imperfect world. I can only hope that the foundation of only expanding the
-membership of the company to individuals worthy of profound trust will
-obviate the need for much of a formal process.
+membership of the company by explicit invitation to individuals known
+worthy of profound trust will obviate the need for much of a formal process.
 
 Customers
 
@@ -237,7 +251,10 @@ experiment with me.
 
 This is me, this is what I believe, this is what I want to create.
 
-finish 16:37
+kjn finish 16:37
 
-I have willfully chosen to spend 3 hours and 26 minutes of my lifetime writing this document.
+I have willfully chosen to spend 3 hours and 59 minutes of my lifetime writing this document.
 
+Edits:
+kjn start 2013-03-03T08:55
+kjn stop 09:28
