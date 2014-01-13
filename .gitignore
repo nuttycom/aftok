@@ -1,3 +1,5 @@
 log
 cabal.sandbox.config
 .cabal-sandbox
+*.swp
+dist

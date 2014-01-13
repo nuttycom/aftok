@@ -1,10 +1,10 @@
 Name:                ananke
 Version:             0.1
-Synopsis:            Project Synopsis Here
-Description:         Project Description Here
+Synopsis:            The Ananke Collaboration Platform
+Description:         A service to enable groups of trusted contributors to be paid for their efforts in collaboratively developing commercial applications.
 License:             AllRightsReserved
-Author:              Author
-Maintainer:          maintainer@example.com
+Author:              Kris Nuttycombe
+Maintainer:          kris@hylotech.com
 Stability:           Experimental
 Category:            Web
 Build-type:          Simple
@@ -33,7 +33,11 @@ Executable ananke
     snap-loader-static        >= 0.9     && < 0.10,
     text                      >= 0.11    && < 0.12,
     time                      >= 1.1     && < 1.5,
-    xmlhtml                   >= 0.1
+    iso8601-time              == 0.1.1,
+    xmlhtml                   >= 0.1,
+    containers                == 0.5.*,
+    postgresql-simple         >= 0.3.10,
+    snaplet-postgresql-simple >= 0.4.1
 
   if flag(old-base)
     build-depends:
@@ -61,3 +65,13 @@ Executable ananke
     else
       ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2
                    -fno-warn-orphans
+
+Test-Suite test-ananke
+  type:               exitcode-stdio-1.0
+  main-is:            Test.hs
+  hs-source-dirs:     test, src
+  build-depends:      base >=4.6 && <4.7,
+                      test-framework,
+                      test-framework-hunit,
+                      HUnit,
+                      containers == 0.5.*
