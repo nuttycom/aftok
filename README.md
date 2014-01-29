@@ -1,12 +1,12 @@
 kjn start 2013-03-02T11:54
 
-Start
+# Start
 
 I want to create something.
 
 The project itself
-might be interesting, or it might not - I'll get to the project in a bit 
-- but the more important thing, the reason that I'm
+might be interesting, or it might not - I'll get to the project in a bit - 
+but the more important thing, the reason that I'm
 writing this, is that I want to try to create a new way for people to
 work together for profit. I'm tired of corporate feudalism. So, I want
 to try building something, as a side project, that people will be
@@ -14,7 +14,7 @@ willing to pay money for. At the same time I want to try a radical experiment
 in the distribution of the wealth that we can
 collaboratively create. I apologize in advance if this runs a bit long. 
 
-The Experiment
+## The Experiment
 
 The experiment is, briefly, this: I have an idea for a form of
 partnership where a partner's equity is directly based
@@ -35,7 +35,7 @@ able to do interesting, creative work with a group of good people in
 an environment of honesty and openness. The purpose of this experiment 
 is to see if I can make this happen.
 
-The Project
+## The Project
 
 Back to the project for a moment. This is an almost trivial bit,
 but I want to get the high-level "what" out of the way so that I can
@@ -70,7 +70,7 @@ way.
 kjn stop 12:51
 kjn start 13:12
 
-The Value of Time
+## The Value of Time
 
 Time is fleeting. In every job I've ever had, even though I love the
 work that I do, I feel like every minute that I'm working I'm stealing
@@ -113,7 +113,7 @@ people are willing to pay for it. Simple enough. What's a little
 different about what I'd like to try is the method for how this
 payment is allocated. 
 
-Compensation
+## Compensation
 
 If we, in company, can produce something that someone pays for, we
 should immediately divide up that payment according to the cumulative
@@ -149,7 +149,7 @@ everyone who has participated in making it a success.
 kjn stop 14:07 
 kjn start 14:22
 
-Bootstrapping
+## Bootstrapping
 
 There are some things that this company, if I am to be a part of it,
 must never do, though hopefully the design of the system I'm proposing
@@ -180,7 +180,7 @@ most honest way to proceed; in bootstrapping, unlike in
 investment-funded startups, it is impossible to hide from the truth
 about whether what you're doing is actually valuable or not. 
 
-Costs
+## Costs
 
 This brings up another issue, that of how to handle ongoing costs, and
 here again, the answer is startlingly simple in an environment based
@@ -207,7 +207,7 @@ problem in an environment of honor and trust.
 kjn stop 15:05
 kjn start 15:46
 
-Decision Making
+## Decision Making
 
 I'm going to hedge a little bit here, because I don't actually have
 any great answers as to what the best mechanism is, but I think that
@@ -224,7 +224,7 @@ imperfect world. I can only hope that the foundation of only expanding the
 membership of the company by explicit invitation to individuals known
 worthy of profound trust will obviate the need for much of a formal process.
 
-Customers
+## Customers
 
 Perhaps at this point the following should go without saying, but if
 we do not extend the environment of honesty and trust to the people
@@ -234,7 +234,7 @@ be withheld from our customers, if we are so lucky as to have
 them. The truth will always be known anyway; it's best if we're the
 ones telling it.
 
-Finish
+## Finish
 
 I can see that there's
 a lot left unspecified by this proposal, and ultimately I hope that 
