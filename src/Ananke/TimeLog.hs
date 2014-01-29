@@ -15,6 +15,7 @@ import Data.Typeable.Internal
 import Database.PostgreSQL.Simple.FromRow
 import Database.PostgreSQL.Simple.FromField
 import Control.Applicative
+import Control.Arrow
 import Control.Exception.Base
 
 data LogEvent = StartWork | StopWork deriving (Show, Eq)
@@ -51,3 +52,5 @@ payouts = undefined
 
 intervals :: [LogEntry] -> [LogInterval]
 intervals e = undefined
+
+groupBy f = fromListWith (++) . fmap (f &&& pure)
