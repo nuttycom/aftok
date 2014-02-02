@@ -24,8 +24,6 @@ import           Heist
 import qualified Heist.Interpreted as I
 ------------------------------------------------------------------------------
 import           Application
-import           Ananke
-import           Ananke.TimeLog
 
 
 ------------------------------------------------------------------------------

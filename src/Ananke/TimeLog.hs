@@ -9,6 +9,7 @@ module Ananke.TimeLog
   ) where
 
 import Ananke
+import Ananke.Interval
 import Data.Map
 import Data.Time.Clock
 import Data.Typeable.Internal
@@ -36,8 +37,7 @@ data LogEntry = LogEntry { btcAddr :: BtcAddr
                          } deriving (Show, Eq)
 
 data LogInterval = LogInterval { intervalBtcAddr :: BtcAddr
-                               , start :: UTCTime
-                               , end :: UTCTime
+                               , interval :: Interval
                                } deriving (Show, Eq) 
 
 instance Ord LogEntry where

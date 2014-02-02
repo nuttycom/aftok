@@ -1,13 +1,22 @@
-import Test.HUnit
-import Test.Framework
-import Test.Framework.Providers.HUnit
+import Test.Tasty
+import Test.Tasty.QuickCheck as QC
+import Test.Tasty.HUnit
 import Data.Monoid
 import Data.Maybe
 import Control.Monad
 import Ananke
-import Ananke.TimeLog
+import Ananke.TimeLog as L
+import Ananke.Interval as I
 import Data.Time.ISO8601
 import qualified Data.Text as T
+
+
+main = defaultMain tests
+
+tests :: TestTree
+tests = testGroup "Intervals" [unitTests]
+
+unitTests = testGroup "Unit Tests" [testCase "deriveIntervals" deriveIntervalsTest]
 
 deriveIntervalsTest :: Assertion
 deriveIntervalsTest = let 
@@ -27,11 +36,6 @@ deriveIntervalsTest = let
   expected = do
     addr <- testAddrs
     (start, end) <- zip starts ends
-    [ LogInterval addr start end ]
+    maybeToList . fmap (LogInterval addr) $ I.interval start end
 
   in assertEqual "derive log entries" (intervals testLogEntries) expected
-
-main :: IO ()
-main = defaultMainWithOpts
-       [testCase "deriveIntervals" deriveIntervalsTest]
-       mempty
