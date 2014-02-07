@@ -9,5 +9,5 @@ data Interval = Interval { start :: UTCTime
                          , end   :: UTCTime 
                          } deriving (Show, Eq)
 
-interval s e = if s < e then Just (Interval s e) else Nothing
+interval s e = if s < e then Interval s e else Interval e s
 
