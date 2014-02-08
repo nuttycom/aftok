@@ -10,6 +10,8 @@ module Ananke.TimeLog
 
 import Ananke
 import Ananke.Interval
+import Data.Bifunctor
+import Data.Function
 import Data.Foldable as F
 import Data.Map.Strict as M
 import Data.Time.Clock
@@ -17,7 +19,6 @@ import Data.Typeable.Internal
 import Database.PostgreSQL.Simple.FromRow
 import Database.PostgreSQL.Simple.FromField
 import Control.Applicative
-import Control.Arrow
 import Control.Exception.Base
 
 data LogEvent = StartWork | StopWork deriving (Show, Eq)
@@ -35,9 +36,6 @@ data LogEntry = LogEntry { btcAddr :: BtcAddr
                          , logTime :: UTCTime
                          , event :: LogEvent 
                          } deriving (Show, Eq)
-
-instance Ord LogEntry where
-  compare a b = compare (logTime a) (logTime b)
 
 instance FromRow LogEntry where
   fromRow = LogEntry <$> field <*> field <*> field 
@@ -59,8 +57,7 @@ appendLogEntry workIndex entry = let acc = reduce $ pushEntry entry workIndex
                                  in insert (btcAddr entry) acc workIndex
 
 pushEntry :: LogEntry -> WorkIndex -> ([LogEntry], [LogInterval])
-pushEntry entry idx = consLeft entry $ findWithDefault ([], []) (btcAddr entry) idx where 
-                      consLeft a (ex, ix) = (a : ex, ix)
+pushEntry entry = first (entry :) . findWithDefault ([], []) (btcAddr entry) 
 
 reduce :: ([LogEntry], [LogInterval]) -> ([LogEntry], [LogInterval])
 reduce ((LogEntry addr end StopWork) : (LogEntry _ start StartWork) : xs, intervals) = (xs, (LogInterval addr (interval start end)) : intervals)

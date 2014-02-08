@@ -25,6 +25,7 @@ library
   build-depends:
     base                      >= 4.4     && < 5,
     lens                      >= 3.7.6   && < 3.11,
+    bifunctors,              
     text                      >= 0.11    && < 0.12,
     time                      >= 1.1     && < 1.5,
     iso8601-time              == 0.1.1,
@@ -43,6 +44,7 @@ Test-Suite test-ananke
     base,
     text,
     time,
+    containers                == 0.5.*,
     iso8601-time,
     ananke
 
