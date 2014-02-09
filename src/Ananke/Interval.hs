@@ -1,5 +1,5 @@
 module Ananke.Interval 
-  ( Interval, interval, start, end 
+  ( Interval, interval, start, end, ilen
   ) where
 
 import Data.Time.Clock
@@ -10,4 +10,7 @@ data Interval = Interval { start :: UTCTime
                          } deriving (Show, Eq)
 
 interval s e = if s < e then Interval s e else Interval e s
+
+ilen :: Interval -> NominalDiffTime
+ilen i = diffUTCTime (end i) (start i)
 

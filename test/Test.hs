@@ -44,3 +44,6 @@ deriveIntervalsTest = let
   expected = M.map (\i -> ([], i)) . fromListWith (++) . fmap (intervalBtcAddr &&& return) $ testIntervals
 
   in assertEqual "derive log entries" (intervals testLogEntries) expected
+
+
+

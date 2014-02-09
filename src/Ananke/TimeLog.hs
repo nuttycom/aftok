@@ -45,20 +45,27 @@ data LogInterval = LogInterval { intervalBtcAddr :: BtcAddr
                                } deriving (Show, Eq) 
 
 type WorkIndex = Map BtcAddr ([LogEntry], [LogInterval])
+type Payouts = Map BtcAddr Rational
 
-payouts :: [LogEntry] -> Map BtcAddr Rational
-payouts = undefined
+sumLogIntervals :: [LogInterval] -> Rational
+sumLogIntervals ivals = F.foldl' (+) (fromInteger 0) $ fmap (toRational . ilen . workInterval) ivals
+
+payouts :: WorkIndex -> Payouts
+payouts widx = let addIntervalDiff total ivals = (\dt -> (dt + total, dt)) $ sumLogIntervals ivals 
+                   (totalTime, keyTimes) = M.mapAccum addIntervalDiff (fromInteger 0) $ M.map snd widx
+               in M.map (\kt -> kt / totalTime) keyTimes
 
 intervals :: Foldable f => f LogEntry -> WorkIndex
 intervals = F.foldl' appendLogEntry M.empty 
 
 appendLogEntry :: WorkIndex -> LogEntry -> WorkIndex
-appendLogEntry workIndex entry = let acc = reduce $ pushEntry entry workIndex 
+appendLogEntry workIndex entry = let acc = reduceToIntervals $ pushEntry entry workIndex 
                                  in insert (btcAddr entry) acc workIndex
 
 pushEntry :: LogEntry -> WorkIndex -> ([LogEntry], [LogInterval])
 pushEntry entry = first (entry :) . findWithDefault ([], []) (btcAddr entry) 
 
-reduce :: ([LogEntry], [LogInterval]) -> ([LogEntry], [LogInterval])
-reduce ((LogEntry addr end StopWork) : (LogEntry _ start StartWork) : xs, intervals) = (xs, (LogInterval addr (interval start end)) : intervals)
-reduce other = other
+reduceToIntervals :: ([LogEntry], [LogInterval]) -> ([LogEntry], [LogInterval])
+reduceToIntervals ((LogEntry addr end StopWork) : (LogEntry _ start StartWork) : xs, intervals) = (xs, (LogInterval addr (interval start end)) : intervals)
+reduceToIntervals misaligned = misaligned
+
