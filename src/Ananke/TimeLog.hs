@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable, ScopedTypeVariables #-}
 
 module Ananke.TimeLog 
   ( LogEntry(..)
@@ -46,14 +46,36 @@ data LogInterval = LogInterval { intervalBtcAddr :: BtcAddr
 
 type WorkIndex = Map BtcAddr ([LogEntry], [LogInterval])
 type Payouts = Map BtcAddr Rational
+type NDT = NominalDiffTime
 
-sumLogIntervals :: [LogInterval] -> Rational
-sumLogIntervals ivals = F.foldl' (+) (fromInteger 0) $ fmap (toRational . ilen . workInterval) ivals
+{-|
+  The depreciation function should return a value between 0 and 1;
+  this result is multiplied by the length of an interval of work to determine
+  the depreciated value of the work.
+-}
+newtype Depreciation = Depreciation { depf :: NDT -> Rational } 
 
-payouts :: WorkIndex -> Payouts
-payouts widx = let addIntervalDiff total ivals = (\dt -> (dt + total, dt)) $ sumLogIntervals ivals 
-                   (totalTime, keyTimes) = M.mapAccum addIntervalDiff (fromInteger 0) $ M.map snd widx
-               in M.map (\kt -> kt / totalTime) keyTimes
+{-|
+  Payouts are determined by computing a depreciated duration value for
+  each work interval. This function computes the percentage of the total
+  work allocated to each address.
+-}
+payouts :: Depreciation -> UTCTime -> WorkIndex -> Payouts
+payouts dep ptime widx = let addIntervalDiff :: (Functor f, Foldable f) => NDT -> f LogInterval -> (NDT, NDT)
+                             addIntervalDiff total ivals = (\dt -> (dt + total, dt)) $ sumLogIntervals dep ptime ivals 
+                             (totalTime, keyTimes) = M.mapAccum addIntervalDiff (fromInteger 0) $ M.map snd widx
+                         in M.map (\kt -> toRational $ kt / totalTime) keyTimes
+
+{-|
+  
+-}
+sumLogIntervals :: (Functor f, Foldable f) => Depreciation -> UTCTime -> f LogInterval -> NDT
+sumLogIntervals dep ptime ivals = F.foldl' (+) (fromInteger 0) $ fmap (depreciateInterval dep ptime) ivals
+
+depreciateInterval :: Depreciation -> UTCTime -> LogInterval -> NDT
+depreciateInterval dep ptime ival = let depreciation :: Rational
+                                        depreciation = depf dep $ diffUTCTime ptime (end . workInterval $ ival)
+                                    in  fromRational $ depreciation * (toRational . ilen . workInterval $ ival)
 
 intervals :: Foldable f => f LogEntry -> WorkIndex
 intervals = F.foldl' appendLogEntry M.empty 
