@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 
 import Test.Tasty
 import Test.Tasty.QuickCheck as QC
@@ -25,9 +25,9 @@ unitTests = testGroup "Unit Tests" [testCase "deriveIntervals" deriveIntervalsTe
 
 deriveIntervalsTest :: Assertion
 deriveIntervalsTest = let 
-  testAddrs = catMaybes [ parseBtcAddr $ T.pack "123"
-                        , parseBtcAddr $ T.pack "456"
-                        , parseBtcAddr $ T.pack "789" ]
+  testAddrs = catMaybes [ parseBtcAddr "123"
+                        , parseBtcAddr "456"
+                        , parseBtcAddr "789" ]
 
   starts    = catMaybes [ parseISO8601 "2014-01-01T00:08:00Z"
                         , parseISO8601 "2014-02-12T00:12:00Z" ]
