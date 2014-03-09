@@ -29,8 +29,7 @@ library
     text                      >= 0.11    && < 0.12,
     time                      >= 1.1     && < 1.5,
     iso8601-time              == 0.1.1,
-    containers                == 0.5.*,
-    postgresql-simple         >= 0.3.10
+    containers                == 0.5.*
 
 Test-Suite test-ananke
   default-language:   Haskell2010
@@ -42,6 +41,7 @@ Test-Suite test-ananke
     tasty-hunit,
     tasty-quickcheck,
     base,
+    bifunctors,              
     text,
     time,
     containers                == 0.5.*,
