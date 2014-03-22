@@ -5,8 +5,10 @@ module Ananke.TimeLog
   , LogInterval(..)
   , WorkEvent(..)
   , WorkIndex
+  , Depreciation(..)
   , payouts
   , intervals
+  , linearDepreciation
   ) where
 
 import Ananke
@@ -102,3 +104,7 @@ reduceToIntervals ((LogEntry addr (StopWork end)) : (LogEntry _ (StartWork start
   (xs, (LogInterval addr (interval start end)) : intervals)
 reduceToIntervals misaligned = misaligned
 
+linearDepreciation :: Depreciation
+linearDepreciation = 
+  let depf = undefined
+  Depreciation depf

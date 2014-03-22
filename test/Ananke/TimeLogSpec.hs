@@ -19,7 +19,7 @@ import Data.Time.ISO8601
 
 spec :: Spec
 spec = do
-  describe "log reduction" $ do
+  describe "log reduction to intervals" $ do
     it "reduces a log to a work index" $ do
       let testAddrs = catMaybes [ parseBtcAddr "123"
                                 , parseBtcAddr "456"
