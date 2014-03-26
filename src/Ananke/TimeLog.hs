@@ -13,20 +13,21 @@ module Ananke.TimeLog
 
 import Ananke
 import Ananke.Interval
-import Data.Bifunctor
-import Data.Function
-import Data.Aeson
-import qualified Data.Aeson.Types as A
-import Data.Foldable as F
-import Data.Map.Strict as M
-import qualified Data.Text as T
-import Data.Time.Clock
-import Data.Typeable.Internal
--- import Database.PostgreSQL.Simple.FromRow
--- import Database.PostgreSQL.Simple.FromField
 import Control.Applicative
 import Control.Monad
 import Control.Exception.Base
+import Data.Bifunctor
+import Data.Function
+import Data.Aeson
+import Data.Foldable as F
+import Data.Map.Strict as M
+import Data.Ratio
+import Data.Time.Clock
+import Data.Typeable.Internal
+import qualified Data.Aeson.Types as A
+import qualified Data.Text as T
+-- import Database.PostgreSQL.Simple.FromRow
+-- import Database.PostgreSQL.Simple.FromField
 
 import Debug.Trace
 
@@ -79,7 +80,7 @@ payouts dep ptime widx =
   let addIntervalDiff :: (Functor f, Foldable f) => NDT -> f Interval -> (NDT, NDT)
       addIntervalDiff total ivals = (\dt -> (dt + total, dt)) $ workCredit dep ptime ivals 
       (totalTime, keyTimes) = M.mapAccum addIntervalDiff (fromInteger 0) $ M.map snd widx
-  in M.map (\kt -> toRational $ kt / totalTime) keyTimes
+  in  M.map (\kt -> toRational $ kt / totalTime) keyTimes
 
 {-|
   Given a depreciation function, the "current" time, and a foldable functor of log intervals,
@@ -100,14 +101,14 @@ depreciateInterval dep ptime ival =
 intervals :: Foldable f => f LogEntry -> WorkIndex
 intervals logEntries = 
   let logSum = F.foldl' appendLogEntry M.empty logEntries
-  in M.map (bimap (fmap event) (fmap workInterval)) $ logSum
+  in  M.map (bimap (fmap event) (fmap workInterval)) $ logSum
 
 type RawIndex = Map BtcAddr ([LogEntry], [LogInterval])
 
 appendLogEntry :: RawIndex -> LogEntry -> RawIndex
 appendLogEntry workIndex entry = 
   let acc = reduceToIntervals $ pushEntry entry workIndex 
-  in insert (btcAddr entry) acc workIndex
+  in  insert (btcAddr entry) acc workIndex
 
 pushEntry :: LogEntry -> RawIndex -> ([LogEntry], [LogInterval])
 pushEntry entry = first (entry :) . findWithDefault ([], []) (btcAddr entry) 
@@ -118,9 +119,23 @@ reduceToIntervals ((LogEntry addr (StopWork end)) : (LogEntry _ (StartWork start
 reduceToIntervals misaligned = 
   misaligned
 
-linearDepreciation :: Depreciation
-linearDepreciation = 
-  let depf ndt = undefined
+newtype Months = Months Integer 
+
+monthsLength :: Months -> NominalDiffTime
+monthsLength (Months i) = fromInteger $ 60 * 60 * 24 * 30 * i
+
+linearDepreciation :: Months -> Months -> Depreciation
+linearDepreciation undepPeriod depPeriod = 
+  let maxDepreciable :: NominalDiffTime
+      maxDepreciable = monthsLength undepPeriod + monthsLength depPeriod 
+
+      zeroTime :: NominalDiffTime
+      zeroTime = fromInteger 0
+
+      depf :: NominalDiffTime -> Rational
+      depf dt = if dt < monthsLength undepPeriod 
+        then 1
+        else toRational (max zeroTime (maxDepreciable - dt)) / toRational maxDepreciable
   in Depreciation depf
 
 -- data LogEventParseError = LogEventParseError String deriving (Show, Typeable)
