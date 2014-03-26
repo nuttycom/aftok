@@ -17,6 +17,7 @@ import Data.Bifunctor
 import Data.Function
 import Data.Foldable as F
 import Data.Map.Strict as M
+import Data.Ratio
 import Data.Time.Clock
 import Data.Typeable.Internal
 -- import Database.PostgreSQL.Simple.FromRow
@@ -104,7 +105,21 @@ reduceToIntervals ((LogEntry addr (StopWork end)) : (LogEntry _ (StartWork start
   (xs, (LogInterval addr (interval start end)) : intervals)
 reduceToIntervals misaligned = misaligned
 
-linearDepreciation :: Depreciation
-linearDepreciation = 
-  let depf = undefined
-  Depreciation depf
+newtype Months = Months Integer 
+
+monthsLength :: Months -> NominalDiffTime
+monthsLength (Months i) = fromInteger $ 60 * 60 * 24 * 30 * i
+
+linearDepreciation :: Months -> Months -> Depreciation
+linearDepreciation undepPeriod depPeriod = 
+  let maxDepreciable :: NominalDiffTime
+      maxDepreciable = monthsLength undepPeriod + monthsLength depPeriod 
+
+      zeroTime :: NominalDiffTime
+      zeroTime = fromInteger 0
+
+      depf :: NominalDiffTime -> Rational
+      depf dt = if dt < monthsLength undepPeriod 
+        then 1
+        else toRational (max zeroTime (maxDepreciable - dt)) / toRational maxDepreciable
+  in Depreciation depf
