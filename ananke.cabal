@@ -26,6 +26,7 @@ library
     base                      >= 4.4     && < 5,
     lens                      >= 3.7.6   && < 3.11,
     bifunctors,              
+    aeson                     >= 0.7.0.2,
     text                      >= 0.11    && < 0.12,
     time                      >= 1.1     && < 1.5,
     iso8601-time              == 0.1.1,
@@ -39,12 +40,13 @@ Test-Suite spec
   build-depends:      
     base,
     hspec >= 1.8.1,
+    ananke,
+    aeson,
     bifunctors,              
-    text,
-    time,
     containers,
     iso8601-time,
-    ananke
+    text,
+    time
 
 Executable ananke-server
   default-language:   Haskell2010

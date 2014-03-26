@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, ScopedTypeVariables #-}
+{-# LANGUAGE DeriveDataTypeable, ScopedTypeVariables, OverloadedStrings #-}
 
 module Ananke.TimeLog 
   ( LogEntry(..)
@@ -15,37 +15,48 @@ import Ananke
 import Ananke.Interval
 import Data.Bifunctor
 import Data.Function
+import Data.Aeson
+import qualified Data.Aeson.Types as A
 import Data.Foldable as F
 import Data.Map.Strict as M
+import qualified Data.Text as T
 import Data.Time.Clock
 import Data.Typeable.Internal
 -- import Database.PostgreSQL.Simple.FromRow
 -- import Database.PostgreSQL.Simple.FromField
 import Control.Applicative
+import Control.Monad
 import Control.Exception.Base
+
+import Debug.Trace
 
 data WorkEvent = StartWork { logTime :: UTCTime }
               | StopWork  { logTime :: UTCTime } deriving (Show, Eq)
 
-data LogEventParseError = LogEventParseError String deriving (Show, Typeable)
-instance Exception LogEventParseError where
+instance FromJSON WorkEvent where
+  parseJSON (Object jv) = do
+    t <- jv .: "type" :: A.Parser T.Text
+    case t of
+      "start" -> StartWork <$> jv .: "timestamp"     
+      "stop"  -> StopWork <$> jv .: "timestamp"
+      _ -> mzero
 
--- instance FromField WorkEvent where
---   fromField f m = let fromText "start_work" = return StartWork
---                       fromText "stop_work"  = return StopWork
---                       fromText a = conversionError $ LogEventParseError $ "unrecognized log event type " ++ a
---                   in fromField f m >>= fromText
+data LogEntry = LogEntry 
+  { btcAddr :: BtcAddr
+  , event :: WorkEvent 
+  } deriving (Show, Eq)
 
-data LogEntry = LogEntry { btcAddr :: BtcAddr
-                         , event :: WorkEvent 
-                         } deriving (Show, Eq)
+instance FromJSON LogEntry where
+  parseJSON (Object jv) = LogEntry <$>
+                          jv .: "btcAddr" <*>
+                          jv .: "workEvent"
 
--- instance FromRow LogEntry where
---   fromRow = LogEntry <$> field <*> field <*> field 
+  parseJSON _ = mzero
 
-data LogInterval = LogInterval { intervalBtcAddr :: BtcAddr
-                               , workInterval :: Interval
-                               } deriving (Show, Eq) 
+data LogInterval = LogInterval 
+  { intervalBtcAddr :: BtcAddr
+  , workInterval :: Interval
+  } deriving (Show, Eq) 
 
 type WorkIndex = Map BtcAddr ([WorkEvent], [Interval])
 type Payouts = Map BtcAddr Rational
@@ -87,7 +98,9 @@ depreciateInterval dep ptime ival =
   in  fromRational $ depreciation * (toRational . ilen $ ival)
 
 intervals :: Foldable f => f LogEntry -> WorkIndex
-intervals logEntries = M.map (bimap (fmap event) (fmap workInterval)) $ F.foldl' appendLogEntry M.empty logEntries
+intervals logEntries = 
+  let logSum = F.foldl' appendLogEntry M.empty logEntries
+  in M.map (bimap (fmap event) (fmap workInterval)) $ logSum
 
 type RawIndex = Map BtcAddr ([LogEntry], [LogInterval])
 
@@ -102,9 +115,23 @@ pushEntry entry = first (entry :) . findWithDefault ([], []) (btcAddr entry)
 reduceToIntervals :: ([LogEntry], [LogInterval]) -> ([LogEntry], [LogInterval])
 reduceToIntervals ((LogEntry addr (StopWork end)) : (LogEntry _ (StartWork start)) : xs, intervals) = 
   (xs, (LogInterval addr (interval start end)) : intervals)
-reduceToIntervals misaligned = misaligned
+reduceToIntervals misaligned = 
+  misaligned
 
 linearDepreciation :: Depreciation
 linearDepreciation = 
-  let depf = undefined
-  Depreciation depf
+  let depf ndt = undefined
+  in Depreciation depf
+
+-- data LogEventParseError = LogEventParseError String deriving (Show, Typeable)
+-- instance Exception LogEventParseError where
+
+-- instance FromField WorkEvent where
+--   fromField f m = let fromText "start_work" = return StartWork
+--                       fromText "stop_work"  = return StopWork
+--                       fromText a = conversionError $ LogEventParseError $ "unrecognized log event type " ++ a
+--                   in fromField f m >>= fromText
+
+-- instance FromRow LogEntry where
+--   fromRow = LogEntry <$> field <*> field <*> field 
+

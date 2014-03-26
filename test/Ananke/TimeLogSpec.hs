@@ -9,6 +9,7 @@ import Ananke.TimeLog as L
 
 import Control.Arrow
 import Control.Monad
+import Data.Aeson
 import Data.Bifunctor as B
 import Data.Maybe
 import Data.Monoid
@@ -19,6 +20,12 @@ import Data.Time.ISO8601
 
 spec :: Spec
 spec = do
+  describe "work event parsing" $ do
+    it "parses a start event" $ do
+      let startText = "{\"type\":\"start\", \"timestamp\":\"2014-03-22T11:37:08Z\"}"
+          expected = fmap StartWork $ parseISO8601 "2014-03-22T11:37:08Z"
+      (decode startText) `shouldBe` expected
+      
   describe "log reduction to intervals" $ do
     it "reduces a log to a work index" $ do
       let testAddrs = catMaybes [ parseBtcAddr "123"
