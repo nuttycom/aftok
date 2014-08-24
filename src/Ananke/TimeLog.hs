@@ -15,24 +15,18 @@ import Ananke
 import Ananke.Interval
 import Control.Applicative
 import Control.Monad
-import Control.Exception.Base
 import Data.Bifunctor
-import Data.Function
+import Data.Function()
 import Data.Aeson
 import Data.Foldable as F
 import Data.Map.Strict as M
-import Data.Ratio
+import Data.Ratio()
 import Data.Time.Clock
-import Data.Typeable.Internal
 import qualified Data.Aeson.Types as A
 import qualified Data.Text as T
--- import Database.PostgreSQL.Simple.FromRow
--- import Database.PostgreSQL.Simple.FromField
-
-import Debug.Trace
 
 data WorkEvent = StartWork { logTime :: UTCTime }
-              | StopWork  { logTime :: UTCTime } deriving (Show, Eq)
+               | StopWork  { logTime :: UTCTime } deriving (Show, Eq)
 
 instance FromJSON WorkEvent where
   parseJSON (Object jv) = do
@@ -41,6 +35,7 @@ instance FromJSON WorkEvent where
       "start" -> StartWork <$> jv .: "timestamp"     
       "stop"  -> StopWork <$> jv .: "timestamp"
       _ -> mzero
+  parseJSON _ = mzero
 
 data LogEntry = LogEntry 
   { btcAddr :: BtcAddr
@@ -114,8 +109,8 @@ pushEntry :: LogEntry -> RawIndex -> ([LogEntry], [LogInterval])
 pushEntry entry = first (entry :) . findWithDefault ([], []) (btcAddr entry) 
 
 reduceToIntervals :: ([LogEntry], [LogInterval]) -> ([LogEntry], [LogInterval])
-reduceToIntervals ((LogEntry addr (StopWork end)) : (LogEntry _ (StartWork start)) : xs, intervals) = 
-  (xs, (LogInterval addr (interval start end)) : intervals)
+reduceToIntervals ((LogEntry addr (StopWork end')) : (LogEntry _ (StartWork start')) : xs, acc) = 
+  (xs, (LogInterval addr (interval start' end')) : acc) 
 reduceToIntervals misaligned = 
   misaligned
 
@@ -132,11 +127,11 @@ linearDepreciation undepPeriod depPeriod =
       zeroTime :: NominalDiffTime
       zeroTime = fromInteger 0
 
-      depf :: NominalDiffTime -> Rational
-      depf dt = if dt < monthsLength undepPeriod 
+      depf' :: NominalDiffTime -> Rational
+      depf' dt = if dt < monthsLength undepPeriod 
         then 1
         else toRational (max zeroTime (maxDepreciable - dt)) / toRational maxDepreciable
-  in Depreciation depf
+  in Depreciation depf'
 
 -- data LogEventParseError = LogEventParseError String deriving (Show, Typeable)
 -- instance Exception LogEventParseError where

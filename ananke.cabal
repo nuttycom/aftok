@@ -8,80 +8,50 @@ Maintainer:          kris@hylotech.com
 Stability:           Experimental
 Category:            Web
 Build-type:          Simple
-Cabal-version:       >= 1.10
-
-Flag development
-  Description: Whether to build the server in development (interpreted) mode
-  Default: False
+Cabal-version:       >= 1.20
 
 library
   default-language:   Haskell2010
+  ghc-options:        -Wall -Werror
   hs-source-dirs:     src
-  exposed-modules:
-    Ananke
-    Ananke.TimeLog
-    Ananke.Interval
-
-  build-depends:
-    base                      >= 4.4     && < 5,
-    lens                      >= 3.7.6   && < 3.11,
-    bifunctors,              
-    aeson                     >= 0.7.0.2,
-    text                      >= 0.11    && < 0.12,
-    time                      >= 1.1     && < 1.5,
-    iso8601-time              == 0.1.1,
-    containers                == 0.5.*
+  exposed-modules:    Ananke
+                      Ananke.TimeLog
+                      Ananke.Interval
+  build-depends:      base                      >= 4.4     && < 5
+                    , lens                      >= 3.7.6   && < 3.11
+                    , bifunctors
+                    , aeson                     >= 0.7.0.2
+                    , text                      >= 0.11    && < 0.12
+                    , time                      >= 1.1     && < 1.5
+                    , iso8601-time              == 0.1.1
+                    , containers                == 0.5.*
 
 Test-Suite spec
   default-language:   Haskell2010
   type:               exitcode-stdio-1.0
+  ghc-options:        -Wall -Werror
   hs-source-dirs:     test
   main-is:            Spec.hs
-  build-depends:      
-    base,
-    hspec >= 1.8.1,
-    ananke,
-    aeson,
-    bifunctors,              
-    containers,
-    iso8601-time,
-    text,
-    time
+  build-depends:      base
+                    , hspec >= 1.8.1
+                    , ananke
+                    , aeson
+                    , bifunctors
+                    , containers
+                    , iso8601-time
+                    , text
+                    , time
 
 Executable ananke-server
   default-language:   Haskell2010
+  ghc-options:        -Wall -Werror
   hs-source-dirs:     server
   main-is:            Main.hs
-  build-depends:
-    base,
-    lens,
-    text,
-    bytestring                >= 0.9.1   && < 0.11,
-    snap                      >= 0.13    && < 0.14,
-    snap-core                 >= 0.9     && < 0.11,
-    snap-server               >= 0.9     && < 0.11,
-    snap-loader-static        >= 0.9     && < 0.10,
-    heist                     >= 0.13    && < 0.14,
-    MonadCatchIO-transformers >= 0.2.1   && < 0.4,
-    postgresql-simple         >= 0.3.10,
-    snaplet-postgresql-simple >= 0.4.1,
-    ananke
-
-  if flag(development)
-    build-depends:
-      snap-loader-dynamic == 0.10.*
-    cpp-options: -DDEVELOPMENT
-    -- In development mode, speed is already going to suffer, so skip
-    -- the fancy optimization flags.  Additionally, disable all
-    -- warnings.  The hint library doesn't give an option to execute
-    -- compiled code when there were also warnings, so disabling
-    -- warnings allows quicker workflow.
-    ghc-options: -threaded -w
-  else
-    if impl(ghc >= 6.12.0)
-      ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2
-                   -fno-warn-orphans -fno-warn-unused-do-bind
-    else
-      ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2
-                   -fno-warn-orphans
-
+  build-depends:      base
+                    , text
+                    , time
+                    , mtl
+                    , bytestring  >= 0.9.1   && < 0.11
+                    , scotty >=0.7 && <0.8
+                    , sqlite == 0.5.2.2
+                    , ananke

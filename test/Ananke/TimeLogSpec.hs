@@ -8,15 +8,13 @@ import Ananke.Interval as I
 import Ananke.TimeLog as L
 
 import Control.Arrow
-import Control.Monad
+--import Control.Monad
 import Data.Aeson
 import Data.Bifunctor as B
 import Data.Maybe
-import Data.Monoid
+--import Data.Monoid
 import Data.Map.Strict as M
-import qualified Data.Text as T
 import Data.Time.ISO8601
-
 
 spec :: Spec
 spec = do
@@ -41,14 +39,14 @@ spec = do
           testLogEntries :: [LogEntry]
           testLogEntries = do
             addr <- testAddrs
-            (start, end) <- zip starts ends
-            [ LogEntry addr (StartWork start), LogEntry addr (StopWork end) ]
+            (start', end') <- zip starts ends
+            [ LogEntry addr (StartWork start'), LogEntry addr (StopWork end') ]
 
           testIntervals :: [LogInterval]
           testIntervals = do
             addr <- testAddrs
-            (start, end) <- zip starts ends
-            return $ LogInterval addr (I.interval start end)
+            (start', end') <- zip starts ends
+            return $ LogInterval addr (I.interval start' end')
 
           expected0 :: Map BtcAddr ([LogEntry], [LogInterval])
           expected0 = M.map (const [] &&& id) . fromListWith (++) . fmap (intervalBtcAddr &&& return) $ testIntervals
