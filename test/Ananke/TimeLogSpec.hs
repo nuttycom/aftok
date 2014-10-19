@@ -1,11 +1,11 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 
-module Ananke.TimeLogSpec where
+module Quixotic.TimeLogSpec where
 
 import Test.Hspec
-import Ananke
-import Ananke.Interval as I
-import Ananke.TimeLog as L
+import Quixotic
+import Quixotic.Interval as I
+import Quixotic.TimeLog as L
 
 import Control.Arrow
 --import Control.Monad

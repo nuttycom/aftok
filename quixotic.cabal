@@ -1,0 +1,64 @@
+Name:          quixotic
+Version:       0.1
+Synopsis:      The Quixotic Collaboration Platform
+Description:   A service to enable groups of trusted contributors to be paid for their efforts 
+               in collaboratively developing commercial applications.
+License:       AllRightsReserved
+Author:        Kris Nuttycombe
+Maintainer:    kris@nutty.lang
+Stability:     Experimental
+Category:      Web
+Build-type:    Simple
+Cabal-version: >= 1.20
+
+library
+  default-language:   Haskell2010
+  ghc-options:        -Wall -Werror
+  hs-source-dirs:     src
+  exposed-modules:    Quixotic
+                      Quixotic.Database
+                      Quixotic.Database.SQLite
+                      Quixotic.Interval
+                      Quixotic.TimeLog
+  build-depends:      base                 >= 4.7.0.1
+                    , bifunctors
+                    , aeson                >= 0.8.0.2
+                    , cassandra-cql        >= 0.4.0.1
+                    , containers           >= 0.5.5.1
+                    , either               >= 4.3.1
+                    , lens                 >= 4.4.0.2
+                    , old-locale
+                    , sqlite               == 0.5.2.2
+                    , text                 >= 1.2.0.0
+                    , time                 >= 1.4.2    && < 1.5
+
+Test-Suite spec
+  default-language:   Haskell2010
+  type:               exitcode-stdio-1.0
+  ghc-options:        -Wall -Werror
+  hs-source-dirs:     test
+  main-is:            Spec.hs
+  build-depends:      quixotic
+                    , base
+                    , aeson
+                    , containers
+                    , text
+                    , time
+                    , hspec >= 1.8.1
+
+Executable quixotic-server
+  default-language:   Haskell2010
+  ghc-options:        -Wall -Werror
+  hs-source-dirs:     server
+  main-is:            Main.hs
+  build-depends:      quixotic
+                    , base
+                    , aeson
+                    , containers
+                    , either
+                    , mtl
+                    , text
+                    , time
+                    , optparse-applicative >= 0.9.0    && < 0.10
+                    , bytestring           >= 0.9.1    && < 0.11
+                    , scotty               >= 0.9.0

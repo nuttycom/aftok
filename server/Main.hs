@@ -2,17 +2,25 @@
 
 module Main (main) where
 
-import Data.Text.Lazy
-import Web.Scotty
-import Data.Time.Clock
-import Database.SQLite
+import Control.Monad
 import Control.Monad.Trans (liftIO)
-import Ananke
+import Control.Monad.Trans.Either
+import qualified Data.Aeson as A
+import Data.Map
+import Data.Time.Clock
+import Data.Time.Format
+import Quixotic
+import Quixotic.Database
+import Quixotic.TimeLog
+import Web.Scotty
+
+port :: Int
+port = 8028
 
 main :: IO ()
-main = do
-  db <- openConnection "ananke.db"
-  _  <- defineTableOpt db True eventTable
+
+dbMain :: a -> ADB a -> IO ()
+dbMain db adb = do
   scotty port $ do
 {--
 Log the start time of a work interval.
@@ -21,25 +29,30 @@ Record change of a work interval start.
 Record change of a work interval end.
 Given a trusted token, authorize another token.
 --}
-    post "/logStart/:btcAddr" $ do
-      addr <- param "btcAddr"
-      timestamp <- liftIO getCurrentTime
-      liftIO $ recordStart db (btcAddr addr) timestamp
+    post "/logStart/:btcAddr" $ handleLogRequest adb StartWork
+    post "/logEnd/:btcAddr" $ handleLogRequest db StopWork
 
+    get "/payouts" $ currentPayouts adb
 
-recordStart :: SQLiteHandle -> BtcAddr -> UTCTime -> IO ()
-recordStart = undefined
+handleLogRequest :: ADB a -> (UTCTime -> WorkEvent) -> ActionM ()
+handleLogRequest db ev = do 
+  BtcAddrParam addr <- param "btcAddr"
+  timestamp <- liftIO getCurrentTime
+  liftIO . recordEvent db $ LogEntry addr (ev timestamp)
 
-port :: Int
-port = 8028
+currentPayouts :: ADB a -> ActionM ()
+currentPayouts db = do 
+  ptime <- liftIO getCurrentTime
+  let dep = linearDepreciation (Months 6) (Months 60) 
+  widx <- undefined 
+  json . PayoutsResponse $ payouts dep ptime widx
 
-eventTable :: SQLTable
-eventTable = Table "workEvents" [ Column "btcAddr"   (SQLVarChar 256) []
-                                , Column "event"     (SQLVarChar 64) []
-                                , Column "eventTime" (SQLDateTime DATETIME) [] ] []
-
-newtype BtcAddrParam = BtcAddrParam { btcAddr :: BtcAddr }
+newtype BtcAddrParam = BtcAddrParam BtcAddr 
 
 instance Parsable BtcAddrParam where
-  parseParam t = maybe (Left "Invalid BTC address") (Right . BtcAddrParam) $ (parseBtcAddr . toStrict) t
+  parseParam t = maybe (Left "Invalid BTC address") (Right . BtcAddrParam) $ (parseBtcAddr . LT.toStrict) t
 
+newtype PayoutsResponse = PayoutsResponse Payouts
+
+instance A.ToJSON PayoutsResponse where
+  toJSON (PayoutsResponse p) = A.toJSON (mapKeys address p)

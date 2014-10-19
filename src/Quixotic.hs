@@ -1,4 +1,4 @@
-module Ananke
+module Quixotic
   ( BtcAddr(address)
   , parseBtcAddr
   ) where

@@ -1,4 +1,4 @@
-module Ananke.Interval 
+module Quixotic.Interval 
   ( Interval, interval, start, end, ilen
   ) where
 

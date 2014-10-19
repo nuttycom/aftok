@@ -1,18 +1,21 @@
 {-# LANGUAGE DeriveDataTypeable, ScopedTypeVariables, OverloadedStrings #-}
 
-module Ananke.TimeLog 
+module Quixotic.TimeLog 
   ( LogEntry(..)
   , LogInterval(..)
   , WorkEvent(..)
   , WorkIndex
   , Depreciation(..)
+  , Months(Months)
+  , Payouts
+  , eventName
   , payouts
   , intervals
   , linearDepreciation
   ) where
 
-import Ananke
-import Ananke.Interval
+import Quixotic
+import Quixotic.Interval
 import Control.Applicative
 import Control.Monad
 import Data.Bifunctor
@@ -27,6 +30,10 @@ import qualified Data.Text as T
 
 data WorkEvent = StartWork { logTime :: UTCTime }
                | StopWork  { logTime :: UTCTime } deriving (Show, Eq)
+
+eventName :: WorkEvent -> String
+eventName (StartWork _) = "start"
+eventName (StopWork  _) = "stop"
 
 instance FromJSON WorkEvent where
   parseJSON (Object jv) = do
