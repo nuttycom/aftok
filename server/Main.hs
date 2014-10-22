@@ -1,16 +1,18 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables, OverloadedStrings #-}
 
 module Main (main) where
 
-import Control.Monad
 import Control.Monad.Trans (liftIO)
 import Control.Monad.Trans.Either
 import qualified Data.Aeson as A
 import Data.Map
+import qualified Data.Text as T
+import qualified Data.Text.Lazy as LT
 import Data.Time.Clock
-import Data.Time.Format
+import Database.SQLite
 import Quixotic
 import Quixotic.Database
+import Quixotic.Database.SQLite
 import Quixotic.TimeLog
 import Web.Scotty
 
@@ -18,8 +20,12 @@ port :: Int
 port = 8028
 
 main :: IO ()
+main = do 
+  db <- openConnection "quixotic.db"
+  adb <- sqliteADB db
+  dbMain db adb
 
-dbMain :: a -> ADB a -> IO ()
+dbMain :: a -> ADB IO a -> IO ()
 dbMain db adb = do
   scotty port $ do
 {--
@@ -29,23 +35,29 @@ Record change of a work interval start.
 Record change of a work interval end.
 Given a trusted token, authorize another token.
 --}
-    post "/logStart/:btcAddr" $ handleLogRequest adb StartWork
-    post "/logEnd/:btcAddr" $ handleLogRequest db StopWork
+    post "/logStart/:btcAddr" $ handleLogRequest db adb StartWork
+    post "/logEnd/:btcAddr" $ handleLogRequest db adb StopWork
 
-    get "/payouts" $ currentPayouts adb
+    get "/payouts" $ currentPayouts db adb
 
-handleLogRequest :: ADB a -> (UTCTime -> WorkEvent) -> ActionM ()
-handleLogRequest db ev = do 
+handleLogRequest :: a -> ADB IO a -> (UTCTime -> WorkEvent) -> ActionM ()
+handleLogRequest db adb ev = do 
   BtcAddrParam addr <- param "btcAddr"
   timestamp <- liftIO getCurrentTime
-  liftIO . recordEvent db $ LogEntry addr (ev timestamp)
+  liftIO $ recordEvent adb db $ LogEntry addr (ev timestamp)
 
-currentPayouts :: ADB a -> ActionM ()
-currentPayouts db = do 
+currentPayouts :: a -> ADB IO a -> ActionM ()
+currentPayouts db adb = do 
   ptime <- liftIO getCurrentTime
   let dep = linearDepreciation (Months 6) (Months 60) 
-  widx <- undefined 
-  json . PayoutsResponse $ payouts dep ptime widx
+
+      buildPayoutsResponse :: WorkIndex -> ActionM ()
+      buildPayoutsResponse widx = json . PayoutsResponse $ payouts dep ptime widx
+
+      payoutsAction :: EitherT T.Text ActionM WorkIndex
+      payoutsAction = mapEitherT liftIO $ readWorkIndex adb db 
+
+  eitherT (raise . LT.fromStrict) buildPayoutsResponse payoutsAction
 
 newtype BtcAddrParam = BtcAddrParam BtcAddr 
 

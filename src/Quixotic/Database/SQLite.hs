@@ -1,3 +1,5 @@
+{-# LANGUAGE ScopedTypeVariables, OverloadedStrings #-}
+
 module Quixotic.Database.SQLite (sqliteADB) where
 
 import Control.Monad
@@ -9,11 +11,11 @@ import Database.SQLite
 import Quixotic
 import qualified Quixotic.Database as D
 import Quixotic.TimeLog
-import System.Locale
+import System.Locale (defaultTimeLocale)
 
-sqliteADB :: String -> IO (D.ADB IO SQLiteHandle)
-sqliteADB dbName = do
-  db <- openConnection "quixotic.db"
+sqliteADB :: SQLiteHandle -> IO (D.ADB IO SQLiteHandle)
+sqliteADB db = do
+  _ <- defineTableOpt db True eventTable
   return $ D.ADB recordEvent readWorkIndex 
 
 recordEvent :: SQLiteHandle -> LogEntry -> IO ()
@@ -22,10 +24,14 @@ recordEvent h (LogEntry ba ev) =
                                   , ("event", eventName ev)
                                   , ("eventTime", formatSqlTime (logTime ev)) ]
 
-readWorkIndex :: SQLiteHandle -> EitherT String IO WorkIndex
+readWorkIndex :: SQLiteHandle -> EitherT T.Text IO WorkIndex
 readWorkIndex db = do
-  rows <- EitherT $ execStatement db "SELECT btcAddr, event, eventTime from workEvents"
-  undefined
+  let baseResult = EitherT $ execStatement db "SELECT btcAddr, event, eventTime from workEvents"
+  rows <- bimapEitherT T.pack id baseResult
+  return . intervals $ fmap parseRow (join rows)
+
+parseRow :: Row Value -> LogEntry
+parseRow = undefined
 
 formatSqlTime :: UTCTime -> String
 formatSqlTime t = formatTime defaultTimeLocale "%c" t

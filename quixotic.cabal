@@ -57,6 +57,7 @@ Executable quixotic-server
                     , containers
                     , either
                     , mtl
+                    , sqlite
                     , text
                     , time
                     , optparse-applicative >= 0.9.0    && < 0.10
