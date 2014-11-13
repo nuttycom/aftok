@@ -20,7 +20,7 @@ library
                       Quixotic.Database.SQLite
                       Quixotic.Interval
                       Quixotic.TimeLog
-  build-depends:      base                 >= 4.7.0.1
+  build-depends:      base
                     , bifunctors
                     , aeson                >= 0.8.0.2
                     , cassandra-cql        >= 0.4.0.1
@@ -60,6 +60,7 @@ Executable quixotic-server
                     , sqlite
                     , text
                     , time
+                    , configurator         == 0.2.*
                     , optparse-applicative >= 0.9.0    && < 0.10
                     , bytestring           >= 0.9.1    && < 0.11
                     , scotty               >= 0.9.0

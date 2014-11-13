@@ -2,9 +2,11 @@
 
 module Main (main) where
 
+import Control.Applicative
 import Control.Monad.Trans (liftIO)
 import Control.Monad.Trans.Either
 import qualified Data.Aeson as A
+import qualified Data.Configurator as C
 import Data.Map
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as LT
@@ -16,18 +18,28 @@ import Quixotic.Database.SQLite
 import Quixotic.TimeLog
 import Web.Scotty
 
-port :: Int
-port = 8028
-
 main :: IO ()
 main = do 
-  db <- openConnection "quixotic.db"
+  cfg <- parseConfig "quixotic.cfg"
+  db <- openConnection $ dbName cfg
   adb <- sqliteADB db
-  dbMain db adb
+  dbMain cfg db adb
 
-dbMain :: a -> ADB IO a -> IO ()
-dbMain db adb = do
-  scotty port $ do
+data QConfig
+  = QConfig
+  { port :: Int
+  , dbName :: String
+  } 
+
+parseConfig :: FilePath -> IO QConfig
+parseConfig cfgFile = do 
+  cfg <- C.load [C.Required cfgFile]
+  QConfig <$> C.require cfg "port" <*> C.require cfg "db" 
+
+
+dbMain :: QConfig -> a -> ADB IO a -> IO ()
+dbMain cfg db adb = do
+  scotty (port cfg) $ do
 {--
 Log the start time of a work interval.
 Log completion of the current work interval.
@@ -67,4 +79,6 @@ instance Parsable BtcAddrParam where
 newtype PayoutsResponse = PayoutsResponse Payouts
 
 instance A.ToJSON PayoutsResponse where
-  toJSON (PayoutsResponse p) = A.toJSON (mapKeys address p)
+  toJSON (PayoutsResponse p) = A.toJSON m where
+    m :: Map T.Text Double
+    m = fmap fromRational (mapKeys address p)
