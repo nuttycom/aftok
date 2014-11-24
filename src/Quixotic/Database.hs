@@ -3,10 +3,10 @@ module Quixotic.Database
   ) where
 
 import Control.Monad.Trans.Either
-import Data.Text
 import Quixotic.TimeLog
+import qualified Data.Text as T
 
 data ADB m a = ADB 
   { recordEvent :: a -> LogEntry -> m ()
-  , readWorkIndex :: a -> EitherT Text m WorkIndex
+  , readWorkIndex :: a -> EitherT T.Text m WorkIndex
   }

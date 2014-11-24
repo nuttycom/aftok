@@ -22,7 +22,7 @@ sqliteADB db = do
 recordEvent :: SQLiteHandle -> LogEntry -> IO ()
 recordEvent h (LogEntry ba ev) = 
   void $ insertRow h "workEvents" [ ("btcAddr", T.unpack (address ba))
-                                  , ("event", eventName ev)
+                                  , ("event", T.unpack (eventName ev))
                                   , ("eventTime", formatSqlTime (logTime ev)) ]
 
 readWorkIndex :: SQLiteHandle -> EitherT T.Text IO WorkIndex

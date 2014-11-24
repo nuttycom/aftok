@@ -31,7 +31,7 @@ import qualified Data.Text as T
 data WorkEvent = StartWork { logTime :: UTCTime }
                | StopWork  { logTime :: UTCTime } deriving (Show, Eq)
 
-eventName :: WorkEvent -> String
+eventName :: WorkEvent -> T.Text
 eventName (StartWork _) = "start"
 eventName (StopWork  _) = "stop"
 
