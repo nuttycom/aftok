@@ -16,17 +16,25 @@ import Quixotic
 import Quixotic.Database
 import Quixotic.Database.SQLite
 import Quixotic.TimeLog
-import Web.Scotty
+import Snap.Core
+import Snap.Util.FileServe
+import Snap.Http.Server
 
 main :: IO ()
-main = do 
+main = do
   cfg <- parseConfig "quixotic.cfg"
   db <- openConnection $ dbName cfg
   adb <- sqliteADB db
-  dbMain cfg db adb
+  quickHttpServe $ site cfg
 
-data QConfig
-  = QConfig
+site :: QConfig -> a -> ADB IO a -> Snap ()
+site cfg db adb =
+    route [ ("logStart/:btcAddr", handleLogRequest db adb StartWork)
+          , ("logEnd/:btcAddr", handleLogRequest db adb StopWork)
+          , ("payouts", currentPayouts db adb)
+          ] 
+
+data QConfig = QConfig
   { port :: Int
   , dbName :: String
   } 
@@ -36,45 +44,25 @@ parseConfig cfgFile = do
   cfg <- C.load [C.Required cfgFile]
   QConfig <$> C.require cfg "port" <*> C.require cfg "db" 
 
-
-dbMain :: QConfig -> a -> ADB IO a -> IO ()
-dbMain cfg db adb = do
-  scotty (port cfg) $ do
-{--
-Log the start time of a work interval.
-Log completion of the current work interval.
-Record change of a work interval start.
-Record change of a work interval end.
-Given a trusted token, authorize another token.
---}
-    post "/logStart/:btcAddr" $ handleLogRequest db adb StartWork
-    post "/logEnd/:btcAddr" $ handleLogRequest db adb StopWork
-
-    get "/payouts" $ currentPayouts db adb
-
-handleLogRequest :: a -> ADB IO a -> (UTCTime -> WorkEvent) -> ActionM ()
+handleLogRequest :: a -> ADB IO a -> (UTCTime -> WorkEvent) -> Snap ()
 handleLogRequest db adb ev = do 
-  BtcAddrParam addr <- param "btcAddr"
+  addrBytes <- getParam "btcAddr"
+  let addr = fmap T.pack addrBytes >>= parseBtcAddr 
   timestamp <- liftIO getCurrentTime
   liftIO $ recordEvent adb db $ LogEntry addr (ev timestamp)
 
-currentPayouts :: a -> ADB IO a -> ActionM ()
+currentPayouts :: a -> ADB IO a -> Snap ()
 currentPayouts db adb = do 
   ptime <- liftIO getCurrentTime
   let dep = linearDepreciation (Months 6) (Months 60) 
 
-      buildPayoutsResponse :: WorkIndex -> ActionM ()
-      buildPayoutsResponse widx = json . PayoutsResponse $ payouts dep ptime widx
+      buildPayoutsResponse :: WorkIndex -> Snap ()
+      buildPayoutsResponse widx = writeBS . encode . PayoutsResponse $ payouts dep ptime widx
 
-      payoutsAction :: EitherT T.Text ActionM WorkIndex
+      payoutsAction :: EitherT T.Text Snap WorkIndex
       payoutsAction = mapEitherT liftIO $ readWorkIndex adb db 
 
   eitherT (raise . LT.fromStrict) buildPayoutsResponse payoutsAction
-
-newtype BtcAddrParam = BtcAddrParam BtcAddr 
-
-instance Parsable BtcAddrParam where
-  parseParam t = maybe (Left "Invalid BTC address") (Right . BtcAddrParam) $ (parseBtcAddr . LT.toStrict) t
 
 newtype PayoutsResponse = PayoutsResponse Payouts
 
