@@ -1,4 +1,8 @@
+{-# LANGUAGE NoImplicitPrelude #-}
+
 module Api.Worklog (resource) where
+
+import ClassyPrelude
 
 import Control.Applicative ((<$>))
 import Control.Concurrent.STM (atomically, modifyTVar, readTVar)
@@ -20,6 +24,5 @@ import Type.UserInfo (UserInfo (..))
 import Type.UserSignupError (UserSignupError (..))
 import qualified Type.User     as User
 import qualified Type.UserInfo as UserInfo
-
 
 resource :: 

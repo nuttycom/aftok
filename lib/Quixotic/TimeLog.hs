@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables, OverloadedStrings, NoImplicitPrelude #-}
 
 module Quixotic.TimeLog 
   ( LogEntry(..)
@@ -14,30 +14,28 @@ module Quixotic.TimeLog
   , linearDepreciation
   ) where
 
-import Quixotic
-import Quixotic.Interval
-import Control.Applicative
-import Control.Monad
-import Data.Bifunctor
-import Data.Function()
+import ClassyPrelude
+
 import Data.Aeson
 import Data.Foldable as F
-import Data.Map.Strict as M
+import Data.Map.Strict as MS
 import Data.Ratio()
 import Data.Time.Clock
 import qualified Data.Aeson.Types as A
-import qualified Data.Text as T
+
+import Quixotic
+import Quixotic.Interval
 
 data WorkEvent = StartWork { logTime :: UTCTime }
                | StopWork  { logTime :: UTCTime } deriving (Show, Eq)
 
-eventName :: WorkEvent -> T.Text
+eventName :: WorkEvent -> Text
 eventName (StartWork _) = "start"
 eventName (StopWork  _) = "stop"
 
 instance FromJSON WorkEvent where
   parseJSON (Object jv) = do
-    t <- jv .: "type" :: A.Parser T.Text
+    t <- jv .: "type" :: A.Parser Text
     case t of
       "start" -> StartWork <$> jv .: "timestamp"     
       "stop"  -> StopWork <$> jv .: "timestamp"
@@ -81,8 +79,8 @@ payouts :: Depreciation -> UTCTime -> WorkIndex -> Payouts
 payouts dep ptime widx = 
   let addIntervalDiff :: (Functor f, Foldable f) => NDT -> f Interval -> (NDT, NDT)
       addIntervalDiff total ivals = (\dt -> (dt + total, dt)) $ workCredit dep ptime ivals 
-      (totalTime, keyTimes) = M.mapAccum addIntervalDiff (fromInteger 0) $ M.map snd widx
-  in  M.map (\kt -> toRational $ kt / totalTime) keyTimes
+      (totalTime, keyTimes) = MS.mapAccum addIntervalDiff (fromInteger 0) $ MS.map snd widx
+  in  MS.map (\kt -> toRational $ kt / totalTime) keyTimes
 
 {-|
   Given a depreciation function, the "current" time, and a foldable functor of log intervals,
@@ -102,8 +100,8 @@ depreciateInterval dep ptime ival =
 
 intervals :: Foldable f => f LogEntry -> WorkIndex
 intervals logEntries = 
-  let logSum = F.foldl' appendLogEntry M.empty logEntries
-  in  M.map (bimap (fmap event) (fmap workInterval)) $ logSum
+  let logSum = F.foldl' appendLogEntry MS.empty logEntries
+  in  MS.map (bimap (fmap event) (fmap workInterval)) $ logSum
 
 type RawIndex = Map BtcAddr ([LogEntry], [LogInterval])
 
@@ -113,7 +111,7 @@ appendLogEntry workIndex entry =
   in  insert (btcAddr entry) acc workIndex
 
 pushEntry :: LogEntry -> RawIndex -> ([LogEntry], [LogInterval])
-pushEntry entry = first (entry :) . findWithDefault ([], []) (btcAddr entry) 
+pushEntry entry = first (entry :) . MS.findWithDefault ([], []) (btcAddr entry) 
 
 reduceToIntervals :: ([LogEntry], [LogInterval]) -> ([LogEntry], [LogInterval])
 reduceToIntervals ((LogEntry addr (StopWork end')) : (LogEntry _ (StartWork start')) : xs, acc) = 

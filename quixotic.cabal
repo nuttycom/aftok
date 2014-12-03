@@ -20,8 +20,9 @@ library
                       Quixotic.Database.SQLite
                       Quixotic.Interval
                       Quixotic.TimeLog
-  build-depends:      base
+  build-depends:      base                 >= 4     && < 5
                     , bifunctors
+                    , classy-prelude       >= 0.10.2
                     , aeson                >= 0.8.0.2
                     , cassandra-cql        >= 0.4.0.1
                     , containers           >= 0.5.5.1
@@ -53,7 +54,8 @@ Executable quixotic-server
   main-is:            Main.hs
   build-depends:      
       quixotic
-    , base                      >= 4     && < 5
+    , base
+    , classy-prelude            >= 0.10.2
     , aeson
     , containers
     , either

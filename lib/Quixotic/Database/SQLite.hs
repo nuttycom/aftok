@@ -1,18 +1,14 @@
-{-# LANGUAGE ScopedTypeVariables, OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables, OverloadedStrings, NoImplicitPrelude #-}
 
 module Quixotic.Database.SQLite (sqliteADB) where
 
-import Control.Monad
+import ClassyPrelude
 import Control.Monad.Trans.Either
-import Data.Maybe (catMaybes)
-import qualified Data.Text as T
-import Data.Time.Clock
-import Data.Time.Format
 import Database.SQLite
+
 import Quixotic
 import qualified Quixotic.Database as D
 import Quixotic.TimeLog
-import System.Locale (defaultTimeLocale)
 
 sqliteADB :: SQLiteHandle -> IO (D.ADB IO SQLiteHandle)
 sqliteADB db = do
@@ -21,14 +17,14 @@ sqliteADB db = do
 
 recordEvent :: SQLiteHandle -> LogEntry -> IO ()
 recordEvent h (LogEntry ba ev) = 
-  void $ insertRow h "workEvents" [ ("btcAddr", T.unpack (address ba))
-                                  , ("event", T.unpack (eventName ev))
+  void $ insertRow h "workEvents" [ ("btcAddr", unpack (address ba))
+                                  , ("event", unpack (eventName ev))
                                   , ("eventTime", formatSqlTime (logTime ev)) ]
 
-readWorkIndex :: SQLiteHandle -> EitherT T.Text IO WorkIndex
+readWorkIndex :: SQLiteHandle -> EitherT Text IO WorkIndex
 readWorkIndex db = do
   let baseResult = EitherT $ execStatement db "SELECT btcAddr, event, eventTime from workEvents"
-  rows <- bimapEitherT T.pack id baseResult
+  rows <- bimapEitherT pack id baseResult
   return . intervals . catMaybes $ fmap parseRow (join rows)
 
 parseRow :: Row Value -> Maybe LogEntry
@@ -39,7 +35,7 @@ parseRow row = do
   return $ LogEntry a ev
 
 valueAddr :: Value -> Maybe BtcAddr
-valueAddr (Text t) = parseBtcAddr $ T.pack t
+valueAddr (Text t) = parseBtcAddr $ pack t
 valueAddr _ = Nothing
 
 valueTime :: Value -> Maybe UTCTime

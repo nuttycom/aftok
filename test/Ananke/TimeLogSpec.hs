@@ -1,6 +1,8 @@
-{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables, NoImplicitPrelude #-}
 
 module Quixotic.TimeLogSpec where
+
+import ClassyPrelude
 
 import Test.Hspec
 import Quixotic

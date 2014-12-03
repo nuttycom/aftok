@@ -1,7 +1,10 @@
+{-# LANGUAGE NoImplicitPrelude #-}
+
 module Quixotic.Interval 
   ( Interval, interval, start, end, ilen
   ) where
 
+import ClassyPrelude
 import Data.Time.Clock
 import Data.Time.LocalTime()
 

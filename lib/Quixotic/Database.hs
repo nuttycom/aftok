@@ -1,3 +1,5 @@
+{-# LANGUAGE NoImplicitPrelude #-}
+
 module Quixotic.Database 
   ( ADB(..)
   ) where

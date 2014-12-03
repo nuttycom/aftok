@@ -1,12 +1,15 @@
+{-# LANGUAGE NoImplicitPrelude #-}
+
 module Quixotic
   ( BtcAddr(address)
   , parseBtcAddr
   ) where
 
+import ClassyPrelude
+
 import qualified Data.Text as T
 import Data.Aeson
 import Data.Aeson.Types as JV
-import Control.Monad
 --import Database.PostgreSQL.Simple.FromField
 
 newtype BtcAddr = BtcAddr { address :: T.Text } deriving (Show, Eq, Ord)

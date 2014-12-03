@@ -1,6 +1,8 @@
-{-# LANGUAGE ScopedTypeVariables, OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables, OverloadedStrings, NoImplicitPrelude #-}
 
 module Main (main) where
+
+import ClassyPrelude
 
 import Control.Applicative
 import Control.Monad.Trans (liftIO)
@@ -57,7 +59,7 @@ currentPayouts db adb = do
   let dep = linearDepreciation (Months 6) (Months 60) 
 
       buildPayoutsResponse :: WorkIndex -> Snap ()
-      buildPayoutsResponse widx = writeBS . encode . PayoutsResponse $ payouts dep ptime widx
+      buildPayoutsResponse widx = writeBS . A.encode . PayoutsResponse $ payouts dep ptime widx
 
       payoutsAction :: EitherT T.Text Snap WorkIndex
       payoutsAction = mapEitherT liftIO $ readWorkIndex adb db 
