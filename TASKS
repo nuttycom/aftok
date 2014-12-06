@@ -2,7 +2,6 @@ General:
   * Convert SQLite code to use Persistent
 
 User Interface:
-  * Evaluate transition back to Snap
   * Login
     * Evaluate OAuth options
   * Invite

@@ -25,16 +25,16 @@ import Snap.Http.Server
 main :: IO ()
 main = do
   cfg <- parseConfig "quixotic.cfg"
-  db <- openConnection $ dbName cfg
+  db  <- openConnection $ dbName cfg
   adb <- sqliteADB db
-  quickHttpServe $ site cfg
+  quickHttpServe $ runReaderT (site adb) db
 
-site :: QConfig -> a -> ADB IO a -> Snap ()
-site cfg db adb =
-    route [ ("logStart/:btcAddr", handleLogRequest db adb StartWork)
-          , ("logEnd/:btcAddr", handleLogRequest db adb StopWork)
-          , ("payouts", currentPayouts db adb)
-          ] 
+site :: ADB IO a -> ReaderT a Snap ()
+site adb = route 
+  [ ("logStart/:btcAddr", handleLogRequest adb StartWork)
+  , ("logEnd/:btcAddr",   handleLogRequest adb StopWork)
+  , ("payouts", currentPayouts adb)
+  ] 
 
 data QConfig = QConfig
   { port :: Int
@@ -46,14 +46,14 @@ parseConfig cfgFile = do
   cfg <- C.load [C.Required cfgFile]
   QConfig <$> C.require cfg "port" <*> C.require cfg "db" 
 
-handleLogRequest :: a -> ADB IO a -> (UTCTime -> WorkEvent) -> Snap ()
+handleLogRequest :: ADB IO a -> (UTCTime -> WorkEvent) -> ReaderT a Snap ()
 handleLogRequest db adb ev = do 
-  addrBytes <- getParam "btcAddr"
+  addrBytes <- lift $ getParam "btcAddr"
   let addr = fmap T.pack addrBytes >>= parseBtcAddr 
   timestamp <- liftIO getCurrentTime
   liftIO $ recordEvent adb db $ LogEntry addr (ev timestamp)
 
-currentPayouts :: a -> ADB IO a -> Snap ()
+currentPayouts :: ADB IO a -> ReaderT a Snap ()
 currentPayouts db adb = do 
   ptime <- liftIO getCurrentTime
   let dep = linearDepreciation (Months 6) (Months 60) 
@@ -64,7 +64,7 @@ currentPayouts db adb = do
       payoutsAction :: EitherT T.Text Snap WorkIndex
       payoutsAction = mapEitherT liftIO $ readWorkIndex adb db 
 
-  eitherT (raise . LT.fromStrict) buildPayoutsResponse payoutsAction
+  lift $ eitherT (raise . LT.fromStrict) buildPayoutsResponse payoutsAction
 
 newtype PayoutsResponse = PayoutsResponse Payouts
 
