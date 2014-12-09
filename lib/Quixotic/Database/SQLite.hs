@@ -7,24 +7,35 @@ import Control.Monad.Trans.Either
 import Database.SQLite
 
 import Quixotic
-import qualified Quixotic.Database as D
+import Quixotic.Database
 import Quixotic.TimeLog
 
-sqliteADB :: SQLiteHandle -> IO (D.ADB IO SQLiteHandle)
+sqliteADB :: SQLiteHandle -> IO (ADB (EitherT Text IO) SQLiteHandle)
 sqliteADB db = do
   _ <- defineTableOpt db True eventTable
-  return $ D.ADB recordEvent readWorkIndex 
+  return $ ADB 
+    { recordEvent = recordEvent'
+    , readWorkIndex = readWorkIndex' 
+    , newAuction = undefined
+    , readAuction = undefined
+    , recordBid = undefined
+    , readBids = undefined
+    , createUser = undefined
+    }
 
-recordEvent :: SQLiteHandle -> LogEntry -> IO ()
-recordEvent h (LogEntry ba ev) = 
-  void $ insertRow h "workEvents" [ ("btcAddr", unpack (address ba))
-                                  , ("event", unpack (eventName ev))
-                                  , ("eventTime", formatSqlTime (logTime ev)) ]
+recordEvent' :: LogEntry -> ReaderT SQLiteHandle (EitherT Text IO) ()
+recordEvent' (LogEntry ba ev) = do 
+  db <- ask
+  lift . lift . void $ insertRow db "workEvents" 
+    [ ("btcAddr", unpack (address ba))
+    , ("event", unpack (eventName ev))
+    , ("eventTime", formatSqlTime (logTime ev)) ]
 
-readWorkIndex :: SQLiteHandle -> EitherT Text IO WorkIndex
-readWorkIndex db = do
+readWorkIndex' :: ReaderT SQLiteHandle (EitherT Text IO) WorkIndex
+readWorkIndex' = do
+  db <- ask
   let baseResult = EitherT $ execStatement db "SELECT btcAddr, event, eventTime from workEvents"
-  rows <- bimapEitherT pack id baseResult
+  rows <- lift $ bimapEitherT pack id baseResult
   return . intervals . catMaybes $ fmap parseRow (join rows)
 
 parseRow :: Row Value -> Maybe LogEntry
