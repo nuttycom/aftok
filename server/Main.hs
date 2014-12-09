@@ -26,10 +26,10 @@ main :: IO ()
 main = do
   cfg <- parseConfig "quixotic.cfg"
   db  <- openConnection $ dbName cfg
-  adb <- sqliteADB db
+  adb <- sqliteQDB db
   quickHttpServe $ runReaderT (site adb) db
 
-site :: ADB IO a -> ReaderT a Snap ()
+site :: QDB IO a -> ReaderT a Snap ()
 site adb = route 
   [ ("logStart/:btcAddr", handleLogRequest adb StartWork)
   , ("logEnd/:btcAddr",   handleLogRequest adb StopWork)
@@ -46,14 +46,14 @@ parseConfig cfgFile = do
   cfg <- C.load [C.Required cfgFile]
   QConfig <$> C.require cfg "port" <*> C.require cfg "db" 
 
-handleLogRequest :: ADB IO a -> (UTCTime -> WorkEvent) -> ReaderT a Snap ()
+handleLogRequest :: QDB IO a -> (UTCTime -> WorkEvent) -> ReaderT a Snap ()
 handleLogRequest db adb ev = do 
   addrBytes <- lift $ getParam "btcAddr"
   let addr = fmap T.pack addrBytes >>= parseBtcAddr 
   timestamp <- liftIO getCurrentTime
   liftIO $ recordEvent adb db $ LogEntry addr (ev timestamp)
 
-currentPayouts :: ADB IO a -> ReaderT a Snap ()
+currentPayouts :: QDB IO a -> ReaderT a Snap ()
 currentPayouts db adb = do 
   ptime <- liftIO getCurrentTime
   let dep = linearDepreciation (Months 6) (Months 60) 

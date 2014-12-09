@@ -7,7 +7,7 @@ import Quixotic.Auction
 import Quixotic.Users
 import Quixotic.TimeLog
 
-data ADB m a = ADB 
+data QDB m a = QDB 
   { recordEvent :: LogEntry -> ReaderT a m ()
   , readWorkIndex :: ReaderT a m WorkIndex
   , newAuction :: Auction -> ReaderT a m AuctionId

@@ -1,6 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables, OverloadedStrings, NoImplicitPrelude #-}
 
-module Quixotic.Database.SQLite (sqliteADB) where
+module Quixotic.Database.SQLite (sqliteQDB) where
 
 import ClassyPrelude
 import Control.Monad.Trans.Either
@@ -10,10 +10,10 @@ import Quixotic
 import Quixotic.Database
 import Quixotic.TimeLog
 
-sqliteADB :: SQLiteHandle -> IO (ADB (EitherT Text IO) SQLiteHandle)
-sqliteADB db = do
+sqliteQDB :: SQLiteHandle -> IO (QDB (EitherT Text IO) SQLiteHandle)
+sqliteQDB db = do
   _ <- defineTableOpt db True eventTable
-  return $ ADB 
+  return $ QDB 
     { recordEvent = recordEvent'
     , readWorkIndex = readWorkIndex' 
     , newAuction = undefined
