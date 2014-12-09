@@ -3,12 +3,16 @@
 module Quixotic.Database.SQLite (sqliteQDB) where
 
 import ClassyPrelude
+import Control.Lens
 import Control.Monad.Trans.Either
+import Data.Text.Lens
 import Database.SQLite
 
 import Quixotic
+import Quixotic.Auction
 import Quixotic.Database
 import Quixotic.TimeLog
+import Quixotic.Users
 
 sqliteQDB :: SQLiteHandle -> IO (QDB (EitherT Text IO) SQLiteHandle)
 sqliteQDB db = do
@@ -16,18 +20,18 @@ sqliteQDB db = do
   return $ QDB 
     { recordEvent = recordEvent'
     , readWorkIndex = readWorkIndex' 
-    , newAuction = undefined
-    , readAuction = undefined
-    , recordBid = undefined
-    , readBids = undefined
-    , createUser = undefined
+    , newAuction = newAuction'
+    , readAuction = readAuction'
+    , recordBid = recordBid'
+    , readBids = readBids'
+    , createUser = createUser'
     }
 
 recordEvent' :: LogEntry -> ReaderT SQLiteHandle (EitherT Text IO) ()
 recordEvent' (LogEntry ba ev) = do 
   db <- ask
   lift . lift . void $ insertRow db "workEvents" 
-    [ ("btcAddr", unpack (address ba))
+    [ ("btcAddr", ba ^. address ^. from packed)
     , ("event", unpack (eventName ev))
     , ("eventTime", formatSqlTime (logTime ev)) ]
 
@@ -37,6 +41,22 @@ readWorkIndex' = do
   let baseResult = EitherT $ execStatement db "SELECT btcAddr, event, eventTime from workEvents"
   rows <- lift $ bimapEitherT pack id baseResult
   return . intervals . catMaybes $ fmap parseRow (join rows)
+
+
+newAuction' :: Auction -> ReaderT a (EitherT Text IO) AuctionId
+newAuction' = undefined
+
+readAuction' :: AuctionId -> ReaderT a (EitherT Text IO) Auction
+readAuction' = undefined
+
+recordBid' :: UTCTime -> Bid -> ReaderT a (EitherT Text IO) ()
+recordBid' = undefined
+
+readBids' :: AuctionId -> ReaderT a (EitherT Text IO) [(UTCTime, Bid)]
+readBids' = undefined
+
+createUser' :: User -> ReaderT a (EitherT Text IO) UserId
+createUser' = undefined
 
 parseRow :: Row Value -> Maybe LogEntry
 parseRow row = do
