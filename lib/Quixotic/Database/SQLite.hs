@@ -17,6 +17,7 @@ import Quixotic.Users
 sqliteQDB :: SQLiteHandle -> IO (QDB (EitherT Text IO) SQLiteHandle)
 sqliteQDB db = do
   _ <- defineTableOpt db True eventTable
+  _ <- defineTableOpt db True auctionTable
   return $ QDB 
     { recordEvent = recordEvent'
     , readWorkIndex = readWorkIndex' 
@@ -33,7 +34,8 @@ recordEvent' (LogEntry ba ev) = do
   lift . lift . void $ insertRow db "workEvents" 
     [ ("btcAddr", ba ^. address ^. from packed)
     , ("event", unpack (eventName ev))
-    , ("eventTime", formatSqlTime (logTime ev)) ]
+    , ("eventTime", formatSqlTime (logTime ev)) 
+    ]
 
 readWorkIndex' :: ReaderT SQLiteHandle (EitherT Text IO) WorkIndex
 readWorkIndex' = do
@@ -42,9 +44,14 @@ readWorkIndex' = do
   rows <- lift $ bimapEitherT pack id baseResult
   return . intervals . catMaybes $ fmap parseRow (join rows)
 
-
 newAuction' :: Auction -> ReaderT a (EitherT Text IO) AuctionId
-newAuction' = undefined
+newAuction' a = do
+  db <- ask
+  _  <- lift . lift $ insertRow db "auctions"
+    [ ("raiseAmount", a ^. (raiseAmount . btc))
+    , ("eventTime", formatSqlTime $ a ^. endsAt) 
+    ]
+  lift . lift . (fmap AuctionId) getLastRowID
 
 readAuction' :: AuctionId -> ReaderT a (EitherT Text IO) Auction
 readAuction' = undefined
@@ -84,5 +91,11 @@ formatSqlTime t = formatTime defaultTimeLocale "%c" t
 eventTable :: SQLTable
 eventTable = Table "workEvents" [ Column "btcAddr"   (SQLVarChar 256) []
                                 , Column "event"     (SQLVarChar 64) []
-                                , Column "eventTime" (SQLDateTime DATETIME) [] ] []
+                                , Column "eventTime" (SQLDateTime DATETIME) [] 
+                                ] []
+
+auctionTable :: SQLTable
+auctionTable = Table "auctions" [ Column "raiseAmouont" (SQLInt BIG False False) []
+                                , Column "endsAt"       (SQLDateTime DATETIME) [] 
+                                ] []
 

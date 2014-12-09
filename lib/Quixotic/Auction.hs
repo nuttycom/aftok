@@ -9,7 +9,7 @@ import Data.Hourglass
 import Quixotic
 import Quixotic.Users
 
-newtype AuctionId = AuctionId Int
+newtype AuctionId = AuctionId Int deriving (Show, Eq)
 
 data Auction = Auction 
   { _raiseAmount :: BTC
