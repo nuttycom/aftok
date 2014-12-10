@@ -47,11 +47,11 @@ readWorkIndex' = do
 newAuction' :: Auction -> ReaderT a (EitherT Text IO) AuctionId
 newAuction' a = do
   db <- ask
-  _  <- lift . lift $ insertRow db "auctions"
-    [ ("raiseAmount", a ^. (raiseAmount . btc))
+  _  <-  lift . lift $ insertRow db "auctions"
+    [ ("raiseAmount", show $ a ^. (raiseAmount . btc))
     , ("eventTime", formatSqlTime $ a ^. endsAt) 
     ]
-  lift . lift . (fmap AuctionId) getLastRowID
+  lift . lift . fmap (AuctionId . fromInteger) $ getLastRowID db
 
 readAuction' :: AuctionId -> ReaderT a (EitherT Text IO) Auction
 readAuction' = undefined
