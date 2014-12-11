@@ -11,7 +11,7 @@ import Data.Group
 newtype BtcAddr = BtcAddr { _address :: Text } deriving (Show, Eq, Ord)
 makeLenses ''BtcAddr
 
-newtype BTC = BTC { _btc :: Integer } deriving (Show, Eq, Ord)
+newtype BTC = BTC { _btc :: Int64 } deriving (Show, Eq, Ord)
 makeLenses ''BTC
 
 instance Semigroup BTC where

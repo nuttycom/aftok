@@ -40,11 +40,11 @@ recordEvent' (LogEntry ba ev) = do
 readWorkIndex' :: ReaderT SQLiteHandle (EitherT Text IO) WorkIndex
 readWorkIndex' = do
   db <- ask
-  let baseResult = EitherT $ execStatement db "SELECT btcAddr, event, eventTime from workEvents"
-  rows <- lift $ bimapEitherT pack id baseResult
-  return . intervals . catMaybes $ fmap parseRow (join rows)
+  let selection = execStatement db "SELECT btcAddr, event, eventTime from workEvents" 
+  rows <- lift . EitherT $ fmap (over _Left pack) selection
+  return . intervals . catMaybes $ fmap parseLogEntry (join rows)
 
-newAuction' :: Auction -> ReaderT a (EitherT Text IO) AuctionId
+newAuction' :: Auction -> ReaderT SQLiteHandle (EitherT Text IO) AuctionId
 newAuction' a = do
   db <- ask
   _  <-  lift . lift $ insertRow db "auctions"
@@ -54,7 +54,13 @@ newAuction' a = do
   lift . lift . fmap (AuctionId . fromInteger) $ getLastRowID db
 
 readAuction' :: AuctionId -> ReaderT a (EitherT Text IO) Auction
-readAuction' = undefined
+readAuction' (AuctionId aid) = do
+  db <- ask
+  let selection = execParamStatement db 
+                  "SELECT raiseAmount, endsAt FROM auctions WHERE ROWID = :aid" 
+                  [("aid", Int aid)]
+  rows <- lift . EitherT $ fmap (over _Left pack) selection
+
 
 recordBid' :: UTCTime -> Bid -> ReaderT a (EitherT Text IO) ()
 recordBid' = undefined
@@ -65,12 +71,21 @@ readBids' = undefined
 createUser' :: User -> ReaderT a (EitherT Text IO) UserId
 createUser' = undefined
 
-parseRow :: Row Value -> Maybe LogEntry
-parseRow row = do
+parseLogEntry :: Row Value -> Maybe LogEntry
+parseLogEntry row = do
   a <- lookup "btcAddr" row >>= valueAddr
   t <- lookup "eventTime" row >>= valueTime
   ev <- lookup "event" row >>= (valueEvent t)
   return $ LogEntry a ev
+
+parseAuction :: Row Value -> Maybe Auction
+parseAuction row = 
+  Auction <$> (lookup "raiseAmount" row >>= valueBTC)
+          <*> (lookup "endsAt" row >>= valueTime)
+
+valueBTC :: Value -> Maybe BTC
+valueBTC (Int i) _ = Just $ BTC i
+valueBTC _ = Nothing
 
 valueAddr :: Value -> Maybe BtcAddr
 valueAddr (Text t) = parseBtcAddr $ pack t
@@ -89,13 +104,15 @@ formatSqlTime :: UTCTime -> String
 formatSqlTime t = formatTime defaultTimeLocale "%c" t
 
 eventTable :: SQLTable
-eventTable = Table "workEvents" [ Column "btcAddr"   (SQLVarChar 256) []
-                                , Column "event"     (SQLVarChar 64) []
-                                , Column "eventTime" (SQLDateTime DATETIME) [] 
-                                ] []
+eventTable = Table "workEvents" 
+  [ Column "btcAddr"   (SQLVarChar 256) []
+  , Column "event"     (SQLVarChar 64) []
+  , Column "eventTime" (SQLDateTime DATETIME) [] 
+  ] []
 
 auctionTable :: SQLTable
-auctionTable = Table "auctions" [ Column "raiseAmouont" (SQLInt BIG False False) []
-                                , Column "endsAt"       (SQLDateTime DATETIME) [] 
-                                ] []
+auctionTable = Table "auctions" 
+  [ Column "raiseAmouont" (SQLInt BIG False False) []
+  , Column "endsAt"       (SQLDateTime DATETIME) [] 
+  ] []
 
