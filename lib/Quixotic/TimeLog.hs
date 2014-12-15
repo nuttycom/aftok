@@ -1,56 +1,69 @@
-{-# LANGUAGE ScopedTypeVariables, OverloadedStrings, NoImplicitPrelude #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Quixotic.TimeLog 
   ( LogEntry(..)
+  , btcAddr, event
   , LogInterval(..)
+  , EventType(..)
+  , eventName, nameEvent
   , WorkEvent(..)
+  , eventType, eventTime
   , WorkIndex
+  , workIndex
   , Depreciation(..)
   , Months(Months)
   , Payouts
-  , eventName
   , payouts
-  , intervals
   , linearDepreciation
   ) where
 
 import ClassyPrelude
 
+import Control.Lens
 import Data.Aeson
 import Data.Foldable as F
 import Data.Map.Strict as MS
 import Data.Ratio()
 import Data.Time.Clock
-import qualified Data.Aeson.Types as A
 
 import Quixotic
 import Quixotic.Interval
 
-data WorkEvent = StartWork { logTime :: UTCTime }
-               | StopWork  { logTime :: UTCTime } deriving (Show, Eq)
+data EventType = StartWork | StopWork deriving (Show, Eq)
 
-eventName :: WorkEvent -> Text
-eventName (StartWork _) = "start"
-eventName (StopWork  _) = "stop"
+eventName :: EventType -> Text
+eventName StartWork = "start"
+eventName StopWork  = "stop"
+
+nameEvent :: MonadPlus m => Text -> m EventType
+nameEvent "start" = return StartWork
+nameEvent "stop"  = return StopWork
+nameEvent _       = mzero
+
+data WorkEvent = WorkEvent 
+  { _eventType :: EventType
+  , _eventTime :: UTCTime
+  } deriving (Show, Eq)
+makeLenses ''WorkEvent
 
 instance FromJSON WorkEvent where
-  parseJSON (Object jv) = do
-    t <- jv .: "type" :: A.Parser Text
-    case t of
-      "start" -> StartWork <$> jv .: "timestamp"     
-      "stop"  -> StopWork <$> jv .: "timestamp"
-      _ -> mzero
+  parseJSON (Object jv) = 
+    WorkEvent <$> (jv .: "type" >>= nameEvent) <*> jv .: "timestamp"     
+
   parseJSON _ = mzero
 
 data LogEntry = LogEntry 
-  { btcAddr :: BtcAddr
-  , event :: WorkEvent 
+  { _btcAddr :: BtcAddr
+  , _event :: WorkEvent 
   } deriving (Show, Eq)
+makeLenses ''LogEntry
 
 instance FromJSON LogEntry where
-  parseJSON (Object jv) = LogEntry <$>
-                          jv .: "btcAddr" <*>
-                          jv .: "workEvent"
+  parseJSON (Object jv) = 
+    LogEntry <$> jv .: "btcAddr" <*> jv .: "workEvent"
 
   parseJSON _ = mzero
 
@@ -98,23 +111,24 @@ depreciateInterval dep ptime ival =
       depreciation = depf dep $ diffUTCTime ptime (end $ ival)
   in  fromRational $ depreciation * (toRational . ilen $ ival)
 
-intervals :: Foldable f => f LogEntry -> WorkIndex
-intervals logEntries = 
-  let logSum = F.foldl' appendLogEntry MS.empty logEntries
-  in  MS.map (bimap (fmap event) (fmap workInterval)) $ logSum
+workIndex :: Foldable f => f LogEntry -> WorkIndex
+workIndex logEntries = 
+  let logSum :: RawIndex
+      logSum = F.foldl' appendLogEntry MS.empty logEntries
+  in  MS.map (bimap (fmap (^. event)) (fmap workInterval)) $ logSum
 
 type RawIndex = Map BtcAddr ([LogEntry], [LogInterval])
 
 appendLogEntry :: RawIndex -> LogEntry -> RawIndex
-appendLogEntry workIndex entry = 
-  let acc = reduceToIntervals $ pushEntry entry workIndex 
-  in  insert (btcAddr entry) acc workIndex
+appendLogEntry idx entry = 
+  let acc = reduceToIntervals $ pushEntry entry idx 
+  in  insert (entry ^. btcAddr) acc idx
 
 pushEntry :: LogEntry -> RawIndex -> ([LogEntry], [LogInterval])
-pushEntry entry = first (entry :) . MS.findWithDefault ([], []) (btcAddr entry) 
+pushEntry entry = first (entry :) . MS.findWithDefault ([], []) (entry ^. btcAddr) 
 
 reduceToIntervals :: ([LogEntry], [LogInterval]) -> ([LogEntry], [LogInterval])
-reduceToIntervals ((LogEntry addr (StopWork end')) : (LogEntry _ (StartWork start')) : xs, acc) = 
+reduceToIntervals ((LogEntry addr (WorkEvent StopWork end')) : (LogEntry _ (WorkEvent StartWork start')) : xs, acc) = 
   (xs, (LogInterval addr (interval start' end')) : acc) 
 reduceToIntervals misaligned = 
   misaligned

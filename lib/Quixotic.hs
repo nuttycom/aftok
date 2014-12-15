@@ -11,18 +11,18 @@ import Data.Group
 newtype BtcAddr = BtcAddr { _address :: Text } deriving (Show, Eq, Ord)
 makeLenses ''BtcAddr
 
-newtype BTC = BTC { _btc :: Int64 } deriving (Show, Eq, Ord)
+newtype BTC = BTC { _satoshis :: Int64 } deriving (Show, Eq, Ord)
 makeLenses ''BTC
 
 instance Semigroup BTC where
-  (<>) b1 b2 = BTC $ _btc b1 + _btc b2
+  (<>) (BTC b1) (BTC b2) = BTC $ b1 + b2
 
 instance Monoid BTC where
   mempty = BTC 0
   mappend = (<>)
 
 instance Group BTC where
-  invert b = BTC . negate . _btc $ b
+  invert (BTC b) = BTC . negate $ b
 
 instance Abelian BTC where
 

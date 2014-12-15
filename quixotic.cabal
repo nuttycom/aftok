@@ -29,8 +29,10 @@ library
     , containers           >= 0.5.5.1
     , either               >= 4.3.1
     , lens                 >= 4.4.0.2
+    , safe                 >= 0.3.8
+    , errors               >= 1.4.7
     , old-locale
-    , sqlite               == 0.5.2.2
+    , sqlite-simple        >= 0.4.8    && < 0.5
     , text                 >= 1.2
     , time                 >= 1.4.2    && < 1.5
     , hourglass            >= 0.2.6    && < 0.3

@@ -9,19 +9,20 @@ import Data.Hourglass
 import Quixotic
 import Quixotic.Users
 
-newtype AuctionId = AuctionId Int deriving (Show, Eq)
+newtype AuctionId = AuctionId Int64 deriving (Show, Eq)
 
 data Auction = Auction 
   { _raiseAmount :: BTC
-  , _endsAt :: UTCTime 
+  , _auctionEnd :: UTCTime 
   }
 
 makeLenses ''Auction
 
 data Bid = Bid
-  { _userId :: UserId
-  , _seconds :: Seconds
-  , _btcAmount :: BTC
+  { _bidUser    :: UserId
+  , _bidSeconds :: Seconds
+  , _bidAmount  :: BTC
+  , _bidTime    :: UTCTime
   } deriving Eq
 
 makeLenses ''Bid
@@ -30,9 +31,9 @@ instance Ord Bid where
   (<=) b1 b2 = 
     costRatio b1 <= costRatio b2
     where 
-      bidSeconds bid = toRational $ bid ^. seconds
-      bidAmount  bid = toRational $ bid ^. (btcAmount . btc)
-      costRatio  bid = bidSeconds bid / bidAmount bid
+      secs bid = toRational $ bid ^. bidSeconds
+      btc  bid = toRational $ bid ^. (bidAmount . satoshis)
+      costRatio bid = secs bid / btc bid
 
 -- lowest bids of seconds/btc win
 winningBids :: Auction -> [Bid] -> [Bid]
@@ -40,17 +41,17 @@ winningBids auction bids =
   let takeWinningBids :: BTC -> [Bid] -> [Bid]
       takeWinningBids total (x : xs)
         -- if the total is fully within the raise amount
-        | (total ++ x ^. btcAmount) < (auction ^. raiseAmount) = 
-          x : (takeWinningBids (total ++ x ^. btcAmount) xs)
+        | (total ++ x ^. bidAmount) < (auction ^. raiseAmount) = 
+          x : (takeWinningBids (total ++ x ^. bidAmount) xs)
 
         -- if the last bid will exceed the raise amount, reduce it to fit
         | total < auction ^. raiseAmount = 
           let remainder = (auction ^. raiseAmount) ++ invert total
               winFraction :: Rational
-              winFraction = (toRational $ remainder ^. btc) / (toRational $ x ^. (btcAmount . btc))
-              remainderSeconds = Seconds . round $ winFraction * (toRational $ x ^. seconds)
+              winFraction = (toRational $ remainder ^. satoshis) / (toRational $ x ^. (bidAmount . satoshis))
+              remainderSeconds = Seconds . round $ winFraction * (toRational $ x ^. bidSeconds)
 
-          in  [x & seconds .~ remainderSeconds & btcAmount .~ remainder]
+          in  [x & bidSeconds .~ remainderSeconds & bidAmount .~ remainder]
 
         | otherwise = []
         
