@@ -13,6 +13,6 @@ data QDB m a = QDB
   , newAuction :: Auction -> ReaderT a m AuctionId
   , readAuction :: AuctionId -> ReaderT a m (Maybe Auction)
   , recordBid :: AuctionId -> Bid -> ReaderT a m ()
-  , readBids :: AuctionId -> ReaderT a m [(UTCTime, Bid)]
+  , readBids :: AuctionId -> ReaderT a m [Bid]
   , createUser :: User -> ReaderT a m UserId
   }

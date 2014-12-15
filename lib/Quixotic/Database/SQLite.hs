@@ -4,11 +4,10 @@
 module Quixotic.Database.SQLite (sqliteQDB) where
 
 import ClassyPrelude
-import Control.Error.Safe
 import Control.Lens
-import Control.Monad.Trans.Either
-import Data.Text.Lens
+import Data.Hourglass
 import Database.SQLite.Simple
+import Database.SQLite.Simple.ToField
 
 import Quixotic
 import Quixotic.Auction
@@ -37,6 +36,34 @@ instance FromRow PAuction where
     let auctionParser = Auction <$> (fmap BTC field) <*> field
     in  fmap PAuction auctionParser
 
+newtype PBid = PBid Bid
+makePrisms ''PBid
+
+instance FromRow PBid where
+  fromRow = 
+    let bidParser = Bid <$> fmap UserId field <*> fmap Seconds field <*> fmap BTC field <*> field
+    in  fmap PBid bidParser
+
+newtype PSeconds = PSeconds Seconds
+
+instance ToField PSeconds where 
+  toField (PSeconds (Seconds i)) = toField i
+
+newtype PUserId = PUserId UserId
+
+instance ToField PUserId where 
+  toField (PUserId (UserId i)) = toField i
+
+newtype PAuctionId = PAuctionId AuctionId
+
+instance ToField PAuctionId where 
+  toField (PAuctionId (AuctionId i)) = toField i
+
+newtype PBTC = PBTC BTC
+
+instance ToField PBTC where
+  toField (PBTC (BTC i)) = toField i
+
 recordEvent' :: LogEntry -> ReaderT Connection IO ()
 recordEvent' logEntry = do 
   conn <- ask
@@ -60,25 +87,40 @@ newAuction' auc = do
   lift . fmap AuctionId $ lastInsertRowId conn
 
 readAuction' :: AuctionId -> ReaderT Connection IO (Maybe Auction)
-readAuction' (AuctionId aid) = do
+readAuction' aucId = do
   conn <- ask
   rows <- lift $ query conn
     "SELECT raise_amount, end_time FROM auctions WHERE ROWID = ?" 
-    (Only aid)
+    (Only $ PAuctionId aucId)
   lift . return . headMay $ fmap (^. _PAuction) rows
 
 recordBid' :: AuctionId -> Bid -> ReaderT Connection IO ()
-recordBid' (AuctionId aid) bid = do
+recordBid' aucId bid = do
   conn <- ask
   lift $ execute conn
     "INSERT INTO bids (auction_id, user_id, bid_seconds, bid_amount, bid_time) values (?, ?, ?, ?, ?)"
-    (aid, bid ^. bidUser, bid ^. bidSeconds, bid ^. bidAmount, bid ^. bidTime)
+    ( PAuctionId aucId
+    , PUserId $ bid ^. bidUser
+    , PSeconds $ bid ^. bidSeconds
+    , PBTC $ bid ^. bidAmount
+    , bid ^. bidTime
+    )
 
-readBids' :: AuctionId -> ReaderT Connection IO [(UTCTime, Bid)]
-readBids' = undefined
+readBids' :: AuctionId -> ReaderT Connection IO [Bid]
+readBids' aucId = do
+  conn <- ask
+  rows <- lift $ query conn
+    "SELECT user_id, bid_seconds, bid_amount, bid_time FROM bids WHERE auction_id = ?"
+    (Only $ PAuctionId aucId)
+  lift . return $ fmap (^. _PBid) rows
 
 createUser' :: User -> ReaderT Connection IO UserId
-createUser' = undefined
+createUser' user = do
+  conn <- ask
+  lift $ execute conn
+    "INSERT INTO users (btc_addr, email) VALUES (?, ?)"
+    (user ^. (userAddress . address), user ^. userEmail)
+  lift . fmap UserId $ lastInsertRowId conn
 
 sqliteQDB :: QDB IO Connection
 sqliteQDB = QDB 
