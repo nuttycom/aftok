@@ -1,39 +1,35 @@
 {-# LANGUAGE ScopedTypeVariables, OverloadedStrings, NoImplicitPrelude #-}
+{-# LANGUAGE RecordWildCards #-}
 
-module Main (main) where
+module Main where
 
-import ClassyPrelude
+import ClassyPrelude 
 
-import Control.Applicative
-import Control.Monad.Trans (liftIO)
-import Control.Monad.Trans.Either
+import Control.Lens
+import Control.Monad.Trans.Reader
 import qualified Data.Aeson as A
 import qualified Data.Configurator as C
 import Data.Map
 import qualified Data.Text as T
-import qualified Data.Text.Lazy as LT
-import Data.Time.Clock
-import Database.SQLite
+import Database.SQLite.Simple
 import Quixotic
 import Quixotic.Database
 import Quixotic.Database.SQLite
 import Quixotic.TimeLog
 import Snap.Core
-import Snap.Util.FileServe
 import Snap.Http.Server
 
 main :: IO ()
 main = do
   cfg <- parseConfig "quixotic.cfg"
-  db  <- openConnection $ dbName cfg
-  adb <- sqliteQDB db
-  quickHttpServe $ runReaderT (site adb) db
+  db  <- open $ dbName cfg
+  quickHttpServe $ runReaderT (site sqliteQDB) db
 
 site :: QDB IO a -> ReaderT a Snap ()
-site adb = route 
-  [ ("logStart/:btcAddr", handleLogRequest adb StartWork)
-  , ("logEnd/:btcAddr",   handleLogRequest adb StopWork)
-  , ("payouts", currentPayouts adb)
+site qdb = route 
+  [ ("logStart/:btcAddr", handleLogRequest qdb StartWork)
+  , ("logEnd/:btcAddr",   handleLogRequest qdb StopWork)
+  , ("payouts", currentPayouts qdb)
   ] 
 
 data QConfig = QConfig
@@ -43,32 +39,38 @@ data QConfig = QConfig
 
 parseConfig :: FilePath -> IO QConfig
 parseConfig cfgFile = do 
-  cfg <- C.load [C.Required cfgFile]
+  cfg <- C.load [C.Required (fpToString cfgFile)]
   QConfig <$> C.require cfg "port" <*> C.require cfg "db" 
 
-handleLogRequest :: QDB IO a -> (UTCTime -> WorkEvent) -> ReaderT a Snap ()
-handleLogRequest db adb ev = do 
+handleLogRequest :: QDB IO a -> EventType -> ReaderT a Snap ()
+handleLogRequest qdb ev = do 
+  let QDB{..} = qdb
   addrBytes <- lift $ getParam "btcAddr"
-  let addr = fmap T.pack addrBytes >>= parseBtcAddr 
-  timestamp <- liftIO getCurrentTime
-  liftIO $ recordEvent adb db $ LogEntry addr (ev timestamp)
+  timestamp <- lift $ liftIO getCurrentTime
+  maybe 
+    (lift $ snapError 400 "")
+    (\a -> mapReaderT liftIO $ recordEvent (LogEntry a (WorkEvent ev timestamp)))
+    (fmap decodeUtf8 addrBytes >>= parseBtcAddr)
 
 currentPayouts :: QDB IO a -> ReaderT a Snap ()
-currentPayouts db adb = do 
-  ptime <- liftIO getCurrentTime
-  let dep = linearDepreciation (Months 6) (Months 60) 
+currentPayouts qdb = do 
+  let QDB{..} = qdb
+      dep = linearDepreciation (Months 6) (Months 60) 
 
-      buildPayoutsResponse :: WorkIndex -> Snap ()
-      buildPayoutsResponse widx = writeBS . A.encode . PayoutsResponse $ payouts dep ptime widx
+  ptime <- lift . liftIO $ getCurrentTime
+  widx <- mapReaderT liftIO $ readWorkIndex
+  lift . writeLBS . A.encode . PayoutsResponse $ payouts dep ptime widx
 
-      payoutsAction :: EitherT T.Text Snap WorkIndex
-      payoutsAction = mapEitherT liftIO $ readWorkIndex adb db 
-
-  lift $ eitherT (raise . LT.fromStrict) buildPayoutsResponse payoutsAction
+snapError :: Int -> Text -> Snap ()
+snapError c t = do
+  modifyResponse $ setResponseStatus c $ encodeUtf8 t
+  writeText $ ((tshow c) <> " - " <> t)
+  r <- getResponse
+  finishWith r
 
 newtype PayoutsResponse = PayoutsResponse Payouts
 
 instance A.ToJSON PayoutsResponse where
   toJSON (PayoutsResponse p) = A.toJSON m where
     m :: Map T.Text Double
-    m = fmap fromRational (mapKeys address p)
+    m = fmap fromRational $ mapKeys (^. address) p

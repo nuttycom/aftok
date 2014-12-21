@@ -16,6 +16,7 @@ library
   ghc-options:        -Wall -Werror
   hs-source-dirs:     lib
   exposed-modules:    Quixotic
+                      Quixotic.Auction
                       Quixotic.Database
                       Quixotic.Database.SQLite
                       Quixotic.Interval
@@ -66,9 +67,11 @@ Executable quixotic-server
     , containers
     , either
     , mtl                       >= 2     && < 3
-    , sqlite
+    , lens
+    , sqlite-simple
     , text
     , time
+    , transformers
     , MonadCatchIO-transformers >= 0.2.1 && < 0.4
     , configurator              == 0.2.*
     , optparse-applicative      >= 0.9.0 && < 0.10
