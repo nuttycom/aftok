@@ -17,6 +17,7 @@ User Interface:
   * Payouts
     * History of payouts (read from blockchain?)
     * Projected payout given current data
+    * BTC address alias chains (in case new payouts should go elsewhere)
   * Voting
     * List Proposals
     * Create Proposal
