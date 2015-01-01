@@ -5,3 +5,5 @@ cabal.sandbox.config
 dist
 tags
 TAGS
+quixotic.cfg
+db
