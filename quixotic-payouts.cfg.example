@@ -1,0 +1,5 @@
+pollingInterval = 10000000
+bitcoindUrl = "http://localhost:18444/"
+bitcoindUser = ""
+bitcoindPassword = ""
+

@@ -7,7 +7,13 @@ User Interface:
   * Invite
     * Record who invited a participant.
     * When a new participant is invited to the project, allow them to create an account.
+      - user creates account & provides payout address
+      - inviting user asked to sign a txn that transfers a specific amount of btc from their
+      - current payout address to the invitee's payout address
   * Profile
+    * Update Payout Address
+      - authenticate by asking the user to sign and broadcast a small txn with a specific
+      - amount from the old address to the new address
   * Timeline - Yours
     * Log Start
     * Log Stop

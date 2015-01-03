@@ -9,12 +9,7 @@ import Quixotic
 import Quixotic.Interval as I
 import Quixotic.TimeLog as L
 
-import Control.Arrow
---import Control.Monad
 import Data.Aeson
-import Data.Bifunctor as B
-import Data.Maybe
---import Data.Monoid
 import Data.Map.Strict as M
 import Data.Time.ISO8601
 
@@ -23,7 +18,7 @@ spec = do
   describe "work event parsing" $ do
     it "parses a start event" $ do
       let startText = "{\"type\":\"start\", \"timestamp\":\"2014-03-22T11:37:08Z\"}"
-          expected = fmap StartWork $ parseISO8601 "2014-03-22T11:37:08Z"
+          expected = fmap (WorkEvent StartWork) $ parseISO8601 "2014-03-22T11:37:08Z"
       (decode startText) `shouldBe` expected
       
   describe "log reduction to intervals" $ do
@@ -42,7 +37,7 @@ spec = do
           testLogEntries = do
             addr <- testAddrs
             (start', end') <- zip starts ends
-            [ LogEntry addr (StartWork start'), LogEntry addr (StopWork end') ]
+            [ LogEntry addr (WorkEvent StartWork start'), LogEntry addr (WorkEvent StopWork end') ]
 
           testIntervals :: [LogInterval]
           testIntervals = do
@@ -54,9 +49,9 @@ spec = do
           expected0 = M.map (const [] &&& id) . fromListWith (++) . fmap (intervalBtcAddr &&& return) $ testIntervals
 
           expected :: WorkIndex
-          expected = M.map (bimap (fmap event) (fmap workInterval)) expected0
+          expected = M.map (bimap (fmap _event) (fmap workInterval)) expected0
 
-      (intervals testLogEntries) `shouldBe` expected
+      (workIndex testLogEntries) `shouldBe` expected
 
 main :: IO ()
 main = hspec spec
