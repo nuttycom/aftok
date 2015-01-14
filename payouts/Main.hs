@@ -26,7 +26,7 @@ data QPConfig = QPConfig
   , bitcoindUser :: Text
   , bitcoindPassword :: Text
   , payoutMinConfirmations :: Int
-  } 
+  } deriving Show
 
 parseConfig :: FilePath -> IO QPConfig
 parseConfig cfgFile = do 
@@ -43,6 +43,7 @@ auth = Auth <$> bitcoindUrl <*> bitcoindUser <*> bitcoindPassword
 distributePayouts :: QPConfig -> IO ()
 distributePayouts cfg = do
   -- find unspent transactions
+  putStrLn $ "Searching for unspent payouts " <> tshow cfg
   unspent <- listUnspent (auth cfg) (Just . payoutMinConfirmations $ cfg) Nothing V.empty 
   putStrLn $ tshow unspent
   -- get payouts amounts

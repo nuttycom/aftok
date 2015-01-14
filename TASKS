@@ -42,7 +42,7 @@ User Interface:
       * In case of oversubscription, award is reduced by a function of the oversubscription amount.
       * "Test Oversubscription" functionality.
 
-Quixotic Service
+Payouts Service
   * Read blockchain transactions; when a payment is observed, distribute it to participants.
   * Adjust work index reader to only read work index entries older than <commit_delay hours>. 
   * Tabulate votes & randomly pick from weighted distribution.

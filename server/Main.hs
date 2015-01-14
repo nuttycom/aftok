@@ -5,17 +5,17 @@ module Main where
 
 import ClassyPrelude 
 
-import Control.Lens
 import Control.Monad.Trans.Reader
 import qualified Data.Aeson as A
 import qualified Data.Configurator as C
-import Data.Map
-import qualified Data.Text as T
 import Database.SQLite.Simple
+
 import Quixotic
 import Quixotic.Database
 import Quixotic.Database.SQLite
+import Quixotic.Json
 import Quixotic.TimeLog
+
 import Snap.Core
 import Snap.Http.Server
 
@@ -67,10 +67,3 @@ snapError c t = do
   writeText $ ((tshow c) <> " - " <> t)
   r <- getResponse
   finishWith r
-
-newtype PayoutsResponse = PayoutsResponse Payouts
-
-instance A.ToJSON PayoutsResponse where
-  toJSON (PayoutsResponse p) = A.toJSON m where
-    m :: Map T.Text Double
-    m = fmap fromRational $ mapKeys (^. address) p

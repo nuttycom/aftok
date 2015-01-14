@@ -20,6 +20,7 @@ library
                       Quixotic.Database
                       Quixotic.Database.SQLite
                       Quixotic.Interval
+                      Quixotic.Json
                       Quixotic.TimeLog
   build-depends:      
       base                 >= 4     && < 5
