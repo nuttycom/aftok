@@ -9,6 +9,8 @@ import Control.Concurrent
 import qualified Data.Configurator as C
 import qualified Data.Vector as V
 
+import Quixotic.Client
+
 main :: IO ()
 main = do
   cfg <- parseConfig "quixotic-payouts.cfg"

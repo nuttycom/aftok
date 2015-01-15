@@ -12,11 +12,13 @@ import Data.Map
 import Quixotic
 import Quixotic.TimeLog
 
-newtype PayoutsResponse = PayoutsResponse Payouts
+newtype PayoutsResponse = PayoutsResponse { runPayoutsResponse :: Payouts }
 
 instance ToJSON PayoutsResponse where
-  toJSON (PayoutsResponse p) = toJSON m where
-    m :: Map Text Double
-    m = fmap fromRational $ mapKeys (^. address) p
+  toJSON (PayoutsResponse p) = 
+    toJSON $ mapKeys (^. address) p
 
+instance FromJSON PayoutsResponse where
+  parseJSON v = 
+    fmap (PayoutsResponse . mapKeys BtcAddr) $ parseJSON v
 
