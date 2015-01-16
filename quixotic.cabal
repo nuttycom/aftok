@@ -29,6 +29,7 @@ library
     , aeson                >= 0.8.0.2
     , bifunctors
     , containers           >= 0.5.5.1
+    , configurator              
     , either               >= 4.3.1
     , lens                 >= 4.4.0.2
     , safe                 >= 0.3.8
@@ -39,7 +40,7 @@ library
     , time                 >= 1.4.2    && < 1.5
     , hourglass            >= 0.2.6    && < 0.3
     , groups               >= 0.4
-    , network-bitcoin
+    , network-bitcoin      >= 1.7.0
     , wreq
 
 Test-Suite spec
