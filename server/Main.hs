@@ -38,8 +38,8 @@ site qdb = route
 data QConfig = QConfig
   { hostname :: ByteString
   , port :: Int
-  , sslCert :: FilePath
-  , sslKey :: FilePath
+  -- , sslCert :: FilePath
+  -- , sslKey :: FilePath
   , dbName :: String
   } 
 
@@ -51,17 +51,18 @@ loadQConfig cfgFile = do
 parseQConfig :: CT.Config -> IO QConfig
 parseQConfig cfg = 
   QConfig <$> C.lookupDefault "localhost" cfg "hostname"
-          <*> C.lookupDefault 8443 cfg "port" 
-          <*> (fmap fpFromText $ C.require cfg "sslCert")
-          <*> (fmap fpFromText $ C.require cfg "sslKey")
+          <*> C.lookupDefault 8000 cfg "port" 
+          -- <*> (fmap fpFromText $ C.require cfg "sslCert")
+          -- <*> (fmap fpFromText $ C.require cfg "sslKey")
           <*> C.require cfg "db" 
 
 baseSnapConfig :: MonadSnap m => QConfig -> SC.Config m a -> SC.Config m a
 baseSnapConfig cfg = 
   SC.setHostname (hostname cfg) . 
-  SC.setSSLPort (port cfg) .
-  SC.setSSLCert (fpToString $ sslCert cfg) .
-  SC.setSSLKey (fpToString $ sslKey cfg)
+  SC.setPort (port cfg) 
+  --SC.setSSLPort (port cfg) .
+  --SC.setSSLCert (fpToString $ sslCert cfg) .
+  --SC.setSSLKey (fpToString $ sslKey cfg)
 
 snapConfig :: QConfig -> IO (SC.Config Snap ())
 snapConfig cfg = SC.commandLineConfig $ baseSnapConfig cfg emptyConfig
@@ -83,6 +84,7 @@ currentPayouts qdb = do
 
   ptime <- lift . liftIO $ getCurrentTime
   widx <- mapReaderT liftIO $ readWorkIndex
+  lift . modifyResponse $ addHeader "content-type" "application/json"
   lift . writeLBS . A.encode . PayoutsResponse $ payouts dep ptime widx
 
 snapError :: Int -> Text -> Snap ()

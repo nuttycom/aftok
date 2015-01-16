@@ -82,7 +82,6 @@ Executable quixotic-server
     , MonadCatchIO-transformers >= 0.2.1 && < 0.4
     , configurator              
     , optparse-applicative      
-    , bytestring                >= 0.9.1 && < 0.11
     , snap-core                 >= 0.9   && < 0.10
     , snap-server               >= 0.9   && < 0.10
 

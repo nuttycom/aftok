@@ -19,8 +19,8 @@ main = do
 
 loop :: QPConfig -> IO ()
 loop cfg = do
-  threadDelay (pollingInterval cfg)
   distributePayouts cfg
+  threadDelay (pollingInterval cfg)
   loop cfg
 
 data QPConfig = QPConfig
