@@ -8,6 +8,7 @@ import ClassyPrelude
 import Control.Monad.Trans.Reader
 import qualified Data.Aeson as A
 import qualified Data.Configurator as C
+import qualified Data.Configurator.Types as CT
 import Database.SQLite.Simple
 
 import Quixotic
@@ -18,12 +19,14 @@ import Quixotic.TimeLog
 
 import Snap.Core
 import Snap.Http.Server
+import qualified Snap.Http.Server.Config as SC
 
 main :: IO ()
 main = do
-  cfg <- parseConfig "quixotic.cfg"
+  cfg <- loadQConfig "quixotic.cfg"
   db  <- open $ dbName cfg
-  quickHttpServe $ runReaderT (site sqliteQDB) db
+  sconf <- snapConfig cfg
+  simpleHttpServe sconf $ runReaderT (site sqliteQDB) db
 
 site :: QDB IO a -> ReaderT a Snap ()
 site qdb = route 
@@ -33,14 +36,35 @@ site qdb = route
   ] 
 
 data QConfig = QConfig
-  { port :: Int
+  { hostname :: ByteString
+  , port :: Int
+  , sslCert :: FilePath
+  , sslKey :: FilePath
   , dbName :: String
   } 
 
-parseConfig :: FilePath -> IO QConfig
-parseConfig cfgFile = do 
+loadQConfig :: FilePath -> IO QConfig
+loadQConfig cfgFile = do 
   cfg <- C.load [C.Required (fpToString cfgFile)]
-  QConfig <$> C.require cfg "port" <*> C.require cfg "db" 
+  parseQConfig cfg
+
+parseQConfig :: CT.Config -> IO QConfig
+parseQConfig cfg = 
+  QConfig <$> C.lookupDefault "localhost" cfg "hostname"
+          <*> C.lookupDefault 8443 cfg "port" 
+          <*> (fmap fpFromText $ C.require cfg "sslCert")
+          <*> (fmap fpFromText $ C.require cfg "sslKey")
+          <*> C.require cfg "db" 
+
+baseSnapConfig :: MonadSnap m => QConfig -> SC.Config m a -> SC.Config m a
+baseSnapConfig cfg = 
+  SC.setHostname (hostname cfg) . 
+  SC.setSSLPort (port cfg) .
+  SC.setSSLCert (fpToString $ sslCert cfg) .
+  SC.setSSLKey (fpToString $ sslKey cfg)
+
+snapConfig :: QConfig -> IO (SC.Config Snap ())
+snapConfig cfg = SC.commandLineConfig $ baseSnapConfig cfg emptyConfig
 
 handleLogRequest :: QDB IO a -> EventType -> ReaderT a Snap ()
 handleLogRequest qdb ev = do 

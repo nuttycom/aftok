@@ -13,18 +13,16 @@ import Quixotic.Json
 import Quixotic.TimeLog
 
 data QCConfig = QCConfig
-  { quixoticHost :: String
-  , quixoticPort :: Int
+  { quixoticUrl :: String
   } deriving Show
 
 parseQCConfig :: CT.Config -> IO QCConfig
 parseQCConfig cfg = 
-  QCConfig <$> C.require cfg "quixoticHost" 
-           <*> C.require cfg "quixoticPort"
+  QCConfig <$> C.require cfg "quixoticUrl" 
 
 currentPayouts :: QCConfig -> IO Payouts
 currentPayouts cfg = do
-  resp <- get (quixoticHost cfg <> "/payouts")
+  resp <- get (quixoticUrl cfg <> "payouts")
   payoutsResponse <- asJSON resp
   pure . runPayoutsResponse $ payoutsResponse ^. responseBody
 
