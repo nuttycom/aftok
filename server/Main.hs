@@ -32,10 +32,10 @@ main = do
 
 site :: QDB IO a -> ReaderT a Snap ()
 site qdb = route 
-  [ ("logStart/:btcAddr", handleLogRequest qdb StartWork)
-  , ("logEnd/:btcAddr",   handleLogRequest qdb StopWork)
-  , ("loggedIntervals/:btcAddr", loggedIntervals qdb)
-  , ("payouts", currentPayouts qdb)
+  [ ("logStart/:btcAddr", logWorkHandler qdb StartWork)
+  , ("logEnd/:btcAddr",   logWorkHandler qdb StopWork)
+  , ("loggedIntervals/:btcAddr", loggedIntervalsHandler qdb)
+  , ("payouts", payoutsHandler qdb)
   ] 
 
 data QConfig = QConfig
@@ -70,8 +70,8 @@ baseSnapConfig cfg =
 snapConfig :: QConfig -> IO (SC.Config Snap ())
 snapConfig cfg = SC.commandLineConfig $ baseSnapConfig cfg emptyConfig
 
-handleLogRequest :: QDB IO a -> EventType -> ReaderT a Snap ()
-handleLogRequest qdb ev = do 
+logWorkHandler :: QDB IO a -> EventType -> ReaderT a Snap ()
+logWorkHandler qdb ev = do 
   let QDB{..} = qdb
   addrBytes <- lift $ getParam "btcAddr"
   timestamp <- lift $ liftIO getCurrentTime
@@ -80,15 +80,15 @@ handleLogRequest qdb ev = do
     (\a -> mapReaderT liftIO $ recordEvent (LogEntry a (WorkEvent ev timestamp)))
     (fmap decodeUtf8 addrBytes >>= parseBtcAddr)
 
-loggedIntervals :: QDB IO a -> ReaderT a Snap ()
-loggedIntervals qdb = do
+loggedIntervalsHandler :: QDB IO a -> ReaderT a Snap ()
+loggedIntervalsHandler qdb = do
   let QDB{..} = qdb
   widx <- mapReaderT liftIO $ readWorkIndex
   lift . modifyResponse $ addHeader "content-type" "application/json"
   lift . writeLBS . A.encode $ mapKeys (^. address) widx
 
-currentPayouts :: QDB IO a -> ReaderT a Snap ()
-currentPayouts qdb = do 
+payoutsHandler :: QDB IO a -> ReaderT a Snap ()
+payoutsHandler qdb = do 
   let QDB{..} = qdb
       dep = linearDepreciation (Months 6) (Months 60) 
   ptime <- lift . liftIO $ getCurrentTime
