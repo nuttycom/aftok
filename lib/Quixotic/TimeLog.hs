@@ -13,7 +13,7 @@ module Quixotic.TimeLog
   , eventType, eventTime
   , WorkIndex
   , workIndex
-  , Depreciation(..)
+  , DepF
   , Months(Months)
   , Payouts
   , payouts
@@ -59,24 +59,24 @@ data LogInterval = LogInterval
   , workInterval :: Interval
   } deriving (Show, Eq) 
 
-type WorkIndex = Map BtcAddr [Interval]
 type Payouts = Map BtcAddr Rational
-type NDT = NominalDiffTime
+type WorkIndex = Map BtcAddr [Interval]
 type RawIndex = Map BtcAddr ([LogEntry], [LogInterval])
+type NDT = NominalDiffTime
 
 {-|
   The depreciation function should return a value between 0 and 1;
   this result is multiplied by the length of an interval of work to determine
   the depreciated value of the work.
 -}
-newtype Depreciation = Depreciation { depf :: NDT -> Rational } 
+type DepF = UTCTime -> Interval -> NDT 
 
 {-|
   Payouts are determined by computing a depreciated duration value for
   each work interval. This function computes the percentage of the total
   work allocated to each address.
 -}
-payouts :: Depreciation -> UTCTime -> WorkIndex -> Payouts
+payouts :: DepF -> UTCTime -> WorkIndex -> Payouts
 payouts dep ptime widx = 
   let addIntervalDiff :: (Functor f, Foldable f) => NDT -> f Interval -> (NDT, NDT)
       addIntervalDiff total ivals = (\dt -> (dt + total, dt)) $ workCredit dep ptime ivals 
@@ -87,17 +87,9 @@ payouts dep ptime widx =
   Given a depreciation function, the "current" time, and a foldable functor of log intervals,
   produce the total, depreciated length of work to be credited to an address.
 -}
-workCredit :: (Functor f, Foldable f) => Depreciation -> UTCTime -> f Interval -> NDT
-workCredit dep ptime ivals = F.foldl' (+) (fromInteger 0) $ fmap (depreciateInterval dep ptime) ivals
-
-{-|
-  Compute the depreciated difftime for a single Interval value.
--}
-depreciateInterval :: Depreciation -> UTCTime -> Interval -> NDT
-depreciateInterval dep ptime ival = 
-  let depreciation :: Rational
-      depreciation = depf dep $ diffUTCTime ptime (end $ ival)
-  in  fromRational $ depreciation * (toRational . ilen $ ival)
+workCredit :: (Functor f, Foldable f) => DepF -> UTCTime -> f Interval -> NDT
+workCredit depf ptime ivals = 
+  F.foldl' (+) (fromInteger 0) $ fmap (depf ptime) ivals
 
 workIndex :: Foldable f => f LogEntry -> WorkIndex
 workIndex logEntries = 
@@ -124,16 +116,18 @@ newtype Months = Months Integer
 monthsLength :: Months -> NominalDiffTime
 monthsLength (Months i) = fromInteger $ 60 * 60 * 24 * 30 * i
 
-linearDepreciation :: Months -> Months -> Depreciation
-linearDepreciation undepPeriod depPeriod = 
+linearDepreciation :: Months -> Months -> DepF
+linearDepreciation undepPeriod depPeriod = \ptime ival -> 
   let maxDepreciable :: NominalDiffTime
       maxDepreciable = monthsLength undepPeriod + monthsLength depPeriod 
 
       zeroTime :: NominalDiffTime
       zeroTime = fromInteger 0
 
-      depf' :: NominalDiffTime -> Rational
-      depf' dt = if dt < monthsLength undepPeriod 
-        then 1
+      depPct :: NominalDiffTime -> Rational
+      depPct dt = 
+        if dt < monthsLength undepPeriod then 1
         else toRational (max zeroTime (maxDepreciable - dt)) / toRational maxDepreciable
-  in Depreciation depf'
+
+      depreciation = depPct $ diffUTCTime ptime (end $ ival)
+  in  fromRational $ depreciation * (toRational . ilen $ ival) 
