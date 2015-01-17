@@ -23,7 +23,6 @@ module Quixotic.TimeLog
 import ClassyPrelude
 
 import Control.Lens
-import Data.Aeson
 import Data.Foldable as F
 import Data.Map.Strict as MS
 import Data.Ratio()
@@ -49,32 +48,21 @@ data WorkEvent = WorkEvent
   } deriving (Show, Eq)
 makeLenses ''WorkEvent
 
-instance FromJSON WorkEvent where
-  parseJSON (Object jv) = 
-    WorkEvent <$> (jv .: "type" >>= nameEvent) <*> jv .: "timestamp"     
-
-  parseJSON _ = mzero
-
 data LogEntry = LogEntry 
   { _btcAddr :: BtcAddr
   , _event :: WorkEvent 
   } deriving (Show, Eq)
 makeLenses ''LogEntry
 
-instance FromJSON LogEntry where
-  parseJSON (Object jv) = 
-    LogEntry <$> jv .: "btcAddr" <*> jv .: "workEvent"
-
-  parseJSON _ = mzero
-
 data LogInterval = LogInterval 
   { intervalBtcAddr :: BtcAddr
   , workInterval :: Interval
   } deriving (Show, Eq) 
 
-type WorkIndex = Map BtcAddr ([WorkEvent], [Interval])
+type WorkIndex = Map BtcAddr [Interval]
 type Payouts = Map BtcAddr Rational
 type NDT = NominalDiffTime
+type RawIndex = Map BtcAddr ([LogEntry], [LogInterval])
 
 {-|
   The depreciation function should return a value between 0 and 1;
@@ -92,8 +80,8 @@ payouts :: Depreciation -> UTCTime -> WorkIndex -> Payouts
 payouts dep ptime widx = 
   let addIntervalDiff :: (Functor f, Foldable f) => NDT -> f Interval -> (NDT, NDT)
       addIntervalDiff total ivals = (\dt -> (dt + total, dt)) $ workCredit dep ptime ivals 
-      (totalTime, keyTimes) = MS.mapAccum addIntervalDiff (fromInteger 0) $ MS.map snd widx
-  in  MS.map (\kt -> toRational $ kt / totalTime) keyTimes
+      (totalTime, keyTimes) = MS.mapAccum addIntervalDiff (fromInteger 0) $ widx
+  in  fmap (\kt -> toRational $ kt / totalTime) keyTimes
 
 {-|
   Given a depreciation function, the "current" time, and a foldable functor of log intervals,
@@ -115,9 +103,7 @@ workIndex :: Foldable f => f LogEntry -> WorkIndex
 workIndex logEntries = 
   let logSum :: RawIndex
       logSum = F.foldl' appendLogEntry MS.empty logEntries
-  in  MS.map (bimap (fmap (^. event)) (fmap workInterval)) $ logSum
-
-type RawIndex = Map BtcAddr ([LogEntry], [LogInterval])
+  in  fmap (fmap workInterval . snd) $ logSum
 
 appendLogEntry :: RawIndex -> LogEntry -> RawIndex
 appendLogEntry idx entry = 
@@ -151,16 +137,3 @@ linearDepreciation undepPeriod depPeriod =
         then 1
         else toRational (max zeroTime (maxDepreciable - dt)) / toRational maxDepreciable
   in Depreciation depf'
-
--- data LogEventParseError = LogEventParseError String deriving (Show, Typeable)
--- instance Exception LogEventParseError where
-
--- instance FromField WorkEvent where
---   fromField f m = let fromText "start_work" = return StartWork
---                       fromText "stop_work"  = return StopWork
---                       fromText a = conversionError $ LogEventParseError $ "unrecognized log event type " ++ a
---                   in fromField f m >>= fromText
-
--- instance FromRow LogEntry where
---   fromRow = LogEntry <$> field <*> field <*> field 
-

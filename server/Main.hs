@@ -5,10 +5,12 @@ module Main where
 
 import ClassyPrelude 
 
+import Control.Lens
 import Control.Monad.Trans.Reader
 import qualified Data.Aeson as A
 import qualified Data.Configurator as C
 import qualified Data.Configurator.Types as CT
+import Data.Map
 import Database.SQLite.Simple
 
 import Quixotic
@@ -32,6 +34,7 @@ site :: QDB IO a -> ReaderT a Snap ()
 site qdb = route 
   [ ("logStart/:btcAddr", handleLogRequest qdb StartWork)
   , ("logEnd/:btcAddr",   handleLogRequest qdb StopWork)
+  , ("loggedIntervals/:btcAddr", loggedIntervals qdb)
   , ("payouts", currentPayouts qdb)
   ] 
 
@@ -77,11 +80,17 @@ handleLogRequest qdb ev = do
     (\a -> mapReaderT liftIO $ recordEvent (LogEntry a (WorkEvent ev timestamp)))
     (fmap decodeUtf8 addrBytes >>= parseBtcAddr)
 
+loggedIntervals :: QDB IO a -> ReaderT a Snap ()
+loggedIntervals qdb = do
+  let QDB{..} = qdb
+  widx <- mapReaderT liftIO $ readWorkIndex
+  lift . modifyResponse $ addHeader "content-type" "application/json"
+  lift . writeLBS . A.encode $ mapKeys (^. address) widx
+
 currentPayouts :: QDB IO a -> ReaderT a Snap ()
 currentPayouts qdb = do 
   let QDB{..} = qdb
       dep = linearDepreciation (Months 6) (Months 60) 
-
   ptime <- lift . liftIO $ getCurrentTime
   widx <- mapReaderT liftIO $ readWorkIndex
   lift . modifyResponse $ addHeader "content-type" "application/json"

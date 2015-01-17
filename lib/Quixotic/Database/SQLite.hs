@@ -76,7 +76,7 @@ readWorkIndex' = do
   conn <- ask
   rows <- lift $ query_ conn
     "SELECT btc_addr, event_type, event_time from work_events" 
-  lift . return . workIndex $ fmap (^. _PLogEntry) rows
+  lift . pure . workIndex $ fmap (^. _PLogEntry) rows
 
 newAuction' :: Auction -> ReaderT Connection IO AuctionId
 newAuction' auc = do
