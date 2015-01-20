@@ -24,5 +24,5 @@ data QDB m = QDB
   , readBids :: AuctionId -> m [Bid]
   , createUser :: User -> m UserId
   , findUser :: UserId -> m (Maybe User)
-  , findUserByHandle :: Handle -> m (Maybe QDBUser)
+  , findUserByUserName :: UserName -> m (Maybe QDBUser)
   }

@@ -129,5 +129,5 @@ sqliteQDB = QDB
   , readBids = readBids'
   , createUser = createUser'
   , findUser = \_ -> pure Nothing
-  , findUserByHandle = \_ -> pure Nothing
+  , findUserByUserName = \_ -> pure Nothing
   }

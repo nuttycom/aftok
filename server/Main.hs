@@ -1,33 +1,34 @@
-{-# LANGUAGE ScopedTypeVariables, OverloadedStrings, NoImplicitPrelude #-}
-{-# LANGUAGE RecordWildCards, TemplateHaskell #-}
+{-# LANGUAGE ScopedTypeVariables #-} 
+{-# LANGUAGE OverloadedStrings #-} 
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE RecordWildCards #-} 
+{-# LANGUAGE FlexibleInstances #-} 
+{-# LANGUAGE TemplateHaskell #-}
 
 module Main where
 
 import ClassyPrelude 
 
 import Control.Lens
-import Control.Lens.TH
-import Control.Monad.Trans.Reader
-import qualified Data.Aeson as A
+import Control.Monad.Reader
+import Control.Monad.State
 import qualified Data.Configurator as C
 import qualified Data.Configurator.Types as CT
-import Data.Map
-import Data.Pool
 import Database.PostgreSQL.Simple
 
 import Quixotic
 import Quixotic.Database
 import Quixotic.Database.PostgreSQL
-import Quixotic.Json
 import Quixotic.TimeLog
+import Quixotic.Users
 
 import Snap.Core
 import Snap.Http.Server
 import qualified Snap.Http.Server.Config as SC
 import Snap.Snaplet
-import Snap.Snaplet.Auth
-import Snap.Snaplet.Auth.Backends.PostgresqlSimple
 import Snap.Snaplet.PostgresqlSimple
+import qualified Snap.Snaplet.Auth as AU
+import Snap.Snaplet.Auth.Backends.PostgresqlSimple
 import Snap.Snaplet.Session
 import Snap.Snaplet.Session.Backends.CookieSession
 
@@ -47,9 +48,13 @@ data App = App
   { _qdb  :: Snaplet PQDB
   , _sess :: Snaplet SessionManager
   , _db   :: Snaplet Postgres
-  , _auth :: Snaplet (AuthManager App)
+  , _auth :: Snaplet (AU.AuthManager App)
   }
 makeLenses ''App
+
+instance HasPostgres (Handler b App) where
+    getPostgresState = with db get
+    setLocalPostgresState s = local (set (db . snapletValue) s)
 
 main :: IO ()
 main = do
@@ -102,18 +107,30 @@ qdbpgSnapletInit :: SnapletInit a PQDB
 qdbpgSnapletInit = makeSnaplet "qdbpg" "QDB on Postgresql" Nothing $ do
   return postgresQDB
 
+requireLogin :: Handler App App a -> Handler App App a
+requireLogin = AU.requireUser auth (redirect "/login")
+
+requireUserId :: (UserId -> Handler App App a) -> Handler App App a 
+requireUserId hf = AU.requireUser auth (redirect "/login") $ do
+  QDB{..} <- with qdb get
+  authedUser <- with auth AU.currentUser
+  qdbUser <- case UserName . AU.unUid <$> (AU.userId =<< authedUser) of 
+    Nothing -> snapError 403 "User is authenticated, but session lacks user identifier"
+    Just n  -> liftPG . runReaderT $ findUserByUserName n
+  case qdbUser of
+    Nothing -> snapError 403 "Unable to retrieve user record for authenticated user" 
+    Just u -> hf (u ^. userId)
+
 logWorkHandler :: EventType -> Handler App App ()
-logWorkHandler evType = do 
-  QDB{..} <- with qdb mempty
-  pg <- with db getPostgresState
-  authedUser <- with auth currentUser
-  qUid <- 
+logWorkHandler evType = requireUserId $ \uid -> do 
+  QDB{..} <- with qdb get
   addrBytes <- getParam "btcAddr"
   timestamp <- liftIO getCurrentTime
   let workEvent = WorkEvent evType timestamp
-      btcAddr = fmap decodeUtf8 addrBytes >>= parseBtcAddr
-      storeEv uid addr = runReaderT . recordEvent uid $ LogEntry addr workEvent
-  maybe (snapError 400 "") (liftPG . storeEv) btcAddr
+      storeEv addr = runReaderT . recordEvent uid $ LogEntry addr workEvent
+  case fmap decodeUtf8 addrBytes >>= parseBtcAddr of
+    Nothing -> snapError 400 $ "Unable to parse bitcoin address from " <> (tshow addrBytes)
+    Just addr -> liftPG $ storeEv addr
 
 --loggedIntervalsHandler :: QDB IO a -> ReaderT a Snap ()
 --loggedIntervalsHandler qdb = do
@@ -131,7 +148,7 @@ logWorkHandler evType = do
 --  lift . modifyResponse $ addHeader "content-type" "application/json"
 --  lift . writeLBS . A.encode . PayoutsResponse $ payouts dep ptime widx
 
-snapError :: Int -> Text -> Snap ()
+snapError :: MonadSnap m => Int -> Text -> m a
 snapError c t = do
   modifyResponse $ setResponseStatus c $ encodeUtf8 t
   writeText $ ((tshow c) <> " - " <> t)

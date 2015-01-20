@@ -12,7 +12,6 @@ import qualified Data.List as DL
 import Database.PostgreSQL.Simple
 import Database.PostgreSQL.Simple.ToField
 import Database.PostgreSQL.Simple.FromField
-import Database.PostgreSQL.Simple.ToRow
 import Database.PostgreSQL.Simple.FromRow
 import Network.Bitcoin
 
@@ -38,7 +37,7 @@ btcAddrParser :: FieldParser BtcAddr
 btcAddrParser f v = BtcAddr <$> fromField f v
 
 btcParser :: FieldParser BTC
-btcParser f v = fromField f v
+btcParser f v = fromRational <$> fromField f v
 
 
 workEventParser :: RowParser WorkEvent
@@ -61,8 +60,11 @@ userRowParser = User <$> fieldWith usernameParser
                      <*> fieldWith btcAddrParser
                      <*> field
 
+qdbUserRowParser :: RowParser QDBUser
+qdbUserRowParser = QDBUser <$> fieldWith uidParser <*> userRowParser
+
 -- Local newtypes to permit field serialization 
-newtype PBTC = PBTC { pBTC :: BTC }
+newtype PBTC = PBTC BTC 
 instance ToField PBTC where
   toField (PBTC btc) = Plain . fromByteString . fromString $ showFixed False btc
 
@@ -84,6 +86,10 @@ instance FromRow PUser where
 newtype PAuction = PAuction { pAuction :: Auction }
 instance FromRow PAuction where
   fromRow = PAuction <$> auctionRowParser
+
+newtype PQDBUser = PQDBUser { pQDBUser :: QDBUser }
+instance FromRow PQDBUser where
+  fromRow = PQDBUser <$> qdbUserRowParser
 
 recordEvent' :: UserId -> LogEntry -> ReaderT Connection IO ()
 recordEvent' (UserId uid) (LogEntry a e) = do 
@@ -140,11 +146,11 @@ readBids' aucId = do
   pure $ fmap pBid rows
 
 createUser' :: User -> ReaderT Connection IO UserId
-createUser' user = do
+createUser' user' = do
   conn <- ask
   uids <- lift $ query conn
     "INSERT INTO users (handle, btc_addr, email) VALUES (?, ?) RETURNING id"
-    (user ^. (username._UserName), user ^. (userAddress.address), user ^. userEmail)
+    (user' ^. (username._UserName), user' ^. (userAddress.address), user' ^. userEmail)
   pure . UserId . fromOnly $ DL.head uids
 
 findUser' :: UserId -> ReaderT Connection IO (Maybe User)
@@ -155,8 +161,14 @@ findUser' (UserId uid) = do
     (Only uid)
   pure . fmap pUser $ headMay users
 
-findUserByHandle' :: Handle -> ReaderT Connection IO (Maybe QDBUser)
-findUserByHandle' = undefined
+findUserByUserName' :: UserName -> ReaderT Connection IO (Maybe QDBUser)
+findUserByUserName' (UserName h) = do
+  conn <- ask
+  users <- lift $ query conn
+    "SELECT id, handle, btc_addr, email FROM users WHERE handle = ?"
+    (Only h)
+  pure . fmap pQDBUser $ headMay users
+
 
 postgresQDB :: QDB (ReaderT Connection IO)
 postgresQDB = QDB 
@@ -168,5 +180,5 @@ postgresQDB = QDB
   , readBids = readBids'
   , createUser = createUser'
   , findUser = findUser'
-  , findUserByHandle = findUserByHandle'
+  , findUserByUserName = findUserByUserName'
   }
