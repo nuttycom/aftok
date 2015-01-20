@@ -12,13 +12,16 @@ import ClassyPrelude
 import Control.Lens
 import Control.Monad.Reader
 import Control.Monad.State
+import qualified Data.Aeson as A
 import qualified Data.Configurator as C
 import qualified Data.Configurator.Types as CT
+import Data.Map
 import Database.PostgreSQL.Simple
 
 import Quixotic
 import Quixotic.Database
 import Quixotic.Database.PostgreSQL
+import Quixotic.Json
 import Quixotic.TimeLog
 import Quixotic.Users
 
@@ -103,6 +106,10 @@ baseSnapConfig cfg =
 snapConfig :: QConfig -> IO (SC.Config Snap a)
 snapConfig cfg = SC.commandLineConfig $ baseSnapConfig cfg emptyConfig
 
+-- | FIXME, make configurable
+depf :: DepF
+depf = linearDepreciation (Months 6) (Months 60) 
+
 qdbpgSnapletInit :: SnapletInit a PQDB
 qdbpgSnapletInit = makeSnaplet "qdbpg" "QDB on Postgresql" Nothing $ do
   return postgresQDB
@@ -132,21 +139,20 @@ logWorkHandler evType = requireUserId $ \uid -> do
     Nothing -> snapError 400 $ "Unable to parse bitcoin address from " <> (tshow addrBytes)
     Just addr -> liftPG $ storeEv addr
 
---loggedIntervalsHandler :: QDB IO a -> ReaderT a Snap ()
---loggedIntervalsHandler qdb = do
---  let QDB{..} = qdb
---  widx <- mapReaderT liftIO $ readWorkIndex
---  lift . modifyResponse $ addHeader "content-type" "application/json"
---  lift . writeLBS . A.encode $ mapKeys (^. address) widx
---
---payoutsHandler :: QDB IO a -> ReaderT a Snap ()
---payoutsHandler qdb = do 
---  let QDB{..} = qdb
---      dep = linearDepreciation (Months 6) (Months 60) 
---  ptime <- lift . liftIO $ getCurrentTime
---  widx <- mapReaderT liftIO $ readWorkIndex
---  lift . modifyResponse $ addHeader "content-type" "application/json"
---  lift . writeLBS . A.encode . PayoutsResponse $ payouts dep ptime widx
+loggedIntervalsHandler :: Handler App App ()
+loggedIntervalsHandler = requireLogin $ do
+  QDB{..} <- with qdb get
+  widx <- liftPG $ runReaderT readWorkIndex
+  modifyResponse $ addHeader "content-type" "application/json"
+  writeLBS . A.encode $ mapKeys (^. address) widx
+
+payoutsHandler :: Handler App App ()
+payoutsHandler = requireLogin $ do 
+  QDB{..} <- with qdb get
+  ptime <- liftIO $ getCurrentTime
+  widx <- liftPG $ runReaderT readWorkIndex
+  modifyResponse $ addHeader "content-type" "application/json"
+  writeLBS . A.encode . PayoutsResponse $ payouts depf ptime widx
 
 snapError :: MonadSnap m => Int -> Text -> m a
 snapError c t = do
