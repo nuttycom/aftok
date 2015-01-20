@@ -1,18 +1,28 @@
-{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE NoImplicitPrelude, TemplateHaskell #-}
 
 module Quixotic.Database where
 
 import ClassyPrelude
+import Control.Lens
+
 import Quixotic.Auction
 import Quixotic.Users
 import Quixotic.TimeLog
 
-data QDB m a = QDB 
-  { recordEvent :: LogEntry -> ReaderT a m ()
-  , readWorkIndex :: ReaderT a m WorkIndex
-  , newAuction :: Auction -> ReaderT a m AuctionId
-  , readAuction :: AuctionId -> ReaderT a m (Maybe Auction)
-  , recordBid :: AuctionId -> Bid -> ReaderT a m ()
-  , readBids :: AuctionId -> ReaderT a m [Bid]
-  , createUser :: User -> ReaderT a m UserId
+data QDBUser = QDBUser 
+  { _userId :: UserId 
+  , _user :: User
+  }
+makeLenses ''QDBUser
+
+data QDB m = QDB 
+  { recordEvent :: UserId -> LogEntry -> m ()
+  , readWorkIndex :: m WorkIndex
+  , newAuction :: Auction -> m AuctionId
+  , readAuction :: AuctionId -> m (Maybe Auction)
+  , recordBid :: AuctionId -> Bid -> m ()
+  , readBids :: AuctionId -> m [Bid]
+  , createUser :: User -> m UserId
+  , findUser :: UserId -> m (Maybe User)
+  , findUserByHandle :: Handle -> m (Maybe QDBUser)
   }

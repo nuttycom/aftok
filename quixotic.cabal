@@ -20,6 +20,7 @@ library
                       Quixotic.Client
                       Quixotic.Database
                       Quixotic.Database.SQLite
+                      Quixotic.Database.PostgreSQL
                       Quixotic.Interval
                       Quixotic.Json
                       Quixotic.TimeLog
@@ -36,6 +37,8 @@ library
     , errors               >= 1.4.7
     , old-locale
     , sqlite-simple        >= 0.4.8    && < 0.5
+    , postgresql-simple    >= 0.4.9    && < 0.5
+    , blaze-builder        
     , text                 >= 1.2
     , time                 >= 1.4.2    && < 1.5
     , hourglass            >= 0.2.6    && < 0.3
@@ -82,8 +85,12 @@ Executable quixotic-server
     , MonadCatchIO-transformers >= 0.2.1 && < 0.4
     , configurator              
     , optparse-applicative      
+    , postgresql-simple
+    , snap                      >= 0.13  && < 0.14
     , snap-core                 >= 0.9   && < 0.10
     , snap-server               >= 0.9   && < 0.10
+    , snaplet-postgresql-simple >= 0.6
+    , resource-pool-catchio
 
 Executable quixotic-payouts
   default-language:   Haskell2010

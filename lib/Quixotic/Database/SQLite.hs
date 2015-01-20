@@ -8,6 +8,7 @@ import Control.Lens
 import Data.Hourglass
 import Database.SQLite.Simple
 import Database.SQLite.Simple.ToField
+import qualified Text.Read as R
 
 import Quixotic
 import Quixotic.Auction
@@ -33,7 +34,7 @@ makePrisms ''PAuction
 
 instance FromRow PAuction where
   fromRow = 
-    let auctionParser = Auction <$> (fmap BTC field) <*> field
+    let auctionParser = Auction <$> fmap R.read field <*> field
     in  fmap PAuction auctionParser
 
 newtype PBid = PBid Bid
@@ -41,7 +42,7 @@ makePrisms ''PBid
 
 instance FromRow PBid where
   fromRow = 
-    let bidParser = Bid <$> fmap UserId field <*> fmap Seconds field <*> fmap BTC field <*> field
+    let bidParser = Bid <$> fmap UserId field <*> fmap Seconds field <*> fmap R.read field <*> field
     in  fmap PBid bidParser
 
 newtype PSeconds = PSeconds Seconds
@@ -59,13 +60,9 @@ newtype PAuctionId = PAuctionId AuctionId
 instance ToField PAuctionId where 
   toField (PAuctionId (AuctionId i)) = toField i
 
-newtype PBTC = PBTC BTC
-
-instance ToField PBTC where
-  toField (PBTC (BTC i)) = toField i
-
-recordEvent' :: LogEntry -> ReaderT Connection IO ()
-recordEvent' logEntry = do 
+-- TODO: Record the user id
+recordEvent' :: UserId -> LogEntry -> ReaderT Connection IO ()
+recordEvent' _ logEntry = do 
   conn <- ask
   lift $ execute conn 
     "INSERT INTO work_events (btc_addr, event_type, event_time) VALUES (?, ?, ?)" 
@@ -83,7 +80,7 @@ newAuction' auc = do
   conn <- ask
   lift $ execute conn
     "INSERT INTO auctions (raise_amount, end_time) VALUES (?, ?)"
-    (auc ^. (raiseAmount . satoshis), auc ^. auctionEnd)
+    (show $ auc ^. raiseAmount, auc ^. auctionEnd)
   lift . fmap AuctionId $ lastInsertRowId conn
 
 readAuction' :: AuctionId -> ReaderT Connection IO (Maybe Auction)
@@ -102,7 +99,7 @@ recordBid' aucId bid = do
     ( PAuctionId aucId
     , PUserId $ bid ^. bidUser
     , PSeconds $ bid ^. bidSeconds
-    , PBTC $ bid ^. bidAmount
+    , show $ bid ^. bidAmount
     , bid ^. bidTime
     )
 
@@ -115,14 +112,14 @@ readBids' aucId = do
   lift . return $ fmap (^. _PBid) rows
 
 createUser' :: User -> ReaderT Connection IO UserId
-createUser' user = do
+createUser' u = do
   conn <- ask
   lift $ execute conn
     "INSERT INTO users (btc_addr, email) VALUES (?, ?)"
-    (user ^. (userAddress . address), user ^. userEmail)
+    (u ^. (userAddress . address), u ^. userEmail)
   lift . fmap UserId $ lastInsertRowId conn
 
-sqliteQDB :: QDB IO Connection
+sqliteQDB :: QDB (ReaderT Connection IO)
 sqliteQDB = QDB 
   { recordEvent = recordEvent'
   , readWorkIndex = readWorkIndex' 
@@ -131,4 +128,6 @@ sqliteQDB = QDB
   , recordBid = recordBid'
   , readBids = readBids'
   , createUser = createUser'
+  , findUser = \_ -> pure Nothing
+  , findUserByHandle = \_ -> pure Nothing
   }
