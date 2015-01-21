@@ -5,21 +5,10 @@ module Main where
 
 import ClassyPrelude 
 
-import Control.Lens
-import Control.Monad.Reader
-import Control.Monad.State
-import qualified Data.Aeson as A
 import qualified Data.Configurator as C
 import qualified Data.Configurator.Types as CT
-import Data.Map
-import Database.PostgreSQL.Simple
 
-import Quixotic
-import Quixotic.Database
-import Quixotic.Database.PostgreSQL
-import Quixotic.Json
 import Quixotic.TimeLog
-import Quixotic.Users
 
 import Quixotic.Api
 import Quixotic.Api.Types
@@ -30,9 +19,7 @@ import Snap.Http.Server
 import qualified Snap.Http.Server.Config as SC
 import Snap.Snaplet
 import Snap.Snaplet.PostgresqlSimple
-import qualified Snap.Snaplet.Auth as AU
 import Snap.Snaplet.Auth.Backends.PostgresqlSimple
-import Snap.Snaplet.Session
 import Snap.Snaplet.Session.Backends.CookieSession
 
 data QConfig = QConfig
@@ -54,19 +41,19 @@ main = do
 
 appInit :: QConfig -> SnapletInit App App
 appInit QConfig{..} = makeSnaplet "quixotic" "Quixotic Time Tracker" Nothing $ do
-  qdbs  <- nestSnaplet "qdb" qdb qdbpgSnapletInit
+  qms  <- nestSnaplet "qmodules" qm qdbpgSnapletInit
   sesss <- nestSnaplet "sessions" sess $ 
            initCookieSessionManager (fpToString authSiteKey) "quookie" cookieTimeout
   pgs   <- nestSnaplet "db" db pgsInit
   auths <- nestSnaplet "auth" auth $ initPostgresAuth sess pgs
-  addRoutes [ ("login", loginHandler) 
+  addRoutes [ ("login", loginHandler (const ok)) 
             , ("register", registerHandler)
             , ("logStart/:btcAddr", logWorkHandler StartWork)
             , ("logEnd/:btcAddr",   logWorkHandler StopWork)
-            , ("loggedIntervals/:btcAddr", loggedIntervalsHandler qdb)
-            , ("payouts", payoutsHandler qdb)
+            , ("loggedIntervals/:btcAddr", loggedIntervalsHandler)
+            , ("payouts", payoutsHandler)
             ] 
-  return $ App qdbs sesss pgs auths
+  return $ App qms sesss pgs auths
 
 loadQConfig :: FilePath -> IO QConfig
 loadQConfig cfgFile = do 
