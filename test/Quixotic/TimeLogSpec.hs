@@ -9,18 +9,11 @@ import Quixotic
 import Quixotic.Interval as I
 import Quixotic.TimeLog as L
 
-import Data.Aeson
 import Data.Map.Strict as M
 import Data.Time.ISO8601
 
 spec :: Spec
 spec = do
-  describe "work event parsing" $ do
-    it "parses a start event" $ do
-      let startText = "{\"type\":\"start\", \"timestamp\":\"2014-03-22T11:37:08Z\"}"
-          expected = fmap (WorkEvent StartWork) $ parseISO8601 "2014-03-22T11:37:08Z"
-      (decode startText) `shouldBe` expected
-      
   describe "log reduction to intervals" $ do
     it "reduces a log to a work index" $ do
       let testAddrs = catMaybes [ parseBtcAddr "123"
@@ -46,10 +39,10 @@ spec = do
             return $ LogInterval addr (I.interval start' end')
 
           expected0 :: Map BtcAddr ([LogEntry], [LogInterval])
-          expected0 = M.map (const [] &&& id) . fromListWith (++) . fmap (intervalBtcAddr &&& return) $ testIntervals
+          expected0 = fmap (const [] &&& id) . fromListWith (++) . fmap (intervalBtcAddr &&& return) $ testIntervals
 
           expected :: WorkIndex
-          expected = M.map (bimap (fmap _event) (fmap workInterval)) expected0
+          expected = fmap (fmap workInterval . snd) expected0
 
       (workIndex testLogEntries) `shouldBe` expected
 
