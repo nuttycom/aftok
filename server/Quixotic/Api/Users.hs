@@ -1,8 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables #-} 
-{-# LANGUAGE OverloadedStrings #-} 
-{-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE RecordWildCards #-} 
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, RecordWildCards #-}
 
 module Quixotic.Api.Users 
   ( loginHandler
@@ -11,15 +7,22 @@ module Quixotic.Api.Users
 
 import ClassyPrelude 
 
+import Control.Lens
+import Control.Monad.State
+import Data.Aeson as A
 import Data.ByteString (split)
 import Data.Attoparsec.ByteString 
 import qualified Data.ByteString.Base64 as B64
 
+import Quixotic
+import Quixotic.Database
+import Quixotic.Users
 import Quixotic.Api.Types
 
 import Snap.Core
 import Snap.Snaplet
 import qualified Snap.Snaplet.Auth as AU
+import Snap.Snaplet.PostgresqlSimple
 
 data AuthHeader = AuthHeader Text ByteString
 
@@ -35,11 +38,19 @@ authHeaderParser = do
     (uname : pwd : []) -> pure $ AuthHeader (decodeUtf8 uname) pwd
     _ -> fail "Could not unpack auth header into username and password components"
 
--- data CreateUser = CreateUser
---   { _user :: User
---   , _password :: ByteString
---   }
--- makeLenses ''CreateUser
+data CreateUser = CreateUser
+  { _cuser :: User
+  , _password :: ByteString
+  }
+makeLenses ''CreateUser
+
+instance FromJSON CreateUser where
+  parseJSON (Object v) = 
+    let u = User <$> (UserName <$> v .: "username")
+                 <*> (BtcAddr  <$> v .: "btcAddr")
+                 <*> v .: "email"
+    in  CreateUser <$> u <*> (fromString <$> v .: "password")
+  parseJSON _ = mzero
 
 loginHandler :: (AU.AuthUser -> Handler App App a) -> Handler App App a
 loginHandler onSuccess = do
@@ -50,7 +61,14 @@ loginHandler onSuccess = do
   either throwDenied onSuccess authResult
 
 registerHandler :: Handler App App ()
-registerHandler = ok
+registerHandler = do
+  QDB{..} <- view qdb <$> with qm get
+  requestBody <- readRequestBody 0
+  userData <- maybe (snapError 400 "Could not parse user data") pure $ A.decode requestBody
+  authUser <- with auth $ 
+    AU.createUser (userData ^. (cuser.username._UserName)) (userData ^. password)
+  let createQUser = liftPG $ runReaderT (createUser $ userData ^. cuser)
+  void $ either throwDenied (\_ -> createQUser) authUser 
 
 throwChallenge :: MonadSnap m => m a
 throwChallenge = do
@@ -63,3 +81,4 @@ throwDenied failure = do
     modifyResponse $ setResponseStatus 403 "Access Denied"
     writeText $ "Access Denied: " <> tshow failure
     getResponse >>= finishWith
+

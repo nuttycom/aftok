@@ -1,4 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables, OverloadedStrings, NoImplicitPrelude #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Quixotic.Database.PostgreSQL (postgresQDB) where
