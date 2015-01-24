@@ -1,6 +1,6 @@
-{-# LANGUAGE ScopedTypeVariables, OverloadedStrings, NoImplicitPrelude, TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell #-}
 
-module Quixotic.Auction where
+module Quixotic.Auctions where
 
 import ClassyPrelude
 import Control.Lens

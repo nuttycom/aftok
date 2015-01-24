@@ -15,7 +15,7 @@ import Database.PostgreSQL.Simple.FromRow
 import Network.Bitcoin
 
 import Quixotic
-import Quixotic.Auction
+import Quixotic.Auctions
 import Quixotic.Database
 import Quixotic.TimeLog
 import Quixotic.Users

@@ -5,9 +5,10 @@ module Quixotic.Database where
 import ClassyPrelude
 import Control.Lens
 
-import Quixotic.Auction
-import Quixotic.Users
+import Quixotic.Auctions
+import Quixotic.Projects
 import Quixotic.TimeLog
+import Quixotic.Users
 
 data QDBUser = QDBUser 
   { _userId :: UserId 
@@ -16,13 +17,13 @@ data QDBUser = QDBUser
 makeLenses ''QDBUser
 
 data QDB m = QDB 
-  { recordEvent :: UserId -> LogEntry -> m ()
-  , readWorkIndex :: m WorkIndex
-  , newAuction :: Auction -> m AuctionId
-  , readAuction :: AuctionId -> m (Maybe Auction)
-  , recordBid :: AuctionId -> Bid -> m ()
-  , readBids :: AuctionId -> m [Bid]
-  , createUser :: User -> m UserId
-  , findUser :: UserId -> m (Maybe User)
+  { recordEvent   :: ProjectId -> UserId -> LogEntry -> m ()
+  , readWorkIndex :: ProjectId -> m WorkIndex
+  , newAuction    :: ProjectId -> Auction -> m AuctionId
+  , readAuction   :: ProjectId -> AuctionId -> m (Maybe Auction)
+  , recordBid     :: ProjectId -> AuctionId -> Bid -> m ()
+  , readBids      :: ProjectId -> AuctionId -> m [Bid]
+  , createUser    :: User -> m UserId
+  , findUser      :: UserId -> m (Maybe User)
   , findUserByUserName :: UserName -> m (Maybe QDBUser)
   }

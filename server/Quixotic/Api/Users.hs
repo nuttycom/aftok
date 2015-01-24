@@ -56,7 +56,8 @@ loginHandler :: (AU.AuthUser -> Handler App App a) -> Handler App App a
 loginHandler onSuccess = do
   req <- getRequest
   rawHeader <- maybe throwChallenge pure $ getHeader "Authorization" req
-  (AuthHeader uname pwd) <- either (throwDenied . AU.AuthError) pure $ parseOnly authHeaderParser rawHeader 
+  let parsedHeader = parseOnly authHeaderParser rawHeader 
+  (AuthHeader uname pwd) <- either (throwDenied . AU.AuthError) pure parsedHeader
   authResult <- with auth $ AU.loginByUsername uname (AU.ClearText pwd) False
   either throwDenied onSuccess authResult
 
