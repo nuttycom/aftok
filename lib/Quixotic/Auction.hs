@@ -1,13 +1,13 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Quixotic.Auctions where
+module Quixotic.Auction where
 
 import ClassyPrelude
 import Control.Lens
 import Data.Hourglass
 import Network.Bitcoin
 
-import Quixotic.Users
+import Quixotic
 
 newtype AuctionId = AuctionId Int64 deriving (Show, Eq)
 makePrisms ''AuctionId

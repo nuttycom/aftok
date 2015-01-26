@@ -10,10 +10,10 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Database.PostgreSQL.Simple
 
+import Quixotic
 import Quixotic.Database
 import Quixotic.Database.PostgreSQL
 import Quixotic.TimeLog
-import Quixotic.Users
 
 import Snap.Core
 import Snap.Snaplet
@@ -57,6 +57,9 @@ requireUserId hf = AU.requireUser auth (redirect "/login") $ do
   case qdbUser of
     Nothing -> snapError 403 "Unable to retrieve user record for authenticated user" 
     Just u -> hf (u ^. userId)
+
+checkProjectAccess :: ProjectId -> UserId -> Handler App App a
+checkProjectAccess = 
 
 snapError :: MonadSnap m => Int -> Text -> m a
 snapError c t = do

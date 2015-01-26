@@ -12,6 +12,7 @@ import qualified Text.Read as R
 
 import Quixotic
 import Quixotic.Auctions
+import Quixotic.Projects
 import Quixotic.Database
 import Quixotic.TimeLog
 import Quixotic.Users
@@ -61,22 +62,22 @@ instance ToField PAuctionId where
   toField (PAuctionId (AuctionId i)) = toField i
 
 -- TODO: Record the user id
-recordEvent' :: UserId -> LogEntry -> ReaderT Connection IO ()
-recordEvent' _ logEntry = do 
+recordEvent' :: ProjectId -> UserId -> LogEntry -> ReaderT Connection IO ()
+recordEvent' _ _ logEntry = do 
   conn <- ask
   lift $ execute conn 
     "INSERT INTO work_events (btc_addr, event_type, event_time) VALUES (?, ?, ?)" 
     (logEntry ^. (from _PLogEntry))
 
-readWorkIndex' :: ReaderT Connection IO WorkIndex
-readWorkIndex' = do
+readWorkIndex' :: ProjectId -> ReaderT Connection IO WorkIndex
+readWorkIndex' _ = do
   conn <- ask
   rows <- lift $ query_ conn
     "SELECT btc_addr, event_type, event_time from work_events" 
   lift . pure . workIndex $ fmap (^. _PLogEntry) rows
 
-newAuction' :: Auction -> ReaderT Connection IO AuctionId
-newAuction' auc = do
+newAuction' :: ProjectId -> Auction -> ReaderT Connection IO AuctionId
+newAuction' _ auc = do
   conn <- ask
   lift $ execute conn
     "INSERT INTO auctions (raise_amount, end_time) VALUES (?, ?)"

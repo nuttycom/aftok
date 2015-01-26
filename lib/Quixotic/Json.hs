@@ -1,24 +1,38 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Quixotic.Json where
 
 import ClassyPrelude
-import Control.Lens
+
+import Control.Lens hiding ((.=))
 import Data.Aeson
 import Data.Map
 
 import Quixotic
+import Quixotic.Interval
 import Quixotic.TimeLog
 
-newtype PayoutsResponse = PayoutsResponse { runPayoutsResponse :: Payouts }
+newtype PayoutsJ = PayoutsJ Payouts 
+makePrisms ''PayoutsJ
 
-instance ToJSON PayoutsResponse where
-  toJSON (PayoutsResponse p) = 
+instance ToJSON PayoutsJ where
+  toJSON (PayoutsJ p) = 
     toJSON $ mapKeys (^. address) p
 
-instance FromJSON PayoutsResponse where
+instance FromJSON PayoutsJ where
   parseJSON v = 
-    fmap (PayoutsResponse . mapKeys BtcAddr) $ parseJSON v
+    PayoutsJ . mapKeys BtcAddr <$> parseJSON v
+
+newtype IntervalJ = IntervalJ Interval
+makePrisms ''IntervalJ
+
+instance ToJSON IntervalJ where
+  toJSON (IntervalJ ival) = 
+    object ["start" .= (ival ^. start), "end" .= (ival ^. end)]
+
+instance FromJSON IntervalJ where
+  parseJSON (Object v) = 
+    fmap IntervalJ $ interval <$> v .: "start" <*> v .: "end"
+  parseJSON _ = mzero
+
 

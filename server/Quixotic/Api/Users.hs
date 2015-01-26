@@ -16,7 +16,6 @@ import qualified Data.ByteString.Base64 as B64
 
 import Quixotic
 import Quixotic.Database
-import Quixotic.Users
 import Quixotic.Api.Types
 
 import Snap.Core

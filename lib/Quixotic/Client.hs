@@ -24,6 +24,6 @@ currentPayouts :: QCConfig -> IO Payouts
 currentPayouts cfg = do
   resp <- get (quixoticUrl cfg <> "payouts")
   payoutsResponse <- asJSON resp
-  pure . runPayoutsResponse $ payoutsResponse ^. responseBody
+  pure $ payoutsResponse ^. (responseBody . _PayoutsJ)
 
 

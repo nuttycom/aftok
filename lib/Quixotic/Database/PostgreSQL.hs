@@ -15,10 +15,9 @@ import Database.PostgreSQL.Simple.FromRow
 import Network.Bitcoin
 
 import Quixotic
-import Quixotic.Auctions
+import Quixotic.Auction
 import Quixotic.Database
 import Quixotic.TimeLog
-import Quixotic.Users
 
 eventTypeParser :: FieldParser EventType
 eventTypeParser f v = fromField f v >>= nameEvent
@@ -63,6 +62,10 @@ qdbUserRowParser :: RowParser QDBUser
 qdbUserRowParser = QDBUser <$> fieldWith uidParser <*> userRowParser
 
 -- Local newtypes to permit field serialization 
+newtype PPid = PPid ProjectId
+instance ToField PPid where
+  toField (PPid (ProjectId i)) = toField i
+
 newtype PBTC = PBTC BTC 
 instance ToField PBTC where
   toField (PBTC btc) = Plain . fromByteString . fromString $ showFixed False btc
@@ -90,30 +93,31 @@ newtype PQDBUser = PQDBUser { pQDBUser :: QDBUser }
 instance FromRow PQDBUser where
   fromRow = PQDBUser <$> qdbUserRowParser
 
-recordEvent' :: UserId -> LogEntry -> ReaderT Connection IO ()
-recordEvent' (UserId uid) (LogEntry a e) = do 
+recordEvent' :: ProjectId -> UserId -> LogEntry -> ReaderT Connection IO ()
+recordEvent' (ProjectId pid) (UserId uid) (LogEntry a e) = do 
   conn <- ask
   void . lift $ execute conn 
-    "INSERT INTO work_events (user_id, btc_addr, event_type, event_time) VALUES (?, ?, ?, ?)" 
-    ( uid
+    "INSERT INTO work_events (project_id, user_id, btc_addr, event_type, event_time) VALUES (?, ?, ?, ?, ?)" 
+    ( pid, uid
     , a ^. address
     , e ^. (eventType . to eventName)
     , e ^. eventTime
     )
 
-readWorkIndex' :: ReaderT Connection IO WorkIndex
-readWorkIndex' = do
+readWorkIndex' :: ProjectId -> ReaderT Connection IO WorkIndex
+readWorkIndex' pid = do
   conn <- ask
-  rows <- lift $ query_ conn
-    "SELECT btc_addr, event_type, event_time from work_events" 
+  rows <- lift $ query conn
+    "SELECT btc_addr, event_type, event_time from work_events WHERE project_id = ?" 
+    (Only $ PPid pid)
   pure . workIndex $ fmap pLogEntry rows
 
-newAuction' :: Auction -> ReaderT Connection IO AuctionId
-newAuction' auc = do
+newAuction' :: ProjectId -> Auction -> ReaderT Connection IO AuctionId
+newAuction' pid auc = do
   conn <- ask
   aucIds <- lift $ query conn
-    "INSERT INTO auctions (raise_amount, end_time) VALUES (?, ?) RETURNING id"
-    (auc ^. (raiseAmount.to PBTC), auc ^. auctionEnd)
+    "INSERT INTO auctions (project_id, raise_amount, end_time) VALUES (?, ?, ?) RETURNING id"
+    (pid ^. (_ProjectId), auc ^. (raiseAmount.to PBTC), auc ^. auctionEnd)
   pure . AuctionId . fromOnly $ DL.head aucIds
 
 readAuction' :: AuctionId -> ReaderT Connection IO (Maybe Auction)

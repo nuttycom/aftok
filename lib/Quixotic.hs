@@ -3,9 +3,9 @@
 module Quixotic where
 
 import ClassyPrelude
+
 import Control.Lens
-import Data.Aeson
-import Data.Aeson.Types as JV
+import Network.Bitcoin (BTC)
 
 newtype BtcAddr = BtcAddr { _address :: Text } deriving (Show, Eq, Ord)
 makeLenses ''BtcAddr
@@ -13,10 +13,44 @@ makeLenses ''BtcAddr
 parseBtcAddr :: Text -> Maybe BtcAddr
 parseBtcAddr = Just . BtcAddr -- this will be changed to do validation
 
-instance FromJSON BtcAddr where
-  parseJSON (JV.String t) = return $ BtcAddr t
-  parseJSON _ = mzero
+newtype UserId = UserId Int64 deriving (Show, Eq)
+makePrisms ''UserId
 
---instance FromField BtcAddr where
---  fromField f m = fmap BtcAddr $ fromField f m 
-  
+newtype UserName = UserName Text deriving (Show, Eq)
+makePrisms ''UserName
+
+data User = User
+  { _username :: UserName
+  , _userAddress :: BtcAddr
+  , _userEmail :: Text
+  }
+makeLenses ''User
+
+newtype ProjectId = ProjectId Int64 deriving (Show, Eq)
+makePrisms ''ProjectId
+
+data Project = Project
+  { _projectName :: Text
+  , _inceptionDate :: UTCTime
+  , _initiator :: UserId
+  }
+makeLenses ''Project
+
+data Invitation = Invitation
+  { _projectId :: ProjectId
+  , _currentMember :: UserId
+  , _sentAt :: UTCTime
+  , _expiresAt :: UTCTime
+  , _toAddr :: BtcAddr
+  , _amount :: BTC
+  }
+makeLenses ''Invitation
+
+newtype InvitationId = InvitationId Int64
+
+data Acceptance = Acceptance
+  { _acceptedInvitation :: InvitationId
+  , _blockHeight :: Integer
+  , _observedAt :: UTCTime
+  }
+makeLenses ''Acceptance

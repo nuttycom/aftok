@@ -48,10 +48,11 @@ appInit QConfig{..} = makeSnaplet "quixotic" "Quixotic Time Tracker" Nothing $ d
   auths <- nestSnaplet "auth" auth $ initPostgresAuth sess pgs
   addRoutes [ ("login", loginHandler (const ok)) 
             , ("register", registerHandler)
-            , ("logStart/:btcAddr", logWorkHandler StartWork)
-            , ("logEnd/:btcAddr",   logWorkHandler StopWork)
-            , ("loggedIntervals/:btcAddr", loggedIntervalsHandler)
-            , ("payouts", payoutsHandler)
+            , ("logStart/:projectId/:btcAddr", logWorkHandler StartWork)
+            , ("logEnd/:projectId/:btcAddr",   logWorkHandler StopWork)
+            , ("loggedIntervals/:projectId/:btcAddr", loggedIntervalsHandler)
+            , ("projects/:projectId", ok)
+            , ("payouts/:projectId", payoutsHandler)
             ] 
   return $ App qms sesss pgs auths
 

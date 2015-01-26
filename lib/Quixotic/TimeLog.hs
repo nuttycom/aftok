@@ -126,5 +126,5 @@ linearDepreciation undepPeriod depPeriod = \ptime ival ->
         if dt < monthsLength undepPeriod then 1
         else toRational (max zeroTime (maxDepreciable - dt)) / toRational maxDepreciable
 
-      depreciation = depPct $ diffUTCTime ptime (end $ ival)
-  in  fromRational $ depreciation * (toRational . ilen $ ival) 
+      depreciation = depPct $ diffUTCTime ptime (ival ^. end)
+  in  fromRational $ depreciation * (toRational $ ilen ival) 

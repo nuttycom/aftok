@@ -20,16 +20,13 @@ library
                     , RecordWildCards
                     , ScopedTypeVariables
   exposed-modules:    Quixotic
+                      Quixotic.Auction
                       Quixotic.Client
                       Quixotic.Database
-                      Quixotic.Database.SQLite
                       Quixotic.Database.PostgreSQL
                       Quixotic.Interval
                       Quixotic.Json
                       Quixotic.TimeLog
-                      Quixotic.Auctions
-                      Quixotic.Projects
-                      Quixotic.Users
   build-depends:      
       base                 >= 4     && < 5
     , classy-prelude       >= 0.10.1
