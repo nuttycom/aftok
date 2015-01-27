@@ -25,6 +25,9 @@ eventTypeParser f v = fromField f v >>= nameEvent
 uidParser :: FieldParser UserId
 uidParser f v = UserId <$> fromField f v
 
+pidParser :: FieldParser ProjectId
+pidParser f v = ProjectId <$> fromField f v
+
 secondsParser :: FieldParser Seconds
 secondsParser f v = Seconds <$> fromField f v
 
@@ -59,7 +62,17 @@ userRowParser = User <$> fieldWith usernameParser
                      <*> field
 
 qdbUserRowParser :: RowParser QDBUser
-qdbUserRowParser = QDBUser <$> fieldWith uidParser <*> userRowParser
+qdbUserRowParser = QDBUser <$> fieldWith uidParser 
+                           <*> userRowParser
+
+projectRowParser :: RowParser Project
+projectRowParser = Project <$> field 
+                           <*> field 
+                           <*> fieldWith uidParser
+
+qdbProjectRowParser :: RowParser QDBProject
+qdbProjectRowParser = QDBProject <$> fieldWith pidParser <*> projectRowParser
+
 
 -- Local newtypes to permit field serialization 
 newtype PPid = PPid ProjectId
@@ -92,6 +105,10 @@ instance FromRow PAuction where
 newtype PQDBUser = PQDBUser { pQDBUser :: QDBUser }
 instance FromRow PQDBUser where
   fromRow = PQDBUser <$> qdbUserRowParser
+
+newtype PQDBProject = PQDBProject { pQDBProject :: QDBProject }
+instance FromRow PQDBProject where
+  fromRow = PQDBProject <$> qdbProjectRowParser
 
 recordEvent' :: ProjectId -> UserId -> LogEntry -> ReaderT Connection IO ()
 recordEvent' (ProjectId pid) (UserId uid) (LogEntry a e) = do 
@@ -172,6 +189,24 @@ findUserByUserName' (UserName h) = do
     (Only h)
   pure . fmap pQDBUser $ headMay users
 
+createProject' :: Project -> ReaderT Connection IO ProjectId
+createProject' p = do
+  conn <- ask
+  pids <- lift $ query conn
+    "INSERT INTO projects (project_name, inception_date, initiator_id) VALUES (?, ?, ?) RETURNING id"
+    (p ^. projectName, p ^. inceptionDate, p ^. (initiator._UserId))
+  pure . ProjectId . fromOnly $ DL.head pids
+
+findUserProjects' :: UserId -> ReaderT Connection IO [QDBProject]
+findUserProjects' (UserId uid) = do
+  conn <- ask
+  results <- lift $ query conn
+    "SELECT p.id, p.project_name, p.inception_date, p.initiator_id \
+    \FROM projects p LEFT OUTER JOIN project_companions pc ON pc.project_id = p.id \
+    \WHERE p.initiator_id = ? OR pc.companion_id = ?"
+    (uid, uid)
+  pure $ fmap pQDBProject results
+
 
 postgresQDB :: QDB (ReaderT Connection IO)
 postgresQDB = QDB 
@@ -184,4 +219,6 @@ postgresQDB = QDB
   , createUser = createUser'
   , findUser = findUser'
   , findUserByUserName = findUserByUserName'
+  , createProject = createProject'
+  , findUserProjects = findUserProjects'
   }

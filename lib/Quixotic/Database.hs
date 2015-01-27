@@ -31,5 +31,6 @@ data QDB m = QDB
   , createUser    :: User -> m UserId
   , findUser      :: UserId -> m (Maybe User)
   , findUserByUserName :: UserName -> m (Maybe QDBUser)
+  , createProject :: Project -> m ProjectId
   , findUserProjects :: UserId -> m [QDBProject]
   }

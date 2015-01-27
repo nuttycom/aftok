@@ -59,7 +59,7 @@ requireUserId hf = AU.requireUser auth (redirect "/login") $ do
     Just u -> hf (u ^. userId)
 
 checkProjectAccess :: ProjectId -> UserId -> Handler App App a
-checkProjectAccess = 
+checkProjectAccess = undefined
 
 snapError :: MonadSnap m => Int -> Text -> m a
 snapError c t = do
