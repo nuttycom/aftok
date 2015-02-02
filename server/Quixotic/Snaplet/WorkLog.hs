@@ -1,32 +1,28 @@
-{-# LANGUAGE FlexibleInstances #-} 
-{-# LANGUAGE TemplateHaskell #-}
-
-module Quixotic.Api where
+module Quixotic.Snaplet.WorkLog where
 
 import ClassyPrelude 
 
 import Control.Lens
 import Control.Monad.State
 import qualified Data.Aeson as A
-import Data.Map
 
 import Quixotic
 import Quixotic.Database
 import Quixotic.Json
 import Quixotic.TimeLog
 
-import Quixotic.Api.Types
+import Quixotic.Snaplet
+import Quixotic.Snaplet.Auth
 
 import Snap.Core
 import Snap.Snaplet
 import Snap.Snaplet.PostgresqlSimple
 
 logWorkHandler :: EventType -> Handler App App ()
-logWorkHandler evType = requireUserId $ \uid -> do 
+logWorkHandler evType = do 
   QDB{..} <- view qdb <$> with qm get
-  pid <- getParam "projectId"
-  checkProjectAccess pid uid
-
+  uid <- requireUserId
+  pid <- requireProjectAccess uid
   addrBytes <- getParam "btcAddr"
   timestamp <- liftIO getCurrentTime
   let workEvent = WorkEvent evType timestamp
@@ -36,16 +32,21 @@ logWorkHandler evType = requireUserId $ \uid -> do
     Just addr -> liftPG $ storeEv addr
 
 loggedIntervalsHandler :: Handler App App ()
-loggedIntervalsHandler = requireLogin $ do
+loggedIntervalsHandler = do
   QDB{..} <- view qdb <$> with qm get
-  widx <- liftPG $ runReaderT readWorkIndex
+  uid <- requireUserId 
+  pid <- requireProjectAccess uid
+  widx <- liftPG . runReaderT $ readWorkIndex pid
   modifyResponse $ addHeader "content-type" "application/json"
-  writeLBS . A.encode $ mapKeys (^. address) widx
+  writeLBS . A.encode . fmap (fmap IntervalJ) $ mapKeysWith (++) (^. address) widx
 
 payoutsHandler :: Handler App App ()
-payoutsHandler = requireLogin $ do 
+payoutsHandler = do 
   (QModules QDB{..} df) <- with qm get
+  uid <- requireUserId 
+  pid <- requireProjectAccess uid
+  widx <- liftPG . runReaderT $ readWorkIndex pid
   ptime <- liftIO $ getCurrentTime
-  widx <- liftPG $ runReaderT readWorkIndex
   modifyResponse $ addHeader "content-type" "application/json"
   writeLBS . A.encode . PayoutsJ $ payouts df ptime widx
+

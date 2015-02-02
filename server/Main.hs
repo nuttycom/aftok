@@ -10,9 +10,10 @@ import qualified Data.Configurator.Types as CT
 
 import Quixotic.TimeLog
 
-import Quixotic.Api
-import Quixotic.Api.Types
-import Quixotic.Api.Users
+import Quixotic.Snaplet
+import Quixotic.Snaplet.Auth
+import Quixotic.Snaplet.Users
+import Quixotic.Snaplet.WorkLog
 
 import Snap.Core
 import Snap.Http.Server
@@ -46,7 +47,7 @@ appInit QConfig{..} = makeSnaplet "quixotic" "Quixotic Time Tracker" Nothing $ d
            initCookieSessionManager (fpToString authSiteKey) "quookie" cookieTimeout
   pgs   <- nestSnaplet "db" db pgsInit
   auths <- nestSnaplet "auth" auth $ initPostgresAuth sess pgs
-  addRoutes [ ("login", loginHandler (const ok)) 
+  addRoutes [ ("login", requireLogin >> (redirect "/home")) 
             , ("register", registerHandler)
             , ("logStart/:projectId/:btcAddr", logWorkHandler StartWork)
             , ("logEnd/:projectId/:btcAddr",   logWorkHandler StopWork)

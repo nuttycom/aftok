@@ -1,7 +1,6 @@
-{-# LANGUAGE FlexibleInstances #-} 
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, FlexibleInstances #-}
 
-module Quixotic.Api.Types where
+module Quixotic.Snaplet where
 
 import ClassyPrelude 
 
@@ -10,7 +9,6 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Database.PostgreSQL.Simple
 
-import Quixotic
 import Quixotic.Database
 import Quixotic.Database.PostgreSQL
 import Quixotic.TimeLog
@@ -44,23 +42,6 @@ qdbpgSnapletInit :: SnapletInit a QModules
 qdbpgSnapletInit = makeSnaplet "qdbpg" "QDB on Postgresql" Nothing $ do
   pure $ QModules postgresQDB $ linearDepreciation (Months 6) (Months 60) 
 
-requireLogin :: Handler App App a -> Handler App App a
-requireLogin = AU.requireUser auth (redirect "/login")
-
-requireUserId :: (UserId -> Handler App App a) -> Handler App App a 
-requireUserId hf = AU.requireUser auth (redirect "/login") $ do
-  QDB{..} <- view qdb <$> with qm get
-  authedUser <- with auth AU.currentUser
-  qdbUser <- case UserName . AU.unUid <$> (AU.userId =<< authedUser) of 
-    Nothing -> snapError 403 "User is authenticated, but session lacks user identifier"
-    Just n  -> liftPG . runReaderT $ findUserByUserName n
-  case qdbUser of
-    Nothing -> snapError 403 "Unable to retrieve user record for authenticated user" 
-    Just u -> hf (u ^. userId)
-
-checkProjectAccess :: ProjectId -> UserId -> Handler App App a
-checkProjectAccess = undefined
-
 snapError :: MonadSnap m => Int -> Text -> m a
 snapError c t = do
   modifyResponse $ setResponseStatus c $ encodeUtf8 t
@@ -71,3 +52,4 @@ ok :: MonadSnap m => m ()
 ok = do
   modifyResponse $ setResponseCode 200
   getResponse >>= finishWith 
+
