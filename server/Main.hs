@@ -14,6 +14,7 @@ import Quixotic.Snaplet
 import Quixotic.Snaplet.Auth
 import Quixotic.Snaplet.Users
 import Quixotic.Snaplet.WorkLog
+import Quixotic.Snaplet.Projects
 
 import Snap.Core
 import Snap.Http.Server
@@ -48,12 +49,13 @@ appInit QConfig{..} = makeSnaplet "quixotic" "Quixotic Time Tracker" Nothing $ d
   pgs   <- nestSnaplet "db" db pgsInit
   auths <- nestSnaplet "auth" auth $ initPostgresAuth sess pgs
   addRoutes [ ("login", requireLogin >> (redirect "/home")) 
-            , ("register", registerHandler)
+            , ("register", method POST registerHandler)
+            , ("projects", projectsHandler)
             , ("logStart/:projectId/:btcAddr", logWorkHandler StartWork)
             , ("logEnd/:projectId/:btcAddr",   logWorkHandler StopWork)
             , ("loggedIntervals/:projectId/:btcAddr", loggedIntervalsHandler)
-            , ("projects/:projectId", ok)
-            , ("payouts/:projectId", payoutsHandler)
+            , ("projects/:projectId", method GET ok)
+            , ("payouts/:projectId", method GET payoutsHandler)
             ] 
   return $ App qms sesss pgs auths
 

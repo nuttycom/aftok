@@ -4,12 +4,11 @@ import ClassyPrelude
 
 import Control.Lens
 import Control.Monad.State
-import Data.ByteString (split)
-import Data.Attoparsec.ByteString 
-import qualified Data.ByteString.Base64 as B64
+import Data.Attoparsec.ByteString (parseOnly)
 
 import Quixotic
 import Quixotic.Database
+import Quixotic.Util.Http (authHeaderParser)
 import Quixotic.Snaplet
 
 import Snap.Core
@@ -17,24 +16,11 @@ import Snap.Snaplet
 import Snap.Snaplet.PostgresqlSimple
 import qualified Snap.Snaplet.Auth as AU
 
-type AuthHeader = (Text, ByteString)
-
-authHeaderParser :: Parser AuthHeader
-authHeaderParser = do
-  let isBase64Char w = (w >= 47 && w <= 57 ) ||
-                       (w >= 64 && w <= 90 ) ||
-                       (w >= 97 && w <= 122) ||
-                       (w == 43 || w == 61 )
-  b64     <- string "Basic" *> takeWhile1 isBase64Char 
-  decoded <- either fail pure $ B64.decode b64
-  case split 58 decoded of
-    (uname : pwd : []) -> pure $ (decodeUtf8 uname, pwd)
-    _ -> fail "Could not unpack auth header into username and password components"
-
 requireLogin :: Handler App App AU.AuthUser 
 requireLogin = do
   req <- getRequest
   rawHeader    <- maybe throwChallenge pure $ getHeader "Authorization" req
+  logError rawHeader
   (uname, pwd) <- either (throwDenied . AU.AuthError) pure $ parseOnly authHeaderParser rawHeader 
   authResult   <- with auth $ AU.loginByUsername uname (AU.ClearText pwd) False
   either throwDenied pure authResult
@@ -57,10 +43,15 @@ requireUserId = do
 
 requireProjectAccess :: UserId -> Handler App App ProjectId
 requireProjectAccess uid = do
+  QDB{..} <- view qdb <$> with qm get
   pidMay <- getParam "projectId"
   case ProjectId <$> (readMay =<< fmap decodeUtf8 pidMay) of
     Nothing  -> snapError 403 "Value of parameter projectId could not be parsed to a valid value."
-    Just pid -> error $ "FIXME: implement project access check - got pid " ++ " " ++ show uid ++ " " ++ show pid
+    Just pid -> do
+      projects <- liftPG . runReaderT $ findUserProjects uid
+      if any (\p -> p ^. projectId == pid) projects
+        then pure pid
+        else snapError 403 $ "User " ++ (tshow uid) ++ " does not have access to project " ++ (tshow pid)
 
 throwChallenge :: MonadSnap m => m a
 throwChallenge = do

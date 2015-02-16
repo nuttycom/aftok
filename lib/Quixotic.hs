@@ -37,7 +37,7 @@ data Project = Project
 makeLenses ''Project
 
 data Invitation = Invitation
-  { _projectId :: ProjectId
+  { _invitationProject :: ProjectId
   , _currentMember :: UserId
   , _sentAt :: UTCTime
   , _expiresAt :: UTCTime

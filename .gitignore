@@ -9,3 +9,8 @@ quixotic.cfg
 quixotic-payouts.cfg
 db
 Setup
+local
+stable
+snaplets
+regtest.conf
+site_key.txt

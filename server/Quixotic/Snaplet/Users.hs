@@ -36,9 +36,9 @@ instance FromJSON CreateUser where
 registerHandler :: Handler App App ()
 registerHandler = do
   QDB{..} <- view qdb <$> with qm get
-  requestBody <- readRequestBody 0
+  requestBody <- readRequestBody 4096
   userData <- maybe (snapError 400 "Could not parse user data") pure $ A.decode requestBody
-  authUser <- with auth $ 
-    AU.createUser (userData ^. (cuser.username._UserName)) (userData ^. password)
-  let createQUser = liftPG $ runReaderT (createUser $ userData ^. cuser)
+  let createSUser = AU.createUser (userData ^. (cuser.username._UserName)) (userData ^. password)
+      createQUser = liftPG $ runReaderT (createUser $ userData ^. cuser)
+  authUser <- with auth createSUser
   void $ either throwDenied (\_ -> createQUser) authUser 

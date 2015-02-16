@@ -27,11 +27,14 @@ library
                       Quixotic.Interval
                       Quixotic.Json
                       Quixotic.TimeLog
+                      Quixotic.Util.Http
   build-depends:      
       base                 >= 4     && < 5
     , classy-prelude       >= 0.10.1
     , aeson                >= 0.8.0.2
+    , attoparsec           >= 0.12.1.2
     , bifunctors
+    , bytestring
     , containers           >= 0.5.5.1
     , configurator              
     , either               >= 4.3.1
@@ -47,6 +50,7 @@ library
     , hourglass            >= 0.2.6    && < 0.3
     , groups               >= 0.4
     , network-bitcoin      >= 1.7.0
+    , base64-bytestring    >= 1.0.0.1
     , wreq
 
 Test-Suite spec
@@ -64,6 +68,7 @@ Test-Suite spec
     , base
     , classy-prelude
     , aeson
+    , attoparsec
     , bifunctors
     , containers
     , text

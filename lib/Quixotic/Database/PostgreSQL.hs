@@ -149,7 +149,7 @@ recordBid' :: AuctionId -> Bid -> ReaderT Connection IO ()
 recordBid' (AuctionId aucId) bid = do
   conn <- ask
   void . lift $ execute conn
-    "INSERT INTO bids (auction_id, user_id, bid_seconds, bid_amount, bid_time) values (?, ?, ?, ?, ?)"
+    "INSERT INTO bids (auction_id, bidder_id, bid_seconds, bid_amount, bid_time) values (?, ?, ?, ?, ?)"
     ( aucId 
     , bid ^. (bidUser._UserId)
     , case bid ^. bidSeconds of (Seconds i) -> i
@@ -169,7 +169,7 @@ createUser' :: User -> ReaderT Connection IO UserId
 createUser' user' = do
   conn <- ask
   uids <- lift $ query conn
-    "INSERT INTO users (handle, btc_addr, email) VALUES (?, ?) RETURNING id"
+    "INSERT INTO users (handle, btc_addr, email) VALUES (?, ?, ?) RETURNING id"
     (user' ^. (username._UserName), user' ^. (userAddress.address), user' ^. userEmail)
   pure . UserId . fromOnly $ DL.head uids
 

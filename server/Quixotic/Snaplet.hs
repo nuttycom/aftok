@@ -48,8 +48,9 @@ snapError c t = do
   writeText $ ((tshow c) <> " - " <> t)
   getResponse >>= finishWith
 
-ok :: MonadSnap m => m ()
+ok :: MonadSnap m => m a
 ok = do
   modifyResponse $ setResponseCode 200
   getResponse >>= finishWith 
+
 
