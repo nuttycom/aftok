@@ -1,8 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Quixotic.Snaplet.Projects 
-  ( projectsHandler
-  ) where
+module Quixotic.Snaplet.Projects where
 
 import ClassyPrelude 
 
@@ -23,11 +21,6 @@ data CreateProject = CreateProject { createProjectName :: Text }
 instance FromJSON CreateProject where
   parseJSON (Object v) = CreateProject <$> v .: "projectName"
   parseJSON _ = mzero
-
-projectsHandler :: Handler App App ()
-projectsHandler = do
-  void $ method POST projectCreateHandler
-  void $ method GET projectListHandler
 
 projectCreateHandler :: Handler App App ProjectId
 projectCreateHandler = do

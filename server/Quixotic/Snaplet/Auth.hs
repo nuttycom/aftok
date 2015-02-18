@@ -20,7 +20,6 @@ requireLogin :: Handler App App AU.AuthUser
 requireLogin = do
   req <- getRequest
   rawHeader    <- maybe throwChallenge pure $ getHeader "Authorization" req
-  logError rawHeader
   (uname, pwd) <- either (throwDenied . AU.AuthError) pure $ parseOnly authHeaderParser rawHeader 
   authResult   <- with auth $ AU.loginByUsername uname (AU.ClearText pwd) False
   either throwDenied pure authResult
@@ -33,10 +32,8 @@ requireUser = do
 requireUserId :: Handler App App UserId
 requireUserId = do
   QDB{..} <- view qdb <$> with qm get
-  currentUser <- requireLogin
-  qdbUser <- case UserName . AU.unUid <$> AU.userId currentUser of 
-    Nothing -> snapError 403 "User is authenticated, but session lacks user identifier"
-    Just n  -> liftPG . runReaderT $ findUserByUserName n
+  currentUser <- UserName . AU.userLogin <$> requireLogin
+  qdbUser <- liftPG . runReaderT $ findUserByUserName currentUser
   case qdbUser of
     Nothing -> snapError 403 "Unable to retrieve user record for authenticated user" 
     Just u -> pure (u ^. userId)

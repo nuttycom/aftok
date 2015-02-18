@@ -8,11 +8,16 @@ create table users (
 create table projects (
   id serial primary key,
   project_name text not null,
-  inception_date timestamp without time zone not null,
+  inception_date timestamp with time zone not null,
   initiator_id integer references users (id) not null
 );
 
-create type event_t as enum ('start_work', 'stop_work');
+create table project_companions (
+  project_id integer references projects(id) not null,
+  companion_id integer references users(id) not null
+);
+
+create type event_t as enum ('start', 'stop');
 
 create table work_events (
   id serial primary key,
@@ -20,7 +25,7 @@ create table work_events (
   user_id integer references users(id) not null,
   btc_addr text not null,
   event_type event_t not null,
-  event_time timestamp without time zone not null
+  event_time timestamp with time zone not null
 );
 
 create table auctions (
@@ -28,7 +33,7 @@ create table auctions (
   project_id integer references projects(id) not null,
   initiator_id integer references users (id) not null,
   raise_amount numeric not null,
-  end_time timestamp without time zone not null
+  end_time timestamp with time zone not null
 );
 
 create table bids (
@@ -37,5 +42,5 @@ create table bids (
   bidder_id integer references users (id) not null,
   bid_seconds integer not null,
   bid_amount numeric not null,
-  bid_time timestamp without time zone not null
+  bid_time timestamp with time zone not null
 );

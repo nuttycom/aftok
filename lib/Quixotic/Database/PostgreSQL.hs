@@ -191,20 +191,25 @@ findUserByUserName' (UserName h) = do
 
 createProject' :: Project -> ReaderT Connection IO ProjectId
 createProject' p = do
+  let uid = p ^. (initiator._UserId)
   conn <- ask
   pids <- lift $ query conn
     "INSERT INTO projects (project_name, inception_date, initiator_id) VALUES (?, ?, ?) RETURNING id"
-    (p ^. projectName, p ^. inceptionDate, p ^. (initiator._UserId))
-  pure . ProjectId . fromOnly $ DL.head pids
+    (p ^. projectName, p ^. inceptionDate, uid)
+  let pid = fromOnly $ DL.head pids
+  void . lift $ execute conn
+    "INSERT INTO project_companions (project_id, companion_id) VALUES (?, ?)"
+    (pid, uid)
+  pure . ProjectId $ pid
 
 findUserProjects' :: UserId -> ReaderT Connection IO [QDBProject]
 findUserProjects' (UserId uid) = do
   conn <- ask
   results <- lift $ query conn
     "SELECT p.id, p.project_name, p.inception_date, p.initiator_id \
-    \FROM projects p LEFT OUTER JOIN project_companions pc ON pc.project_id = p.id \
-    \WHERE p.initiator_id = ? OR pc.companion_id = ?"
-    (uid, uid)
+    \FROM projects p JOIN project_companions pc ON pc.project_id = p.id \
+    \WHERE pc.companion_id = ?"
+    (Only uid)
   pure $ fmap pQDBProject results
 
 
