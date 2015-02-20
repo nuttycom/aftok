@@ -42,7 +42,7 @@ btcParser f v = fromRational <$> fromField f v
 
 
 workEventParser :: RowParser WorkEvent
-workEventParser = WorkEvent <$> fieldWith eventTypeParser <*> field 
+workEventParser = WorkEvent <$> fieldWith eventTypeParser <*> field  <*> field
 
 logEntryParser :: RowParser LogEntry
 logEntryParser  = LogEntry <$> fieldWith btcAddrParser <*> workEventParser 
@@ -114,11 +114,13 @@ recordEvent' :: ProjectId -> UserId -> LogEntry -> ReaderT Connection IO ()
 recordEvent' (ProjectId pid) (UserId uid) (LogEntry a e) = do 
   conn <- ask
   void . lift $ execute conn 
-    "INSERT INTO work_events (project_id, user_id, btc_addr, event_type, event_time) VALUES (?, ?, ?, ?, ?)" 
+    "INSERT INTO work_events (project_id, user_id, btc_addr, event_type, event_time, event_meta) \
+    \VALUES (?, ?, ?, ?, ?, ?)" 
     ( pid, uid
-    , a ^. address
+    , a ^. _BtcAddr
     , e ^. (eventType . to eventName)
     , e ^. eventTime
+    , e ^. eventMeta
     )
 
 readWorkIndex' :: ProjectId -> ReaderT Connection IO WorkIndex
@@ -170,7 +172,7 @@ createUser' user' = do
   conn <- ask
   uids <- lift $ query conn
     "INSERT INTO users (handle, btc_addr, email) VALUES (?, ?, ?) RETURNING id"
-    (user' ^. (username._UserName), user' ^. (userAddress.address), user' ^. userEmail)
+    (user' ^. (username._UserName), user' ^. (userAddress._BtcAddr), user' ^. userEmail)
   pure . UserId . fromOnly $ DL.head uids
 
 findUser' :: UserId -> ReaderT Connection IO (Maybe User)

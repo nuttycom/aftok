@@ -7,7 +7,7 @@ module Quixotic.TimeLog
   , EventType(..)
   , eventName, nameEvent
   , WorkEvent(..)
-  , eventType, eventTime
+  , eventType, eventTime, eventMeta
   , WorkIndex
   , workIndex
   , DepF
@@ -20,6 +20,7 @@ module Quixotic.TimeLog
 import ClassyPrelude
 
 import Control.Lens
+import Data.Aeson as A
 import Data.Foldable as F
 import Data.Map.Strict as MS
 import Data.Ratio()
@@ -42,6 +43,9 @@ nameEvent _       = mzero
 data WorkEvent = WorkEvent 
   { _eventType :: EventType
   , _eventTime :: UTCTime
+  -- Permit the inclusion of arbitrary JSON data that may be refactored into
+  -- proper typed fields in the future. 
+  , _eventMeta :: A.Value
   } deriving (Show, Eq)
 makeLenses ''WorkEvent
 
@@ -103,7 +107,7 @@ pushEntry :: LogEntry -> RawIndex -> ([LogEntry], [LogInterval])
 pushEntry entry = first (entry :) . MS.findWithDefault ([], []) (entry ^. btcAddr) 
 
 reduceToIntervals :: ([LogEntry], [LogInterval]) -> ([LogEntry], [LogInterval])
-reduceToIntervals ((LogEntry addr (WorkEvent StopWork end')) : (LogEntry _ (WorkEvent StartWork start')) : xs, acc) = 
+reduceToIntervals ((LogEntry addr (WorkEvent StopWork end' _)) : (LogEntry _ (WorkEvent StartWork start' _)) : xs, acc) = 
   (xs, (LogInterval addr (interval start' end')) : acc) 
 reduceToIntervals misaligned = 
   misaligned

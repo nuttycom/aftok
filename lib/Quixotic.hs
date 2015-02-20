@@ -7,11 +7,11 @@ import ClassyPrelude
 import Control.Lens
 import Network.Bitcoin (BTC)
 
-newtype BtcAddr = BtcAddr { _address :: Text } deriving (Show, Eq, Ord)
-makeLenses ''BtcAddr
+newtype BtcAddr = BtcAddr Text deriving (Show, Eq, Ord)
+makePrisms ''BtcAddr
 
 parseBtcAddr :: Text -> Maybe BtcAddr
-parseBtcAddr = Just . BtcAddr -- this will be changed to do validation
+parseBtcAddr = Just . BtcAddr -- FIXME: perform validation
 
 newtype UserId = UserId Int64 deriving (Show, Eq)
 makePrisms ''UserId

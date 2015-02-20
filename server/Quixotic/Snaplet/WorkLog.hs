@@ -5,6 +5,7 @@ import ClassyPrelude
 import Control.Lens
 import Control.Monad.State
 import qualified Data.Aeson as A
+import qualified Data.Map as M
 
 import Quixotic
 import Quixotic.Database
@@ -24,8 +25,10 @@ logWorkHandler evType = do
   uid <- requireUserId
   pid <- requireProjectAccess uid
   addrBytes <- getParam "btcAddr"
+  requestBody <- readRequestBody 4096
   timestamp <- liftIO getCurrentTime
-  let workEvent = WorkEvent evType timestamp
+  let em = maybe A.Null id $ A.decode requestBody
+      workEvent = WorkEvent evType timestamp em
       storeEv addr = runReaderT . recordEvent pid uid $ LogEntry addr workEvent
   case fmap decodeUtf8 addrBytes >>= parseBtcAddr of
     Nothing -> snapError 400 $ "Unable to parse bitcoin address from " <> (tshow addrBytes)
@@ -38,7 +41,7 @@ loggedIntervalsHandler = do
   pid <- requireProjectAccess uid
   widx <- liftPG . runReaderT $ readWorkIndex pid
   modifyResponse $ addHeader "content-type" "application/json"
-  writeLBS . A.encode . fmap (fmap IntervalJ) $ mapKeysWith (++) (^. address) widx
+  writeLBS . A.encode . fmap (fmap IntervalJ) $ M.mapKeysWith (++) (^._BtcAddr) widx
 
 payoutsHandler :: Handler App App ()
 payoutsHandler = do 

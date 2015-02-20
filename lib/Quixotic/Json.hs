@@ -17,7 +17,7 @@ makePrisms ''PayoutsJ
 
 instance ToJSON PayoutsJ where
   toJSON (PayoutsJ p) = 
-    toJSON $ mapKeys (^. address) p
+    toJSON $ mapKeys (^. _BtcAddr) p
 
 instance FromJSON PayoutsJ where
   parseJSON v = 
