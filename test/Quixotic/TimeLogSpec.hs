@@ -3,6 +3,7 @@
 module Quixotic.TimeLogSpec where
 
 import ClassyPrelude
+import qualified Data.Aeson as A
 
 import Test.Hspec
 import Quixotic
@@ -30,7 +31,7 @@ spec = do
           testLogEntries = do
             addr <- testAddrs
             (start', end') <- zip starts ends
-            [ LogEntry addr (WorkEvent StartWork start'), LogEntry addr (WorkEvent StopWork end') ]
+            [ LogEntry addr (WorkEvent StartWork start' A.Null), LogEntry addr (WorkEvent StopWork end' A.Null) ]
 
           testIntervals :: [LogInterval]
           testIntervals = do
