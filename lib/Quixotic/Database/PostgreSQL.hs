@@ -214,7 +214,6 @@ findUserProjects' (UserId uid) = do
     (Only uid)
   pure $ fmap pQDBProject results
 
-
 postgresQDB :: QDB (ReaderT Connection IO)
 postgresQDB = QDB 
   { recordEvent = recordEvent'

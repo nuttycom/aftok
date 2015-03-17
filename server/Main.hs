@@ -7,8 +7,10 @@ import ClassyPrelude
 
 import qualified Data.Configurator as C
 import qualified Data.Configurator.Types as CT
+import qualified Data.Aeson as A
 
 import Quixotic.TimeLog
+import Quixotic.Json
 
 import Quixotic.Snaplet
 import Quixotic.Snaplet.Auth
@@ -52,11 +54,11 @@ appInit QConfig{..} = makeSnaplet "quixotic" "Quixotic Time Tracker" Nothing $ d
             , ("register", void $ method POST registerHandler)
             , ("projects/:projectId/logStart/:btcAddr", method POST $ logWorkHandler StartWork)
             , ("projects/:projectId/logEnd/:btcAddr",   method POST $ logWorkHandler StopWork)
-            , ("projects/:projectId/log/:btcAddr",      method GET loggedIntervalsHandler)
-            , ("projects/:projectId", method GET ok)
-            , ("projects", void $ method POST projectCreateHandler)
-            , ("projects", void $ method GET  projectListHandler)
-            , ("payouts/:projectId",  method GET payoutsHandler)
+            , ("projects/:projectId/log/:btcAddr",      serveJSON WidxJ $ method GET loggedIntervalsHandler)
+            , ("projects/:projectId", serveJSON ProjectJ $ method GET projectGetHandler)
+            , ("projects",            void $ method POST projectCreateHandler)
+            , ("projects",            serveJSON (fmap (ProjectJ._project)) $ method GET projectListHandler)
+            , ("payouts/:projectId",  serveJSON PayoutsJ $ method GET payoutsHandler)
             ] 
   return $ App qms sesss pgs auths
 
@@ -85,3 +87,8 @@ baseSnapConfig cfg =
 
 snapConfig :: QConfig -> IO (SC.Config Snap a)
 snapConfig cfg = SC.commandLineConfig $ baseSnapConfig cfg emptyConfig
+
+serveJSON :: (MonadSnap m, A.ToJSON a) => (b -> a) -> m b -> m ()
+serveJSON f ma = do
+  modifyResponse $ addHeader "content-type" "application/json"
+  writeLBS =<< (A.encode . f <$> ma)

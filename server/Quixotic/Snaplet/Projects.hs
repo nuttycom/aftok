@@ -22,6 +22,9 @@ instance FromJSON CreateProject where
   parseJSON (Object v) = CreateProject <$> v .: "projectName"
   parseJSON _ = mzero
 
+projectGetHandler :: Handler App App Project
+projectGetHandler = ok
+
 projectCreateHandler :: Handler App App ProjectId
 projectCreateHandler = do
   QDB{..} <- view qdb <$> with qm get
@@ -31,5 +34,9 @@ projectCreateHandler = do
   timestamp <- liftIO getCurrentTime
   liftPG . runReaderT . createProject $ Project (createProjectName cp) timestamp uid
 
-projectListHandler :: Handler App App [Project]
-projectListHandler = ok 
+projectListHandler :: Handler App App [QDBProject]
+projectListHandler = do
+  QDB{..} <- view qdb <$> with qm get
+  uid <- requireUserId
+  liftPG . runReaderT $ findUserProjects uid
+
