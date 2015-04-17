@@ -19,6 +19,8 @@ import Quixotic.Auction
 import Quixotic.Database
 import Quixotic.TimeLog
 
+type QDBM = ReaderT Connection IO
+
 eventTypeParser :: FieldParser EventType
 eventTypeParser f v = fromField f v >>= nameEvent
 
@@ -110,47 +112,70 @@ newtype PQDBProject = PQDBProject { pQDBProject :: QDBProject }
 instance FromRow PQDBProject where
   fromRow = PQDBProject <$> qdbProjectRowParser
 
-recordEvent' :: ProjectId -> UserId -> LogEntry -> ReaderT Connection IO ()
-recordEvent' (ProjectId pid) (UserId uid) (LogEntry a e) = do 
+pquery :: (ToRow d, FromRow r) => Query -> d -> QDBM [r]
+pquery q d = do
   conn <- ask
-  void . lift $ execute conn 
-    "INSERT INTO work_events (project_id, user_id, btc_addr, event_type, event_time, event_meta) \
-    \VALUES (?, ?, ?, ?, ?, ?)" 
+  lift $ query conn q d
+
+pexec :: (ToRow d) => Query -> d -> QDBM Int64
+pexec q d = do
+  conn <- ask
+  lift $ execute conn q d 
+
+recordEvent' :: ProjectId -> UserId -> LogEntry -> QDBM EventId
+recordEvent' (ProjectId pid) (UserId uid) (LogEntry a e) = do 
+  eventIds <- pquery
+    "INSERT INTO work_events (project_id, user_id, btc_addr, event_type, event_time, event_metadata) \
+    \VALUES (?, ?, ?, ?, ?, ?) \
+    \RETURNING id" 
     ( pid, uid
     , a ^. _BtcAddr
     , e ^. (eventType . to eventName)
     , e ^. eventTime
     , e ^. eventMeta
     )
+  pure . EventId . fromOnly $ DL.head eventIds
 
-readWorkIndex' :: ProjectId -> ReaderT Connection IO WorkIndex
+amendEvent' :: EventId -> LogModification -> QDBM ()
+amendEvent' (EventId eid) (TimeChange mt t) = 
+  void $ pexec
+    "INSERT INTO event_time_amendments (event_id, mod_time, event_time) VALUES (?, ?, ?)"
+    ( eid, mt ^. _ModTime, t )
+
+amendEvent' (EventId eid) (AddressChange mt addr) = 
+  void $ pexec
+    "INSERT INTO event_addr_amendments (event_id, mod_time, btc_addr) VALUES (?, ?, ?)"
+    ( eid, mt ^. _ModTime, addr ^. _BtcAddr )
+  
+amendEvent' (EventId eid) (MetadataChange mt v) = 
+  void $ pexec
+    "INSERT INTO event_metadata_amendments (event_id, mod_time, btc_addr) VALUES (?, ?, ?)"
+    ( eid, mt ^. _ModTime, v )
+
+readWorkIndex' :: ProjectId -> QDBM WorkIndex
 readWorkIndex' pid = do
-  conn <- ask
-  rows <- lift $ query conn
+  rows <- pquery
     "SELECT btc_addr, event_type, event_time from work_events WHERE project_id = ?" 
     (Only $ PPid pid)
   pure . workIndex $ fmap pLogEntry rows
 
-newAuction' :: ProjectId -> Auction -> ReaderT Connection IO AuctionId
+newAuction' :: ProjectId -> Auction -> QDBM AuctionId
 newAuction' pid auc = do
-  conn <- ask
-  aucIds <- lift $ query conn
+  aucIds <- pquery
     "INSERT INTO auctions (project_id, raise_amount, end_time) VALUES (?, ?, ?) RETURNING id"
     (pid ^. (_ProjectId), auc ^. (raiseAmount.to PBTC), auc ^. auctionEnd)
   pure . AuctionId . fromOnly $ DL.head aucIds
 
-readAuction' :: AuctionId -> ReaderT Connection IO (Maybe Auction)
+readAuction' :: AuctionId -> QDBM (Maybe Auction)
 readAuction' aucId = do
-  conn <- ask
-  rows <- lift $ query conn
+  rows <- pquery
     "SELECT raise_amount, end_time FROM auctions WHERE ROWID = ?" 
     (Only (aucId ^. _AuctionId))
   pure . fmap pAuction $ headMay rows
 
-recordBid' :: AuctionId -> Bid -> ReaderT Connection IO ()
+recordBid' :: AuctionId -> Bid -> QDBM ()
 recordBid' (AuctionId aucId) bid = do
-  conn <- ask
-  void . lift $ execute conn
+  void $ pexec
     "INSERT INTO bids (auction_id, bidder_id, bid_seconds, bid_amount, bid_time) values (?, ?, ?, ?, ?)"
     ( aucId 
     , bid ^. (bidUser._UserId)
@@ -159,64 +184,59 @@ recordBid' (AuctionId aucId) bid = do
     , bid ^. bidTime
     )
 
-readBids' :: AuctionId -> ReaderT Connection IO [Bid]
+readBids' :: AuctionId -> QDBM [Bid]
 readBids' aucId = do
-  conn <- ask
-  rows <- lift $ query conn
+  rows <- pquery
     "SELECT user_id, bid_seconds, bid_amount, bid_time FROM bids WHERE auction_id = ?"
     (Only $ (aucId ^. _AuctionId))
   pure $ fmap pBid rows
 
-createUser' :: User -> ReaderT Connection IO UserId
+createUser' :: User -> QDBM UserId
 createUser' user' = do
-  conn <- ask
-  uids <- lift $ query conn
+  uids <- pquery
     "INSERT INTO users (handle, btc_addr, email) VALUES (?, ?, ?) RETURNING id"
     (user' ^. (username._UserName), user' ^. (userAddress._BtcAddr), user' ^. userEmail)
   pure . UserId . fromOnly $ DL.head uids
 
-findUser' :: UserId -> ReaderT Connection IO (Maybe User)
+findUser' :: UserId -> QDBM (Maybe User)
 findUser' (UserId uid) = do
-  conn <- ask
-  users <- lift $ query conn
+  users <- pquery
     "SELECT handle, btc_addr, email FROM users WHERE id = ?"
     (Only uid)
   pure . fmap pUser $ headMay users
 
-findUserByUserName' :: UserName -> ReaderT Connection IO (Maybe QDBUser)
+findUserByUserName' :: UserName -> QDBM (Maybe QDBUser)
 findUserByUserName' (UserName h) = do
-  conn <- ask
-  users <- lift $ query conn
+  users <- pquery
     "SELECT id, handle, btc_addr, email FROM users WHERE handle = ?"
     (Only h)
   pure . fmap pQDBUser $ headMay users
 
-createProject' :: Project -> ReaderT Connection IO ProjectId
+createProject' :: Project -> QDBM ProjectId
 createProject' p = do
   let uid = p ^. (initiator._UserId)
-  conn <- ask
-  pids <- lift $ query conn
+  pids <- pquery
     "INSERT INTO projects (project_name, inception_date, initiator_id) VALUES (?, ?, ?) RETURNING id"
     (p ^. projectName, p ^. inceptionDate, uid)
   let pid = fromOnly $ DL.head pids
-  void . lift $ execute conn
+  void $ pexec
     "INSERT INTO project_companions (project_id, companion_id) VALUES (?, ?)"
     (pid, uid)
   pure . ProjectId $ pid
 
-findUserProjects' :: UserId -> ReaderT Connection IO [QDBProject]
+findUserProjects' :: UserId -> QDBM [QDBProject]
 findUserProjects' (UserId uid) = do
-  conn <- ask
-  results <- lift $ query conn
+  results <- pquery
     "SELECT p.id, p.project_name, p.inception_date, p.initiator_id \
     \FROM projects p JOIN project_companions pc ON pc.project_id = p.id \
     \WHERE pc.companion_id = ?"
     (Only uid)
   pure $ fmap pQDBProject results
 
-postgresQDB :: QDB (ReaderT Connection IO)
+postgresQDB :: QDB QDBM
 postgresQDB = QDB 
   { recordEvent = recordEvent'
+  , amendEvent = amendEvent'
   , readWorkIndex = readWorkIndex' 
   , newAuction = newAuction'
   , readAuction = readAuction'

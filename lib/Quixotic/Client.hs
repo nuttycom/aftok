@@ -9,7 +9,6 @@ import qualified Data.Configurator as C
 import qualified Data.Configurator.Types as CT
 import Network.Wreq
 
-import Quixotic.Json
 import Quixotic.TimeLog
 
 data QCConfig = QCConfig
@@ -24,6 +23,6 @@ currentPayouts :: QCConfig -> IO Payouts
 currentPayouts cfg = do
   resp <- get (quixoticUrl cfg <> "payouts")
   payoutsResponse <- asJSON resp
-  pure $ payoutsResponse ^. (responseBody . _PayoutsJ)
+  pure $ payoutsResponse ^. responseBody
 
 

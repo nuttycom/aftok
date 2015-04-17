@@ -22,7 +22,8 @@ data QDBProject = QDBProject
 makeLenses ''QDBProject
 
 data QDB m = QDB 
-  { recordEvent   :: ProjectId -> UserId -> LogEntry -> m ()
+  { recordEvent   :: ProjectId -> UserId -> LogEntry -> m EventId
+  , amendEvent    :: EventId -> LogModification -> m ()
   , readWorkIndex :: ProjectId -> m WorkIndex
   , newAuction    :: ProjectId -> Auction -> m AuctionId
   , readAuction   :: AuctionId -> m (Maybe Auction)

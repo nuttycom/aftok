@@ -33,6 +33,7 @@ library
     , classy-prelude       >= 0.10.1
     , aeson                >= 0.8.0.2
     , attoparsec           >= 0.12.1.2
+    , template-haskell
     , bifunctors
     , bytestring
     , containers           >= 0.5.5.1

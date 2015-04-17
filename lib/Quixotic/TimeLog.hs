@@ -9,10 +9,13 @@ module Quixotic.TimeLog
   , WorkEvent(..)
   , eventType, eventTime, eventMeta
   , WorkIndex
-  , workIndex
+  , workIndex, workIndexJSON
   , DepF
+  , EventId(EventId), _EventId, eventIdJSON
+  , ModTime(ModTime), _ModTime
+  , LogModification(..)
   , Months(Months)
-  , Payouts
+  , Payouts(..), _Payouts
   , payouts
   , linearDepreciation
   ) where
@@ -21,12 +24,14 @@ import ClassyPrelude
 
 import Control.Lens
 import Data.Aeson as A
+import Data.Aeson.Types
 import Data.Foldable as F
 import Data.Map.Strict as MS
 import Data.Ratio()
 import Data.Time.Clock
 
 import Quixotic
+import Quixotic.Json
 import Quixotic.Interval
 
 data EventType = StartWork | StopWork deriving (Show, Eq)
@@ -55,15 +60,48 @@ data LogEntry = LogEntry
   } deriving (Show, Eq)
 makeLenses ''LogEntry
 
+newtype EventId = EventId Int64 deriving (Show, Eq)
+makePrisms ''EventId
+
+newtype ModTime = ModTime UTCTime
+makePrisms ''ModTime
+
+data LogModification = TimeChange ModTime UTCTime
+                     | AddressChange ModTime BtcAddr
+                     | MetadataChange ModTime A.Value
+
 data LogInterval = LogInterval 
   { intervalBtcAddr :: BtcAddr
   , workInterval :: Interval
   } deriving (Show, Eq) 
 
-type Payouts = Map BtcAddr Rational
+newtype Payouts = Payouts (Map BtcAddr Rational)
+makePrisms ''Payouts
+
+payoutsJSON :: Payouts -> Value
+payoutsJSON (Payouts m) = toJSON $ MS.mapKeys (^. _BtcAddr) m
+
+parsePayoutsJSON :: Value -> Parser Payouts
+parsePayoutsJSON v = 
+  Payouts . MS.mapKeys BtcAddr <$> parseJSON v 
+
+instance A.ToJSON Payouts where
+  toJSON = versioned (Version 1 0 0) . payoutsJSON
+
+instance A.FromJSON Payouts where
+  parseJSON v = let parsePayouts (Version 1 0 0) = parsePayoutsJSON 
+                    parsePayouts v' = \_ -> fail . show $ printVersion v'
+                in  unversion parsePayouts $ v
+
 type WorkIndex = Map BtcAddr [Interval]
 type RawIndex = Map BtcAddr ([LogEntry], [LogInterval])
 type NDT = NominalDiffTime
+
+workIndexJSON :: WorkIndex -> Value
+workIndexJSON widx = toJSON $ (fmap intervalJSON) <$> (MS.mapKeysWith (++) (^._BtcAddr) widx)
+
+eventIdJSON :: EventId -> Value
+eventIdJSON (EventId eid) = toJSON eid
 
 {-|
   The depreciation function should return a value between 0 and 1;
@@ -82,7 +120,7 @@ payouts dep ptime widx =
   let addIntervalDiff :: (Functor f, Foldable f) => NDT -> f Interval -> (NDT, NDT)
       addIntervalDiff total ivals = (\dt -> (dt + total, dt)) $ workCredit dep ptime ivals 
       (totalTime, keyTimes) = MS.mapAccum addIntervalDiff (fromInteger 0) $ widx
-  in  fmap (\kt -> toRational $ kt / totalTime) keyTimes
+  in  Payouts $ fmap (\kt -> toRational $ kt / totalTime) keyTimes
 
 {-|
   Given a depreciation function, the "current" time, and a foldable functor of log intervals,

@@ -50,15 +50,14 @@ appInit QConfig{..} = makeSnaplet "quixotic" "Quixotic Time Tracker" Nothing $ d
            initCookieSessionManager (fpToString authSiteKey) "quookie" cookieTimeout
   pgs   <- nestSnaplet "db" db pgsInit
   auths <- nestSnaplet "auth" auth $ initPostgresAuth sess pgs
-  addRoutes [ ("login", requireLogin >> (redirect "/home")) 
+  addRoutes [ ("login",    requireLogin >> (redirect "/home")) 
             , ("register", void $ method POST registerHandler)
-            , ("projects/:projectId/logStart/:btcAddr", method POST $ logWorkHandler StartWork)
-            , ("projects/:projectId/logEnd/:btcAddr",   method POST $ logWorkHandler StopWork)
-            , ("projects/:projectId/log/:btcAddr",      serveJSON WidxJ $ method GET loggedIntervalsHandler)
-            , ("projects/:projectId", serveJSON ProjectJ $ method GET projectGetHandler)
+            , ("projects/:projectId/logStart/:btcAddr", serveJSON eventIdJSON . method POST $ logWorkHandler StartWork)
+            , ("projects/:projectId/logEnd/:btcAddr",   serveJSON eventIdJSON . method POST $ logWorkHandler StopWork)
+            , ("projects/:projectId/log/:btcAddr",      serveJSON workIndexJSON $ method GET loggedIntervalsHandler)
+            , ("projects/:projectId", serveJSON projectJSON $ method GET projectGetHandler)
             , ("projects",            void $ method POST projectCreateHandler)
-            , ("projects",            serveJSON (fmap (ProjectJ._project)) $ method GET projectListHandler)
-            , ("payouts/:projectId",  serveJSON PayoutsJ $ method GET payoutsHandler)
+            , ("payouts/:projectId",  serveJSON id $ method GET payoutsHandler)
             ] 
   return $ App qms sesss pgs auths
 

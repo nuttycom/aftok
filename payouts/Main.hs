@@ -11,6 +11,7 @@ import qualified Data.Configurator.Types as CT
 import qualified Data.Vector as V
 
 import Quixotic.Client
+import Quixotic.TimeLog
 
 main :: IO ()
 main = do
@@ -55,7 +56,7 @@ distributePayouts cfg = do
   client <- btcClient cfg
   unspent <- listUnspent client (Just . payoutMinConfirmations $ cfg) Nothing V.empty 
   -- get payouts amounts
-  payouts <- currentPayouts (qcConfig cfg)
+  (Payouts p) <- currentPayouts (qcConfig cfg)
   -- create a new txn spending all UTXOs to payouts
-  putStrLn (tshow unspent)
-  putStrLn (tshow payouts)
+  putStrLn . tshow $ unspent
+  putStrLn . tshow $ p 

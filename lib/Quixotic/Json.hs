@@ -1,52 +1,61 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 
 module Quixotic.Json where
 
 import ClassyPrelude
 
 import Control.Lens hiding ((.=))
-import Data.Aeson
-import qualified Data.Map as M
+import Data.Aeson 
+import Data.Aeson.Types
+import Data.Data
+import qualified Data.Attoparsec.ByteString.Char8 as P
+import qualified Data.ByteString.Char8 as C
 
 import Quixotic
-import Quixotic.Interval
-import Quixotic.TimeLog
 
-newtype PayoutsJ = PayoutsJ Payouts 
-makePrisms ''PayoutsJ
+import qualified Language.Haskell.TH as TH
+import Language.Haskell.TH.Quote
 
-instance ToJSON PayoutsJ where
-  toJSON (PayoutsJ p) = 
-    toJSON $ M.mapKeys (^. _BtcAddr) p
+data Version = Version { majorVersion :: Word8
+                       , minorVersion :: Word8
+                       , trivialVersion :: Word8 
+                       } deriving (Typeable, Data)
 
-instance FromJSON PayoutsJ where
-  parseJSON v = 
-    PayoutsJ . M.mapKeys BtcAddr <$> parseJSON v
+printVersion :: Version -> Text
+printVersion Version{..} = intercalate "." (fmap tshow [majorVersion, minorVersion, trivialVersion])
 
-newtype IntervalJ = IntervalJ Interval
-makePrisms ''IntervalJ
+versionParser :: P.Parser Version
+versionParser = Version <$> P.decimal <*> (P.char '.' >> P.decimal) <*> (P.char '.' >> P.decimal)
 
-instance ToJSON IntervalJ where
-  toJSON (IntervalJ ival) = 
-    object ["start" .= (ival ^. start), "end" .= (ival ^. end)]
+versioned :: Version -> Value -> Value
+versioned ver v = object [ "schemaVersion" .= printVersion ver
+                         , "value" .= v ]
 
-instance FromJSON IntervalJ where
-  parseJSON (Object v) = 
-    fmap IntervalJ $ interval <$> v .: "start" <*> v .: "end"
-  parseJSON _ = mzero
+version :: QuasiQuoter 
+version = QuasiQuoter { quoteExp = quoteVersionExp
+                      , quotePat = error "Pattern quasiquotation of versions not supported."
+                      , quoteType = error "Type quasiquotation of versions not supported."
+                      , quoteDec = error "Dec quasiquotation of versions not supported."
+                      }
 
-newtype ProjectJ = ProjectJ Project
-makePrisms ''ProjectJ
 
-instance ToJSON ProjectJ where
-  toJSON (ProjectJ p) = 
-    object [ "projectName"    .= (p ^. projectName)
-           , "inceptionDate"  .= (p ^. inceptionDate)
-           , "initiator"      .= (p ^. (initiator._UserId)) ]
+quoteVersionExp :: String -> TH.Q TH.Exp
+quoteVersionExp s = do
+  v <- either (fail . show) pure $ P.parseOnly versionParser (C.pack s)
+  dataToExpQ (const Nothing) v
 
-newtype WidxJ = WidxJ WorkIndex
-makePrisms ''WidxJ
+unversion :: (Version -> Value -> Parser a) -> Value -> Parser a
+unversion f (Object v) = do
+  vers <- v .: "schemaVersion"
+  vers' <- either (\_ -> mzero) pure $ P.parseOnly versionParser (encodeUtf8 vers)
+  value <- v .: "value"
+  f vers' value
+unversion _ _ = mzero
 
-instance ToJSON WidxJ where
-  toJSON (WidxJ widx) = 
-    toJSON $ (fmap IntervalJ) <$> (M.mapKeysWith (++) (^._BtcAddr) widx)
+projectJSON :: Project -> Value
+projectJSON p = 
+  object [ "projectName"    .= (p ^. projectName)
+         , "inceptionDate"  .= (p ^. inceptionDate)
+         , "initiator"      .= (p ^. (initiator._UserId)) ]
+

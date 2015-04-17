@@ -17,7 +17,7 @@ import Snap.Core
 import Snap.Snaplet
 import Snap.Snaplet.PostgresqlSimple
 
-logWorkHandler :: EventType -> Handler App App ()
+logWorkHandler :: EventType -> Handler App App EventId
 logWorkHandler evType = do 
   QDB{..} <- view qdb <$> with qm get
   uid <- requireUserId
