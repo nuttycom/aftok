@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 
 module Quixotic.TimeLog 
   ( LogEntry(..)
@@ -34,7 +35,7 @@ import Quixotic
 import Quixotic.Json
 import Quixotic.Interval
 
-data EventType = StartWork | StopWork deriving (Show, Eq)
+data EventType = StartWork | StopWork deriving (Show, Eq, Typeable)
 
 eventName :: EventType -> Text
 eventName StartWork = "start"
@@ -50,7 +51,7 @@ data WorkEvent = WorkEvent
   , _eventTime :: UTCTime
   -- Permit the inclusion of arbitrary JSON data that may be refactored into
   -- proper typed fields in the future. 
-  , _eventMeta :: A.Value
+  , _eventMeta :: Maybe A.Value
   } deriving (Show, Eq)
 makeLenses ''WorkEvent
 

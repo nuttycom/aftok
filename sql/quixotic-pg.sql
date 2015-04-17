@@ -26,7 +26,7 @@ create table work_events (
   btc_addr text not null,
   event_type event_t not null,
   event_time timestamp with time zone not null,
-  event_meta json not null
+  event_metadata json not null
 );
 
 create table auctions (

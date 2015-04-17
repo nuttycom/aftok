@@ -22,7 +22,12 @@ import Quixotic.TimeLog
 type QDBM = ReaderT Connection IO
 
 eventTypeParser :: FieldParser EventType
-eventTypeParser f v = fromField f v >>= nameEvent
+eventTypeParser f v = do
+  tn <- typename f
+  case tn of 
+    "event_t" -> maybe (returnError UnexpectedNull f "") (nameEvent . decodeUtf8) v
+    _         -> returnError Incompatible f "column was not of type event_t"
+
 
 uidParser :: FieldParser UserId
 uidParser f v = UserId <$> fromField f v
@@ -44,7 +49,7 @@ btcParser f v = fromRational <$> fromField f v
 
 
 workEventParser :: RowParser WorkEvent
-workEventParser = WorkEvent <$> fieldWith eventTypeParser <*> field  <*> field
+workEventParser = WorkEvent <$> fieldWith eventTypeParser <*> field <*> field
 
 logEntryParser :: RowParser LogEntry
 logEntryParser  = LogEntry <$> fieldWith btcAddrParser <*> workEventParser 
@@ -155,7 +160,7 @@ amendEvent' (EventId eid) (MetadataChange mt v) =
 readWorkIndex' :: ProjectId -> QDBM WorkIndex
 readWorkIndex' pid = do
   rows <- pquery
-    "SELECT btc_addr, event_type, event_time from work_events WHERE project_id = ?" 
+    "SELECT btc_addr, event_type, event_time, event_metadata from work_events WHERE project_id = ?" 
     (Only $ PPid pid)
   pure . workIndex $ fmap pLogEntry rows
 
