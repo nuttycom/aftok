@@ -24,12 +24,15 @@ module Quixotic.TimeLog
 import ClassyPrelude
 
 import Control.Lens
+import Data.AdditiveGroup
 import Data.Aeson as A
 import Data.Aeson.Types
+import Data.AffineSpace
 import Data.Foldable as F
 import Data.Map.Strict as MS
 import Data.Ratio()
-import Data.Time.Clock
+import Data.Thyme.Clock as C
+import Data.VectorSpace
 
 import Quixotic
 import Quixotic.Json
@@ -48,7 +51,7 @@ nameEvent _       = mzero
 
 data WorkEvent = WorkEvent 
   { _eventType :: EventType
-  , _eventTime :: UTCTime
+  , _eventTime :: C.UTCTime
   -- Permit the inclusion of arbitrary JSON data that may be refactored into
   -- proper typed fields in the future. 
   , _eventMeta :: Maybe A.Value
@@ -64,10 +67,10 @@ makeLenses ''LogEntry
 newtype EventId = EventId Int64 deriving (Show, Eq)
 makePrisms ''EventId
 
-newtype ModTime = ModTime UTCTime
+newtype ModTime = ModTime C.UTCTime
 makePrisms ''ModTime
 
-data LogModification = TimeChange ModTime UTCTime
+data LogModification = TimeChange ModTime C.UTCTime
                      | AddressChange ModTime BtcAddr
                      | MetadataChange ModTime A.Value
 
@@ -96,7 +99,7 @@ instance A.FromJSON Payouts where
 
 type WorkIndex = Map BtcAddr [Interval]
 type RawIndex = Map BtcAddr ([LogEntry], [LogInterval])
-type NDT = NominalDiffTime
+type NDT = C.NominalDiffTime
 
 workIndexJSON :: WorkIndex -> Value
 workIndexJSON widx = toJSON $ (fmap intervalJSON) <$> (MS.mapKeysWith (++) (^._BtcAddr) widx)
@@ -105,31 +108,32 @@ eventIdJSON :: EventId -> Value
 eventIdJSON (EventId eid) = toJSON eid
 
 {-|
-  The depreciation function should return a value between 0 and 1;
-  this result is multiplied by the length of an interval of work to determine
-  the depreciated value of the work.
--}
-type DepF = UTCTime -> Interval -> NDT 
+ - The depreciation function should return a value between 0 and 1;
+ - this result is multiplied by the length of an interval of work to determine
+ - the depreciated value of the work.
+ -}
+type DepF = C.UTCTime -> Interval -> NDT 
 
 {-|
-  Payouts are determined by computing a depreciated duration value for
-  each work interval. This function computes the percentage of the total
-  work allocated to each address.
--}
-payouts :: DepF -> UTCTime -> WorkIndex -> Payouts
+ - Given a depreciation function, the "current" time, and a foldable functor of log intervals,
+ - produce the total, depreciated length of work to be credited to an address.
+ -}
+workCredit :: (Functor f, Foldable f) => DepF -> C.UTCTime -> f Interval -> NDT
+workCredit depf ptime ivals = getSum $ F.foldMap (Sum . depf ptime) ivals
+
+{-|
+ - Payouts are determined by computing a depreciated duration value for
+ - each work interval. This function computes the percentage of the total
+ - work allocated to each address.
+ -}
+payouts :: DepF -> C.UTCTime -> WorkIndex -> Payouts
 payouts dep ptime widx = 
   let addIntervalDiff :: (Functor f, Foldable f) => NDT -> f Interval -> (NDT, NDT)
-      addIntervalDiff total ivals = (\dt -> (dt + total, dt)) $ workCredit dep ptime ivals 
-      (totalTime, keyTimes) = MS.mapAccum addIntervalDiff (fromInteger 0) $ widx
-  in  Payouts $ fmap (\kt -> toRational $ kt / totalTime) keyTimes
+      addIntervalDiff total ivals = (^+^ total) &&& id $ workCredit dep ptime ivals 
 
-{-|
-  Given a depreciation function, the "current" time, and a foldable functor of log intervals,
-  produce the total, depreciated length of work to be credited to an address.
--}
-workCredit :: (Functor f, Foldable f) => DepF -> UTCTime -> f Interval -> NDT
-workCredit depf ptime ivals = 
-  F.foldl' (+) (fromInteger 0) $ fmap (depf ptime) ivals
+      (totalTime, keyTimes) = MS.mapAccum addIntervalDiff zeroV $ widx
+
+  in  Payouts $ fmap ((/ toSeconds totalTime) . toSeconds) keyTimes
 
 workIndex :: Foldable f => f LogEntry -> WorkIndex
 workIndex logEntries = 
@@ -153,21 +157,25 @@ reduceToIntervals misaligned =
 
 newtype Months = Months Integer 
 
-monthsLength :: Months -> NominalDiffTime
-monthsLength (Months i) = fromInteger $ 60 * 60 * 24 * 30 * i
+{-|
+ - A very simple linear function for calculating depreciation.
+ -
+ -}
+linearDepreciation :: Months -> -- ^ The number of initial months during which no depreciation occurs
+                      Months -> -- ^ The number of months over which each logged interval will be depreciated
+                      DepF
+linearDepreciation undepPeriod depPeriod = 
+  let monthsLength :: Months -> NDT
+      monthsLength (Months i) = fromSeconds $ 60 * 60 * 24 * 30 * i
 
-linearDepreciation :: Months -> Months -> DepF
-linearDepreciation undepPeriod depPeriod = \ptime ival -> 
-  let maxDepreciable :: NominalDiffTime
-      maxDepreciable = monthsLength undepPeriod + monthsLength depPeriod 
+      maxDepreciable :: NDT
+      maxDepreciable = monthsLength undepPeriod ^+^ monthsLength depPeriod 
 
-      zeroTime :: NominalDiffTime
-      zeroTime = fromInteger 0
-
-      depPct :: NominalDiffTime -> Rational
+      depPct :: NDT -> Rational
       depPct dt = 
         if dt < monthsLength undepPeriod then 1
-        else toRational (max zeroTime (maxDepreciable - dt)) / toRational maxDepreciable
+        else toSeconds (max zeroV (maxDepreciable ^-^ dt)) / toSeconds maxDepreciable
 
-      depreciation = depPct $ diffUTCTime ptime (ival ^. end)
-  in  fromRational $ depreciation * (toRational $ ilen ival) 
+  in  \ptime ival -> 
+    let depreciation = depPct $ ptime .-. (ival ^. end)
+    in  depreciation *^ (ilen ival)

@@ -47,11 +47,12 @@ library
     , postgresql-simple    >= 0.4.9    && < 0.5
     , blaze-builder        
     , text                 >= 1.2
-    , time                 >= 1.4.2    && < 1.5
+    , thyme                >= 0.3.5
     , hourglass            >= 0.2.6    && < 0.3
     , groups               >= 0.4
     , network-bitcoin      >= 1.7.0
     , base64-bytestring    >= 1.0.0.1
+    , vector-space
     , wreq
 
 Test-Suite spec
@@ -67,15 +68,17 @@ Test-Suite spec
   build-depends:    
       quixotic
     , base
+    , QuickCheck >= 2.7
     , classy-prelude
     , aeson
     , attoparsec
     , bifunctors
     , containers
     , text
-    , time
+    , thyme
     , iso8601-time
     , hspec >= 1.8.1
+    , vector-space
 
 Executable quixotic-server
   default-language:   Haskell2010
@@ -98,7 +101,7 @@ Executable quixotic-server
     , lens
     , sqlite-simple
     , text
-    , time
+    , thyme
     , transformers
     , MonadCatchIO-transformers >= 0.2.1 && < 0.4
     , configurator              
@@ -130,7 +133,7 @@ Executable quixotic-payouts
     , mtl                       >= 2     && < 3
     , lens
     , text
-    , time
+    , thyme
     , vector
     , transformers
     , configurator

@@ -5,6 +5,7 @@ import ClassyPrelude
 import Control.Lens
 import Control.Monad.State
 import qualified Data.Aeson as A
+import Data.Thyme.Clock as C
 
 import Quixotic
 import Quixotic.Database
@@ -24,7 +25,7 @@ logWorkHandler evType = do
   pid <- requireProjectAccess uid
   addrBytes <- getParam "btcAddr"
   requestBody <- readRequestBody 4096
-  timestamp <- liftIO getCurrentTime
+  timestamp <- liftIO C.getCurrentTime
   let workEvent = WorkEvent evType timestamp $ A.decode requestBody
       storeEv addr = runReaderT . recordEvent pid uid $ LogEntry addr workEvent
   case fmap decodeUtf8 addrBytes >>= parseBtcAddr of
@@ -44,6 +45,6 @@ payoutsHandler = do
   uid <- requireUserId 
   pid <- requireProjectAccess uid
   widx <- liftPG . runReaderT $ readWorkIndex pid
-  ptime <- liftIO $ getCurrentTime
+  ptime <- liftIO $ C.getCurrentTime
   pure $ payouts df ptime widx
 

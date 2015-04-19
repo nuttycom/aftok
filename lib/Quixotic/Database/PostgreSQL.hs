@@ -7,6 +7,8 @@ import ClassyPrelude
 import Control.Lens
 import Data.Fixed
 import Data.Hourglass
+import Data.Thyme.Clock as C
+import Data.Thyme.Time
 import qualified Data.List as DL
 import Database.PostgreSQL.Simple
 import Database.PostgreSQL.Simple.ToField
@@ -47,9 +49,12 @@ btcAddrParser f v = BtcAddr <$> fromField f v
 btcParser :: FieldParser BTC
 btcParser f v = fromRational <$> fromField f v
 
+utcParser :: FieldParser C.UTCTime
+utcParser f v = toThyme <$> fromField f v 
+
 
 workEventParser :: RowParser WorkEvent
-workEventParser = WorkEvent <$> fieldWith eventTypeParser <*> field <*> field
+workEventParser = WorkEvent <$> fieldWith eventTypeParser <*> fieldWith utcParser <*> field
 
 logEntryParser :: RowParser LogEntry
 logEntryParser  = LogEntry <$> fieldWith btcAddrParser <*> workEventParser 
@@ -136,7 +141,7 @@ recordEvent' (ProjectId pid) (UserId uid) (LogEntry a e) = do
     ( pid, uid
     , a ^. _BtcAddr
     , e ^. (eventType . to eventName)
-    , e ^. eventTime
+    , fromThyme $ e ^. eventTime
     , e ^. eventMeta
     )
   pure . EventId . fromOnly $ DL.head eventIds
@@ -145,17 +150,17 @@ amendEvent' :: EventId -> LogModification -> QDBM ()
 amendEvent' (EventId eid) (TimeChange mt t) = 
   void $ pexec
     "INSERT INTO event_time_amendments (event_id, mod_time, event_time) VALUES (?, ?, ?)"
-    ( eid, mt ^. _ModTime, t )
+    ( eid, fromThyme $ mt ^. _ModTime, fromThyme t )
 
 amendEvent' (EventId eid) (AddressChange mt addr) = 
   void $ pexec
     "INSERT INTO event_addr_amendments (event_id, mod_time, btc_addr) VALUES (?, ?, ?)"
-    ( eid, mt ^. _ModTime, addr ^. _BtcAddr )
+    ( eid, fromThyme $ mt ^. _ModTime, addr ^. _BtcAddr )
   
 amendEvent' (EventId eid) (MetadataChange mt v) = 
   void $ pexec
     "INSERT INTO event_metadata_amendments (event_id, mod_time, btc_addr) VALUES (?, ?, ?)"
-    ( eid, mt ^. _ModTime, v )
+    ( eid, fromThyme $ mt ^. _ModTime, v )
 
 readWorkIndex' :: ProjectId -> QDBM WorkIndex
 readWorkIndex' pid = do
