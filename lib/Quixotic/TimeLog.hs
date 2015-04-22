@@ -9,7 +9,7 @@ module Quixotic.TimeLog
   , eventName, nameEvent
   , WorkEvent(..)
   , eventType, eventTime, eventMeta
-  , WorkIndex
+  , WorkIndex(WorkIndex), _WorkIndex
   , workIndex, workIndexJSON
   , DepF
   , EventId(EventId), _EventId, eventIdJSON
@@ -28,6 +28,8 @@ import Data.AdditiveGroup
 import Data.Aeson as A
 import Data.Aeson.Types
 import Data.AffineSpace
+import Data.Heap as H
+import Data.List.NonEmpty as L
 import Data.Foldable as F
 import Data.Map.Strict as MS
 import Data.Ratio()
@@ -39,6 +41,11 @@ import Quixotic.Json
 import Quixotic.Interval
 
 data EventType = StartWork | StopWork deriving (Show, Eq, Typeable)
+
+instance Ord EventType where
+  compare StartWork StopWork = LT
+  compare StopWork StartWork = GT
+  compare _ _ = EQ
 
 eventName :: EventType -> Text
 eventName StartWork = "start"
@@ -63,6 +70,11 @@ data LogEntry = LogEntry
   , _event :: WorkEvent 
   } deriving (Show, Eq)
 makeLenses ''LogEntry
+
+instance Ord LogEntry where
+  compare a b = 
+    let ordElems e = (e ^. (event.eventTime), e ^. (event.eventType), e ^. btcAddr)
+    in  ordElems a `compare` ordElems b
 
 newtype EventId = EventId Int64 deriving (Show, Eq)
 makePrisms ''EventId
@@ -97,12 +109,15 @@ instance A.FromJSON Payouts where
                     parsePayouts v' = \_ -> fail . show $ printVersion v'
                 in  unversion parsePayouts $ v
 
-type WorkIndex = Map BtcAddr [Interval]
+newtype WorkIndex = WorkIndex (Map BtcAddr (NonEmpty Interval)) deriving (Show, Eq)
+makePrisms ''WorkIndex
+
 type RawIndex = Map BtcAddr ([LogEntry], [LogInterval])
 type NDT = C.NominalDiffTime
 
 workIndexJSON :: WorkIndex -> Value
-workIndexJSON widx = toJSON $ (fmap intervalJSON) <$> (MS.mapKeysWith (++) (^._BtcAddr) widx)
+workIndexJSON (WorkIndex widx) = 
+  toJSON $ (L.toList . fmap intervalJSON) <$> (MS.mapKeysMonotonic (^._BtcAddr) widx)
 
 eventIdJSON :: EventId -> Value
 eventIdJSON (EventId eid) = toJSON eid
@@ -127,7 +142,7 @@ workCredit depf ptime ivals = getSum $ F.foldMap (Sum . depf ptime) ivals
  - work allocated to each address.
  -}
 payouts :: DepF -> C.UTCTime -> WorkIndex -> Payouts
-payouts dep ptime widx = 
+payouts dep ptime (WorkIndex widx) = 
   let addIntervalDiff :: (Functor f, Foldable f) => NDT -> f Interval -> (NDT, NDT)
       addIntervalDiff total ivals = (^+^ total) &&& id $ workCredit dep ptime ivals 
 
@@ -137,15 +152,27 @@ payouts dep ptime widx =
 
 workIndex :: Foldable f => f LogEntry -> WorkIndex
 workIndex logEntries = 
-  let logSum :: RawIndex
-      logSum = F.foldl' appendLogEntry MS.empty logEntries
-  in  fmap (fmap workInterval . snd) $ logSum
+  let sortedEntries :: Heap LogEntry
+      sortedEntries = F.foldr H.insert H.empty $ logEntries
+
+      rawIndex :: RawIndex
+      rawIndex = F.foldl' appendLogEntry MS.empty $ sortedEntries
+
+      accum k (_, l) m = case nonEmpty l of 
+        Just l' -> MS.insert k (workInterval <$> l') m
+        Nothing -> m
+
+  in  WorkIndex $ MS.foldrWithKey accum MS.empty rawIndex
 
 appendLogEntry :: RawIndex -> LogEntry -> RawIndex
 appendLogEntry idx entry = 
   let acc = reduceToIntervals $ pushEntry entry idx 
-  in  insert (entry ^. btcAddr) acc idx
+  in  MS.insert (entry ^. btcAddr) acc idx
 
+{-|
+ - Find the set of accumulated log intervals and log entries
+ - for a given BTC address, and concatenate the entry to the entry list.
+ -}
 pushEntry :: LogEntry -> RawIndex -> ([LogEntry], [LogInterval])
 pushEntry entry = first (entry :) . MS.findWithDefault ([], []) (entry ^. btcAddr) 
 
