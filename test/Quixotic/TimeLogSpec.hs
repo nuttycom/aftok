@@ -30,8 +30,8 @@ instance Arbitrary BtcAddr where
 instance Arbitrary Interval where
   arbitrary = do
     startTime <- arbitrary
-    delta <- arbitrary
-    pure $ I.interval startTime (startTime .+^ delta)
+    delta <- arbitrary :: Gen (Positive T.NominalDiffTime)
+    pure $ I.interval startTime (startTime .+^ getPositive delta)
 
 instance Arbitrary WorkIndex where
   arbitrary = 
@@ -49,38 +49,38 @@ spec = do
 
           starts = L.fromList $ toThyme <$> catMaybes 
             [ parseISO8601 "2014-01-01T00:08:00Z"
-            , parseISO8601 "2014-02-12T00:12:00Z" ]
+            , parseISO8601 "2014-01-01T00:12:00Z" ]
 
           ends   = L.fromList $ toThyme <$> catMaybes 
             [ parseISO8601 "2014-01-01T00:12:00Z"
-            , parseISO8601 "2014-02-12T00:18:00Z" ]
-
-          testLogEntries :: NonEmpty LogEntry
-          testLogEntries = do
-            addr <- testAddrs
-            (start', end') <- L.zip starts ends
-            L.fromList [ LogEntry addr (WorkEvent StartWork start' Nothing)
-                       , LogEntry addr (WorkEvent StopWork end' Nothing) ]
+            , parseISO8601 "2014-01-01T00:18:00Z" ]
 
           testIntervals :: NonEmpty LogInterval
-          testIntervals = L.reverse $ do
+          testIntervals = do
             addr <- testAddrs
             (start', end') <- L.zip starts ends
             pure $ LogInterval addr (I.interval start' end')
 
+          testLogEntries :: NonEmpty LogEntry
+          testLogEntries = do
+            (LogInterval addr (Interval start' end')) <- testIntervals
+            L.fromList [ LogEntry addr (WorkEvent StartWork start' Nothing)
+                       , LogEntry addr (WorkEvent StopWork end' Nothing) ]
+
+          expected' = fromListWith (<>) . L.toList $ (intervalBtcAddr &&& pure . workInterval) <$> testIntervals
           expected :: WorkIndex
-          expected = WorkIndex . fromListWith (<>) . L.toList $ (intervalBtcAddr &&& pure . workInterval) <$> testIntervals
+          expected = WorkIndex $ fmap (L.reverse . L.sort) expected'
 
       in (workIndex testLogEntries) `shouldBe` expected
 
     it "recovers a work index from events" $ property $
-      \widx -> 
+      \(WorkIndex widx) -> 
         let ivalEntries addr ival = [ LogEntry addr (WorkEvent StartWork (ival ^. start) Nothing)
                                     , LogEntry addr (WorkEvent StopWork  (ival ^. end) Nothing) ]
 
             acc k a b = b ++ (L.toList a >>= ivalEntries k)
-            logEntries = foldrWithKey acc [] (widx ^. _WorkIndex)
-        in  workIndex logEntries `shouldBe` widx
+            logEntries = foldrWithKey acc [] widx
+        in  workIndex logEntries `shouldBe` (WorkIndex $ fmap (L.reverse . L.sort) widx)
 
   describe "EventType serialization" $ do
     it "serialization is invertible" $ property $

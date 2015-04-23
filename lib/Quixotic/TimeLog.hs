@@ -43,8 +43,8 @@ import Quixotic.Interval
 data EventType = StartWork | StopWork deriving (Show, Eq, Typeable)
 
 instance Ord EventType where
-  compare StartWork StopWork = LT
-  compare StopWork StartWork = GT
+  compare StartWork StopWork = GT
+  compare StopWork StartWork = LT
   compare _ _ = EQ
 
 eventName :: EventType -> Text
@@ -64,6 +64,11 @@ data WorkEvent = WorkEvent
   , _eventMeta :: Maybe A.Value
   } deriving (Show, Eq)
 makeLenses ''WorkEvent
+
+instance Ord WorkEvent where
+  compare a b = 
+    let cv x = (x ^. eventTime, x ^. eventType)
+    in compare (cv a) (cv b)
 
 data LogEntry = LogEntry 
   { _btcAddr :: BtcAddr
@@ -112,7 +117,7 @@ instance A.FromJSON Payouts where
 newtype WorkIndex = WorkIndex (Map BtcAddr (NonEmpty Interval)) deriving (Show, Eq)
 makePrisms ''WorkIndex
 
-type RawIndex = Map BtcAddr ([LogEntry], [LogInterval])
+type RawIndex = Map BtcAddr [Either WorkEvent Interval]
 type NDT = C.NominalDiffTime
 
 workIndexJSON :: WorkIndex -> Value
@@ -152,35 +157,28 @@ payouts dep ptime (WorkIndex widx) =
 
 workIndex :: Foldable f => f LogEntry -> WorkIndex
 workIndex logEntries = 
-  let sortedEntries :: Heap LogEntry
-      sortedEntries = F.foldr H.insert H.empty $ logEntries
-
-      rawIndex :: RawIndex
+  let sortedEntries = F.foldr H.insert H.empty $ logEntries
       rawIndex = F.foldl' appendLogEntry MS.empty $ sortedEntries
 
-      accum k (_, l) m = case nonEmpty l of 
-        Just l' -> MS.insert k (workInterval <$> l') m
+      accum k l m = case nonEmpty (rights l) of 
+        Just l' -> MS.insert k l' m
         Nothing -> m
 
   in  WorkIndex $ MS.foldrWithKey accum MS.empty rawIndex
 
 appendLogEntry :: RawIndex -> LogEntry -> RawIndex
-appendLogEntry idx entry = 
-  let acc = reduceToIntervals $ pushEntry entry idx 
-  in  MS.insert (entry ^. btcAddr) acc idx
+appendLogEntry idx (LogEntry k ev) = 
+  let combine (WorkEvent StartWork t _) (WorkEvent StopWork t' _)  | t' > t = Right $ Interval t t'
+      combine (e1 @ (WorkEvent StartWork _ _)) (e2 @ (WorkEvent StartWork _ _)) = Left $ max e1 e2
+      combine (e1 @ (WorkEvent StopWork  _ _)) (e2 @ (WorkEvent StopWork  _ _)) = Left $ min e1 e2
+      combine _ e2 = Left e2
 
-{-|
- - Find the set of accumulated log intervals and log entries
- - for a given BTC address, and concatenate the entry to the entry list.
- -}
-pushEntry :: LogEntry -> RawIndex -> ([LogEntry], [LogInterval])
-pushEntry entry = first (entry :) . MS.findWithDefault ([], []) (entry ^. btcAddr) 
+      ivals = case MS.lookup k idx of
+        Just (Left ev' : xs) -> combine ev' ev : xs
+        Just xs -> Left ev : xs
+        Nothing -> Left ev : []
 
-reduceToIntervals :: ([LogEntry], [LogInterval]) -> ([LogEntry], [LogInterval])
-reduceToIntervals ((LogEntry addr (WorkEvent StopWork end' _)) : (LogEntry _ (WorkEvent StartWork start' _)) : xs, acc) = 
-  (xs, (LogInterval addr (interval start' end')) : acc) 
-reduceToIntervals misaligned = 
-  misaligned
+  in  MS.insert k ivals idx
 
 newtype Months = Months Integer 
 
