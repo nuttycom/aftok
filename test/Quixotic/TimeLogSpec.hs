@@ -42,34 +42,32 @@ spec :: Spec
 spec = do
   describe "log reduction to intervals" $ do
     it "reduces a log to a work index" $ 
-      let testAddrs = L.fromList $ catMaybes 
+      let testAddrs = catMaybes 
             [ parseBtcAddr "123"
             , parseBtcAddr "456"
             , parseBtcAddr "789" ]
 
-          starts = L.fromList $ toThyme <$> catMaybes 
+          starts = toThyme <$> catMaybes 
             [ parseISO8601 "2014-01-01T00:08:00Z"
             , parseISO8601 "2014-01-01T00:12:00Z" ]
 
-          ends   = L.fromList $ toThyme <$> catMaybes 
+          ends   = toThyme <$> catMaybes 
             [ parseISO8601 "2014-01-01T00:12:00Z"
             , parseISO8601 "2014-01-01T00:18:00Z" ]
 
-          testIntervals :: NonEmpty LogInterval
+          testIntervals :: [(BtcAddr, Interval)]
           testIntervals = do
             addr <- testAddrs
-            (start', end') <- L.zip starts ends
-            pure $ LogInterval addr (I.interval start' end')
+            (start', end') <- ClassyPrelude.zip starts ends
+            pure $ (addr, I.interval start' end')
 
-          testLogEntries :: NonEmpty LogEntry
+          testLogEntries :: [LogEntry]
           testLogEntries = do
-            (LogInterval addr (Interval start' end')) <- testIntervals
-            L.fromList [ LogEntry addr (WorkEvent StartWork start' Nothing)
-                       , LogEntry addr (WorkEvent StopWork end' Nothing) ]
+            (addr, Interval start' end') <- testIntervals
+            LogEntry addr <$> [WorkEvent StartWork start' Nothing, WorkEvent StopWork end' Nothing]
 
-          expected' = fromListWith (<>) . L.toList $ (intervalBtcAddr &&& pure . workInterval) <$> testIntervals
-          expected :: WorkIndex
-          expected = WorkIndex $ fmap (L.reverse . L.sort) expected'
+          expected' = fromListWith (<>) $ fmap (second pure) testIntervals
+          expected  = WorkIndex $ fmap (L.reverse . L.sort) expected'
 
       in (workIndex testLogEntries) `shouldBe` expected
 

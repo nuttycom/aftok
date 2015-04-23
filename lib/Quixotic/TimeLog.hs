@@ -4,7 +4,6 @@
 module Quixotic.TimeLog 
   ( LogEntry(..)
   , btcAddr, event
-  , LogInterval(..)
   , EventType(..)
   , eventName, nameEvent
   , WorkEvent(..)
@@ -90,11 +89,6 @@ makePrisms ''ModTime
 data LogModification = TimeChange ModTime C.UTCTime
                      | AddressChange ModTime BtcAddr
                      | MetadataChange ModTime A.Value
-
-data LogInterval = LogInterval 
-  { intervalBtcAddr :: BtcAddr
-  , workInterval :: Interval
-  } deriving (Show, Eq) 
 
 newtype Payouts = Payouts (Map BtcAddr Rational)
 makePrisms ''Payouts
