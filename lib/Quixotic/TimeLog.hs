@@ -3,11 +3,9 @@
 
 module Quixotic.TimeLog 
   ( LogEntry(..)
-  , btcAddr, event
-  , EventType(..)
+  , btcAddr, event, eventMeta
+  , LogEvent(..)
   , eventName, nameEvent
-  , WorkEvent(..)
-  , eventType, eventTime, eventMeta
   , WorkIndex(WorkIndex), _WorkIndex
   , workIndex, workIndexJSON
   , DepF
@@ -39,45 +37,36 @@ import Quixotic
 import Quixotic.Json
 import Quixotic.Interval
 
-data EventType = StartWork | StopWork deriving (Show, Eq, Typeable)
+data LogEvent = StartWork { eventTime :: C.UTCTime }
+              | StopWork  { eventTime :: C.UTCTime }
+              deriving (Show, Eq)
+makePrisms ''LogEvent
 
-instance Ord EventType where
-  compare StartWork StopWork = GT
-  compare StopWork StartWork = LT
-  compare _ _ = EQ
+instance Ord LogEvent where
+  compare (StartWork t0) (StopWork  t1) = if t0 == t1 then GT else compare t0 t1
+  compare (StopWork  t0) (StartWork t1) = if t0 == t1 then LT else compare t0 t1
+  compare (StartWork t0) (StartWork t1) = compare t0 t1
+  compare (StopWork  t0) (StopWork  t1) = compare t0 t1
 
-eventName :: EventType -> Text
-eventName StartWork = "start"
-eventName StopWork  = "stop"
+eventName :: LogEvent -> Text
+eventName (StartWork _) = "start"
+eventName (StopWork  _) = "stop"
 
-nameEvent :: MonadPlus m => Text -> m EventType
+nameEvent :: MonadPlus m => Text -> m (C.UTCTime -> LogEvent)
 nameEvent "start" = return StartWork
 nameEvent "stop"  = return StopWork
 nameEvent _       = mzero
 
-data WorkEvent = WorkEvent 
-  { _eventType :: EventType
-  , _eventTime :: C.UTCTime
-  -- Permit the inclusion of arbitrary JSON data that may be refactored into
-  -- proper typed fields in the future. 
-  , _eventMeta :: Maybe A.Value
-  } deriving (Show, Eq)
-makeLenses ''WorkEvent
-
-instance Ord WorkEvent where
-  compare a b = 
-    let cv x = (x ^. eventTime, x ^. eventType)
-    in compare (cv a) (cv b)
-
 data LogEntry = LogEntry 
   { _btcAddr :: BtcAddr
-  , _event :: WorkEvent 
+  , _event   :: LogEvent 
+  , _eventMeta :: Maybe A.Value
   } deriving (Show, Eq)
 makeLenses ''LogEntry
 
 instance Ord LogEntry where
   compare a b = 
-    let ordElems e = (e ^. (event.eventTime), e ^. (event.eventType), e ^. btcAddr)
+    let ordElems e = (e ^. event, e ^. btcAddr)
     in  ordElems a `compare` ordElems b
 
 newtype EventId = EventId Int64 deriving (Show, Eq)
@@ -111,15 +100,14 @@ instance A.FromJSON Payouts where
 newtype WorkIndex = WorkIndex (Map BtcAddr (NonEmpty Interval)) deriving (Show, Eq)
 makePrisms ''WorkIndex
 
-type RawIndex = Map BtcAddr [Either WorkEvent Interval]
-type NDT = C.NominalDiffTime
-
 workIndexJSON :: WorkIndex -> Value
 workIndexJSON (WorkIndex widx) = 
   toJSON $ (L.toList . fmap intervalJSON) <$> (MS.mapKeysMonotonic (^._BtcAddr) widx)
 
 eventIdJSON :: EventId -> Value
 eventIdJSON (EventId eid) = toJSON eid
+
+type NDT = C.NominalDiffTime
 
 {-|
  - The depreciation function should return a value between 0 and 1;
@@ -160,17 +148,34 @@ workIndex logEntries =
 
   in  WorkIndex $ MS.foldrWithKey accum MS.empty rawIndex
 
+{-|
+ - The values of the raw index map are either complete intervals (which may be
+ - extended if a new start is encountered at the same instant as the end of the
+ - interval) or start events awaiting completion.
+ -}
+type RawIndex = Map BtcAddr [Either LogEvent Interval]
+
 appendLogEntry :: RawIndex -> LogEntry -> RawIndex
-appendLogEntry idx (LogEntry k ev) = 
-  let combine (WorkEvent StartWork t _) (WorkEvent StopWork t' _)  | t' > t = Right $ Interval t t'
-      combine (e1 @ (WorkEvent StartWork _ _)) (e2 @ (WorkEvent StartWork _ _)) = Left $ max e1 e2
-      combine (e1 @ (WorkEvent StopWork  _ _)) (e2 @ (WorkEvent StopWork  _ _)) = Left $ min e1 e2
+appendLogEntry idx (LogEntry k ev _) = 
+  let combine (StartWork t) (StopWork t') | t' > t = Right $ Interval t t'
+      combine (e1 @ (StartWork _)) (e2 @ (StartWork _)) = Left $ min e1 e2 -- ignore redundant starts
+      combine (e1 @ (StopWork  _)) (e2 @ (StopWork  _)) = Left $ min e1 e2 -- ignore redundant ends
       combine _ e2 = Left e2
 
+      -- if the interval includes the timestamp of a start event, then allow the extension of the interval
+      extension :: Interval -> LogEvent -> Maybe LogEvent
+      extension ival (StartWork t) | containsInclusive t ival = Just $ StartWork (ival ^. start)
+      extension _ _ = Nothing
+
       ivals = case MS.lookup k idx of
+        -- if it is possible to extend an interval at the top of the stack
+        -- because the end of that interval is the same 
+        Just (Right ival : xs) -> case extension ival ev of
+          Just e' -> Left e' : xs
+          Nothing -> Left ev : Right ival : xs
+        -- if the top element of the stack is not an interval
         Just (Left ev' : xs) -> combine ev' ev : xs
-        Just xs -> Left ev : xs
-        Nothing -> Left ev : []
+        _ -> Left ev : []
 
   in  MS.insert k ivals idx
 
@@ -178,7 +183,6 @@ newtype Months = Months Integer
 
 {-|
  - A very simple linear function for calculating depreciation.
- -
  -}
 linearDepreciation :: Months -> -- ^ The number of initial months during which no depreciation occurs
                       Months -> -- ^ The number of months over which each logged interval will be depreciated

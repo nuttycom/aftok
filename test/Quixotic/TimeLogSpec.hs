@@ -7,8 +7,8 @@ import ClassyPrelude
 
 import Control.Lens ((^.))
 import Data.AffineSpace
-import Data.List.NonEmpty as L 
-import Data.Map.Strict as M
+import qualified Data.List.NonEmpty as L 
+import qualified Data.Map.Strict as M
 import Data.Time.ISO8601
 import Data.Thyme.Time as T
 
@@ -19,11 +19,6 @@ import Quixotic.TimeLog
 import Test.QuickCheck
 import Test.Hspec
 
-instance Arbitrary EventType where
-  arbitrary = elements [StartWork, StopWork]
-
-newtype EventLog = EventLog [LogEntry]
-
 instance Arbitrary BtcAddr where
   arbitrary = BtcAddr . pack <$> vectorOf 34 arbitrary
 
@@ -33,9 +28,26 @@ instance Arbitrary Interval where
     delta <- arbitrary :: Gen (Positive T.NominalDiffTime)
     pure $ I.interval startTime (startTime .+^ getPositive delta)
 
+newtype Intervals = Intervals (L.NonEmpty Interval)
+
+buildIntervals :: T.UTCTime -> [NominalDiffTime] -> [Interval]
+buildIntervals t (d : s : dx) = 
+  let ival = I.interval t (t .+^ d) 
+  in  ival : buildIntervals (ival ^. end .+^ (abs s)) dx
+buildIntervals _ _ = []
+
+instance Arbitrary Intervals where
+  arbitrary = do
+    startTime <- arbitrary 
+    let deltas = filter (> 0) <$> listOf arbitrary
+    intervals <- suchThat (buildIntervals startTime <$> deltas) (not.null)
+    pure . Intervals $ L.fromList intervals
+
 instance Arbitrary WorkIndex where
   arbitrary = 
-    let record = (,) <$> arbitrary <*> (L.fromList <$> listOf1 arbitrary)
+    let record = do addr <- arbitrary 
+                    Intervals ivals <- arbitrary
+                    pure (addr, ivals)
     in  WorkIndex . M.fromList <$> listOf record
 
 spec :: Spec
@@ -52,7 +64,7 @@ spec = do
             , parseISO8601 "2014-01-01T00:12:00Z" ]
 
           ends   = toThyme <$> catMaybes 
-            [ parseISO8601 "2014-01-01T00:12:00Z"
+            [ parseISO8601 "2014-01-01T00:11:59Z"
             , parseISO8601 "2014-01-01T00:18:00Z" ]
 
           testIntervals :: [(BtcAddr, Interval)]
@@ -64,25 +76,21 @@ spec = do
           testLogEntries :: [LogEntry]
           testLogEntries = do
             (addr, Interval start' end') <- testIntervals
-            LogEntry addr <$> [WorkEvent StartWork start' Nothing, WorkEvent StopWork end' Nothing]
+            LogEntry addr <$> [StartWork start', StopWork end'] <*> [Nothing]
 
-          expected' = fromListWith (<>) $ fmap (second pure) testIntervals
+          expected' = M.fromListWith (<>) $ fmap (second pure) testIntervals
           expected  = WorkIndex $ fmap (L.reverse . L.sort) expected'
 
       in (workIndex testLogEntries) `shouldBe` expected
 
     it "recovers a work index from events" $ property $
       \(WorkIndex widx) -> 
-        let ivalEntries addr ival = [ LogEntry addr (WorkEvent StartWork (ival ^. start) Nothing)
-                                    , LogEntry addr (WorkEvent StopWork  (ival ^. end) Nothing) ]
+        let ivalEntries addr ival = LogEntry addr <$> [StartWork (ival ^. start), StopWork (ival ^. end)]
+                                                  <*> [Nothing]
 
             acc k a b = b ++ (L.toList a >>= ivalEntries k)
-            logEntries = foldrWithKey acc [] widx
+            logEntries = M.foldrWithKey acc [] widx
         in  workIndex logEntries `shouldBe` (WorkIndex $ fmap (L.reverse . L.sort) widx)
-
-  describe "EventType serialization" $ do
-    it "serialization is invertible" $ property $
-      \e -> (nameEvent . eventName) e == Just e
 
 main :: IO ()
 main = hspec spec

@@ -18,16 +18,16 @@ import Snap.Core
 import Snap.Snaplet
 import Snap.Snaplet.PostgresqlSimple
 
-logWorkHandler :: EventType -> Handler App App EventId
-logWorkHandler evType = do 
+logWorkHandler :: (C.UTCTime -> LogEvent) -> Handler App App EventId
+logWorkHandler evCtr = do 
   QDB{..} <- view qdb <$> with qm get
   uid <- requireUserId
   pid <- requireProjectAccess uid
   addrBytes <- getParam "btcAddr"
   requestBody <- readRequestBody 4096
   timestamp <- liftIO C.getCurrentTime
-  let workEvent = WorkEvent evType timestamp $ A.decode requestBody
-      storeEv addr = runReaderT . recordEvent pid uid $ LogEntry addr workEvent
+  let logEntry addr = LogEntry addr (evCtr timestamp) (A.decode requestBody)
+      storeEv addr = runReaderT . recordEvent pid uid $ logEntry addr
   case fmap decodeUtf8 addrBytes >>= parseBtcAddr of
     Nothing -> snapError 400 $ "Unable to parse bitcoin address from " <> (tshow addrBytes)
     Just addr -> liftPG $ storeEv addr

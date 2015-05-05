@@ -5,6 +5,7 @@ module Quixotic.Database.PostgreSQL (postgresQDB) where
 import Blaze.ByteString.Builder (fromByteString)
 import ClassyPrelude
 import Control.Lens
+import Data.ByteString.Char8 as B
 import Data.Fixed
 import Data.Hourglass
 import Data.Thyme.Clock as C
@@ -23,12 +24,24 @@ import Quixotic.TimeLog
 
 type QDBM = ReaderT Connection IO
 
-eventTypeParser :: FieldParser EventType
+eventTypeParser :: FieldParser (C.UTCTime -> LogEvent)
 eventTypeParser f v = do
   tn <- typename f
   case tn of 
-    "event_t" -> maybe (returnError UnexpectedNull f "") (nameEvent . decodeUtf8) v
-    _         -> returnError Incompatible f "column was not of type event_t"
+    "event_t" -> 
+      let err = UnexpectedNull (B.unpack tn)
+                               (tableOid f) 
+                               (maybe "" B.unpack (name f))
+                               "UTCTime -> LogEvent"
+                               "columns of type event_t should not contain null values"
+      in  maybe (conversionError err) (nameEvent . decodeUtf8) v
+    _ -> 
+      let err = Incompatible (B.unpack tn)
+                             (tableOid f) 
+                             (maybe "" B.unpack (name f))
+                             "UTCTime -> LogEvent"
+                             "column was not of type event_t"
+      in conversionError err
 
 
 uidParser :: FieldParser UserId
@@ -53,11 +66,11 @@ utcParser :: FieldParser C.UTCTime
 utcParser f v = toThyme <$> fromField f v 
 
 
-workEventParser :: RowParser WorkEvent
-workEventParser = WorkEvent <$> fieldWith eventTypeParser <*> fieldWith utcParser <*> field
+workEventParser :: RowParser LogEvent
+workEventParser = fieldWith eventTypeParser <*> fieldWith utcParser
 
 logEntryParser :: RowParser LogEntry
-logEntryParser  = LogEntry <$> fieldWith btcAddrParser <*> workEventParser 
+logEntryParser  = LogEntry <$> fieldWith btcAddrParser <*> workEventParser <*> field
 
 auctionRowParser :: RowParser Auction
 auctionRowParser = Auction <$> fieldWith btcParser <*> field
@@ -133,16 +146,16 @@ pexec q d = do
   lift $ execute conn q d 
 
 recordEvent' :: ProjectId -> UserId -> LogEntry -> QDBM EventId
-recordEvent' (ProjectId pid) (UserId uid) (LogEntry a e) = do 
+recordEvent' (ProjectId pid) (UserId uid) (LogEntry a e m) = do 
   eventIds <- pquery
     "INSERT INTO work_events (project_id, user_id, btc_addr, event_type, event_time, event_metadata) \
     \VALUES (?, ?, ?, ?, ?, ?) \
     \RETURNING id" 
     ( pid, uid
     , a ^. _BtcAddr
-    , e ^. (eventType . to eventName)
-    , fromThyme $ e ^. eventTime
-    , e ^. eventMeta
+    , eventName e
+    , fromThyme $ eventTime e
+    , m
     )
   pure . EventId . fromOnly $ DL.head eventIds
 
