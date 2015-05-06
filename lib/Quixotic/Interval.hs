@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Quixotic.Interval 
-  ( Interval(Interval), interval, start, end, ilen
+  ( Interval(..), interval, start, end, ilen
   , intervalJSON, parseIntervalJSON
   , containsInclusive
   ) where

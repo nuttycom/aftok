@@ -31,15 +31,15 @@ instance Arbitrary Interval where
 newtype Intervals = Intervals (L.NonEmpty Interval)
 
 buildIntervals :: T.UTCTime -> [NominalDiffTime] -> [Interval]
-buildIntervals t (d : s : dx) = 
+buildIntervals t (d : s : dx) | d > 0 = 
   let ival = I.interval t (t .+^ d) 
-  in  ival : buildIntervals (ival ^. end .+^ (abs s)) dx
+  in  ival : buildIntervals (ival ^. end .+^ s) dx
 buildIntervals _ _ = []
 
 instance Arbitrary Intervals where
   arbitrary = do
     startTime <- arbitrary 
-    let deltas = filter (> 0) <$> listOf arbitrary
+    let deltas = fmap T.fromSeconds <$> ((listOf $ choose (0, 72 * 60 * 60)) :: Gen[Int])
     intervals <- suchThat (buildIntervals startTime <$> deltas) (not.null)
     pure . Intervals $ L.fromList intervals
 
@@ -85,25 +85,18 @@ spec = do
 
     it "recovers a work index from events" $ property $
       \(WorkIndex widx) -> 
-        let ivalEntries addr ival = LogEntry addr <$> [StartWork (ival ^. start), StopWork (ival ^. end)]
+        let mergeAdjacent ((Interval s e) : (Interval s' e') : xs) | e == s' = mergeAdjacent $ Interval s e' : xs
+            mergeAdjacent (x : xs) = x : mergeAdjacent xs
+            mergeAdjacent [] = []
+
+            ivalEntries addr ival = LogEntry addr <$> [StartWork (ival ^. start), StopWork (ival ^. end)]
                                                   <*> [Nothing]
 
             acc k a b = b ++ (L.toList a >>= ivalEntries k)
+
+            widx' = fmap (L.fromList . mergeAdjacent . sortOn _start . L.toList) widx
             logEntries = M.foldrWithKey acc [] widx
-        in  workIndex logEntries `shouldBe` (WorkIndex $ fmap (L.reverse . L.sort) widx)
+        in  workIndex logEntries `shouldBe` (WorkIndex $ fmap (L.reverse . L.sort) widx')
 
 main :: IO ()
 main = hspec spec
-
-
-{--
-(fromList [
-(BtcAddr "S\187\156\a\SOx\229`[\133a%7o%'XBt\249\226\n\ENQ\SOH\GS<\241WU5{Si\251",
-  [ Interval {_start = 1858-11-16 23:59:59.999997 UTC, _end = 1858-11-16 23:59:59.999997 UTC}
-  , Interval {_start = 1858-11-16 23:59:59.999998 UTC, _end = 1858-11-17 00:00:00.000002 UTC}]),
-(BtcAddr "\138;\GS\132U0\SUB\ESCf[\NAKo`\ACKR[\EMq\b\v\159\184u\ACK&jS#n#?\SI&v",
-  [Interval {_start = 1858-11-16 23:59:59.999999 UTC, _end = 1858-11-17 00:00:00 UTC}
-  ,Interval {_start = 1858-11-17 00:00:00.000002 UTC, _end = 1858-11-17 00:00:00.000006 UTC}
-  ,Interval {_start = 1858-11-16 23:59:59.999994 UTC, _end = 1858-11-16 23:59:59.999998 UTC}])
-])
- -}
