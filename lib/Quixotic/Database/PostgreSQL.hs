@@ -131,6 +131,10 @@ newtype PQDBUser = PQDBUser { pQDBUser :: QDBUser }
 instance FromRow PQDBUser where
   fromRow = PQDBUser <$> qdbUserRowParser
 
+newtype PProject = PProject { pProject :: Project }
+instance FromRow PProject where
+  fromRow = PProject <$> projectRowParser
+
 newtype PQDBProject = PQDBProject { pQDBProject :: QDBProject }
 instance FromRow PQDBProject where
   fromRow = PQDBProject <$> qdbProjectRowParser
@@ -145,8 +149,8 @@ pexec q d = do
   conn <- ask
   lift $ execute conn q d 
 
-recordEvent' :: ProjectId -> UserId -> LogEntry -> QDBM EventId
-recordEvent' (ProjectId pid) (UserId uid) (LogEntry a e m) = do 
+createEvent' :: ProjectId -> UserId -> LogEntry -> QDBM EventId
+createEvent' (ProjectId pid) (UserId uid) (LogEntry a e m) = do 
   eventIds <- pquery
     "INSERT INTO work_events (project_id, user_id, btc_addr, event_type, event_time, event_metadata) \
     \VALUES (?, ?, ?, ?, ?, ?) \
@@ -182,22 +186,22 @@ readWorkIndex' pid = do
     (Only $ PPid pid)
   pure . workIndex $ fmap pLogEntry rows
 
-newAuction' :: ProjectId -> Auction -> QDBM AuctionId
-newAuction' pid auc = do
+createAuction' :: ProjectId -> Auction -> QDBM AuctionId
+createAuction' pid auc = do
   aucIds <- pquery
     "INSERT INTO auctions (project_id, raise_amount, end_time) VALUES (?, ?, ?) RETURNING id"
     (pid ^. (_ProjectId), auc ^. (raiseAmount.to PBTC), auc ^. auctionEnd)
   pure . AuctionId . fromOnly $ DL.head aucIds
 
-readAuction' :: AuctionId -> QDBM (Maybe Auction)
-readAuction' aucId = do
+findAuction' :: AuctionId -> QDBM (Maybe Auction)
+findAuction' aucId = do
   rows <- pquery
     "SELECT raise_amount, end_time FROM auctions WHERE ROWID = ?" 
     (Only (aucId ^. _AuctionId))
   pure . fmap pAuction $ headMay rows
 
-recordBid' :: AuctionId -> Bid -> QDBM ()
-recordBid' (AuctionId aucId) bid = do
+createBid' :: AuctionId -> Bid -> QDBM ()
+createBid' (AuctionId aucId) bid = do
   void $ pexec
     "INSERT INTO bids (auction_id, bidder_id, bid_seconds, bid_amount, bid_time) values (?, ?, ?, ?, ?)"
     ( aucId 
@@ -247,6 +251,13 @@ createProject' p = do
     (pid, uid)
   pure . ProjectId $ pid
 
+findProject' :: ProjectId -> QDBM (Maybe Project)
+findProject' (ProjectId pid) = do
+  projects <- pquery
+    "SELECT project_name, inception_date, initiator_id FROM projects WHERE id = ?"
+    (Only pid)
+  pure . fmap pProject $ headMay projects
+
 findUserProjects' :: UserId -> QDBM [QDBProject]
 findUserProjects' (UserId uid) = do
   results <- pquery
@@ -258,16 +269,21 @@ findUserProjects' (UserId uid) = do
 
 postgresQDB :: QDB QDBM
 postgresQDB = QDB 
-  { recordEvent = recordEvent'
+  { createEvent = createEvent'
   , amendEvent = amendEvent'
   , readWorkIndex = readWorkIndex' 
-  , newAuction = newAuction'
-  , readAuction = readAuction'
-  , recordBid = recordBid'
+
+  , createAuction = createAuction'
+  , findAuction = findAuction'
+
+  , createBid = createBid'
   , readBids = readBids'
+
   , createUser = createUser'
   , findUser = findUser'
   , findUserByUserName = findUserByUserName'
+
   , createProject = createProject'
+  , findProject = findProject'
   , findUserProjects = findUserProjects'
   }

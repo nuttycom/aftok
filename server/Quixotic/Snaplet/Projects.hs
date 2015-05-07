@@ -22,9 +22,6 @@ instance FromJSON CreateProject where
   parseJSON (Object v) = CreateProject <$> v .: "projectName"
   parseJSON _ = mzero
 
-projectGetHandler :: Handler App App Project
-projectGetHandler = ok
-
 projectCreateHandler :: Handler App App ProjectId
 projectCreateHandler = do
   QDB{..} <- view qdb <$> with qm get
@@ -39,4 +36,12 @@ projectListHandler = do
   QDB{..} <- view qdb <$> with qm get
   uid <- requireUserId
   liftPG . runReaderT $ findUserProjects uid
+
+projectGetHandler :: Handler App App Project
+projectGetHandler = do
+  QDB{..} <- view qdb <$> with qm get
+  uid <- requireUserId
+  pid <- requireProjectAccess uid
+  mp <- liftPG . runReaderT $ findProject pid
+  maybe (snapError 404 $ "Project not found for id " <> tshow pid) pure mp
 

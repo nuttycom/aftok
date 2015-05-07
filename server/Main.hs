@@ -45,19 +45,33 @@ main = do
 
 appInit :: QConfig -> SnapletInit App App
 appInit QConfig{..} = makeSnaplet "quixotic" "Quixotic Time Tracker" Nothing $ do
-  qms  <- nestSnaplet "qmodules" qm qdbpgSnapletInit
+  qms   <- nestSnaplet "qmodules" qm qdbpgSnapletInit
   sesss <- nestSnaplet "sessions" sess $ 
            initCookieSessionManager (fpToString authSiteKey) "quookie" cookieTimeout
   pgs   <- nestSnaplet "db" db pgsInit
   auths <- nestSnaplet "auth" auth $ initPostgresAuth sess pgs
-  addRoutes [ ("login",    requireLogin >> (redirect "/home")) 
-            , ("register", void $ method POST registerHandler)
-            , ("projects/:projectId/logStart/:btcAddr", serveJSON eventIdJSON . method POST $ logWorkHandler StartWork)
-            , ("projects/:projectId/logEnd/:btcAddr",   serveJSON eventIdJSON . method POST $ logWorkHandler StopWork)
-            , ("projects/:projectId/log/:btcAddr",      serveJSON workIndexJSON $ method GET loggedIntervalsHandler)
-            , ("projects/:projectId", serveJSON projectJSON $ method GET projectGetHandler)
-            , ("projects",            void $ method POST projectCreateHandler)
-            , ("payouts/:projectId",  serveJSON id $ method GET payoutsHandler)
+
+  let loginRoute         = requireLogin >> redirect "/home"
+      registerRoute      = void $ method POST registerHandler
+
+      logEventRoute f    = serveJSON eventIdJSON . method POST $ logWorkHandler f
+      loggedIntervalsRoute = serveJSON workIndexJSON $ method GET loggedIntervalsHandler
+
+      projectCreateRoute = void $ method POST projectCreateHandler
+      projectRoute       = serveJSON projectJSON $ method GET projectGetHandler
+      listProjectsRoute  = serveJSON (fmap qdbProjectJSON) $ method GET projectListHandler
+
+      payoutsRoute       = serveJSON payoutsJSON $ method GET payoutsHandler
+
+  addRoutes [ ("login", loginRoute)   
+            , ("register", registerRoute)
+            , ("projects/:projectId/logStart/:btcAddr", logEventRoute StartWork)
+            , ("projects/:projectId/logEnd/:btcAddr", logEventRoute StopWork) 
+            , ("projects/:projectId/log/:btcAddr", loggedIntervalsRoute)
+            , ("projects/:projectId", projectRoute)
+            , ("projects", listProjectsRoute)
+            , ("projects", projectCreateRoute)
+            , ("payouts/:projectId", payoutsRoute)
             ] 
   return $ App qms sesss pgs auths
 

@@ -27,7 +27,7 @@ logWorkHandler evCtr = do
   requestBody <- readRequestBody 4096
   timestamp <- liftIO C.getCurrentTime
   let logEntry addr = LogEntry addr (evCtr timestamp) (A.decode requestBody)
-      storeEv addr = runReaderT . recordEvent pid uid $ logEntry addr
+      storeEv addr = runReaderT . createEvent pid uid $ logEntry addr
   case fmap decodeUtf8 addrBytes >>= parseBtcAddr of
     Nothing -> snapError 400 $ "Unable to parse bitcoin address from " <> (tshow addrBytes)
     Just addr -> liftPG $ storeEv addr

@@ -8,11 +8,16 @@ import ClassyPrelude
 import Control.Lens hiding ((.=))
 import Data.Aeson 
 import Data.Aeson.Types
-import Data.Data
 import qualified Data.Attoparsec.ByteString.Char8 as P
 import qualified Data.ByteString.Char8 as C
+import Data.Data
+import Data.List.NonEmpty as L
+import Data.Map.Strict as MS
 
 import Quixotic
+import Quixotic.Database
+import Quixotic.Interval
+import Quixotic.TimeLog
 
 import qualified Language.Haskell.TH as TH
 import Language.Haskell.TH.Quote
@@ -53,9 +58,29 @@ unversion f (Object v) = do
   f vers' value
 unversion _ _ = mzero
 
+qdbProjectJSON :: QDBProject -> Value
+qdbProjectJSON qp = 
+  object [ "projectId" .= (qp ^. (projectId._ProjectId))
+         , "project" .= projectJSON (qp ^. project)
+         ]
+
 projectJSON :: Project -> Value
 projectJSON p = 
   object [ "projectName"    .= (p ^. projectName)
          , "inceptionDate"  .= (p ^. inceptionDate)
          , "initiator"      .= (p ^. (initiator._UserId)) ]
+
+payoutsJSON :: Payouts -> Value
+payoutsJSON (Payouts m) = toJSON $ MS.mapKeys (^. _BtcAddr) m
+
+parsePayoutsJSON :: Value -> Parser Payouts
+parsePayoutsJSON v = 
+  Payouts . MS.mapKeys BtcAddr <$> parseJSON v 
+
+workIndexJSON :: WorkIndex -> Value
+workIndexJSON (WorkIndex widx) = 
+  toJSON $ (L.toList . fmap intervalJSON) <$> (MS.mapKeysMonotonic (^._BtcAddr) widx)
+
+eventIdJSON :: EventId -> Value
+eventIdJSON (EventId eid) = toJSON eid
 

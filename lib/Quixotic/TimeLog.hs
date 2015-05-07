@@ -6,10 +6,9 @@ module Quixotic.TimeLog
   , btcAddr, event, eventMeta
   , LogEvent(..)
   , eventName, nameEvent
-  , WorkIndex(WorkIndex), _WorkIndex
-  , workIndex, workIndexJSON
+  , WorkIndex(WorkIndex), _WorkIndex, workIndex
   , DepF
-  , EventId(EventId), _EventId, eventIdJSON
+  , EventId(EventId), _EventId
   , ModTime(ModTime), _ModTime
   , LogModification(..)
   , Months(Months)
@@ -23,7 +22,6 @@ import ClassyPrelude
 import Control.Lens
 import Data.AdditiveGroup
 import Data.Aeson as A
-import Data.Aeson.Types
 import Data.AffineSpace
 import Data.Heap as H
 import Data.List.NonEmpty as L
@@ -34,7 +32,6 @@ import Data.Thyme.Clock as C
 import Data.VectorSpace
 
 import Quixotic
-import Quixotic.Json
 import Quixotic.Interval
 
 data LogEvent = StartWork { eventTime :: C.UTCTime }
@@ -82,30 +79,8 @@ data LogModification = TimeChange ModTime C.UTCTime
 newtype Payouts = Payouts (Map BtcAddr Rational)
 makePrisms ''Payouts
 
-payoutsJSON :: Payouts -> Value
-payoutsJSON (Payouts m) = toJSON $ MS.mapKeys (^. _BtcAddr) m
-
-parsePayoutsJSON :: Value -> Parser Payouts
-parsePayoutsJSON v = 
-  Payouts . MS.mapKeys BtcAddr <$> parseJSON v 
-
-instance A.ToJSON Payouts where
-  toJSON = versioned (Version 1 0 0) . payoutsJSON
-
-instance A.FromJSON Payouts where
-  parseJSON v = let parsePayouts (Version 1 0 0) = parsePayoutsJSON 
-                    parsePayouts v' = \_ -> fail . show $ printVersion v'
-                in  unversion parsePayouts $ v
-
 newtype WorkIndex = WorkIndex (Map BtcAddr (NonEmpty Interval)) deriving (Show, Eq)
 makePrisms ''WorkIndex
-
-workIndexJSON :: WorkIndex -> Value
-workIndexJSON (WorkIndex widx) = 
-  toJSON $ (L.toList . fmap intervalJSON) <$> (MS.mapKeysMonotonic (^._BtcAddr) widx)
-
-eventIdJSON :: EventId -> Value
-eventIdJSON (EventId eid) = toJSON eid
 
 type NDT = C.NominalDiffTime
 
