@@ -29,31 +29,32 @@ library
                       Quixotic.TimeLog
                       Quixotic.Util.Http
   build-depends:      
-      base                 >= 4     && < 5
-    , classy-prelude       >= 0.10.1
-    , aeson                >= 0.8.0.2
-    , attoparsec           >= 0.12.1.2
-    , base64-bytestring    >= 1.0.0.1
+      base                >= 4     && < 5
+    , classy-prelude      >= 0.10.1
+    , aeson               >= 0.8.0.2
+    , attoparsec          >= 0.12.1.2
+    , base64-bytestring   >= 1.0.0.1
     , bifunctors
-    , blaze-builder        
+    , blaze-builder       
     , bytestring
-    , containers           >= 0.5.5.1
-    , configurator              
-    , either               >= 4.3.1
-    , errors               >= 1.4.7
-    , groups               >= 0.4
-    , heaps                >= 0.3.1
-    , hourglass            >= 0.2.6    && < 0.3
-    , lens                 >= 4.4.0.2
-    , network-bitcoin      >= 1.7.0
+    , containers          >= 0.5.5.1
+    , configurator             
+    , either              >= 4.3.1
+    , errors              >= 1.4.7
+    , groups              >= 0.4
+    , heaps               >= 0.3.1
+    , hourglass           >= 0.2.6    && < 0.3
+    , lens                >= 4.4.0.2
+    , network-bitcoin     >= 1.7.0
     , old-locale
-    , postgresql-simple    >= 0.4.9    && < 0.5
-    , safe                 >= 0.3.8
+    , postgresql-simple   >= 0.4.9    && < 0.5
+    , safe                >= 0.3.8
     , semigroups
-    , sqlite-simple        >= 0.4.8    && < 0.5
+    , sqlite-simple       >= 0.4.8    && < 0.5
     , template-haskell
-    , text                 >= 1.2
-    , thyme                >= 0.3.5
+    , text                >= 1.2
+    , thyme               >= 0.3.5
+    , uuid                >= 1.3.10
     , vector-space
     , wreq
 
@@ -101,6 +102,7 @@ Executable quixotic-server
     , aeson
     , containers
     , either
+    , iso8601-time
     , mtl                       >= 2     && < 3
     , lens
     , sqlite-simple

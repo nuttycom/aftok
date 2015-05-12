@@ -2,6 +2,7 @@
 
 module Quixotic.Interval 
   ( Interval(..), interval, start, end, ilen
+  , Interval'(..), interval', start', end'
   , intervalJSON, parseIntervalJSON
   , containsInclusive
   ) where
@@ -19,10 +20,19 @@ import Data.Thyme.Format.Aeson()
 data Interval = Interval { _start :: C.UTCTime
                          , _end   :: C.UTCTime 
                          } deriving (Show, Eq, Ord)
+
+data Interval' = Before { _end'  :: C.UTCTime } 
+               | During { _start' :: C.UTCTime, _end' :: C.UTCTime }
+               | After  { _start' :: C.UTCTime }
+
 makeLenses ''Interval                         
+makeLenses ''Interval'
 
 interval :: C.UTCTime -> C.UTCTime -> Interval
 interval s e = if s < e then Interval s e else Interval e s
+
+interval' :: C.UTCTime -> C.UTCTime -> Interval'
+interval' s e = if s < e then During s e else During e s
 
 containsInclusive :: C.UTCTime -> Interval -> Bool
 containsInclusive t (Interval s e) = t >= s && t <= e

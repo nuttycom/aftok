@@ -47,7 +47,7 @@ appInit :: QConfig -> SnapletInit App App
 appInit QConfig{..} = makeSnaplet "quixotic" "Quixotic Time Tracker" Nothing $ do
   qms   <- nestSnaplet "qmodules" qm qdbpgSnapletInit
   sesss <- nestSnaplet "sessions" sess $ 
-           initCookieSessionManager (fpToString authSiteKey) "quookie" cookieTimeout
+           initCookieSessionManager authSiteKey "quookie" cookieTimeout
   pgs   <- nestSnaplet "db" db pgsInit
   auths <- nestSnaplet "auth" auth $ initPostgresAuth sess pgs
 
@@ -55,7 +55,9 @@ appInit QConfig{..} = makeSnaplet "quixotic" "Quixotic Time Tracker" Nothing $ d
       registerRoute      = void $ method POST registerHandler
 
       logEventRoute f    = serveJSON eventIdJSON . method POST $ logWorkHandler f
-      loggedIntervalsRoute = serveJSON workIndexJSON $ method GET loggedIntervalsHandler
+      logEntriesRoute    = serveJSON (fmap logEntryJSON) $ method GET logEntriesHandler
+      logIntervalsRoute  = serveJSON workIndexJSON $ method GET loggedIntervalsHandler
+      --amendEventRoute    = void $ method PUT amendEventHandler
 
       projectCreateRoute = void $ method POST projectCreateHandler
       projectRoute       = serveJSON projectJSON $ method GET projectGetHandler
@@ -65,26 +67,28 @@ appInit QConfig{..} = makeSnaplet "quixotic" "Quixotic Time Tracker" Nothing $ d
 
   addRoutes [ ("login", loginRoute)   
             , ("register", registerRoute)
+            --, ("events/:eventId/amend", amendEventHandler), 
             , ("projects/:projectId/logStart/:btcAddr", logEventRoute StartWork)
-            , ("projects/:projectId/logEnd/:btcAddr", logEventRoute StopWork) 
-            , ("projects/:projectId/log/:btcAddr", loggedIntervalsRoute)
-            , ("projects/:projectId", projectRoute)
-            , ("projects", listProjectsRoute)
+            , ("projects/:projectId/logEnd/:btcAddr",   logEventRoute StopWork) 
+            , ("projects/:projectId/logEntries",        logEntriesRoute)
+            , ("projects/:projectId/intervals",         logIntervalsRoute)
             , ("projects", projectCreateRoute)
-            , ("payouts/:projectId", payoutsRoute)
+            , ("projects", listProjectsRoute)
+            , ("projects/:projectId", projectRoute)
+            , ("projects/:projectId/payouts", payoutsRoute)
             ] 
   return $ App qms sesss pgs auths
 
 loadQConfig :: FilePath -> IO QConfig
 loadQConfig cfgFile = do 
-  cfg <- C.load [C.Required (fpToString cfgFile)]
+  cfg <- C.load [C.Required cfgFile]
   parseQConfig cfg
 
 parseQConfig :: CT.Config -> IO QConfig
 parseQConfig cfg = 
   QConfig <$> C.lookupDefault "localhost" cfg "hostname"
           <*> C.lookupDefault 8000 cfg "port" 
-          <*> (fmap fpFromText $ C.require cfg "siteKey")
+          <*>  C.require cfg "siteKey"
           <*> C.lookup cfg "cookieTimeout" 
           -- <*> (fmap fpFromText $ C.require cfg "sslCert")
           -- <*> (fmap fpFromText $ C.require cfg "sslKey")

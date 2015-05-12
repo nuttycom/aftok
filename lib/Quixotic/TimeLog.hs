@@ -5,7 +5,7 @@ module Quixotic.TimeLog
   ( LogEntry(..)
   , btcAddr, event, eventMeta
   , LogEvent(..)
-  , eventName, nameEvent
+  , eventName, nameEvent, eventTime
   , WorkIndex(WorkIndex), _WorkIndex, workIndex
   , DepF
   , EventId(EventId), _EventId
@@ -34,10 +34,10 @@ import Data.VectorSpace
 import Quixotic
 import Quixotic.Interval
 
-data LogEvent = StartWork { eventTime :: C.UTCTime }
-              | StopWork  { eventTime :: C.UTCTime }
+data LogEvent = StartWork { _eventTime :: C.UTCTime }
+              | StopWork  { _eventTime :: C.UTCTime }
               deriving (Show, Eq)
-makePrisms ''LogEvent
+makeLenses ''LogEvent
 
 instance Ord LogEvent where
   compare (StartWork t0) (StopWork  t1) = if t0 == t1 then GT else compare t0 t1

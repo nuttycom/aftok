@@ -5,11 +5,12 @@ module Quixotic.Auction where
 import ClassyPrelude
 import Control.Lens
 import Data.Hourglass
+import Data.UUID
 import Network.Bitcoin
 
 import Quixotic
 
-newtype AuctionId = AuctionId Int64 deriving (Show, Eq)
+newtype AuctionId = AuctionId UUID deriving (Show, Eq)
 makePrisms ''AuctionId
 
 data Auction = Auction 

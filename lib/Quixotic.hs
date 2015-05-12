@@ -5,6 +5,7 @@ module Quixotic where
 import ClassyPrelude
 
 import Control.Lens
+import Data.UUID
 import Network.Bitcoin (BTC)
 
 newtype BtcAddr = BtcAddr Text deriving (Show, Eq, Ord)
@@ -13,7 +14,7 @@ makePrisms ''BtcAddr
 parseBtcAddr :: Text -> Maybe BtcAddr
 parseBtcAddr = Just . BtcAddr -- FIXME: perform validation
 
-newtype UserId = UserId Int64 deriving (Show, Eq)
+newtype UserId = UserId UUID deriving (Show, Eq)
 makePrisms ''UserId
 
 newtype UserName = UserName Text deriving (Show, Eq)
@@ -26,7 +27,7 @@ data User = User
   }
 makeLenses ''User
 
-newtype ProjectId = ProjectId Int64 deriving (Show, Eq)
+newtype ProjectId = ProjectId UUID deriving (Show, Eq)
 makePrisms ''ProjectId
 
 data Project = Project

@@ -35,7 +35,7 @@ data QPConfig = QPConfig
 
 loadConfig :: FilePath -> IO QPConfig
 loadConfig cfgFile = do 
-  cfg <- C.load [C.Required (fpToString cfgFile)]
+  cfg <- C.load [C.Required cfgFile]
   parseQPConfig cfg
 
 parseQPConfig :: CT.Config -> IO QPConfig

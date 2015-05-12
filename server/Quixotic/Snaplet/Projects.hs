@@ -40,8 +40,7 @@ projectListHandler = do
 projectGetHandler :: Handler App App Project
 projectGetHandler = do
   QDB{..} <- view qdb <$> with qm get
-  uid <- requireUserId
-  pid <- requireProjectAccess uid
+  pid <- fmap snd requireProjectAccess
   mp <- liftPG . runReaderT $ findProject pid
   maybe (snapError 404 $ "Project not found for id " <> tshow pid) pure mp
 

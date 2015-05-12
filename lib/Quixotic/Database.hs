@@ -7,6 +7,7 @@ import Control.Lens
 
 import Quixotic
 import Quixotic.Auction
+import Quixotic.Interval
 import Quixotic.TimeLog
 
 data QDBUser = QDBUser 
@@ -24,6 +25,7 @@ makeLenses ''QDBProject
 data QDB m = QDB 
   { createEvent   :: ProjectId -> UserId -> LogEntry -> m EventId
   , amendEvent    :: EventId -> LogModification -> m ()
+  , findEvents    :: ProjectId -> UserId -> Interval' -> m [LogEntry]
   , readWorkIndex :: ProjectId -> m WorkIndex
 
   , createAuction :: ProjectId -> Auction -> m AuctionId

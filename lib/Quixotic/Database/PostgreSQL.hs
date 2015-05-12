@@ -20,6 +20,7 @@ import Network.Bitcoin
 import Quixotic
 import Quixotic.Auction
 import Quixotic.Database
+import Quixotic.Interval
 import Quixotic.TimeLog
 
 type QDBM = ReaderT Connection IO
@@ -108,6 +109,10 @@ newtype PBTC = PBTC BTC
 instance ToField PBTC where
   toField (PBTC btc) = Plain . fromByteString . fromString $ showFixed False btc
 
+newtype PUTCTime = PUTCTime C.UTCTime 
+instance ToField PUTCTime where
+  toField (PUTCTime t) = toField $ fromThyme t
+
 -- Local newtypes to permit row deserialization via
 -- typeclass. Wish I could just pass the RowParser instances
 
@@ -158,10 +163,27 @@ createEvent' (ProjectId pid) (UserId uid) (LogEntry a e m) = do
     ( pid, uid
     , a ^. _BtcAddr
     , eventName e
-    , fromThyme $ eventTime e
+    , fromThyme $ e ^. eventTime
     , m
     )
   pure . EventId . fromOnly $ DL.head eventIds
+
+findEvents' :: ProjectId -> UserId -> Interval' -> QDBM [LogEntry]
+findEvents' (ProjectId pid) (UserId uid) ival =
+  let q (Before e) = pquery
+        "SELECT btc_addr, event_type, event_time, event_metadata FROM work_events \
+        \WHERE project_id = ? AND user_id = ? AND event_time <= ?" 
+        (pid, uid, PUTCTime e)
+      q (During s e) = pquery
+        "SELECT btc_addr, event_type, event_time, event_metadata FROM work_events \
+        \WHERE project_id = ? AND user_id = ? \
+        \AND event_time >= ? AND event_time <= ?" 
+        (pid, uid, PUTCTime s, PUTCTime e)
+      q (After s) = pquery
+        "SELECT btc_addr, event_type, event_time, event_metadata FROM work_events \
+        \WHERE project_id = ? AND user_id = ? AND event_time >= ?" 
+        (pid, uid, PUTCTime s)
+  in  fmap pLogEntry <$> q ival
 
 amendEvent' :: EventId -> LogModification -> QDBM ()
 amendEvent' (EventId eid) (TimeChange mt t) = 
@@ -182,7 +204,7 @@ amendEvent' (EventId eid) (MetadataChange mt v) =
 readWorkIndex' :: ProjectId -> QDBM WorkIndex
 readWorkIndex' pid = do
   rows <- pquery
-    "SELECT btc_addr, event_type, event_time, event_metadata from work_events WHERE project_id = ?" 
+    "SELECT btc_addr, event_type, event_time, event_metadata FROM work_events WHERE project_id = ?" 
     (Only $ PPid pid)
   pure . workIndex $ fmap pLogEntry rows
 
@@ -271,6 +293,7 @@ postgresQDB :: QDB QDBM
 postgresQDB = QDB 
   { createEvent = createEvent'
   , amendEvent = amendEvent'
+  , findEvents = findEvents'
   , readWorkIndex = readWorkIndex' 
 
   , createAuction = createAuction'

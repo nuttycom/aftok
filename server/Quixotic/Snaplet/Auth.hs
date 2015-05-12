@@ -38,16 +38,17 @@ requireUserId = do
     Nothing -> snapError 403 "Unable to retrieve user record for authenticated user" 
     Just u -> pure (u ^. userId)
 
-requireProjectAccess :: UserId -> Handler App App ProjectId
-requireProjectAccess uid = do
+requireProjectAccess :: Handler App App (UserId, ProjectId)
+requireProjectAccess = do
   QDB{..} <- view qdb <$> with qm get
   pidMay <- getParam "projectId"
   case ProjectId <$> (readMay =<< fmap decodeUtf8 pidMay) of
     Nothing  -> snapError 403 "Value of parameter projectId could not be parsed to a valid value."
     Just pid -> do
+      uid <- requireUserId
       projects <- liftPG . runReaderT $ findUserProjects uid
       if any (\p -> p ^. projectId == pid) projects
-        then pure pid
+        then pure (uid, pid)
         else snapError 403 $ "User " ++ (tshow uid) ++ " does not have access to project " ++ (tshow pid)
 
 throwChallenge :: MonadSnap m => m a

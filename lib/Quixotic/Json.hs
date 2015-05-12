@@ -60,7 +60,7 @@ unversion _ _ = mzero
 
 qdbProjectJSON :: QDBProject -> Value
 qdbProjectJSON qp = 
-  object [ "projectId" .= (qp ^. (projectId._ProjectId))
+  object [ "projectId" .= (tshow $ qp ^. (projectId._ProjectId))
          , "project" .= projectJSON (qp ^. project)
          ]
 
@@ -68,7 +68,7 @@ projectJSON :: Project -> Value
 projectJSON p = 
   object [ "projectName"    .= (p ^. projectName)
          , "inceptionDate"  .= (p ^. inceptionDate)
-         , "initiator"      .= (p ^. (initiator._UserId)) ]
+         , "initiator"      .= (tshow $ p ^. (initiator._UserId)) ]
 
 payoutsJSON :: Payouts -> Value
 payoutsJSON (Payouts m) = toJSON $ MS.mapKeys (^. _BtcAddr) m
@@ -83,4 +83,12 @@ workIndexJSON (WorkIndex widx) =
 
 eventIdJSON :: EventId -> Value
 eventIdJSON (EventId eid) = toJSON eid
+
+logEntryJSON :: LogEntry -> Value
+logEntryJSON (LogEntry a ev m) = 
+  object [ "btcAddr"   .= (a ^. _BtcAddr)
+         , "eventType" .= eventName ev
+         , "eventTime" .= (ev ^. eventTime)
+         , "eventMeta" .= m
+         ]
 
