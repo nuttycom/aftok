@@ -9,6 +9,7 @@ import Control.Concurrent
 import qualified Data.Configurator as C
 import qualified Data.Configurator.Types as CT
 import qualified Data.Vector as V
+import System.IO(FilePath)
 
 import Quixotic.Client
 import Quixotic.TimeLog
@@ -33,7 +34,7 @@ data QPConfig = QPConfig
   , qcConfig :: QCConfig
   } deriving Show
 
-loadConfig :: FilePath -> IO QPConfig
+loadConfig :: System.IO.FilePath -> IO QPConfig
 loadConfig cfgFile = do 
   cfg <- C.load [C.Required cfgFile]
   parseQPConfig cfg

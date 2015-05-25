@@ -10,7 +10,8 @@ module Quixotic.TimeLog
   , DepF
   , EventId(EventId), _EventId
   , ModTime(ModTime), _ModTime
-  , LogModification(..)
+  , EventAmendment(..)
+  , AmendmentId(AmendmentId), _AmendmentId
   , Months(Months)
   , Payouts(..), _Payouts
   , payouts
@@ -23,12 +24,13 @@ import Control.Lens
 import Data.AdditiveGroup
 import Data.Aeson as A
 import Data.AffineSpace
+import Data.Foldable as F
 import Data.Heap as H
 import Data.List.NonEmpty as L
-import Data.Foldable as F
 import Data.Map.Strict as MS
 import Data.Ratio()
 import Data.Thyme.Clock as C
+import Data.UUID
 import Data.VectorSpace
 
 import Quixotic
@@ -66,15 +68,18 @@ instance Ord LogEntry where
     let ordElems e = (e ^. event, e ^. btcAddr)
     in  ordElems a `compare` ordElems b
 
-newtype EventId = EventId Int64 deriving (Show, Eq)
+newtype EventId = EventId UUID deriving (Show, Eq)
 makePrisms ''EventId
 
 newtype ModTime = ModTime C.UTCTime
 makePrisms ''ModTime
 
-data LogModification = TimeChange ModTime C.UTCTime
-                     | AddressChange ModTime BtcAddr
-                     | MetadataChange ModTime A.Value
+data EventAmendment = TimeChange ModTime C.UTCTime
+                    | AddressChange ModTime BtcAddr
+                    | MetadataChange ModTime A.Value
+
+newtype AmendmentId = AmendmentId UUID deriving (Show, Eq)
+makePrisms ''AmendmentId
 
 newtype Payouts = Payouts (Map BtcAddr Rational)
 makePrisms ''Payouts

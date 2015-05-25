@@ -47,7 +47,7 @@ data Invitation = Invitation
   }
 makeLenses ''Invitation
 
-newtype InvitationId = InvitationId Int64
+newtype InvitationId = InvitationId UUID deriving (Show, Eq)
 
 data Acceptance = Acceptance
   { _acceptedInvitation :: InvitationId

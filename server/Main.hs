@@ -8,6 +8,7 @@ import ClassyPrelude
 import qualified Data.Configurator as C
 import qualified Data.Configurator.Types as CT
 import qualified Data.Aeson as A
+import System.IO(FilePath)
 
 import Quixotic.TimeLog
 import Quixotic.Json
@@ -29,7 +30,7 @@ import Snap.Snaplet.Session.Backends.CookieSession
 data QConfig = QConfig
   { hostname :: ByteString
   , port :: Int
-  , authSiteKey :: FilePath
+  , authSiteKey :: System.IO.FilePath
   , cookieTimeout :: Maybe Int
   -- , sslCert :: FilePath
   -- , sslKey :: FilePath
@@ -56,8 +57,8 @@ appInit QConfig{..} = makeSnaplet "quixotic" "Quixotic Time Tracker" Nothing $ d
 
       logEventRoute f    = serveJSON eventIdJSON . method POST $ logWorkHandler f
       logEntriesRoute    = serveJSON (fmap logEntryJSON) $ method GET logEntriesHandler
-      logIntervalsRoute  = serveJSON workIndexJSON $ method GET loggedIntervalsHandler
-      --amendEventRoute    = void $ method PUT amendEventHandler
+      logIntervalsRoute  = serveJSON workIndexJSON   $ method GET loggedIntervalsHandler
+      amendEventRoute    = serveJSON amendmentIdJSON $ method PUT amendEventHandler
 
       projectCreateRoute = void $ method POST projectCreateHandler
       projectRoute       = serveJSON projectJSON $ method GET projectGetHandler
@@ -67,7 +68,7 @@ appInit QConfig{..} = makeSnaplet "quixotic" "Quixotic Time Tracker" Nothing $ d
 
   addRoutes [ ("login", loginRoute)   
             , ("register", registerRoute)
-            --, ("events/:eventId/amend", amendEventHandler), 
+            , ("events/:eventId/amend", amendEventRoute)
             , ("projects/:projectId/logStart/:btcAddr", logEventRoute StartWork)
             , ("projects/:projectId/logEnd/:btcAddr",   logEventRoute StopWork) 
             , ("projects/:projectId/logEntries",        logEntriesRoute)
@@ -79,7 +80,7 @@ appInit QConfig{..} = makeSnaplet "quixotic" "Quixotic Time Tracker" Nothing $ d
             ] 
   return $ App qms sesss pgs auths
 
-loadQConfig :: FilePath -> IO QConfig
+loadQConfig :: System.IO.FilePath -> IO QConfig
 loadQConfig cfgFile = do 
   cfg <- C.load [C.Required cfgFile]
   parseQConfig cfg

@@ -3,34 +3,27 @@
 module Quixotic.Database where
 
 import ClassyPrelude
-import Control.Lens
 
 import Quixotic
 import Quixotic.Auction
 import Quixotic.Interval
 import Quixotic.TimeLog
 
-data QDBUser = QDBUser 
-  { _userId :: UserId 
-  , _user :: User
-  }
-makeLenses ''QDBUser
-
-data QDBProject = QDBProject
-  { _projectId :: ProjectId
-  , _project :: Project
-  }
-makeLenses ''QDBProject
+type QDBUser     = (UserId, User)
+type QDBLogEntry = (EventId, ProjectId, UserId, LogEntry)
+type QDBProject  = (ProjectId, Project)
 
 data QDB m = QDB 
   { createEvent   :: ProjectId -> UserId -> LogEntry -> m EventId
-  , amendEvent    :: EventId -> LogModification -> m ()
+  , amendEvent    :: EventId -> EventAmendment -> m AmendmentId
+  , findEvent     :: EventId -> m (Maybe QDBLogEntry)
   , findEvents    :: ProjectId -> UserId -> Interval' -> m [LogEntry]
   , readWorkIndex :: ProjectId -> m WorkIndex
 
   , createAuction :: ProjectId -> Auction -> m AuctionId
   , findAuction   :: AuctionId -> m (Maybe Auction)
-  , createBid     :: AuctionId -> Bid -> m ()
+
+  , createBid     :: AuctionId -> Bid -> m BidId
   , readBids      :: AuctionId -> m [Bid]
 
   , createUser    :: User -> m UserId

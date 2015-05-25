@@ -36,7 +36,7 @@ requireUserId = do
   qdbUser <- liftPG . runReaderT $ findUserByUserName currentUser
   case qdbUser of
     Nothing -> snapError 403 "Unable to retrieve user record for authenticated user" 
-    Just u -> pure (u ^. userId)
+    Just u -> pure (u ^. _1)
 
 requireProjectAccess :: Handler App App (UserId, ProjectId)
 requireProjectAccess = do
@@ -47,7 +47,7 @@ requireProjectAccess = do
     Just pid -> do
       uid <- requireUserId
       projects <- liftPG . runReaderT $ findUserProjects uid
-      if any (\p -> p ^. projectId == pid) projects
+      if any (\p -> p ^. _1 == pid) projects
         then pure (uid, pid)
         else snapError 403 $ "User " ++ (tshow uid) ++ " does not have access to project " ++ (tshow pid)
 

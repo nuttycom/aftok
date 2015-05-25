@@ -24,18 +24,13 @@ import Language.Haskell.TH.Quote
 
 data Version = Version { majorVersion :: Word8
                        , minorVersion :: Word8
-                       , trivialVersion :: Word8 
                        } deriving (Typeable, Data)
 
-printVersion :: Version -> Text
-printVersion Version{..} = intercalate "." (fmap tshow [majorVersion, minorVersion, trivialVersion])
+instance Show Version where
+  show Version{..} = intercalate "." $ fmap show [majorVersion, minorVersion]
 
 versionParser :: P.Parser Version
-versionParser = Version <$> P.decimal <*> (P.char '.' >> P.decimal) <*> (P.char '.' >> P.decimal)
-
-versioned :: Version -> Value -> Value
-versioned ver v = object [ "schemaVersion" .= printVersion ver
-                         , "value" .= v ]
+versionParser = Version <$> P.decimal <*> (P.char '.' >> P.decimal) 
 
 version :: QuasiQuoter 
 version = QuasiQuoter { quoteExp = quoteVersionExp
@@ -44,51 +39,105 @@ version = QuasiQuoter { quoteExp = quoteVersionExp
                       , quoteDec = error "Dec quasiquotation of versions not supported."
                       }
 
-
+-- TODO: Include source location information, and implement quote patterns.
 quoteVersionExp :: String -> TH.Q TH.Exp
 quoteVersionExp s = do
   v <- either (fail . show) pure $ P.parseOnly versionParser (C.pack s)
   dataToExpQ (const Nothing) v
 
+versioned :: Version -> Value -> Value
+versioned ver v = object [ "schemaVersion" .= tshow ver
+                         , "value" .= v ]
+
+{-| 
+ - Convenience function to allow dispatch of different serialized
+ - versions to different parsers.
+ -}
 unversion :: (Version -> Value -> Parser a) -> Value -> Parser a
 unversion f (Object v) = do
-  vers <- v .: "schemaVersion"
-  vers' <- either (\_ -> mzero) pure $ P.parseOnly versionParser (encodeUtf8 vers)
-  value <- v .: "value"
-  f vers' value
-unversion _ _ = mzero
+  verstr   <- v .: "schemaVersion"
+  vers  <- either fail pure $ P.parseOnly versionParser (encodeUtf8 verstr)
+  v .: "value" >>= f vers
+
+unversion _ x = 
+  fail $ show x <> " did not contain the expected version information."
+
+--------------
+-- Versions --
+--------------
+
+v1 :: Value -> Value
+v1 = versioned $ Version 1 0
+
+unv1 :: String -> (Value -> Parser a) -> Value -> Parser a
+unv1 name f v =
+  let p (Version 1 0) = f 
+      p ver = const . fail $ "Unrecognized " <> name <> " schema version: " <> show ver
+  in  unversion p v
+
+-----------------
+-- Serializers --
+-----------------
 
 qdbProjectJSON :: QDBProject -> Value
-qdbProjectJSON qp = 
-  object [ "projectId" .= (tshow $ qp ^. (projectId._ProjectId))
-         , "project" .= projectJSON (qp ^. project)
+qdbProjectJSON (projectId, project) = v1 $
+  object [ "projectId" .=  (tshow $ projectId ^. _ProjectId)
+         , "project" .= projectJSON project
          ]
 
 projectJSON :: Project -> Value
-projectJSON p = 
+projectJSON p = v1 $
   object [ "projectName"    .= (p ^. projectName)
          , "inceptionDate"  .= (p ^. inceptionDate)
          , "initiator"      .= (tshow $ p ^. (initiator._UserId)) ]
 
 payoutsJSON :: Payouts -> Value
-payoutsJSON (Payouts m) = toJSON $ MS.mapKeys (^. _BtcAddr) m
-
-parsePayoutsJSON :: Value -> Parser Payouts
-parsePayoutsJSON v = 
-  Payouts . MS.mapKeys BtcAddr <$> parseJSON v 
+payoutsJSON (Payouts m) = v1 $
+  toJSON $ MS.mapKeys (^. _BtcAddr) m
 
 workIndexJSON :: WorkIndex -> Value
-workIndexJSON (WorkIndex widx) = 
+workIndexJSON (WorkIndex widx) = v1 $
   toJSON $ (L.toList . fmap intervalJSON) <$> (MS.mapKeysMonotonic (^._BtcAddr) widx)
 
 eventIdJSON :: EventId -> Value
-eventIdJSON (EventId eid) = toJSON eid
+eventIdJSON (EventId eid) = v1 $
+  object [ "eventId" .= tshow eid ]
 
 logEntryJSON :: LogEntry -> Value
-logEntryJSON (LogEntry a ev m) = 
+logEntryJSON (LogEntry a ev m) = v1 $
   object [ "btcAddr"   .= (a ^. _BtcAddr)
          , "eventType" .= eventName ev
          , "eventTime" .= (ev ^. eventTime)
          , "eventMeta" .= m
          ]
+
+amendmentIdJSON :: AmendmentId -> Value
+amendmentIdJSON (AmendmentId aid) = v1 $
+  object [ "amendmentId" .= tshow aid ]
+
+-------------
+-- Parsers --
+-------------
+
+parsePayoutsJSON :: Value -> Parser Payouts
+parsePayoutsJSON = unv1 "payouts" $ \v ->
+  Payouts . MS.mapKeys BtcAddr <$> parseJSON v 
+
+parseEventAmendment :: ModTime -> Value -> Parser EventAmendment
+parseEventAmendment t = 
+  let parseA x "timeChange" = TimeChange t <$> x .: "eventTime"
+      parseA x "addrChage"  = do
+        addrText <- x .: "btcAddr" 
+        maybe 
+          (fail $ (show addrText) <> "is not a valid BTC address") 
+          (pure . AddressChange t) 
+          $ parseBtcAddr addrText
+      parseA x "metadataChange" = 
+        MetadataChange t <$> x .: "eventMeta"
+      parseA _ other = 
+        fail $ "Amendment value " <> other <> " not recognized."
+
+      p (Object x) = x .: "amendment" >>= parseA x
+      p x = fail $ "Value " <> show x <> " missing 'amendment' field."
+  in unv1 "amendment" p 
 

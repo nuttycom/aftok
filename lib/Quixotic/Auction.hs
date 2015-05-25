@@ -19,6 +19,9 @@ data Auction = Auction
   }
 makeLenses ''Auction
 
+newtype BidId = BidId UUID deriving (Show, Eq)
+makePrisms ''BidId
+
 data Bid = Bid
   { _bidUser    :: UserId
   , _bidSeconds :: Seconds
