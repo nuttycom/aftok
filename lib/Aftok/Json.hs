@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module Quixotic.Json where
+module Aftok.Json where
 
 import ClassyPrelude
 
@@ -14,10 +14,10 @@ import Data.Data
 import Data.List.NonEmpty as L
 import Data.Map.Strict as MS
 
-import Quixotic
-import Quixotic.Database
-import Quixotic.Interval
-import Quixotic.TimeLog
+import Aftok
+import Aftok.Database
+import Aftok.Interval
+import Aftok.TimeLog
 
 import qualified Language.Haskell.TH as TH
 import Language.Haskell.TH.Quote

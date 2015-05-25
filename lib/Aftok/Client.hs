@@ -1,6 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables, OverloadedStrings, NoImplicitPrelude #-}
 
-module Quixotic.Client where
+module Aftok.Client where
 
 import ClassyPrelude 
 
@@ -10,20 +10,20 @@ import qualified Data.Configurator as C
 import qualified Data.Configurator.Types as CT
 import Network.Wreq
 
-import Quixotic.Json
-import Quixotic.TimeLog
+import Aftok.Json
+import Aftok.TimeLog
 
 data QCConfig = QCConfig
-  { quixoticUrl :: String
+  { aftokUrl :: String
   } deriving Show
 
 parseQCConfig :: CT.Config -> IO QCConfig
 parseQCConfig cfg = 
-  QCConfig <$> C.require cfg "quixoticUrl" 
+  QCConfig <$> C.require cfg "aftokUrl" 
 
 currentPayouts :: QCConfig -> IO Payouts
 currentPayouts cfg = do
-  resp <- get (quixoticUrl cfg <> "payouts")
+  resp <- get (aftokUrl cfg <> "payouts")
   valueResponse <- asValue resp
   either fail pure (parseEither parsePayoutsJSON $ valueResponse ^. responseBody)
 

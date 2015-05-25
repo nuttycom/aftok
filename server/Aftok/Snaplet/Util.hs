@@ -1,4 +1,4 @@
-module Quixotic.Snaplet.Util where
+module Aftok.Snaplet.Util where
 
 import ClassyPrelude 
 

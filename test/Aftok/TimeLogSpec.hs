@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables, NoImplicitPrelude #-}
 {-# OPTIONS_GHC -Wwarn -fno-warn-orphans #-}
 
-module Quixotic.TimeLogSpec where
+module Aftok.TimeLogSpec where
 
 import ClassyPrelude
 
@@ -12,9 +12,9 @@ import qualified Data.Map.Strict as M
 import Data.Time.ISO8601
 import Data.Thyme.Time as T
 
-import Quixotic
-import Quixotic.Interval as I
-import Quixotic.TimeLog 
+import Aftok
+import Aftok.Interval as I
+import Aftok.TimeLog 
 
 import Test.QuickCheck
 import Test.Hspec

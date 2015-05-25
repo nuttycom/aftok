@@ -11,12 +11,12 @@ import qualified Data.Configurator.Types as CT
 import qualified Data.Vector as V
 import System.IO(FilePath)
 
-import Quixotic.Client
-import Quixotic.TimeLog
+import Aftok.Client
+import Aftok.TimeLog
 
 main :: IO ()
 main = do
-  cfg <- loadConfig "quixotic-payouts.cfg"
+  cfg <- loadConfig "aftok-payouts.cfg"
   loop cfg
 
 loop :: QPConfig -> IO ()

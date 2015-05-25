@@ -1,16 +1,16 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Quixotic.Snaplet.Projects where
+module Aftok.Snaplet.Projects where
 
 import ClassyPrelude 
 
 import Control.Lens
 import Control.Monad.State
 import Data.Aeson as A
-import Quixotic
-import Quixotic.Database
-import Quixotic.Snaplet
-import Quixotic.Snaplet.Auth
+import Aftok
+import Aftok.Database
+import Aftok.Snaplet
+import Aftok.Snaplet.Auth
 
 import Snap.Core
 import Snap.Snaplet

@@ -1,4 +1,4 @@
-module Quixotic.Snaplet.WorkLog where
+module Aftok.Snaplet.WorkLog where
 
 import ClassyPrelude 
 
@@ -9,15 +9,15 @@ import Data.Aeson.Types
 import Data.UUID as U
 import Data.Thyme.Clock as C
 
-import Quixotic
-import Quixotic.Database
-import Quixotic.Interval
-import Quixotic.Json
-import Quixotic.TimeLog
+import Aftok
+import Aftok.Database
+import Aftok.Interval
+import Aftok.Json
+import Aftok.TimeLog
 
-import Quixotic.Snaplet
-import Quixotic.Snaplet.Auth
-import Quixotic.Snaplet.Util
+import Aftok.Snaplet
+import Aftok.Snaplet.Auth
+import Aftok.Snaplet.Util
 
 import Snap.Core
 import Snap.Snaplet

@@ -1,10 +1,10 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables, NoImplicitPrelude #-}
 
-module Quixotic.Util.HttpSpec where
+module Aftok.Util.HttpSpec where
 
 import ClassyPrelude
 
-import Quixotic.Util.Http
+import Aftok.Util.Http
 import Data.Attoparsec.ByteString 
 
 import Test.Hspec

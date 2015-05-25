@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module Quixotic.TimeLog 
+module Aftok.TimeLog 
   ( LogEntry(..)
   , btcAddr, event, eventMeta
   , LogEvent(..)
@@ -33,8 +33,8 @@ import Data.Thyme.Clock as C
 import Data.UUID
 import Data.VectorSpace
 
-import Quixotic
-import Quixotic.Interval
+import Aftok
+import Aftok.Interval
 
 data LogEvent = StartWork { _eventTime :: C.UTCTime }
               | StopWork  { _eventTime :: C.UTCTime }

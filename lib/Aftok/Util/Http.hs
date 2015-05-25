@@ -1,4 +1,4 @@
-module Quixotic.Util.Http where
+module Aftok.Util.Http where
 
 import ClassyPrelude 
 

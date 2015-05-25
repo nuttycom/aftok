@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Quixotic.Database.PostgreSQL (postgresQDB) where
+module Aftok.Database.PostgreSQL (postgresQDB) where
 
 import Blaze.ByteString.Builder (fromByteString)
 import ClassyPrelude
@@ -18,11 +18,11 @@ import Database.PostgreSQL.Simple.FromField
 import Database.PostgreSQL.Simple.FromRow
 import Network.Bitcoin
 
-import Quixotic
-import Quixotic.Auction
-import Quixotic.Database
-import Quixotic.Interval
-import Quixotic.TimeLog
+import Aftok
+import Aftok.Auction
+import Aftok.Database
+import Aftok.Interval
+import Aftok.TimeLog
 
 type QDBM = ReaderT Connection IO
 

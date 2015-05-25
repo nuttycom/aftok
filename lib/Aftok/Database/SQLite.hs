@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables, OverloadedStrings, NoImplicitPrelude #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Quixotic.Database.SQLite (sqliteQDB) where
+module Aftok.Database.SQLite (sqliteQDB) where
 
 import ClassyPrelude
 import Control.Lens
@@ -10,12 +10,12 @@ import Database.SQLite.Simple
 import Database.SQLite.Simple.ToField
 import qualified Text.Read as R
 
-import Quixotic
-import Quixotic.Auctions
-import Quixotic.Projects
-import Quixotic.Database
-import Quixotic.TimeLog
-import Quixotic.Users
+import Aftok
+import Aftok.Auctions
+import Aftok.Projects
+import Aftok.Database
+import Aftok.TimeLog
+import Aftok.Users
 
 newtype PLogEntry = PLogEntry LogEntry
 makePrisms ''PLogEntry

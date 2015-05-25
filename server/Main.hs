@@ -10,14 +10,14 @@ import qualified Data.Configurator.Types as CT
 import qualified Data.Aeson as A
 import System.IO(FilePath)
 
-import Quixotic.TimeLog
-import Quixotic.Json
+import Aftok.TimeLog
+import Aftok.Json
 
-import Quixotic.Snaplet
-import Quixotic.Snaplet.Auth
-import Quixotic.Snaplet.Users
-import Quixotic.Snaplet.WorkLog
-import Quixotic.Snaplet.Projects
+import Aftok.Snaplet
+import Aftok.Snaplet.Auth
+import Aftok.Snaplet.Users
+import Aftok.Snaplet.WorkLog
+import Aftok.Snaplet.Projects
 
 import Snap.Core
 import Snap.Http.Server
@@ -39,13 +39,13 @@ data QConfig = QConfig
 
 main :: IO ()
 main = do
-  cfg <- loadQConfig "quixotic.cfg"
+  cfg <- loadQConfig "aftok.cfg"
   sconf <- snapConfig cfg
   --simpleHttpServe sconf $ runReaderT (site sqliteQDB) db
   serveSnaplet sconf $ appInit cfg
 
 appInit :: QConfig -> SnapletInit App App
-appInit QConfig{..} = makeSnaplet "quixotic" "Quixotic Time Tracker" Nothing $ do
+appInit QConfig{..} = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
   qms   <- nestSnaplet "qmodules" qm qdbpgSnapletInit
   sesss <- nestSnaplet "sessions" sess $ 
            initCookieSessionManager authSiteKey "quookie" cookieTimeout

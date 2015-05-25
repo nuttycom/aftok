@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Quixotic.Auction where
+module Aftok.Auction where
 
 import ClassyPrelude
 import Control.Lens
@@ -8,7 +8,7 @@ import Data.Hourglass
 import Data.UUID
 import Network.Bitcoin
 
-import Quixotic
+import Aftok
 
 newtype AuctionId = AuctionId UUID deriving (Show, Eq)
 makePrisms ''AuctionId

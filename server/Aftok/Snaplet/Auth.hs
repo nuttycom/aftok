@@ -1,4 +1,4 @@
-module Quixotic.Snaplet.Auth where
+module Aftok.Snaplet.Auth where
 
 import ClassyPrelude 
 
@@ -6,10 +6,10 @@ import Control.Lens
 import Control.Monad.State
 import Data.Attoparsec.ByteString (parseOnly)
 
-import Quixotic
-import Quixotic.Database
-import Quixotic.Util.Http (authHeaderParser)
-import Quixotic.Snaplet
+import Aftok
+import Aftok.Database
+import Aftok.Util.Http (authHeaderParser)
+import Aftok.Snaplet
 
 import Snap.Core
 import Snap.Snaplet
@@ -54,7 +54,7 @@ requireProjectAccess = do
 throwChallenge :: MonadSnap m => m a
 throwChallenge = do
     modifyResponse $ (setResponseStatus 401 "Unauthorized") . 
-                     (setHeader "WWW-Authenticate" "Basic realm=quixotic")
+                     (setHeader "WWW-Authenticate" "Basic realm=aftok")
     getResponse >>= finishWith
 
 throwDenied :: MonadSnap m => AU.AuthFailure -> m a

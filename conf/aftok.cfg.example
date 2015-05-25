@@ -1,0 +1,2 @@
+db = "db/aftok-test.db"
+port = 8080

@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Quixotic.Interval 
+module Aftok.Interval 
   ( Interval(..), interval, start, end, ilen
   , Interval'(..), interval', start', end'
   , intervalJSON, parseIntervalJSON

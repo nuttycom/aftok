@@ -1,13 +1,13 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Quixotic.Database where
+module Aftok.Database where
 
 import ClassyPrelude
 
-import Quixotic
-import Quixotic.Auction
-import Quixotic.Interval
-import Quixotic.TimeLog
+import Aftok
+import Aftok.Auction
+import Aftok.Interval
+import Aftok.TimeLog
 
 type QDBUser     = (UserId, User)
 type QDBLogEntry = (EventId, ProjectId, UserId, LogEntry)

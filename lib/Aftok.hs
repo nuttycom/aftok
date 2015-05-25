@@ -1,6 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude, TemplateHaskell #-}
 
-module Quixotic where
+module Aftok where
 
 import ClassyPrelude
 

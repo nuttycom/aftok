@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell, FlexibleInstances #-}
 
-module Quixotic.Snaplet where
+module Aftok.Snaplet where
 
 import ClassyPrelude 
 
@@ -10,9 +10,9 @@ import Control.Monad.State
 import qualified Data.Aeson as A
 import Database.PostgreSQL.Simple
 
-import Quixotic.Database
-import Quixotic.Database.PostgreSQL
-import Quixotic.TimeLog
+import Aftok.Database
+import Aftok.Database.PostgreSQL
+import Aftok.TimeLog
 
 import Snap.Core
 import Snap.Snaplet
