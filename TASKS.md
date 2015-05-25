@@ -29,9 +29,9 @@ Library
       - inviting user asked to sign a txn that transfers a specific amount of btc from their
         current payout address to the invitee's payout address as confirmation of
         the invitation + script
-#  * Timeline
-#    * Amend Event
-#      * Amend operations targeting events older than <commit_delay hours> fail.
+  * Timeline
+    * Amend Event
+      * Amend operations targeting events older than <commit_delay hours> fail.
 
   * User
     * Payout Address Update
