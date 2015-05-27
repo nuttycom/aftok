@@ -107,8 +107,9 @@ Just as the depreciated amount of time that one has devoted to the company
 (relative to that devoted by the rest of the collaborators) determines what
 proportion of the revenue of the company they are awarded, it also determines
 the amount of influence that person has in making decisions that affect the
-company as a whole. The [http://aftok.com](http://aftok.com) platform provides a voting service
-that can be used by collaborators to make collective decisions.
+company as a whole. The [http://aftok.com](http://aftok.com) platform provides
+a voting service that can be used by collaborators to make collective
+decisions.
 
 The voting system provided uses a range-voting model where the ratings chosen
 by an individual for the options provided are weighted by their revenue
@@ -130,13 +131,14 @@ individually owned, or, if used by all, then rented.
 
 In order to provide an equitable means for raising money to pay for a rented
 resource from among the collaborators of a company, the approach offered by
-this service is that units of time (the primary unit of account within a company)
-are *auctioned* to raise the money. The fundamental idea is that if someone is
-contributing money to purchase a shared resource, obviously some effort of
-theirs was required in the past for them to obtain the money that they are
-contributing, and so in some sense the contribution of money is equivalent to a
-contribution of some amount of their time. The purpose of the auction is to
-determine what amount of time their monetary contribution is worth.
+this service is that units of time (the primary unit of account within a
+company) are *auctioned* to raise the money. The fundamental idea is that if
+someone is contributing money to purchase a shared resource, obviously some
+effort of theirs was required in the past for them to obtain the money that
+they are contributing, and so in some sense the contribution of money is
+equivalent to a contribution of some amount of their time. The purpose of the
+auction is to determine what amount of time their monetary contribution is
+worth.
 
 The process goes like this:
 
@@ -269,52 +271,74 @@ The aftok concept grew out of a simple question: what would be the best way to
 structure a for-profit organization in which all of the members of that
 organization trusted one another? 
 
-I believe that in general, the ways in which corporations strive to limit the
-potential impact of malicious actors also act to inhibit individual creativity
-and productivity. Hierarchies of control can ensure that outcomes desired by
-those at the top are achieved, even when those goals are poor or shortsighted.
-The aftok ideal seeks another way.
+Many of the mechanisms which corporations use to limit the potential impact of
+malicious actors also unavoidably act to inhibit individual creativity and
+productivity. Hierarchies of control can ensure that outcomes desired by those
+at the top are achieved, even when those goals are poor or shortsighted. The
+aftok ideal seeks another way.
 
-In my experience, a group of motivated and skilled individuals working toward a
-common goal in an environment of shared trust requires no, and indeed is
-inhibited by, a hierarchy of control. If you feel that you can trust your
-collaborators, you should be able to trust their judgment as to what they
-should be working on, and that their perspective, while perhaps distinct from
-yours, is as valid as your own. If you don't trust someone to this degree, you
-simply should not work with them; if you choose to work with someone whom you
-feel that you may need to control, you're setting yourself up for failure
-anyway. The most important of the fictional (but true) [Celine's
-Laws](http://en.wikipedia.org/wiki/Celine%27s_laws) is "Communication is only
-possible between equals." Wherever communication is inhibited in business,
-whether by secrecy (of salary information, for example) hierarchy of control
-(with the thread of firing or punishment available as a goad) or even lack of
-access (can you really interrupt your CEO whenever you want?) it encourages
-people to behave in cynical, rather than enlightened, self-interest. This
-cynicism is the sort that causes people to reserve their best work for projects
-where they have the freedom of self-determination. 
+As has been mentioned before, open-source software projects have demonstrated
+that a group of motivated and skilled individuals working toward a common goal
+in an environment of shared trust requires no, and indeed is inhibited by, a
+hierarchy of control. If you feel that you can trust your collaborators, you
+should be able to trust their judgment as to what they should be working on,
+and that their perspective, while perhaps distinct from yours, is as valid as
+your own. If you don't trust someone to this degree, you simply should not work
+with them; if you choose to work with someone whom you feel that you may need
+to control, you're setting yourself up for failure anyway. 
 
-Any question related to how you should behave with respect to others in your
-company comes down to a simple question: do you trust them or not? If you trust
-them, then trust their judgment and in their good intentions; there is no need
-to attempt to control them, only perhaps to convince them or find common ground
-when you disagree. 
+Wherever trust is inhibited in a business, whether by secrecy (of salary
+information, for example) hierarchy of control (with the thread of firing or
+punishment available as a goad) or even lack of access (can you really
+interrupt your CEO whenever you want?) it encourages people to behave in
+cynical, rather than enlightened, self-interest. This cynicism is the sort that
+causes people to reserve their best work for projects where they have the
+freedom of self-determination. 
+
+Given this, when working in the context of an aftok, any question related to
+how you should behave with respect to others in your company comes down to a
+simple question: do you trust them or not? If you trust them, then trust their
+judgment and in their good intentions; there is no need to attempt to control
+them, only perhaps to convince them or find common ground when you disagree. 
 
 It's possible, of course, that you'll be wrong. That you've misplaced your
 trust, and that you'll have to change your mind and fork away from them. This
-risk is not unique to an aftok. Sometimes, there can even be people
-whom you trust and even admire greatly, but just don't want to work with, and
-this is okay.  A virtue of the aftok structure is that the damage that can be
-done by an incompetent or even malicious actor is limited by the very fact that
-there is no centralized entity that can own assets, or even control revenue in
-any but the most temporary fashion. Fraud is possible on a limited scale
-(someone could overstate the hours that they've worked), but this situation is
-equally likely to occur in a traditional corporation, and the scale upon which
-fraud of other sorts can be perpetrated is greatly reduced.
+risk is not unique to an aftok. Sometimes, there can even be people whom you
+trust and even admire greatly, but just don't want to work with, and this is
+okay. A virtue of the aftok structure is that the damage that can be done by an
+incompetent or even malicious actor is limited by the very fact that there is
+no centralized entity that can own assets, or even control revenue in any but
+the most temporary fashion. Fraud is possible on a limited scale (someone could
+overstate the hours that they've worked), but this situation is equally likely
+to occur in a traditional corporation, and the scale upon which fraud of other
+sorts can be perpetrated is greatly reduced.
 
 How Things Should Work
 ----------------------
 
-Given all of this, we can construct a pretty good picture of what working in
-an aftok should look like, at least ideally.
+Given all of this, it should be obvious that (Aftok.com)[http://aftok.com] is
+itself being built by an aftok, rather than some ordinary corporate entity. As
+such, I'm now going to slip into first-person for a moment to express my
+personal motivation for initiating this project. My name is Kris Nuttycombe,
+and I'm a software engineer. In the previous several years, I've been
+exceptionally fortunate in that I've been able to work with some of the
+smartest and most self-motivated software development teams in the world.
+However, that work has always been done in the context of traditional
+organizations, and as such I've always been a little bit dissatisfied with how
+the dynamics of hierarchical control have impacted the products that I've 
+been a part of creating. 
 
-... to be continued.
+My objective in creating this service is simple; I want to be able to support
+my family doing the work that I love, in an environment of mutual respect and
+trust with my collaborators. I firmly believe that I will personally achieve
+greatest success in this endeavor if I reject entirely notions of control and
+coercion.  Communication is only possible between equals <sup>1</sup>, and I
+believe that where communication is inhibited, the end result suffers. As such,
+it's up to each of my collaborators to decide for themselves what work, if any,
+they wish to do in the creation and promotion of this service. Each of them
+knows far better than I what value he or she is able to contribute. The
+structure described here is a mere skeleton, and software is never complete
+until it is abandoned.  However, I hope that what I've created thus far is
+sufficient to make a start, and it is up to all of us, working together, to
+determine what we may ultimately achieve. 
+
