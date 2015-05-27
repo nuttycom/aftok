@@ -288,7 +288,7 @@ with them; if you choose to work with someone whom you feel that you may need
 to control, you're setting yourself up for failure anyway. 
 
 Wherever trust is inhibited in a business, whether by secrecy (of salary
-information, for example) hierarchy of control (with the thread of firing or
+information, for example) hierarchy of control (with the threat of firing or
 punishment available as a goad) or even lack of access (can you really
 interrupt your CEO whenever you want?) it encourages people to behave in
 cynical, rather than enlightened, self-interest. This cynicism is the sort that
