@@ -12,7 +12,6 @@ Then, the usual setup steps apply:
 
 cabal sandbox init
 cabal configure
-cabal install cpphs //for some reason the thyme library won't find this dependency on its own
 cabal install --only-dependencies --enable-tests
 cabal build
 cabal test
