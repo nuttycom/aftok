@@ -16,7 +16,7 @@ create table projects (
 
 create table project_companions (
   project_id uuid references projects(id) not null,
-  companion_id uuid references users(id) not null
+  user_id uuid references users(id) not null
 );
 
 create type event_t as enum ('start', 'stop');
