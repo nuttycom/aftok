@@ -1,18 +1,13 @@
-{-# LANGUAGE FlexibleInstances #-} 
-{-# LANGUAGE TemplateHaskell #-}
-
 module Main where
 
 import ClassyPrelude 
 
-import qualified Data.Configurator as C
-import qualified Data.Configurator.Types as CT
 import qualified Data.Aeson as A
-import System.IO(FilePath)
 
 import Aftok.TimeLog
 import Aftok.Json
 
+import Aftok.QConfig
 import Aftok.Snaplet
 import Aftok.Snaplet.Auth
 import Aftok.Snaplet.Users
@@ -20,28 +15,15 @@ import Aftok.Snaplet.WorkLog
 import Aftok.Snaplet.Projects
 
 import Snap.Core
-import Snap.Http.Server
-import qualified Snap.Http.Server.Config as SC
 import Snap.Snaplet
 import Snap.Snaplet.PostgresqlSimple
 import Snap.Snaplet.Auth.Backends.PostgresqlSimple
 import Snap.Snaplet.Session.Backends.CookieSession
 
-data QConfig = QConfig
-  { hostname :: ByteString
-  , port :: Int
-  , authSiteKey :: System.IO.FilePath
-  , cookieTimeout :: Maybe Int
-  -- , sslCert :: FilePath
-  -- , sslKey :: FilePath
-  -- , dbName :: String
-  } 
-
 main :: IO ()
 main = do
   cfg <- loadQConfig "aftok.cfg"
   sconf <- snapConfig cfg
-  --simpleHttpServe sconf $ runReaderT (site sqliteQDB) db
   serveSnaplet sconf $ appInit cfg
 
 appInit :: QConfig -> SnapletInit App App
@@ -49,7 +31,7 @@ appInit QConfig{..} = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
   qms   <- nestSnaplet "qmodules" qm qdbpgSnapletInit
   sesss <- nestSnaplet "sessions" sess $ 
            initCookieSessionManager authSiteKey "quookie" cookieTimeout
-  pgs   <- nestSnaplet "db" db pgsInit
+  pgs   <- nestSnaplet "db" db $ pgsInit' pgsConfig
   auths <- nestSnaplet "auth" auth $ initPostgresAuth sess pgs
 
   let loginRoute         = requireLogin >> redirect "/home"
@@ -79,32 +61,6 @@ appInit QConfig{..} = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
             , ("projects/:projectId/payouts", payoutsRoute)
             ] 
   return $ App qms sesss pgs auths
-
-loadQConfig :: System.IO.FilePath -> IO QConfig
-loadQConfig cfgFile = do 
-  cfg <- C.load [C.Required cfgFile]
-  parseQConfig cfg
-
-parseQConfig :: CT.Config -> IO QConfig
-parseQConfig cfg = 
-  QConfig <$> C.lookupDefault "localhost" cfg "hostname"
-          <*> C.lookupDefault 8000 cfg "port" 
-          <*>  C.require cfg "siteKey"
-          <*> C.lookup cfg "cookieTimeout" 
-          -- <*> (fmap fpFromText $ C.require cfg "sslCert")
-          -- <*> (fmap fpFromText $ C.require cfg "sslKey")
-          -- <*> C.require cfg "db" 
-
-baseSnapConfig :: MonadSnap m => QConfig -> SC.Config m a -> SC.Config m a
-baseSnapConfig cfg = 
-  SC.setHostname (hostname cfg) . 
-  SC.setPort (port cfg) 
-  --SC.setSSLPort (port cfg) .
-  --SC.setSSLCert (fpToString $ sslCert cfg) .
-  --SC.setSSLKey (fpToString $ sslKey cfg)
-
-snapConfig :: QConfig -> IO (SC.Config Snap a)
-snapConfig cfg = SC.commandLineConfig $ baseSnapConfig cfg emptyConfig
 
 serveJSON :: (MonadSnap m, A.ToJSON a) => (b -> a) -> m b -> m ()
 serveJSON f ma = do
