@@ -1,3 +1,6 @@
+Development Installation
+========================
+
 First, you'll need a local install of postgres. This is because the
 postgresql-simple package requires some of the postgres command-line tools
 and/or libraries in order to build.
@@ -44,3 +47,16 @@ a bitcoin address that are local to a test blockchain on my system. Speaking of
 which, you'll also eventually want to install bitcoind, although at the moment
 basically nothing related to the bitcoin infrastructure is working anyway so
 it's not immediately necessary.
+
+Docker Installation
+===================
+
+The Aftok server application is now deployable under Docker. Here's how you can
+go about running the server in a local docker container:
+
+docker build -t <yourid>/aftok:<version> .
+
+for example,
+
+docker build -t nuttycom/aftok:0.1 .
+
