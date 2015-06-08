@@ -24,34 +24,16 @@ cabal2nix --shell . > shell.nix
 nix-shell -I ~ --command 'cabal configure --enable-tests'
 
 To start the server, you'll need to create an SSL X509 certificate that's 
-used for encryption of cookies and so forth:
+used for encryption of cookies. We're not currently taking advantage of this,
+since there's no browser-based UI, but without it the server will fail to start.
 
-mkdir local
-cd local
-openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes
-cd <project_root>
-echo 'sslCert = "local/cert.pem"' > aftok.cfg
-echo 'siteKey = "local/key.pem"' >> aftok.cfg
+openssl req -x509 -newkey rsa:2048 -keyout conf/key.pem -out conf/cert.pem -days 365 -nodes
 
-If you want to run on a port other than 8000, you can set 'port = 12345' in that
-aftok.cfg file.
+Next, copy the example config file into place and edit it to provide the port you want
+the service to run on, and your postgres database connection information.
 
-Next, we'll want to run the server in order to autogenerate the files that need
-to be edited to configure postgres:
-
-cabal run aftok-server
-
-I can't remember whether this will succeed or fail to start, but in any case
-once it has run you should be able to find the file
-snaplets/postgresql-simple/devel.cfg
-
-Edit this file to set the database connection information:
-
-host = "localhost"
-port = 5432
-user = "aftok"
-pass = "???"
-db = "aftok"
+cp conf/aftok.cfg.example conf/aftok.cfg
+vi conf/aftok.cfg
 
 Now, when you do 'cabal run aftok-server' it should actually start up and run.
 
@@ -62,5 +44,3 @@ a bitcoin address that are local to a test blockchain on my system. Speaking of
 which, you'll also eventually want to install bitcoind, although at the moment
 basically nothing related to the bitcoin infrastructure is working anyway so
 it's not immediately necessary.
-
-

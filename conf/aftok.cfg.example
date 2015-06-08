@@ -1,2 +1,24 @@
-db = "db/aftok-test.db"
-port = 8080
+port = 8000
+
+sslCert = "conf/cert.pem"
+siteKey = "conf/key.pem"
+
+db {
+  host = "localhost"
+  port = 5432
+  user = "postgres"
+  pass = ""
+  db = "testdb"
+
+  # Nmuber of distinct connection pools to maintain.  The smallest acceptable
+  # value is 1.
+  numStripes = 1
+  
+  # Number of seconds an unused resource is kept open.  The smallest acceptable
+  # value is 0.5 seconds.
+  idleTime = 5
+  
+  # Maximum number of resources to keep open per stripe.  The smallest
+  # acceptable value is 1.
+  maxResourcesPerStripe = 20
+}

@@ -22,7 +22,7 @@ import Snap.Snaplet.Session.Backends.CookieSession
 
 main :: IO ()
 main = do
-  cfg <- loadQConfig "aftok.cfg"
+  cfg <- loadQConfig "conf/aftok.cfg"
   sconf <- snapConfig cfg
   serveSnaplet sconf $ appInit cfg
 

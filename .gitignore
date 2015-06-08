@@ -1,16 +1,16 @@
+shell.nix
 cabal.sandbox.config
-*.swp
-*.cfg
-tags
+.cabal-sandbox
 Setup
 
-.cabal-sandbox
+*.swp
+tags
+
+conf/*.cfg
+conf/*.pem
+conf/site_key.txt
+
 log
 dist
-db
-local
-stable
 snaplets
-site_key.txt
-shell.nix
 work
