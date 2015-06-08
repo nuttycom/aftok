@@ -60,3 +60,49 @@ for example,
 
 docker build -t nuttycom/aftok:0.1 .
 
+This will give you an image ID that you can then run. The container is set up
+to provide a mountable filesystem volume at /etc/aftok where you can put your
+configuration files. You will need to copy your aftok.cfg file and your two
+.pem files to somewhere local (say, a docker-conf directory) and then edit the
+aftok.cfg file make sense in the context of the container. For example, here's 
+an aftok.cfg set up for docker use:
+
+~~~
+port = 8000
+
+sslCert = "/etc/aftok/cert.pem"
+siteKey = "/etc/aftok/key.pem"
+
+db {
+  host = "localhost"
+  port = 5432
+  user = "quixotic"
+  pass = "qdevel"
+  db = "quixotic"
+
+  # Nmuber of distinct connection pools to maintain.  The smallest acceptable
+  # value is 1.
+  numStripes = 1
+  
+  # Number of seconds an unused resource is kept open.  The smallest acceptable
+  # value is 0.5 seconds.
+  idleTime = 5
+  
+  # Maximum number of resources to keep open per stripe.  The smallest
+  # acceptable value is 1.
+  maxResourcesPerStripe = 20
+}
+~~~
+
+To run the container in "development" mode, it's useful to leave open a TTY, so that you
+can see output from stdout:
+
+docker run -i -t --net="host" -v /home/nuttycom/projects/aftok/docker-conf:/etc/aftok <image_id>
+
+Or, you can daemonize the container, as we will do in production:
+
+docker run -d --net="host" -v /home/nuttycom/projects/aftok/docker-conf:/etc/aftok <image_id>
+
+In both of these cases, I'm simply using the --net="host" switch to allow the container
+access to 'localhost' on the host machine, so that I don't have to explicitly
+configure where postgres is running.
