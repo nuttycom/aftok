@@ -19,9 +19,6 @@ data QConfig = QConfig
   , authSiteKey :: System.IO.FilePath
   , cookieTimeout :: Maybe Int
   , pgsConfig :: PGSConfig
-  -- , sslCert :: FilePath
-  -- , sslKey :: FilePath
-  -- , dbName :: String
   } 
 
 loadQConfig :: System.IO.FilePath -> IO QConfig
@@ -38,17 +35,11 @@ readQConfig cfg pc =
           <*> C.require cfg "siteKey"
           <*> C.lookup cfg "cookieTimeout" 
           <*> maybe (mkPGSConfig $ C.subconfig "db" cfg) pure pc
-          -- <*> (fmap fpFromText $ C.require cfg "sslCert")
-          -- <*> (fmap fpFromText $ C.require cfg "sslKey")
-          -- <*> C.require cfg "db" 
 
 baseSnapConfig :: MonadSnap m => QConfig -> SC.Config m a -> SC.Config m a
 baseSnapConfig qc = 
   SC.setHostname (hostname qc) . 
   SC.setPort (port qc) 
-  --SC.setSSLPort (port qc) .
-  --SC.setSSLCert (fpToString $ sslCert qc) .
-  --SC.setSSLKey (fpToString $ sslKey cfg)
 
 -- configuration specific to Snap, commandLineConfig arguments override
 -- config file.

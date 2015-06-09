@@ -1,1 +1,9 @@
-curl -v -u "nuttycom:kjntest" -X POST -d '' http://localhost:8000/projects/6f4cba6f-02ec-4cc3-9241-00609d6a6f6a/logStart/1KamUn1BaRMd2HwikyQWGTdUvfPScg9QA5
+#!/bin/bash
+
+read -p "Username: " USER
+read -s -p "Password: " PASS
+echo
+read -p "Project ID: " PROJECT
+read -p "BTC Address: " BTC_ADDR
+
+curl -v -k -u "$USER:$PASSWORD" -X POST -d '' "https://aftok.com/projects/$PROJECT/logStart/$BTC_ADDR"

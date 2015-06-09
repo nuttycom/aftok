@@ -1,14 +1,13 @@
 port = 8000
 
-sslCert = "conf/cert.pem"
-siteKey = "conf/key.pem"
+siteKey = "/etc/aftok/snap-site-key"
 
 db {
-  host = "localhost"
+  host = "127.0.0.1"
   port = 5432
-  user = "postgres"
-  pass = ""
-  db = "testdb"
+  user = "aftok"
+  pass = "password"
+  db = "aftok"
 
   # Nmuber of distinct connection pools to maintain.  The smallest acceptable
   # value is 1.

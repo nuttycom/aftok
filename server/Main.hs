@@ -3,6 +3,7 @@ module Main where
 import ClassyPrelude 
 
 import qualified Data.Aeson as A
+import System.Environment
 
 import Aftok.TimeLog
 import Aftok.Json
@@ -22,7 +23,8 @@ import Snap.Snaplet.Session.Backends.CookieSession
 
 main :: IO ()
 main = do
-  cfg <- loadQConfig "conf/aftok.cfg"
+  cfgPath <- try $ getEnv "AFTOK_CFG" :: IO (Either IOError String)
+  cfg <- loadQConfig $ either (const "conf/aftok.cfg") id cfgPath
   sconf <- snapConfig cfg
   serveSnaplet sconf $ appInit cfg
 

@@ -1,4 +1,9 @@
 #!/bin/bash
 
-curl -v -u "nuttycom:kjntest" -X POST -H "Content-Type: application/json" -d '{"projectName":"the"}' http://localhost:8000/projects
+read -p "Username: " USER
+read -s -p "Password: " PASS
+echo
+read -p "Project Name: " PROJECT
+
+curl -v -k -u "$USER:$PASS" -X POST -H "Content-Type: application/json" -d "{\"projectName\":\"$PROJECT\"}" 'https://aftok.com/projects'
 
