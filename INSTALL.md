@@ -26,12 +26,6 @@ cd <project_root>
 cabal2nix --shell . > shell.nix
 nix-shell -I ~ --command 'cabal configure --enable-tests'
 
-To start the server, you'll need to create an SSL X509 certificate that's 
-used for encryption of cookies. We're not currently taking advantage of this,
-since there's no browser-based UI, but without it the server will fail to start.
-
-openssl req -x509 -newkey rsa:2048 -keyout conf/key.pem -out conf/cert.pem -days 365 -nodes
-
 Next, copy the example config file into place and edit it to provide the port you want
 the service to run on, and your postgres database connection information.
 
@@ -70,15 +64,14 @@ an aftok.cfg set up for docker use:
 ~~~
 port = 8000
 
-sslCert = "/etc/aftok/cert.pem"
-siteKey = "/etc/aftok/key.pem"
+siteKey = "/etc/aftok/snap-site-key"
 
 db {
   host = "localhost"
   port = 5432
-  user = "quixotic"
-  pass = "qdevel"
-  db = "quixotic"
+  user = "aftok"
+  pass = ""
+  db = "aftok"
 
   # Nmuber of distinct connection pools to maintain.  The smallest acceptable
   # value is 1.
