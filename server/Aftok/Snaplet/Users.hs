@@ -7,7 +7,6 @@ module Aftok.Snaplet.Users
 import ClassyPrelude 
 
 import Control.Lens
-import Control.Monad.State
 import Data.Aeson as A
 import Aftok
 import Aftok.Database
@@ -17,28 +16,26 @@ import Aftok.Snaplet.Auth
 import Snap.Core
 import Snap.Snaplet
 import qualified Snap.Snaplet.Auth as AU
-import Snap.Snaplet.PostgresqlSimple
 
-data CreateUser = CreateUser
+data CUser = CU
   { _cuser :: User
   , _password :: ByteString
   }
-makeLenses ''CreateUser
+makeLenses ''CUser
 
-instance FromJSON CreateUser where
+instance FromJSON CUser where
   parseJSON (Object v) = 
     let u = User <$> (UserName <$> v .: "username")
                  <*> (BtcAddr  <$> v .: "btcAddr")
                  <*> v .: "email"
-    in  CreateUser <$> u <*> (fromString <$> v .: "password")
+    in  CU <$> u <*> (fromString <$> v .: "password")
   parseJSON _ = mzero
 
 registerHandler :: Handler App App ()
 registerHandler = do
-  QDB{..} <- view qdb <$> with qm get
   requestBody <- readRequestBody 4096
   userData <- maybe (snapError 400 "Could not parse user data") pure $ A.decode requestBody
   let createSUser = AU.createUser (userData ^. (cuser.username._UserName)) (userData ^. password)
-      createQUser = liftPG $ runReaderT (createUser $ userData ^. cuser)
+      createQUser = snapEval (createUser $ userData ^. cuser)
   authUser <- with auth createSUser
   void $ either throwDenied (\_ -> createQUser) authUser 

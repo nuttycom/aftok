@@ -3,7 +3,7 @@ module Aftok.Snaplet.Auth where
 import ClassyPrelude 
 
 import Control.Lens
-import Control.Monad.State
+-- import Control.Monad.State
 import Data.Attoparsec.ByteString (parseOnly)
 
 import Aftok
@@ -13,7 +13,7 @@ import Aftok.Snaplet
 
 import Snap.Core
 import Snap.Snaplet
-import Snap.Snaplet.PostgresqlSimple
+-- import Snap.Snaplet.PostgresqlSimple
 import qualified Snap.Snaplet.Auth as AU
 
 requireLogin :: Handler App App AU.AuthUser 
@@ -31,25 +31,18 @@ requireUser = do
 
 requireUserId :: Handler App App UserId
 requireUserId = do
-  QDB{..} <- view qdb <$> with qm get
   currentUser <- UserName . AU.userLogin <$> requireLogin
-  qdbUser <- liftPG . runReaderT $ findUserByUserName currentUser
+  qdbUser <- snapEval $ findUserByName currentUser
   case qdbUser of
     Nothing -> snapError 403 "Unable to retrieve user record for authenticated user" 
     Just u -> pure (u ^. _1)
 
-requireProjectAccess :: Handler App App (UserId, ProjectId)
-requireProjectAccess = do
-  QDB{..} <- view qdb <$> with qm get
+requireProjectId :: Handler App App ProjectId
+requireProjectId = do
   pidMay <- getParam "projectId"
   case ProjectId <$> (readMay =<< fmap decodeUtf8 pidMay) of
-    Nothing  -> snapError 403 "Value of parameter projectId could not be parsed to a valid value."
-    Just pid -> do
-      uid <- requireUserId
-      projects <- liftPG . runReaderT $ findUserProjects uid
-      if any (\p -> p ^. _1 == pid) projects
-        then pure (uid, pid)
-        else snapError 403 $ "User " ++ (tshow uid) ++ " does not have access to project " ++ (tshow pid)
+    Nothing  -> snapError 400 "Value of parameter projectId could not be parsed to a valid value."
+    Just pid -> pure pid
 
 throwChallenge :: MonadSnap m => m a
 throwChallenge = do

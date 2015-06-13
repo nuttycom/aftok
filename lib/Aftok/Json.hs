@@ -79,7 +79,7 @@ unv1 name f v =
 -- Serializers --
 -----------------
 
-qdbProjectJSON :: QDBProject -> Value
+qdbProjectJSON :: KeyedProject -> Value
 qdbProjectJSON (projectId, project) = v1 $
   object [ "projectId" .=  (tshow $ projectId ^. _ProjectId)
          , "project" .= projectJSON project

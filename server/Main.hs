@@ -30,7 +30,6 @@ main = do
 
 appInit :: QConfig -> SnapletInit App App
 appInit QConfig{..} = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
-  qms   <- nestSnaplet "qmodules" qm qdbpgSnapletInit
   sesss <- nestSnaplet "sessions" sess $ 
            initCookieSessionManager authSiteKey "quookie" cookieTimeout
   pgs   <- nestSnaplet "db" db $ pgsInit' pgsConfig
@@ -62,7 +61,7 @@ appInit QConfig{..} = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
             , ("projects/:projectId", projectRoute)
             , ("projects/:projectId/payouts", payoutsRoute)
             ] 
-  return $ App qms sesss pgs auths
+  return $ App sesss pgs auths
 
 serveJSON :: (MonadSnap m, A.ToJSON a) => (b -> a) -> m b -> m ()
 serveJSON f ma = do

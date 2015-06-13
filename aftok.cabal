@@ -27,6 +27,7 @@ library
                       Aftok.Interval
                       Aftok.Json
                       Aftok.TimeLog
+                      Aftok.Util
                       Aftok.Util.Http
   build-depends:      
       base                >= 4     && < 5
@@ -41,9 +42,11 @@ library
     , configurator             
     , either              >= 4.3.1
     , errors              >= 1.4.7
+    , free
     , groups              >= 0.4
     , heaps               >= 0.3.1
     , hourglass           >= 0.2.6    && < 0.3
+    , kan-extensions
     , lens                >= 4.4.0.2
     , network-bitcoin     >= 1.7.0
     , old-locale

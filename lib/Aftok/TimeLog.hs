@@ -7,12 +7,11 @@ module Aftok.TimeLog
   , LogEvent(..)
   , eventName, nameEvent, eventTime
   , WorkIndex(WorkIndex), _WorkIndex, workIndex
-  , DepF
+  , DepF, toDepF
   , EventId(EventId), _EventId
   , ModTime(ModTime), _ModTime
   , EventAmendment(..)
   , AmendmentId(AmendmentId), _AmendmentId
-  , Months(Months)
   , Payouts(..), _Payouts
   , payouts
   , linearDepreciation
@@ -96,12 +95,15 @@ type NDT = C.NominalDiffTime
  -}
 type DepF = C.UTCTime -> Interval -> NDT 
 
+toDepF :: DepreciationFunction -> DepF
+toDepF (LinearDepreciation undepLength depLength)  = linearDepreciation undepLength depLength
+
 {-|
  - Given a depreciation function, the "current" time, and a foldable functor of log intervals,
  - produce the total, depreciated length of work to be credited to an address.
  -}
 workCredit :: (Functor f, Foldable f) => DepF -> C.UTCTime -> f Interval -> NDT
-workCredit depf ptime ivals = getSum $ F.foldMap (Sum . depf ptime) ivals
+workCredit df ptime ivals = getSum $ F.foldMap (Sum . df ptime) ivals
 
 {-|
  - Payouts are determined by computing a depreciated duration value for
@@ -159,24 +161,22 @@ appendLogEntry idx (LogEntry k ev _) =
 
   in  MS.insert k ivals idx
 
-newtype Months = Months Integer 
-
 {-|
  - A very simple linear function for calculating depreciation.
  -}
-linearDepreciation :: Months -> -- ^ The number of initial months during which no depreciation occurs
-                      Months -> -- ^ The number of months over which each logged interval will be depreciated
-                      DepF
-linearDepreciation undepPeriod depPeriod = 
+linearDepreciation :: Months -- ^ The number of initial months during which no depreciation occurs
+                   -> Months -- ^ The number of months over which each logged interval will be depreciated
+                   -> DepF   -- ^ The resulting configured depreciation function.
+linearDepreciation undepLength depLength = 
   let monthsLength :: Months -> NDT
       monthsLength (Months i) = fromSeconds $ 60 * 60 * 24 * 30 * i
 
       maxDepreciable :: NDT
-      maxDepreciable = monthsLength undepPeriod ^+^ monthsLength depPeriod 
+      maxDepreciable = monthsLength undepLength ^+^ monthsLength depLength 
 
       depPct :: NDT -> Rational
       depPct dt = 
-        if dt < monthsLength undepPeriod then 1
+        if dt < monthsLength undepLength then 1
         else toSeconds (max zeroV (maxDepreciable ^-^ dt)) / toSeconds maxDepreciable
 
   in  \ptime ival -> 
