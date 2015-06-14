@@ -253,19 +253,16 @@ instance DBEval QDBM where
 
   dbEval (FindProject (ProjectId pid)) = do
     projects <- pquery projectParser
-      "SELECT project_name, inception_date, initiator_id FROM projects WHERE id = ?"
+      "SELECT project_name, inception_date, initiator_id, depreciation_fn FROM projects WHERE id = ?"
       (Only pid)
     pure $ headMay projects
 
   dbEval (FindUserProjects (UserId uid)) = 
     pquery qdbProjectParser
-      "SELECT p.id, p.project_name, p.inception_date, p.initiator_id \
-      \FROM projects p JOIN project_companions pc ON pc.project_id = p.id \
-      \WHERE pc.user_id = ? \
-      \UNION \
-      \SELECT p.id, p.project_name, p.inception_date, p.initiator_id \
-      \FROM projects p \
-      \WHERE p.initiator_id = ?"
+      "SELECT p.id, p.project_name, p.inception_date, p.initiator_id, p.depreciation_fn \
+      \FROM projects p LEFT OUTER JOIN project_companions pc ON pc.project_id = p.id \
+      \WHERE pc.user_id = ? \ 
+      \OR p.initiator_id = ?"
       (uid, uid)
 
   dbEval (AddUserToProject pid current new) = do

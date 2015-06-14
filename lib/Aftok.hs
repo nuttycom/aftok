@@ -79,7 +79,7 @@ instance ToJSON DepreciationFunction where
 
 instance FromJSON DepreciationFunction where
   parseJSON (Object v) = do
-    t <- v .: "text" :: Parser Text
+    t <- v .: "type" :: Parser Text
     args <- v .: "arguments"
     case unpack t of
       "LinearDepreciation" -> 
