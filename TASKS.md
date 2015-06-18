@@ -56,6 +56,19 @@ Webserver
 ---------
   * Timeline
     * Amend Event
+  * Authentication
+    * Integrate server-session package? https://github.com/yesodweb/serversession/blob/master/README.md
+      We don't really use sessions at the moment, but this will be useful once there's a UI. 
+      Alternately, need to look into JWT (http://jwt.io/) to figure out whether this approach
+      is relevant for us.
+  * Payouts
+    * Previously, I had thought it would be easiest for payments to be made directly to
+      a per-aftok BTC address, and a subsequent transaction used to then distribute
+      that transaction to the participants. However, I now think it makes more sense to
+      present the payer with a transaction to complete and sign that sends funds directly
+      from their wallet to the participants, as a multiparty txn requiring signatures
+      of both the aftok server (which would sign in advance) and the payer. This avoids
+      the central server even momentarily having control of any funds.
 
 Payouts Service
 ---------------
@@ -63,7 +76,6 @@ Payouts Service
   * Read blockchain transactions
     * Invitation validation
     * Payout Address Update validation
-    * When a payment is observed, distribute it to participants.
     * When a resource acquisition CoinJoin is observed, record time awards
   * Elections
     * Close voting window
