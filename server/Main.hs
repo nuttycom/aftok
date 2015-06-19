@@ -29,37 +29,38 @@ main = do
   serveSnaplet sconf $ appInit cfg
 
 appInit :: QConfig -> SnapletInit App App
-appInit QConfig{..} = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
+appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
   sesss <- nestSnaplet "sessions" sess $ 
-           initCookieSessionManager authSiteKey "quookie" cookieTimeout
-  pgs   <- nestSnaplet "db" db $ pgsInit' pgsConfig
+           initCookieSessionManager (authSiteKey cfg) "quookie" (cookieTimeout cfg)
+  pgs   <- nestSnaplet "db" db $ pgsInit' (pgsConfig cfg)
   auths <- nestSnaplet "auth" auth $ initPostgresAuth sess pgs
 
   let loginRoute         = requireLogin >> redirect "/home"
       registerRoute      = void $ method POST registerHandler
+      projectCreateRoute = void $ method POST projectCreateHandler
+      listProjectsRoute  = serveJSON (fmap qdbProjectJSON) $ method GET projectListHandler
 
+      projectRoute       = serveJSON projectJSON $ method GET projectGetHandler
       logEventRoute f    = serveJSON eventIdJSON . method POST $ logWorkHandler f
       logEntriesRoute    = serveJSON (fmap logEntryJSON) $ method GET logEntriesHandler
       logIntervalsRoute  = serveJSON workIndexJSON   $ method GET loggedIntervalsHandler
-      amendEventRoute    = serveJSON amendmentIdJSON $ method PUT amendEventHandler
-
-      projectCreateRoute = void $ method POST projectCreateHandler
-      projectRoute       = serveJSON projectJSON $ method GET projectGetHandler
-      listProjectsRoute  = serveJSON (fmap qdbProjectJSON) $ method GET projectListHandler
-
       payoutsRoute       = serveJSON payoutsJSON $ method GET payoutsHandler
+      inviteRoute        = void . method POST $ projectInviteHandler cfg
+
+      amendEventRoute    = serveJSON amendmentIdJSON $ method PUT amendEventHandler
 
   addRoutes [ ("login", loginRoute)   
             , ("register", registerRoute)
-            , ("events/:eventId/amend", amendEventRoute)
+            , ("projects", projectCreateRoute)
+            , ("projects", listProjectsRoute)
+            , ("projects/:projectId",                   projectRoute)
             , ("projects/:projectId/logStart/:btcAddr", logEventRoute StartWork)
             , ("projects/:projectId/logEnd/:btcAddr",   logEventRoute StopWork) 
             , ("projects/:projectId/logEntries",        logEntriesRoute)
             , ("projects/:projectId/intervals",         logIntervalsRoute)
-            , ("projects", projectCreateRoute)
-            , ("projects", listProjectsRoute)
-            , ("projects/:projectId", projectRoute)
-            , ("projects/:projectId/payouts", payoutsRoute)
+            , ("projects/:projectId/payouts",           payoutsRoute)
+            , ("projects/:projectId/invite",            inviteRoute)
+            , ("events/:eventId/amend", amendEventRoute)
             ] 
   return $ App sesss pgs auths
 

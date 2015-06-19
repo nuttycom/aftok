@@ -5,13 +5,13 @@ import ClassyPrelude
 import qualified Data.ByteString.Char8 as C
 import qualified Data.Configurator as C
 import qualified Data.Configurator.Types as CT
+import qualified Network.Sendgrid.Api as Sendgrid
 import System.Environment
-import System.IO(FilePath)
+import System.IO (FilePath)
 
 import Snap.Core
 import Snap.Snaplet.PostgresqlSimple
 import qualified Snap.Http.Server.Config as SC
-
 
 data QConfig = QConfig
   { hostname :: ByteString
@@ -19,6 +19,8 @@ data QConfig = QConfig
   , authSiteKey :: System.IO.FilePath
   , cookieTimeout :: Maybe Int
   , pgsConfig :: PGSConfig
+  , sendgridAuth :: Sendgrid.Authentication
+  , templatePath :: System.IO.FilePath
   } 
 
 loadQConfig :: System.IO.FilePath -> IO QConfig
@@ -35,6 +37,13 @@ readQConfig cfg pc =
           <*> C.require cfg "siteKey"
           <*> C.lookup cfg "cookieTimeout" 
           <*> maybe (mkPGSConfig $ C.subconfig "db" cfg) pure pc
+          <*> readSendgridAuth cfg
+          <*> C.require cfg "templatePath"
+
+readSendgridAuth :: CT.Config -> IO Sendgrid.Authentication
+readSendgridAuth cfg = 
+  Sendgrid.Authentication <$> C.require cfg "sendgridUser"
+                          <*> C.require cfg "sendgridKey"
 
 baseSnapConfig :: MonadSnap m => QConfig -> SC.Config m a -> SC.Config m a
 baseSnapConfig qc = 

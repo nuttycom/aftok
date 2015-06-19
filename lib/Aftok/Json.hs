@@ -80,8 +80,8 @@ unv1 name f v =
 -----------------
 
 qdbProjectJSON :: KeyedProject -> Value
-qdbProjectJSON (projectId, project) = v1 $
-  object [ "projectId" .=  (tshow $ projectId ^. _ProjectId)
+qdbProjectJSON (pid, project) = v1 $
+  object [ "projectId" .=  (tshow $ pid ^. _ProjectId)
          , "project" .= projectJSON project
          ]
 

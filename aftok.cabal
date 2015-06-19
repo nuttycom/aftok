@@ -9,7 +9,7 @@ Maintainer:    kris@aftok.com
 Stability:     Experimental
 Category:      Web
 Build-type:    Simple
-Cabal-version: >= 1.18
+Cabal-version: >= 1.22
 
 library
   default-language:   Haskell2010
@@ -30,37 +30,37 @@ library
                       Aftok.Util
                       Aftok.Util.Http
   build-depends:      
-      base                >= 4     && < 5
-    , classy-prelude      >= 0.10.1
-    , aeson               >= 0.8.0.2
-    , attoparsec          >= 0.12.1.2
-    , base64-bytestring   >= 1.0.0.1
+      base                >= 4.8.0
+    , classy-prelude      == 0.12.*
+    , aeson               == 0.8.*
+    , attoparsec          == 0.12.*
+    , base64-bytestring   == 1.0.*
     , bifunctors
     , blaze-builder       
     , bytestring
-    , containers          >= 0.5.5.1
+    , containers          >= 0.5.6
     , configurator             
-    , either              >= 4.3.1
-    , errors              >= 1.4.7
+    , either              >= 4.4.1
+    , errors              >= 1.4      && < 1.5
     , free
-    , groups              >= 0.4
-    , heaps               >= 0.3.1
+    , groups              >= 0.4      && < 0.5
+    , heaps               >= 0.3.1    && < 0.4
     , hourglass           >= 0.2.6    && < 0.3
+    , HsOpenSSL           >= 0.11     && < 0.12
     , kan-extensions
-    , lens                >= 4.4.0.2
-    , network-bitcoin     >= 1.7.0
-    , old-locale
-    , postgresql-simple   >= 0.4.9    && < 0.5
-    , safe                >= 0.3.8
+    , lens                >= 4.11     && < 4.12
+    , network-bitcoin     >= 1.8      && < 1.9
+    , old-locale          >= 1.0 
+    , postgresql-simple   >= 0.4.10   && < 0.5
+    , safe                >= 0.3.9    && < 0.4
     , semigroups
     , semigroupoids
-    , sqlite-simple       >= 0.4.8    && < 0.5
     , template-haskell
-    , text                >= 1.2
-    , thyme               >= 0.3.5
-    , uuid                >= 1.3
+    , text                >= 1.2.1    && < 1.3
+    , thyme               >= 0.3.5    && < 0.4
+    , uuid                >= 1.3.10   && < 1.4
     , vector-space
-    , wreq
+    , wreq                >= 0.4
 
 Test-Suite spec
   default-language:   Haskell2010
@@ -80,10 +80,10 @@ Test-Suite spec
     , attoparsec
     , bifunctors
     , containers
-    , hspec >= 1.8.1
+    , hspec         >= 2.1.7
     , iso8601-time
     , lens
-    , QuickCheck >= 2.7
+    , QuickCheck    >= 2.8
     , semigroups
     , text
     , thyme
@@ -105,25 +105,28 @@ Executable aftok-server
     , attoparsec
     , base64-bytestring
     , bytestring
-    , classy-prelude            >= 0.10.2
+    , classy-prelude            
     , containers
     , configurator              
     , either
+    , HStringTemplate           >= 0.8.3
     , iso8601-time
+    , HsOpenSSL           
     , lens
-    , mtl                       >= 2     && < 3
-    , MonadCatchIO-transformers >= 0.2.1 && < 0.4
+    , mtl                       >= 2.2    && < 3
+    , MonadCatchIO-transformers >= 0.3    && < 0.4
     , optparse-applicative      
     , postgresql-simple
     , resource-pool-catchio
-    , snap                      >= 0.13  && < 0.14
-    , snap-core                 >= 0.9   && < 0.10
-    , snap-server               >= 0.9   && < 0.10
-    , snaplet-postgresql-simple >= 0.6
+    , sendgrid-haskell          >= 1.0
+    , snap                      >= 0.14
+    , snap-core                 >= 0.9    && < 0.11
+    , snap-server               >= 0.9    && < 0.11
+    , snaplet-postgresql-simple >= 0.6    && < 0.11
     , text
     , thyme
     , transformers
-    , uuid                >= 1.3
+    , uuid                
 
 Executable aftok-payouts
   default-language:   Haskell2010

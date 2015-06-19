@@ -1,9 +1,11 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GADTs, DeriveDataTypeable #-}
 
 module Aftok.Database where
 
 import ClassyPrelude
 import Control.Lens
+import Data.AffineSpace
+import Data.Thyme.Clock as C
 
 import Aftok
 import Aftok.Auction
@@ -28,6 +30,9 @@ data DBOp a where
   FindProject      :: ProjectId -> DBOp (Maybe Project)
   FindUserProjects :: UserId -> DBOp [KeyedProject]
   AddUserToProject :: ProjectId -> InvitingUID -> InvitedUID -> DBOp ()
+  CreateInvitation :: ProjectId -> InvitingUID -> Email -> C.UTCTime -> DBOp InvitationCode
+  FindInvitation   :: InvitationCode -> DBOp (Maybe Invitation)
+  AcceptInvitation :: UserId -> InvitationCode -> C.UTCTime -> DBOp ()
 
   CreateEvent      :: ProjectId -> UserId -> LogEntry -> DBOp EventId
   AmendEvent       :: EventId -> EventAmendment -> DBOp AmendmentId
@@ -40,12 +45,25 @@ data DBOp a where
   CreateBid        :: AuctionId -> Bid -> DBOp BidId
   ReadBids         :: AuctionId -> DBOp [Bid]
 
-  OpForbidden      :: forall x. UserId -> OpForbiddenReason -> DBOp x -> DBOp x
-  SubjectNotFound  :: forall x. DBOp x -> DBOp x
+  RaiseDBError     :: forall x. DBError -> DBOp x -> DBOp x
 
 data OpForbiddenReason = UserNotProjectMember
                        | UserNotEventLogger
-                       deriving (Eq, Show)
+                       | InvitationExpired
+                       | InvitationAlreadyAccepted
+                       deriving (Eq, Show, Typeable)
+
+data DBError = OpForbidden UserId OpForbiddenReason
+             | SubjectNotFound
+             deriving (Eq, Show, Typeable)
+
+instance Exception DBError 
+
+raiseOpForbidden :: UserId -> OpForbiddenReason -> DBOp x -> DBOp x
+raiseOpForbidden uid r = RaiseDBError (OpForbidden uid r) 
+
+raiseSubjectNotFound :: DBOp x -> DBOp x
+raiseSubjectNotFound = RaiseDBError SubjectNotFound 
 
 class DBEval m where
   dbEval :: DBOp a -> m a
@@ -77,29 +95,50 @@ findProject pid uid = do
 findUserProjects :: UserId -> DBProg [KeyedProject]
 findUserProjects = fc . FindUserProjects
 
-addUserToProject :: ProjectId -> InvitingUID -> InvitedUID -> DBProg ()
-addUserToProject pid current new = 
-  withProjectAuth pid current $ AddUserToProject pid current new
-
 withProjectAuth :: ProjectId -> UserId -> DBOp a -> DBProg a
 withProjectAuth pid uid act = do
   px <- findUserProjects uid
   fc $ if any (\(pid', _) -> pid' == pid) px 
     then act 
-    else OpForbidden uid UserNotProjectMember act
+    else raiseOpForbidden uid UserNotProjectMember act
+
+addUserToProject :: ProjectId -> InvitingUID -> InvitedUID -> DBProg ()
+addUserToProject pid current new = 
+  withProjectAuth pid current $ AddUserToProject pid current new
+
+createInvitation :: ProjectId -> InvitingUID -> Email -> C.UTCTime -> DBProg InvitationCode
+createInvitation pid current email t =
+  withProjectAuth pid current $ CreateInvitation pid current email t
+
+findInvitation :: InvitationCode -> DBProg (Maybe Invitation)
+findInvitation ic = fc $ FindInvitation ic
+
+acceptInvitation :: UserId -> InvitationCode -> C.UTCTime -> DBProg ()
+acceptInvitation uid ic t = do
+  inv <- findInvitation ic
+  let act = AcceptInvitation uid ic t
+  case inv of
+    Nothing -> 
+      fc $ raiseSubjectNotFound act
+    Just i | t .-. (i ^. invitationTime) > fromSeconds (60 * 60 * 72 :: Int) -> 
+      fc $ raiseOpForbidden uid InvitationExpired act
+    Just i | isJust (i ^. acceptanceTime) -> 
+      fc $ raiseOpForbidden uid InvitationAlreadyAccepted act
+    Just i -> 
+      withProjectAuth (i ^. projectId) (i ^. invitingUser) act
 
 -- Log ops
 
 -- TODO: ignore "duplicate" events within some small time limit?
 createEvent :: ProjectId -> UserId -> LogEntry -> DBProg EventId
-createEvent p u l = withProjectAuth p u $ CreateEvent p u l
+createEvent p u l = withProjectAuth p u $ CreateEvent p u l 
 
 amendEvent :: UserId -> EventId -> EventAmendment -> DBProg AmendmentId
 amendEvent uid eid a = do
   ev <- findEvent eid
   let act = AmendEvent eid a
-      forbidden = OpForbidden uid UserNotEventLogger act
-      missing = SubjectNotFound act
+      forbidden = raiseOpForbidden uid UserNotEventLogger act
+      missing = raiseSubjectNotFound act
   fc $ maybe missing (\(_, uid', _) -> if uid' == uid then act else forbidden) ev
 
 findEvent :: EventId -> DBProg (Maybe KeyedLogEntry)

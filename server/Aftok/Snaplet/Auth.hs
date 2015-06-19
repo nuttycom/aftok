@@ -4,7 +4,8 @@ import ClassyPrelude
 
 import Control.Lens
 -- import Control.Monad.State
-import Data.Attoparsec.ByteString (parseOnly)
+import Data.UUID(fromASCIIBytes)
+import Data.Attoparsec.ByteString(parseOnly, takeByteString)
 
 import Aftok
 import Aftok.Database
@@ -37,12 +38,16 @@ requireUserId = do
     Nothing -> snapError 403 "Unable to retrieve user record for authenticated user" 
     Just u -> pure (u ^. _1)
 
-requireProjectId :: Handler App App ProjectId
-requireProjectId = do
-  pidMay <- getParam "projectId"
-  case ProjectId <$> (readMay =<< fmap decodeUtf8 pidMay) of
-    Nothing  -> snapError 400 "Value of parameter projectId could not be parsed to a valid value."
-    Just pid -> pure pid
+requireProjectId :: MonadSnap m => m ProjectId
+requireProjectId = do 
+  maybePid <- parseParam "projectId" pidParser 
+  maybe (snapError 400 "Value of parameter \"projectId\" cannot be parsed as a valid UUID") 
+        pure
+        maybePid
+  where
+    pidParser = do
+      bs <- takeByteString
+      pure $ ProjectId <$> fromASCIIBytes bs
 
 throwChallenge :: MonadSnap m => m a
 throwChallenge = do

@@ -4,9 +4,17 @@ module Aftok.Snaplet.Projects where
 
 import ClassyPrelude 
 
+import Control.Lens
 import Data.Aeson as A
+import Data.Attoparsec.ByteString (takeByteString)
+import Data.Thyme.Clock as C
+import qualified Network.Sendgrid.Api as Sendgrid
+import System.IO (FilePath)
+import Text.StringTemplate
+
 import Aftok
 import Aftok.Database
+import Aftok.QConfig
 import Aftok.Snaplet
 import Aftok.Snaplet.Auth
 
@@ -24,8 +32,8 @@ projectCreateHandler = do
   uid <- requireUserId
   requestBody <- readRequestBody 4096
   cp <- maybe (snapError 400 "Could not parse project data") pure $ A.decode requestBody
-  timestamp <- liftIO getCurrentTime
-  snapEval . createProject $ Project (cpn cp) timestamp uid (cpdepf cp)
+  t <- liftIO C.getCurrentTime
+  snapEval . createProject $ Project (cpn cp) t uid (cpdepf cp)
 
 projectListHandler :: Handler App App [KeyedProject]
 projectListHandler = do
@@ -38,4 +46,40 @@ projectGetHandler = do
   pid <- requireProjectId
   mp <- snapEval $ findProject pid uid
   maybe (snapError 404 $ "Project not found for id " <> tshow pid) pure mp
+
+projectInviteHandler :: QConfig -> Handler App App ()
+projectInviteHandler cfg = do
+  uid <- requireUserId
+  pid <- requireProjectId
+  toEmail <- parseParam "email" (fmap (Email . decodeUtf8) takeByteString)
+  t <- liftIO C.getCurrentTime
+  (Just u, Just p, invCode) <- snapEval $ 
+    (,,) <$> findUser uid
+         <*> findProject pid uid
+         <*> createInvitation pid uid toEmail t
+  inviteEmail <- liftIO $ 
+    projectInviteEmail (templatePath cfg) (p ^. projectName) (u ^. userEmail) toEmail invCode
+  maybeSuccess <- liftIO $ Sendgrid.sendEmail (sendgridAuth cfg) inviteEmail
+  maybe
+    (snapError 500 "The invitation record was created successfully, but the introductory email could not be sent.")
+    (const $ pure ())
+    maybeSuccess
+
+projectInviteEmail :: System.IO.FilePath 
+                   -> ProjectName 
+                   -> Email -> Email 
+                   -> InvitationCode 
+                   -> IO Sendgrid.EmailMessage 
+projectInviteEmail templatePath pn from' to' invCode = do
+  templates <- directoryGroup templatePath 
+  template <- maybe (fail "Could not find template for invitation email") pure $ 
+    getStringTemplate "invitation_email" templates
+  let setAttrs = setAttribute "invCode" (renderInvCode invCode)
+  return $ Sendgrid.EmailMessage 
+    { from = unpack $ from' ^. _Email
+    , to = unpack $ to' ^. _Email
+    , subject = unpack $ "Welcome to the "<>pn<>" Aftok!"
+    , text = render $ setAttrs template
+    }
+
 

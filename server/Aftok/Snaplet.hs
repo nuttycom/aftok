@@ -7,8 +7,11 @@ import ClassyPrelude
 import Control.Lens
 import Control.Monad.Reader
 import Control.Monad.State
+import Control.Monad.Trans.Either
 import qualified Data.Aeson as A
+import Data.Attoparsec.ByteString(Parser, parseOnly)
 
+import Aftok
 import Aftok.Database
 import Aftok.Database.PostgreSQL
 import Aftok.Util
@@ -27,11 +30,18 @@ data App = App
 makeLenses ''App
 
 instance HasPostgres (Handler b App) where
-    getPostgresState = with db get
-    setLocalPostgresState s = local (set (db . snapletValue) s)
+  getPostgresState = with db get
+  setLocalPostgresState s = local (set (db . snapletValue) s)
 
-snapEval :: DBProg a -> Handler App App a 
-snapEval p = liftPG . runReaderT . runQDBM $ interpret dbEval p
+snapEval :: (MonadSnap m, HasPostgres m) => DBProg a -> m a
+snapEval p = do
+  let handleDBError (OpForbidden (UserId uid) reason) = 
+        snapError 403 $ tshow reason <> " (User " <> tshow uid <> ")"
+      handleDBError (SubjectNotFound) = 
+        snapError 404 "The subject of the requested operation could not be found."
+
+  e <- liftPG $ \conn -> runEitherT (runQDBM conn $ interpret dbEval p)
+  either handleDBError pure e
 
 snapError :: MonadSnap m => Int -> Text -> m a
 snapError c t = do
@@ -43,6 +53,16 @@ ok :: MonadSnap m => m a
 ok = do
   modifyResponse $ setResponseCode 200
   getResponse >>= finishWith 
+
+parseParam :: MonadSnap m => ByteString -> Parser a -> m a
+parseParam name parser = do
+  maybeBytes <- getParam name
+  case maybeBytes of
+    Nothing -> snapError 400 $ "Parameter "<> tshow name <>" is required"
+    Just bytes -> either
+      (const . snapError 400 $ "Value of parameter "<> tshow name <>" could not be parsed to a valid value.")
+      pure
+      (parseOnly parser bytes)
 
 readRequestJSON :: MonadSnap m => Int64 -> m A.Value
 readRequestJSON i = do

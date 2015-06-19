@@ -6,6 +6,7 @@ import ClassyPrelude
 import Control.Lens
 import Data.Hourglass
 import Data.UUID
+import Data.Thyme.Clock as C
 import Network.Bitcoin
 
 import Aftok
@@ -15,7 +16,7 @@ makePrisms ''AuctionId
 
 data Auction = Auction 
   { _raiseAmount :: BTC
-  , _auctionEnd :: UTCTime 
+  , _auctionEnd :: C.UTCTime 
   }
 makeLenses ''Auction
 
@@ -26,7 +27,7 @@ data Bid = Bid
   { _bidUser    :: UserId
   , _bidSeconds :: Seconds
   , _bidAmount  :: BTC
-  , _bidTime    :: UTCTime
+  , _bidTime    :: C.UTCTime
   } deriving Eq
 makeLenses ''Bid
 
