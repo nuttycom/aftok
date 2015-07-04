@@ -21,3 +21,8 @@ db {
   # acceptable value is 1.
   maxResourcesPerStripe = 20
 }
+
+sendgridUser = "example"
+sendgridKey = "abcdefg"
+
+# templatePath = "/opt/aftok/server/templates"

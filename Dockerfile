@@ -23,15 +23,17 @@ RUN apt-get update && \
     apt-get update && \
     apt-get install -y --no-install-recommends libpq-dev
 
-# Install the aftok dependencies
+# Install and build aftok-server dependencies
 ADD ./aftok.cabal /opt/aftok/aftok.cabal
+WORKDIR /opt/aftok
 RUN cabal update
-RUN cd /opt/aftok && cabal install cpphs && cabal install --only-dependencies -j4 
+RUN cabal install cpphs 
+RUN cabal install --only-dependencies -j4 
 
 # Install and build aftok-server sources
-ADD ./lib /opt/aftok/lib
-ADD ./server /opt/aftok/server
-RUN cd /opt/aftok && cabal configure && cabal build aftok-server
+ADD ./lib         /opt/aftok/lib
+ADD ./server      /opt/aftok/server
+RUN cabal configure && cabal build aftok-server
 
 # Set up /etc/aftok volume for configuration information
 RUN mkdir /etc/aftok

@@ -74,9 +74,12 @@ projectInviteEmail templatePath pn from' to' invCode = do
   templates <- directoryGroup templatePath 
   template <- maybe (fail "Could not find template for invitation email") pure $ 
     getStringTemplate "invitation_email" templates
-  let setAttrs = setAttribute "invCode" (renderInvCode invCode)
+  let setAttrs = setAttribute "from_email" (from' ^. _Email) .
+                 setAttribute "project_name" pn .
+                 setAttribute "to_email" (to' ^. _Email) .
+                 setAttribute "inv_code" (renderInvCode invCode) 
   return $ Sendgrid.EmailMessage 
-    { from = unpack $ from' ^. _Email
+    { from = "invitations@aftok.com"
     , to = unpack $ to' ^. _Email
     , subject = unpack $ "Welcome to the "<>pn<>" Aftok!"
     , text = render $ setAttrs template
