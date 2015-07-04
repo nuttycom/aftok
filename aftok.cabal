@@ -113,12 +113,14 @@ Executable aftok-server
     , iso8601-time
     , HsOpenSSL           
     , lens
+    , mime-mail
     , mtl                       >= 2.2    && < 3
     , MonadCatchIO-transformers >= 0.3    && < 0.4
+    , network                   
     , optparse-applicative      
     , postgresql-simple
     , resource-pool-catchio
-    , sendgrid-haskell          >= 1.0
+    , smtp-mail                 >= 0.1.4.5
     , snap                      >= 0.14
     , snap-core                 >= 0.9    && < 0.11
     , snap-server               >= 0.9    && < 0.11

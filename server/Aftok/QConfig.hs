@@ -5,7 +5,8 @@ import ClassyPrelude
 import qualified Data.ByteString.Char8 as C
 import qualified Data.Configurator as C
 import qualified Data.Configurator.Types as CT
-import qualified Network.Sendgrid.Api as Sendgrid
+import qualified Network.Socket as NS
+import qualified Network.Mail.SMTP as SMTP
 import System.Environment
 import System.IO (FilePath)
 
@@ -19,9 +20,16 @@ data QConfig = QConfig
   , authSiteKey :: System.IO.FilePath
   , cookieTimeout :: Maybe Int
   , pgsConfig :: PGSConfig
-  , sendgridAuth :: Sendgrid.Authentication
+  , smtpConfig :: SmtpConfig
   , templatePath :: System.IO.FilePath
   } 
+
+data SmtpConfig = SmtpConfig 
+  { smtpHost :: NS.HostName
+  , smtpPort :: Maybe NS.PortNumber
+  , smtpUser :: SMTP.UserName 
+  , smtpPass :: SMTP.Password 
+  }
 
 loadQConfig :: System.IO.FilePath -> IO QConfig
 loadQConfig cfgFile = do 
@@ -37,13 +45,15 @@ readQConfig cfg pc =
           <*> C.require cfg "siteKey"
           <*> C.lookup cfg "cookieTimeout" 
           <*> maybe (mkPGSConfig $ C.subconfig "db" cfg) pure pc
-          <*> readSendgridAuth cfg
+          <*> readSmtpConfig cfg
           <*> C.lookupDefault "/opt/aftok/server/templates/" cfg "templatePath"
 
-readSendgridAuth :: CT.Config -> IO Sendgrid.Authentication
-readSendgridAuth cfg = 
-  Sendgrid.Authentication <$> C.require cfg "sendgridUser"
-                          <*> C.require cfg "sendgridKey"
+readSmtpConfig :: CT.Config -> IO SmtpConfig
+readSmtpConfig cfg = 
+  SmtpConfig <$> C.require cfg "smtpHost"
+             <*> ((fmap . fmap) fromInteger $ C.lookup cfg "smtpPort")
+             <*> C.require cfg "smtpUser"
+             <*> C.require cfg "smtpKey"
 
 baseSnapConfig :: MonadSnap m => QConfig -> SC.Config m a -> SC.Config m a
 baseSnapConfig qc = 

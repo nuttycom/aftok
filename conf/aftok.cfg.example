@@ -22,7 +22,9 @@ db {
   maxResourcesPerStripe = 20
 }
 
-sendgridUser = "example"
-sendgridKey = "abcdefg"
+smtpHost = "smtp.sendgrid.net"
+# smtpPort = 25
+smtpUser = "whoareyou"
+smtpPass = "iami"
 
 # templatePath = "/opt/aftok/server/templates"

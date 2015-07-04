@@ -8,7 +8,8 @@ import Control.Lens
 import Data.Aeson as A
 import Data.Attoparsec.ByteString (takeByteString)
 import Data.Thyme.Clock as C
-import qualified Network.Sendgrid.Api as Sendgrid
+import Network.Mail.SMTP as SMTP
+import Network.Mail.Mime
 import System.IO (FilePath)
 import Text.StringTemplate
 
@@ -57,32 +58,41 @@ projectInviteHandler cfg = do
     (,,) <$> findUser uid
          <*> findProject pid uid
          <*> createInvitation pid uid toEmail t
-  inviteEmail <- liftIO $ 
-    projectInviteEmail (templatePath cfg) (p ^. projectName) (u ^. userEmail) toEmail invCode
-  maybeSuccess <- liftIO $ Sendgrid.sendEmail (sendgridAuth cfg) inviteEmail
-  maybe
-    (snapError 500 "The invitation record was created successfully, but the introductory email could not be sent.")
-    (const $ pure ())
-    maybeSuccess
+  liftIO $ sendProjectInviteEmail cfg (p ^. projectName) (u ^. userEmail) toEmail invCode
 
-projectInviteEmail :: System.IO.FilePath 
-                   -> ProjectName 
-                   -> Email -> Email 
-                   -> InvitationCode 
-                   -> IO Sendgrid.EmailMessage 
-projectInviteEmail templatePath pn from' to' invCode = do
+
+sendProjectInviteEmail :: QConfig
+                       -> ProjectName 
+                       -> Email       -- Inviting user's email address
+                       -> Email       -- Invitee's email address
+                       -> InvitationCode 
+                       -> IO ()
+sendProjectInviteEmail cfg pn fromEmail toEmail invCode = 
+  let SmtpConfig{..} = smtpConfig cfg
+      mailer = maybe (sendMailWithLogin smtpHost) (sendMailWithLogin' smtpHost) smtpPort
+  in  buildProjectInviteEmail (templatePath cfg) pn fromEmail toEmail invCode >>= 
+      (mailer smtpUser smtpPass)
+  
+
+buildProjectInviteEmail :: System.IO.FilePath 
+                        -> ProjectName 
+                        -> Email       -- Inviting user's email address
+                        -> Email       -- Invitee's email address
+                        -> InvitationCode 
+                        -> IO Mail
+buildProjectInviteEmail templatePath pn fromEmail toEmail invCode = do
   templates <- directoryGroup templatePath 
-  template <- maybe (fail "Could not find template for invitation email") pure $ 
-    getStringTemplate "invitation_email" templates
-  let setAttrs = setAttribute "from_email" (from' ^. _Email) .
-                 setAttribute "project_name" pn .
-                 setAttribute "to_email" (to' ^. _Email) .
-                 setAttribute "inv_code" (renderInvCode invCode) 
-  return $ Sendgrid.EmailMessage 
-    { from = "invitations@aftok.com"
-    , to = unpack $ to' ^. _Email
-    , subject = unpack $ "Welcome to the "<>pn<>" Aftok!"
-    , text = render $ setAttrs template
-    }
+  case getStringTemplate "invitation_email" templates of
+    Nothing -> fail "Could not find template for invitation email"
+    Just template ->
+      let setAttrs = setAttribute "from_email" (fromEmail ^. _Email) .
+                     setAttribute "project_name" pn .
+                     setAttribute "to_email" (toEmail ^. _Email) .
+                     setAttribute "inv_code" (renderInvCode invCode) 
+          fromAddr = Address Nothing ("invitations@aftok.com")
+          toAddr   = Address Nothing (toEmail ^. _Email)
+          subject  = "Welcome toEmail the "<>pn<>" Aftok!"
+          body     = plainTextPart . render $ setAttrs template
+      in  pure $ SMTP.simpleMail fromAddr [toAddr] [] [] subject [body]
 
 

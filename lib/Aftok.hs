@@ -57,12 +57,12 @@ newtype InvitationCode = InvitationCode ByteString deriving (Eq)
 makePrisms ''InvitationCode
 
 randomInvCode :: IO InvitationCode
-randomInvCode = InvitationCode <$> randBytes 256
+randomInvCode = InvitationCode <$> randBytes 32
 
 parseInvCode :: Text -> Either String InvitationCode
 parseInvCode t = do
   code <- B64.decode . encodeUtf8 $ t
-  if length code == 256
+  if length code == 32
     then Right $ InvitationCode code
     else Left "Invitation code appears to be invalid."
 
