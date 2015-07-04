@@ -1,6 +1,6 @@
 Hi there!
 
-A friend of yours ($from_email$") has invited you to join the "$project_name$" project at http://aftok.com. Here's what you need to do to accept their invitation. At present, there's no user interface for the service other than bare HTTP requests with a JSON payload. A script has been provided below that you can edit to include your own information. You'll need to replace the following three tokens:
+A friend of yours ($from_email$) has invited you to join the "$project_name$" project at http://aftok.com. Here's what you need to do to accept their invitation. At present, there's no user interface for the service other than bare HTTP requests with a JSON payload. A script has been provided below that you can edit to include your own information. You'll need to replace the following three tokens:
 
 USER -- a username of your choosing
 PASS -- the password you want to use for accessing the site

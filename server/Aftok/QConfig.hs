@@ -38,7 +38,7 @@ readQConfig cfg pc =
           <*> C.lookup cfg "cookieTimeout" 
           <*> maybe (mkPGSConfig $ C.subconfig "db" cfg) pure pc
           <*> readSendgridAuth cfg
-          <*> C.lookupDefault "templatePath" cfg "/opt/aftok/server/templates"
+          <*> C.lookupDefault "/opt/aftok/server/templates/" cfg "templatePath"
 
 readSendgridAuth :: CT.Config -> IO Sendgrid.Authentication
 readSendgridAuth cfg = 
