@@ -2,12 +2,14 @@
 
 module Aftok.Snaplet.Users 
   ( registerHandler
+  , acceptInvitationHandler
   ) where
 
 import ClassyPrelude 
 
 import Control.Lens
 import Data.Aeson as A
+import Data.Text as T
 import Data.Thyme.Clock as C
 
 import Aftok
@@ -52,7 +54,24 @@ registerHandler = do
   let createSUser = AU.createUser (userData ^. (cuser.username._UserName)) (userData ^. password)
       createQUser = snapEval $ do
         userId <- createUser $ userData ^. cuser
-        void $ traverse (\c -> acceptInvitation userId c t) (userData ^. invitationCodes)
+        void $ traverse (acceptInvitation userId t) (userData ^. invitationCodes)
         return userId
   authUser <- with auth createSUser
   either throwDenied (\_ -> createQUser) authUser 
+
+acceptInvitationHandler :: Handler App App ()
+acceptInvitationHandler = do
+  uid <- requireUserId
+  t <- liftIO C.getCurrentTime
+  params <- getParams 
+  invCodes <- maybe
+    (snapError 400 "invCode parameter is required")
+    (pure . traverse (parseInvCode . decodeUtf8))
+    (lookup "invCode" params)
+  either 
+    (\e -> snapError 400 $ "Invitation code was rejected as invalid: " <> T.pack e)
+    (\cx -> void . snapEval $ traverse (acceptInvitation uid t) cx)
+    invCodes
+  
+  
+  

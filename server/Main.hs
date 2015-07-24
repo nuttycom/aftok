@@ -37,6 +37,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
 
   let loginRoute         = requireLogin >> redirect "/home"
       registerRoute      = void $ method POST registerHandler
+      acceptInviteRoute  = void $ method POST acceptInvitationHandler
       projectCreateRoute = void $ method POST projectCreateHandler
       listProjectsRoute  = serveJSON (fmap qdbProjectJSON) $ method GET projectListHandler
 
@@ -51,6 +52,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
 
   addRoutes [ ("login", loginRoute)   
             , ("register", registerRoute)
+            , ("accept_invitation", acceptInviteRoute)
             , ("projects", projectCreateRoute)
             , ("projects", listProjectsRoute)
             , ("projects/:projectId",                   projectRoute)

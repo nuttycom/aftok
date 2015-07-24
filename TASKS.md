@@ -23,16 +23,9 @@ Required for launch
 Library
 -------
 
-  * Invite
-    * When a new participant is invited to the project, allow them to create an account.
-      - user creates account ands provides initial payout address
-      - inviting user asked to sign a txn that transfers a specific amount of btc from their
-        current payout address to the invitee's payout address as confirmation of
-        the invitation + script
   * Timeline
     * Amend Event
       * Amend operations targeting events older than <commit_delay hours> fail.
-
   * User
     * Payout Address Update
       - authenticate by asking the user to sign and broadcast a small txn with a specific
@@ -92,6 +85,11 @@ Future Work
 Library
 -------
 
+  * Invite
+    * When a new participant is invited to the project, allow them to create an account.
+      - inviting user asked to sign a txn that transfers a specific amount of btc from their
+        current payout address to the invitee's payout address as confirmation of
+        the invitation + script -- is this actually worth it? 
   * Timeline
     * Amend Event
       * MAYBE garnish/reimburse based approach? 

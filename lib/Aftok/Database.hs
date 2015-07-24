@@ -113,8 +113,8 @@ createInvitation pid current email t =
 findInvitation :: InvitationCode -> DBProg (Maybe Invitation)
 findInvitation ic = fc $ FindInvitation ic
 
-acceptInvitation :: UserId -> InvitationCode -> C.UTCTime -> DBProg ()
-acceptInvitation uid ic t = do
+acceptInvitation :: UserId -> C.UTCTime -> InvitationCode-> DBProg ()
+acceptInvitation uid t ic = do
   inv <- findInvitation ic
   let act = AcceptInvitation uid ic t
   case inv of
