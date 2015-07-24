@@ -1,9 +1,8 @@
 #!/bin/bash
 
 read -p "Username: " USER
-read -s -p "Password: " PASS
 echo
 read -p "Project ID: " PROJECT
 read -p "BTC Address: " BTC_ADDR
 
-curl -v -k -u "$USER:$PASS" -X POST -d '' "https://aftok.com/projects/$PROJECT/logEnd/$BTC_ADDR"
+curl -v -k -u $USER -X POST -d '' "https://aftok.com/projects/$PROJECT/logEnd/$BTC_ADDR"
