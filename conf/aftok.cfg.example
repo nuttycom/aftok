@@ -23,7 +23,7 @@ db {
 }
 
 smtpHost = "smtp.sendgrid.net"
-# smtpPort = 25
+smtpPort = 587
 smtpUser = "whoareyou"
 smtpPass = "iami"
 
