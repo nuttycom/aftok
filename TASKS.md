@@ -23,9 +23,6 @@ Required for launch
 Library
 -------
 
-  * Timeline
-    * Amend Event
-      * Amend operations targeting events older than <commit_delay hours> fail.
   * User
     * Payout Address Update
       - authenticate by asking the user to sign and broadcast a small txn with a specific
@@ -47,8 +44,6 @@ Library
 
 Webserver
 ---------
-  * Timeline
-    * Amend Event
   * Authentication
     * Integrate server-session package? https://github.com/yesodweb/serversession/blob/master/README.md
       We don't really use sessions at the moment, but this will be useful once there's a UI. 
@@ -67,7 +62,6 @@ Payouts Service
 ---------------
 
   * Read blockchain transactions
-    * Invitation validation
     * Payout Address Update validation
     * When a resource acquisition CoinJoin is observed, record time awards
   * Elections
@@ -85,15 +79,8 @@ Future Work
 Library
 -------
 
-  * Invite
-    * When a new participant is invited to the project, allow them to create an account.
-      - inviting user asked to sign a txn that transfers a specific amount of btc from their
-        current payout address to the invitee's payout address as confirmation of
-        the invitation + script -- is this actually worth it? 
   * Timeline
-    * Amend Event
-      * MAYBE garnish/reimburse based approach? 
-    * Secure the transaction log via inclusion of periodic hashes of the log
+    * Secure the event log via inclusion of periodic hashes of the log
       into the public blockchain?
   * User
     * Add public keys that can be used to sign requests. How does this interact
@@ -105,11 +92,11 @@ Webserver
 ---------
 
   * Login
-    * Evaluate OpenID options
-  * Companion Creation
+    * Evaluate OpenID and jwt.io
+  * User Creation
     * Require user to provide the PGP public key that will be used to authenticate requests
   * Authentication
-    * Require bodies of all requests to be PGP-signed; this will take the place of
+    * Require bodies of all requests to be PGP-signed; this would take the place of
       other authentication.
 
 Payouts Service

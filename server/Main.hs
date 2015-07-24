@@ -38,6 +38,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
   let loginRoute         = requireLogin >> redirect "/home"
       registerRoute      = void $ method POST registerHandler
       acceptInviteRoute  = void $ method POST acceptInvitationHandler
+
       projectCreateRoute = void $ method POST projectCreateHandler
       listProjectsRoute  = serveJSON (fmap qdbProjectJSON) $ method GET projectListHandler
 
@@ -50,11 +51,13 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
 
       amendEventRoute    = serveJSON amendmentIdJSON $ method PUT amendEventHandler
 
-  addRoutes [ ("login", loginRoute)   
-            , ("register", registerRoute)
+  addRoutes [ ("login",             loginRoute)   
+            , ("register",          registerRoute)
             , ("accept_invitation", acceptInviteRoute)
+
             , ("projects", projectCreateRoute)
             , ("projects", listProjectsRoute)
+
             , ("projects/:projectId",                   projectRoute)
             , ("projects/:projectId/logStart/:btcAddr", logEventRoute StartWork)
             , ("projects/:projectId/logEnd/:btcAddr",   logEventRoute StopWork) 
@@ -62,6 +65,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
             , ("projects/:projectId/intervals",         logIntervalsRoute)
             , ("projects/:projectId/payouts",           payoutsRoute)
             , ("projects/:projectId/invite",            inviteRoute)
+
             , ("events/:eventId/amend", amendEventRoute)
             ] 
   return $ App sesss pgs auths
