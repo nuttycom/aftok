@@ -6,4 +6,4 @@ alter table project_companions alter column invited_by set not null;
 
 alter table project_companions 
 add joined_at timestamp with time zone not null 
-default (now() at time zone "UTC");
+default (now() at time zone 'UTC');

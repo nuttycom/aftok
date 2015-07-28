@@ -91,7 +91,7 @@ buildProjectInviteEmail templatePath pn fromEmail toEmail invCode = do
                      setAttribute "inv_code" (renderInvCode invCode) 
           fromAddr = Address Nothing ("invitations@aftok.com")
           toAddr   = Address Nothing (toEmail ^. _Email)
-          subject  = "Welcome toEmail the "<>pn<>" Aftok!"
+          subject  = "Welcome to the "<>pn<>" Aftok!"
           body     = plainTextPart . render $ setAttrs template
       in  pure $ SMTP.simpleMail fromAddr [toAddr] [] [] subject [body]
 
