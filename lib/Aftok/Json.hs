@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
 module Aftok.Json where
@@ -81,7 +80,7 @@ unv1 name f v =
 
 qdbProjectJSON :: KeyedProject -> Value
 qdbProjectJSON (pid, project) = v1 $
-  object [ "projectId" .=  (tshow $ pid ^. _ProjectId)
+  object [ "projectId" .=  tshow (pid ^. _ProjectId)
          , "project" .= projectJSON project
          ]
 
@@ -89,7 +88,8 @@ projectJSON :: Project -> Value
 projectJSON p = v1 $
   object [ "projectName"    .= (p ^. projectName)
          , "inceptionDate"  .= (p ^. inceptionDate)
-         , "initiator"      .= (tshow $ p ^. (initiator._UserId)) ]
+         , "initiator"      .= tshow (p ^. (initiator._UserId)) 
+         ]
 
 payoutsJSON :: Payouts -> Value
 payoutsJSON (Payouts m) = v1 $
@@ -97,7 +97,7 @@ payoutsJSON (Payouts m) = v1 $
 
 workIndexJSON :: WorkIndex -> Value
 workIndexJSON (WorkIndex widx) = v1 $
-  toJSON $ (L.toList . fmap intervalJSON) <$> (MS.mapKeysMonotonic (^._BtcAddr) widx)
+  toJSON $ (L.toList . fmap intervalJSON) <$> MS.mapKeysMonotonic (^._BtcAddr) widx
 
 eventIdJSON :: EventId -> Value
 eventIdJSON (EventId eid) = v1 $
@@ -129,7 +129,7 @@ parseEventAmendment t =
       parseA x "addrChage"  = do
         addrText <- x .: "btcAddr" 
         maybe 
-          (fail $ (show addrText) <> "is not a valid BTC address") 
+          (fail $ show addrText <> "is not a valid BTC address") 
           (pure . AddressChange t) 
           $ parseBtcAddr addrText
       parseA x "metadataChange" = 

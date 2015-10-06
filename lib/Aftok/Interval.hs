@@ -38,7 +38,7 @@ containsInclusive :: C.UTCTime -> Interval -> Bool
 containsInclusive t (Interval s e) = t >= s && t <= e
 
 ilen :: Interval -> C.NominalDiffTime
-ilen i = (_end i) .-. (_start i)
+ilen i = _end i .-. _start i
 
 intervalJSON :: Interval -> Value
 intervalJSON ival = object ["start" .= (ival ^. start), "end" .= (ival ^. end)]

@@ -17,6 +17,6 @@ authHeaderParser = do
   b64     <- string "Basic " *> takeWhile1 isBase64Char 
   decoded <- either fail pure $ B64.decode b64
   case split 58 decoded of
-    (uname : pwd : []) -> pure $ (decodeUtf8 uname, pwd)
+    [uname, pwd] -> pure (decodeUtf8 uname, pwd)
     _ -> fail "Could not unpack auth header into username and password components"
 

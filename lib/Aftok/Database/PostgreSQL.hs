@@ -171,28 +171,27 @@ instance DBEval QDBM where
       , m
       )
 
-  dbEval (FindEvent (EventId eid)) = do 
-    logEntries <- pquery qdbLogEntryParser
+  dbEval (FindEvent (EventId eid)) = 
+    headMay <$> pquery qdbLogEntryParser
       "SELECT project_id, user_id, btc_addr, event_type, event_time, event_metadata FROM work_events \
       \WHERE id = ?"
       (Only eid)
-    pure $ headMay logEntries
 
   dbEval (FindEvents (ProjectId pid) (UserId uid) ival) =
-    let q p (Before e) = pquery p
+    let q (Before e) = pquery logEntryParser
           "SELECT btc_addr, event_type, event_time, event_metadata FROM work_events \
           \WHERE project_id = ? AND user_id = ? AND event_time <= ?" 
           (pid, uid, fromThyme e)
-        q p (During s e) = pquery p
+        q (During s e) = pquery logEntryParser
           "SELECT btc_addr, event_type, event_time, event_metadata FROM work_events \
           \WHERE project_id = ? AND user_id = ? \
           \AND event_time >= ? AND event_time <= ?" 
           (pid, uid, fromThyme s, fromThyme e)
-        q p (After s) = pquery p
+        q (After s) = pquery logEntryParser
           "SELECT btc_addr, event_type, event_time, event_metadata FROM work_events \
           \WHERE project_id = ? AND user_id = ? AND event_time >= ?" 
           (pid, uid, fromThyme s)
-    in  q logEntryParser ival
+    in  q ival
 
   dbEval (AmendEvent (EventId eid) (TimeChange mt t)) = 
     pinsert AmendmentId
@@ -212,20 +211,19 @@ instance DBEval QDBM where
   dbEval (ReadWorkIndex (ProjectId pid)) = do
     logEntries <- pquery logEntryParser
       "SELECT btc_addr, event_type, event_time, event_metadata FROM work_events WHERE project_id = ?" 
-      (Only $ pid)
+      (Only pid)
     pure $ workIndex logEntries
 
   dbEval (CreateAuction pid auc) = 
     pinsert AuctionId
       "INSERT INTO auctions (project_id, raise_amount, end_time) \
       \VALUES (?, ?, ?) RETURNING id"
-      (pid ^. (_ProjectId), auc ^. (raiseAmount.to PBTC), auc ^. (auctionEnd.to fromThyme))
+      (pid ^. _ProjectId, auc ^. (raiseAmount.to PBTC), auc ^. (auctionEnd.to fromThyme))
 
-  dbEval (FindAuction aucId) = do
-    auctions <- pquery auctionParser
+  dbEval (FindAuction aucId) = 
+    headMay <$> pquery auctionParser
       "SELECT raise_amount, end_time FROM auctions WHERE id = ?" 
       (Only (aucId ^. _AuctionId))
-    pure $ headMay auctions
 
   dbEval (CreateBid (AuctionId aucId) bid) = 
     pinsert BidId
@@ -241,24 +239,22 @@ instance DBEval QDBM where
   dbEval (ReadBids aucId) = 
     pquery bidParser
       "SELECT user_id, bid_seconds, bid_amount, bid_time FROM bids WHERE auction_id = ?"
-      (Only $ (aucId ^. _AuctionId))
+      (Only (aucId ^. _AuctionId))
 
   dbEval (CreateUser user') = 
     pinsert UserId
       "INSERT INTO users (handle, btc_addr, email) VALUES (?, ?, ?) RETURNING id"
       (user' ^. (username._UserName), user' ^. (userAddress._BtcAddr), user' ^. userEmail._Email)
 
-  dbEval (FindUser (UserId uid)) = do
-    users <- pquery userParser
+  dbEval (FindUser (UserId uid)) = 
+    headMay <$> pquery userParser
       "SELECT handle, btc_addr, email FROM users WHERE id = ?"
       (Only uid)
-    pure $ headMay users
 
-  dbEval (FindUserByName (UserName h)) = do
-    users <- pquery qdbUserParser
+  dbEval (FindUserByName (UserName h)) = 
+    headMay <$> pquery qdbUserParser
       "SELECT id, handle, btc_addr, email FROM users WHERE handle = ?"
       (Only h)
-    pure $ headMay users
 
   dbEval (CreateInvitation (ProjectId pid) (UserId uid) (Email e) t) = do
     invCode <- liftIO randomInvCode
@@ -268,12 +264,11 @@ instance DBEval QDBM where
       (pid, uid, e, renderInvCode invCode, fromThyme t)
     pure invCode
 
-  dbEval (FindInvitation ic) = do
-    invitations <- pquery invitationParser
+  dbEval (FindInvitation ic) = 
+    headMay <$> pquery invitationParser
       "SELECT project_id, invitor_id, invitee_email, invitation_time, acceptance_time \
       \FROM invitations WHERE invitation_key = ?"
       (Only $ renderInvCode ic)
-    pure $ headMay invitations
 
   dbEval (AcceptInvitation (UserId uid) ic t) = transactQDBM $ do
     void $ pexec
@@ -292,11 +287,10 @@ instance DBEval QDBM where
       \VALUES (?, ?, ?, ?) RETURNING id"
       (p ^. projectName, p ^. (inceptionDate.to fromThyme), p ^. (initiator._UserId), toJSON $ p ^. depf)
 
-  dbEval (FindProject (ProjectId pid)) = do
-    projects <- pquery projectParser
+  dbEval (FindProject (ProjectId pid)) = 
+    headMay <$> pquery projectParser
       "SELECT project_name, inception_date, initiator_id, depreciation_fn FROM projects WHERE id = ?"
       (Only pid)
-    pure $ headMay projects
 
   dbEval (FindUserProjects (UserId uid)) = 
     pquery qdbProjectParser
@@ -306,8 +300,8 @@ instance DBEval QDBM where
       \OR p.initiator_id = ?"
       (uid, uid)
 
-  dbEval (AddUserToProject pid current new) = do
-    void $ pexec
+  dbEval (AddUserToProject pid current new) = void $ 
+    pexec
       "INSERT INTO project_companions (project_id, user_id, invited_by) VALUES (?, ?, ?)"
       (pid ^. _ProjectId, new ^. _UserId, current ^. _UserId)
 

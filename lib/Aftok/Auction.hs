@@ -46,17 +46,17 @@ winningBids auction bids =
       takeWinningBids total (x : xs)
         -- if the total is fully within the raise amount
         | total + (x ^. bidAmount) < (auction ^. raiseAmount) = 
-          x : (takeWinningBids (total + (x ^. bidAmount)) xs)
+          x : takeWinningBids (total + (x ^. bidAmount)) xs
 
         -- if the last bid will exceed the raise amount, reduce it to fit
         | total < (auction ^. raiseAmount) = 
           let remainder = (auction ^. raiseAmount) - total
               winFraction = toRational $ remainder / (x ^. bidAmount)
-              remainderSeconds = Seconds . round $ winFraction * (toRational $ x ^. bidSeconds)
+              remainderSeconds = Seconds . round $ winFraction * toRational (x ^. bidSeconds)
 
           in  [x & bidSeconds .~ remainderSeconds & bidAmount .~ remainder]
 
         | otherwise = []
         
       takeWinningBids _ [] = []
-  in  takeWinningBids (fromInteger 0) $ sort bids
+  in  takeWinningBids 0 $ sort bids

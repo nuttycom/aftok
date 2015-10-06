@@ -83,11 +83,10 @@ makeLenses ''Invitation
 instance ToJSON DepreciationFunction where
   toJSON (LinearDepreciation (Months up) (Months dp)) =
     object [ "type" .= ("LinearDepreciation" :: Text)
-           , "arguments" .= (
-             object [ "undep" .= up
-                    , "dep" .= dp
-                    ]
-           )]
+           , "arguments" .= object [ "undep" .= up
+                                   , "dep" .= dp
+                                   ]
+           ]
 
 instance FromJSON DepreciationFunction where
   parseJSON (Object v) = do

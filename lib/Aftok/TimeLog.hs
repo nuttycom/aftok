@@ -115,14 +115,14 @@ payouts dep ptime (WorkIndex widx) =
   let addIntervalDiff :: (Functor f, Foldable f) => NDT -> f Interval -> (NDT, NDT)
       addIntervalDiff total ivals = (^+^ total) &&& id $ workCredit dep ptime ivals 
 
-      (totalTime, keyTimes) = MS.mapAccum addIntervalDiff zeroV $ widx
+      (totalTime, keyTimes) = MS.mapAccum addIntervalDiff zeroV widx
 
   in  Payouts $ fmap ((/ toSeconds totalTime) . toSeconds) keyTimes
 
 workIndex :: Foldable f => f LogEntry -> WorkIndex
 workIndex logEntries = 
-  let sortedEntries = F.foldr H.insert H.empty $ logEntries
-      rawIndex = F.foldl' appendLogEntry MS.empty $ sortedEntries
+  let sortedEntries = F.foldr H.insert H.empty logEntries
+      rawIndex = F.foldl' appendLogEntry MS.empty sortedEntries
 
       accum k l m = case nonEmpty (rights l) of 
         Just l' -> MS.insert k l' m
@@ -157,7 +157,7 @@ appendLogEntry idx (LogEntry k ev _) =
           Nothing -> Left ev : Right ival : xs
         -- if the top element of the stack is not an interval
         Just (Left ev' : xs) -> combine ev' ev : xs
-        _ -> Left ev : []
+        _ -> [Left ev]
 
   in  MS.insert k ivals idx
 
@@ -181,4 +181,4 @@ linearDepreciation undepLength depLength =
 
   in  \ptime ival -> 
     let depreciation = depPct $ ptime .-. (ival ^. end)
-    in  depreciation *^ (ilen ival)
+    in  depreciation *^ ilen ival
