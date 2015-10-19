@@ -31,13 +31,13 @@ data Bid = Bid
   } deriving Eq
 makeLenses ''Bid
 
-instance Ord Bid where
-  (<=) b1 b2 =
-    costRatio b1 <= costRatio b2
-    where
-      secs bid = toRational $ bid ^. bidSeconds
-      btc  bid = toRational $ bid ^. bidAmount
-      costRatio bid = secs bid / btc bid
+bidOrder :: Bid -> Bid -> Ordering
+bidOrder =
+  comparing costRatio
+  where
+    secs bid = toRational $ bid ^. bidSeconds
+    btc  bid = toRational $ bid ^. bidAmount
+    costRatio bid = secs bid / btc bid
 
 -- lowest bids of seconds/btc win
 winningBids :: Auction -> [Bid] -> [Bid]
@@ -59,4 +59,4 @@ winningBids auction bids =
         | otherwise = []
 
       takeWinningBids _ [] = []
-  in  takeWinningBids 0 $ sort bids
+  in  takeWinningBids 0 $ sortBy bidOrder bids
