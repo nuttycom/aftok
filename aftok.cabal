@@ -27,6 +27,7 @@ library
                       Aftok.Interval
                       Aftok.Json
                       Aftok.TimeLog
+                      Aftok.Types
                       Aftok.Util
                       Aftok.Util.Http
   build-depends:      
@@ -81,12 +82,15 @@ Test-Suite spec
     , bifunctors
     , containers
     , hspec         >= 2.1.7
+    , hourglass
     , iso8601-time
     , lens
+    , network-bitcoin
     , QuickCheck    >= 2.8
     , semigroups
     , text
     , thyme
+    , uuid
     , vector-space
 
 Executable aftok-server

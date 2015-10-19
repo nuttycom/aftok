@@ -3,7 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wwarn -fno-warn-orphans #-}
 
-module Aftok.TimeLogSpec where
+module Aftok.TimeLogSpec (main, spec) where
 
 import           ClassyPrelude
 
@@ -96,7 +96,7 @@ spec = do
 
             acc k a b = b ++ (L.toList a >>= ivalEntries k)
 
-            widx' = fmap (L.fromList . mergeAdjacent . sortOn _start . L.toList) widx
+            widx' = fmap (L.fromList . mergeAdjacent . sortOn I._start . L.toList) widx
             logEntries = M.foldrWithKey acc [] widx
         in  workIndex logEntries `shouldBe` (WorkIndex $ fmap (L.reverse . L.sort) widx')
 
