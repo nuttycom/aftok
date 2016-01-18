@@ -30,6 +30,10 @@ Library
   * Payouts
     * Payouts should not include events younger than <commit_delay hours> to permit amends.
     * Find current verified address for each payout.
+      * Come up with a user-friendly and reliable way to ensure that users
+        don't make errors in their BTC addresses. Maybe use very small 
+        confirmation transactions, as is done when establishing ACH access
+        to checking accounts?
     * Include hours won in resource auction - requires confirmation that contribution
       was actually made (observed in the confirmed blockchain)
   * Resource Pooling
@@ -50,13 +54,8 @@ Webserver
       Alternately, need to look into JWT (http://jwt.io/) to figure out whether this approach
       is relevant for us.
   * Payouts
-    * Previously, I had thought it would be easiest for payments to be made directly to
-      a per-aftok BTC address, and a subsequent transaction used to then distribute
-      that transaction to the participants. However, I now think it makes more sense to
-      present the payer with a transaction to complete and sign that sends funds directly
-      from their wallet to the participants, as a multiparty txn requiring signatures
-      of both the aftok server (which would sign in advance) and the payer. This avoids
-      the central server even momentarily having control of any funds.
+    * Use the BIP-70 Bitcoin Payment Protocol to create payment requests.
+    * Record requested payments
 
 Payouts Service
 ---------------
@@ -64,6 +63,13 @@ Payouts Service
   * Read blockchain transactions
     * Payout Address Update validation
     * When a resource acquisition CoinJoin is observed, record time awards
+    * Read history of payments and provide reconciliation and recordkeeping
+      functionality.
+    * Record BTC/USD (and other currencies) exchange rate at time of transaction
+      to aid in recordkeeping requirements of U.S. tax law. Since BTC is treated
+      as property rather than currency, one must track the basis price in order
+      to correctly report capital gains, in much the same fasion as is done for
+      stock.
   * Elections
     * Close voting window
     * Tabulate votes & randomly pick winner from weighted distribution
@@ -72,32 +78,3 @@ Payouts Service
     * Finalize resource pooling auction
     * Create CoinJoin transaction to award BTC to the resource acquisition designee
     * Notify auction winners so that input addresses & signatures may be collected.
-
-Future Work
-===========
-
-Library
--------
-
-  * Timeline
-    * Secure the event log via inclusion of periodic hashes of the log
-      into the public blockchain?
-  * User
-    * Add public keys that can be used to sign requests. How does this interact
-      with certificate-based auth from browsers? Require openpgpjs?
-  * Payouts
-    * History of payouts (read from blockchain?)
-
-Webserver
----------
-
-  * Login
-    * Evaluate OpenID and jwt.io
-  * User Creation
-    * Require user to provide the PGP public key that will be used to authenticate requests
-  * Authentication
-    * Require bodies of all requests to be PGP-signed; this would take the place of
-      other authentication.
-
-Payouts Service
----------------
