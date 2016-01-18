@@ -21,9 +21,10 @@ import           Aftok.Snaplet.WorkLog
 
 import           Snap.Core
 import           Snap.Snaplet
-import           Snap.Snaplet.Auth.Backends.PostgresqlSimple
 import           Snap.Snaplet.PostgresqlSimple
+import           Snap.Snaplet.Auth.Backends.PostgresqlSimple
 import           Snap.Snaplet.Session.Backends.CookieSession
+import Snap.Util.FileServe (serveDirectory)
 
 main :: IO ()
 main = do
@@ -39,9 +40,10 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
   pgs   <- nestSnaplet "db" db $ pgsInit' (pgsConfig cfg)
   auths <- nestSnaplet "auth" auth $ initPostgresAuth sess pgs
 
-  let loginRoute          = requireLogin >> redirect "/home"
-      registerRoute       = void $ method POST registerHandler
-      acceptInviteRoute   = void $ method POST acceptInvitationHandler
+  let loginRoute         = method GET requireLogin >> redirect "/home"
+      xhrLoginRoute      = void $ method POST requireLogin
+      registerRoute      = void $ method POST registerHandler
+      acceptInviteRoute  = void $ method POST acceptInvitationHandler
 
       projectCreateRoute  = serveJSON projectIdJSON $ method POST projectCreateHandler
       listProjectsRoute   = serveJSON (fmap qdbProjectJSON) $ method GET projectListHandler
@@ -64,7 +66,10 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
 
       amendEventRoute     = serveJSON amendmentIdJSON $ method PUT amendEventHandler
 
-  addRoutes [ ("login",             loginRoute)
+  addRoutes [ ("static", serveDirectory $ staticAssetPath cfg)
+
+            , ("login",             loginRoute)   
+            , ("login",             xhrLoginRoute)   
             , ("register",          registerRoute)
             , ("accept_invitation", acceptInviteRoute)
 

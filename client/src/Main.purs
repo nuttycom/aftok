@@ -2,15 +2,18 @@ module Main where
 
 import Prelude
 
-import Control.Alt ((<|>))
+--import Control.Alt ((<|>))
 import Control.Monad.Aff (Aff(), runAff)
 import Control.Monad.Eff (Eff())
 import Control.Monad.Eff.Exception (throwException)
+import Control.Monad.Eff.Console (CONSOLE(), log)
 
-import Data.Either (Either(..))
+import Data.Maybe (Maybe(..))
+--import Data.Either (Either(..))
 --import Data.Foldable (foldMap)
-import Data.Foreign.Class (readProp)
+--import Data.Foreign.Class (readProp)
 import Data.Functor (($>))
+import Data.Functor.Eff (liftEff)
 --import Data.Maybe (Maybe(..))
 
 import Halogen
@@ -20,7 +23,9 @@ import qualified Halogen.HTML.Indexed as H
 import qualified Halogen.HTML.Events.Indexed as E
 import qualified Halogen.HTML.Properties.Indexed as P
 
-import Network.HTTP.Affjax (AJAX(), post)
+import Network.HTTP.Affjax (AJAX(), affjax)
+import Network.HTTP.Method 
+import Network.HTTP.StatusCode 
 
 -- | The state of the component.
 type LoginState = { username :: String, password :: String }
@@ -35,7 +40,7 @@ data LoginAction a
   | Login String String a
 
 -- | The effects used in the app.
-type AppEffects eff = HalogenEffects (ajax :: AJAX | eff)
+type AppEffects eff = HalogenEffects (console :: CONSOLE, ajax :: AJAX | eff)
 
 -- | The definition for the app's main UI component.
 ui :: forall eff. Component LoginState LoginAction (Aff (AppEffects eff))
@@ -84,17 +89,32 @@ ui = component render eval
   eval (SetUsername user next) = modify (_ { username = user }) $> next
   eval (SetPassword pass next) = modify (_ { password = pass }) $> next
   eval (Login user pass next) = do
-    _ <- liftAff' (fetchJS user pass)
+    result <- liftAff' (login user pass)
+    _ <- liftEff case result of
+       OK -> log "Login succeeded"
+       Forbidden -> log "Password incorrect"
+       Error m -> log m.message
     pure next
 
+data LoginResponse 
+  = OK 
+  | Forbidden 
+  | Error { status :: StatusCode, message :: String }
+
 -- | Post some PureScript code to the trypurescript API and fetch the JS result.
-fetchJS :: forall eff. String -> String -> Aff (ajax :: AJAX | eff) String
-fetchJS user pass = do
-  result <- post "https://aftok.com/login" user
-  let response = result.response
-  return case readProp "js" response <|> readProp "error" response of
-    Right js -> js
-    Left _ -> "Invalid response"
+login :: forall eff. String -> String -> Aff (ajax :: AJAX | eff) LoginResponse
+login user pass = do
+  result <- affjax $ { method: POST
+                     , url: "/login"
+                     , headers: []
+                     , content: Nothing :: Maybe String
+                     , username: Just user
+                     , password: Just pass
+                     }
+  pure $ case result.status of 
+    StatusCode 403 -> Forbidden
+    StatusCode 200 -> OK
+    other -> Error { status: other , message: result.response }
 
 -- | Run the app.
 main :: Eff (AppEffects ()) Unit

@@ -29,6 +29,7 @@ data QConfig = QConfig
   , smtpConfig    :: SmtpConfig
   , billingConfig :: BillingConfig
   , templatePath  :: System.IO.FilePath
+  , staticAssetPath :: System.IO.FilePath
   }
 
 data SmtpConfig = SmtpConfig
@@ -62,6 +63,7 @@ readQConfig cfg pc =
           <*> readSmtpConfig cfg
           <*> (readBillingConfig $ C.subconfig "billing" cfg)
           <*> C.lookupDefault "/opt/aftok/server/templates/" cfg "templatePath"
+          <*> C.lookupDefault "/opt/aftok/server/static/" cfg "staticAssetPath"
 
 readSmtpConfig :: CT.Config -> IO SmtpConfig
 readSmtpConfig cfg =

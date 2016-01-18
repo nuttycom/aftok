@@ -15,6 +15,16 @@ RUN apt-get update && \
     build-essential autotools-dev autoconf dh-autoreconf \
     libpq-dev libsqlite3-dev \
     git stack
+#    apt-get install -y --no-install-recommends wget && \
+#    echo 'deb http://apt.postgresql.org/pub/repos/apt/ trusty-pgdg main' > /etc/apt/sources.list.d/pgdg.list && \
+#    wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
+
+# Install npm, then use it to get purescript, pulp and bower
+RUN apt-get install -y --no-install-recommends nodejs
+RUN apt-get install -y --no-install-recommends npm
+RUN npm install -g npm 
+# Fix executable name used by the purescript npm installer
+RUN ln -s /usr/bin/nodejs /usr/local/bin/node
 
 # Set up /etc/aftok volume for mounting configuration from the host system
 RUN mkdir /etc/aftok
@@ -47,6 +57,15 @@ ADD ./test        /opt/aftok/test
 
 # build and install and aftok-server sources
 RUN stack install
+
+# Build the client application and install it where snap can serve it
+ADD ./client /opt/aftok/client
+WORKDIR /opt/aftok/client
+RUN npm install
+RUN bower install
+RUN pulp build
+RUN pulp browserify --optimise --to dist/aftok.js
+ADD ./dist /opt/aftok/server/static
 
 # Use baseimage-docker's init system.
 CMD ["/sbin/my_init"]
