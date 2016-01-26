@@ -12,7 +12,7 @@ conf/*.pem
 conf/site_key.txt
 
 log
-dist
+/dist
 snaplets
 work
 local

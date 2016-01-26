@@ -39,38 +39,36 @@ ui = component render eval
   render :: LoginState -> ComponentHTML LoginAction
   render st =
     H.div 
-      [ P.classes (className <$> ["panel", "panel-primary"]) ]
-      [ H.div 
-        [ P.classes [ className "panel-heading" ] ]
-        [ H.h3 [ P.classes [ className "panel-title" ]] [ H.text "Aftok Login" ] ]
-      , H.div 
-        [ P.classes [ className "panel-body" ] ]
-        [
-          H.h2_
-            [ H.text "username:" ]
-        , H.p_
-            [ H.input
-                [ P.value st.username
-                , P.inputType P.InputText
-                , E.onValueInput (E.input SetUsername)
-                ]
-            ]
-        , H.h2_
-            [ H.text "password:" ]
-        , H.p_
-            [ H.input
-                [ P.value st.password
-                , P.inputType P.InputPassword
-                , E.onValueInput (E.input SetPassword)
-                ]
-            ]
-        , H.p_
-            [ H.button
-                [ P.classes (className <$> ["btn", "btn-primary"])
-                , E.onClick (E.input_ (Login st.username st.password)) 
-                ]
-                [ H.text "Login" ]
-            ]
+      [ P.classes (className <$> ["container"]) ]
+      [ H.form 
+        [ P.classes [ className "form-signin" ] ]
+        [ H.h2    [ P.classes [ className "form-signin-heading" ]] [ H.text "Aftok Login" ] 
+        , H.label [ P.for "inputUsername", P.classes [ className "sr-only" ]] [ H.text "username" ]
+        , H.input
+          [ P.inputType P.InputText
+          , P.id_ "inputUsername"
+          , P.classes [ className "form-control" ]
+          , P.placeholder "username"
+          , P.required true
+          , P.autofocus true
+          , P.value st.username
+          , E.onValueInput (E.input SetUsername)
+          ]
+        , H.label [ P.for "inputPassword", P.classes [ className "sr-only" ]] [ H.text "username" ]
+        , H.input
+          [ P.inputType P.InputPassword
+          , P.id_ "inputPassword"
+          , P.classes [ className "form-control" ]
+          , P.placeholder "password"
+          , P.required true
+          , P.value st.password
+          , E.onValueInput (E.input SetPassword)
+          ]
+        , H.button
+          [ P.classes (className <$> ["btn", "btn-primary"])
+          , E.onClick (E.input_ (Login st.username st.password)) 
+          ]
+          [ H.text "Sign in" ]
         ]
       ]
 
