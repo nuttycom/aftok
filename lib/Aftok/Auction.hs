@@ -7,15 +7,15 @@ import Control.Lens
 import Data.Hourglass
 import Data.UUID
 import Data.Thyme.Clock as C
-import Network.Bitcoin
 
 import Aftok
+import Aftok.Types
 
 newtype AuctionId = AuctionId UUID deriving (Show, Eq)
 makePrisms ''AuctionId
 
 data Auction = Auction 
-  { _raiseAmount :: BTC
+  { _raiseAmount :: Satoshi
   , _auctionEnd :: C.UTCTime 
   }
 makeLenses ''Auction
@@ -26,7 +26,7 @@ makePrisms ''BidId
 data Bid = Bid
   { _bidUser    :: UserId
   , _bidSeconds :: Seconds
-  , _bidAmount  :: BTC
+  , _bidAmount  :: Satoshi
   , _bidTime    :: C.UTCTime
   } deriving Eq
 makeLenses ''Bid
@@ -42,7 +42,7 @@ instance Ord Bid where
 -- lowest bids of seconds/btc win
 winningBids :: Auction -> [Bid] -> [Bid]
 winningBids auction bids = 
-  let takeWinningBids :: BTC -> [Bid] -> [Bid]
+  let takeWinningBids :: Satoshi -> [Bid] -> [Bid]
       takeWinningBids total (x : xs)
         -- if the total is fully within the raise amount
         | total + (x ^. bidAmount) < (auction ^. raiseAmount) = 
@@ -51,7 +51,7 @@ winningBids auction bids =
         -- if the last bid will exceed the raise amount, reduce it to fit
         | total < (auction ^. raiseAmount) = 
           let remainder = (auction ^. raiseAmount) - total
-              winFraction = toRational $ remainder / (x ^. bidAmount)
+              winFraction = toRational remainder / toRational (x ^. bidAmount)
               remainderSeconds = Seconds . round $ winFraction * toRational (x ^. bidSeconds)
 
           in  [x & bidSeconds .~ remainderSeconds & bidAmount .~ remainder]

@@ -32,8 +32,8 @@ library
   build-depends:      
       base                >= 4.8.0
     , classy-prelude      == 0.12.*
-    , aeson               == 0.8.*
-    , attoparsec          == 0.12.*
+    , aeson               == 0.9.*
+    , attoparsec          == 0.13.*
     , base64-bytestring   == 1.0.*
     , bifunctors
     , blaze-builder       
@@ -41,17 +41,17 @@ library
     , containers          >= 0.5.6
     , configurator             
     , either              >= 4.4.1
-    , errors              >= 1.4      && < 1.5
+    , errors              == 2.1.*
     , free
     , groups              >= 0.4      && < 0.5
     , heaps               >= 0.3.1    && < 0.4
     , hourglass           >= 0.2.6    && < 0.3
     , HsOpenSSL           >= 0.11     && < 0.12
     , kan-extensions
-    , lens                >= 4.11     && < 4.12
-    , network-bitcoin     >= 1.8      && < 1.9
+    , lens                >= 4.11
+    --, network-bitcoin     >= 1.8      && < 1.9
     , old-locale          >= 1.0 
-    , postgresql-simple   >= 0.4.10   && < 0.5
+    , postgresql-simple   == 0.5.*
     , safe                >= 0.3.9    && < 0.4
     , semigroups
     , semigroupoids
@@ -129,30 +129,3 @@ Executable aftok-server
     , thyme
     , transformers
     , uuid                
-
-Executable aftok-payouts
-  default-language:   Haskell2010
-  ghc-options:        -Wall -Werror
-  hs-source-dirs:     payouts
-  default-extensions: NoImplicitPrelude
-                    , OverloadedStrings
-                    , RecordWildCards
-                    , ScopedTypeVariables
-  main-is:            Main.hs
-  build-depends:      
-      aftok
-    , base
-    , classy-prelude            >= 0.10.2
-    , containers
-    , either
-    , mtl                       >= 2     && < 3
-    , lens
-    , text
-    , thyme
-    , vector
-    , transformers
-    , configurator
-    , optparse-applicative
-    , bytestring
-    , network-bitcoin
-  

@@ -18,13 +18,13 @@ import Database.PostgreSQL.Simple
 import Database.PostgreSQL.Simple.ToField
 import Database.PostgreSQL.Simple.FromField
 import Database.PostgreSQL.Simple.FromRow
-import Network.Bitcoin
 
 import Aftok
 import Aftok.Auction
 import Aftok.Database
 import Aftok.Interval
 import Aftok.TimeLog
+import Aftok.Types
 
 newtype QDBM a = QDBM (ReaderT Connection (EitherT DBError IO) a)
   deriving (Functor, Applicative, Monad)
@@ -72,15 +72,15 @@ emailParser f v = Email <$> fromField f v
 btcAddrParser :: FieldParser BtcAddr
 btcAddrParser f v = BtcAddr <$> fromField f v
 
-btcParser :: FieldParser BTC
+btcParser :: FieldParser Satoshi
 btcParser f v = fromRational <$> fromField f v
 
 utcParser :: FieldParser C.UTCTime
 utcParser f v = toThyme <$> fromField f v 
 
-newtype PBTC = PBTC BTC 
-instance ToField PBTC where
-  toField (PBTC btc) = Plain . fromByteString . fromString $ showFixed False btc
+newtype PSatoshi = PSatoshi Satoshi 
+instance ToField PSatoshi where
+  toField (PSatoshi btc) = Plain . fromByteString . fromString $ showFixed False btc
 
 logEntryParser :: RowParser LogEntry
 logEntryParser = 
@@ -218,7 +218,7 @@ instance DBEval QDBM where
     pinsert AuctionId
       "INSERT INTO auctions (project_id, raise_amount, end_time) \
       \VALUES (?, ?, ?) RETURNING id"
-      (pid ^. _ProjectId, auc ^. (raiseAmount.to PBTC), auc ^. (auctionEnd.to fromThyme))
+      (pid ^. _ProjectId, auc ^. (raiseAmount.to PSatoshi), auc ^. (auctionEnd.to fromThyme))
 
   dbEval (FindAuction aucId) = 
     headMay <$> pquery auctionParser
@@ -232,7 +232,7 @@ instance DBEval QDBM where
       ( aucId 
       , bid ^. (bidUser._UserId)
       , case bid ^. bidSeconds of (Seconds i) -> i
-      , bid ^. (bidAmount.to PBTC)
+      , bid ^. (bidAmount.to PSatoshi)
       , bid ^. (bidTime.to fromThyme)
       )
 
