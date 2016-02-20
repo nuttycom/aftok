@@ -1,0 +1,8 @@
+flags: {}
+packages:
+- '.'
+extra-deps: 
+- snaplet-postgresql-simple-0.6.0.4
+- resource-pool-catchio-0.2.1.0
+resolver: lts-5.3
+#allow-newer: true

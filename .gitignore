@@ -1,6 +1,7 @@
 shell.nix
 cabal.sandbox.config
 .cabal-sandbox
+.stack-work
 Setup
 
 *.swp
