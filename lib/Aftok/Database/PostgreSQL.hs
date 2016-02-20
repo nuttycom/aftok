@@ -2,20 +2,17 @@
 
 module Aftok.Database.PostgreSQL (QDBM(), runQDBM) where
 
-import Blaze.ByteString.Builder (fromByteString)
 import ClassyPrelude
 import Control.Lens
 import Data.Aeson(toJSON)
 import qualified Data.ByteString.Char8 as B
 import Control.Monad.Trans.Either
-import Data.Fixed
 import Data.List as L
 import Data.Hourglass
 import Data.Thyme.Clock as C
 import Data.Thyme.Time
 import Data.UUID(UUID)
 import Database.PostgreSQL.Simple
-import Database.PostgreSQL.Simple.ToField
 import Database.PostgreSQL.Simple.FromField
 import Database.PostgreSQL.Simple.FromRow
 
@@ -73,14 +70,10 @@ btcAddrParser :: FieldParser BtcAddr
 btcAddrParser f v = BtcAddr <$> fromField f v
 
 btcParser :: FieldParser Satoshi
-btcParser f v = fromRational <$> fromField f v
+btcParser f v = (Satoshi . fromInteger) <$> fromField f v
 
 utcParser :: FieldParser C.UTCTime
 utcParser f v = toThyme <$> fromField f v 
-
-newtype PSatoshi = PSatoshi Satoshi 
-instance ToField PSatoshi where
-  toField (PSatoshi btc) = Plain . fromByteString . fromString $ showFixed False btc
 
 logEntryParser :: RowParser LogEntry
 logEntryParser = 
@@ -91,12 +84,12 @@ logEntryParser =
 qdbLogEntryParser :: RowParser KeyedLogEntry
 qdbLogEntryParser = 
   (,,) <$> fieldWith pidParser
-        <*> fieldWith uidParser 
-        <*> logEntryParser
+       <*> fieldWith uidParser 
+       <*> logEntryParser
   
 auctionParser :: RowParser Auction
 auctionParser = 
-  Auction <$> (fromRational <$> field)
+  Auction <$> fieldWith btcParser
           <*> fieldWith utcParser
 
 bidParser :: RowParser Bid
@@ -218,7 +211,7 @@ instance DBEval QDBM where
     pinsert AuctionId
       "INSERT INTO auctions (project_id, raise_amount, end_time) \
       \VALUES (?, ?, ?) RETURNING id"
-      (pid ^. _ProjectId, auc ^. (raiseAmount.to PSatoshi), auc ^. (auctionEnd.to fromThyme))
+      (pid ^. _ProjectId, auc ^. (raiseAmount.to fromSatoshi), auc ^. (auctionEnd.to fromThyme))
 
   dbEval (FindAuction aucId) = 
     headMay <$> pquery auctionParser
@@ -232,7 +225,7 @@ instance DBEval QDBM where
       ( aucId 
       , bid ^. (bidUser._UserId)
       , case bid ^. bidSeconds of (Seconds i) -> i
-      , bid ^. (bidAmount.to PSatoshi)
+      , bid ^. (bidAmount.to fromSatoshi)
       , bid ^. (bidTime.to fromThyme)
       )
 
