@@ -1,21 +1,23 @@
 module Aftok.Login where
 
-import Prelude
+import Prelude (type (~>), Void, bind, pure, ($), ($>), (<$>), const)
+
 
 import Control.Monad.Aff (Aff())
 
+import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
-import Data.Functor (($>))
 
-import Halogen
-import Halogen.HTML.Core (className)
-import qualified Halogen.HTML.Indexed as H
-import qualified Halogen.HTML.Events.Indexed as E
-import qualified Halogen.HTML.Properties.Indexed as P
+import Halogen as H
+import Halogen.Aff (HalogenEffects)
+import Halogen.HTML.Core (ClassName(..))
+import Halogen.HTML as HH
+import Halogen.HTML.Events as E
+import Halogen.HTML.Properties as P
 
 import Network.HTTP.Affjax (AJAX(), affjax)
-import Network.HTTP.Method 
-import Network.HTTP.StatusCode 
+import Data.HTTP.Method (Method(..))
+import Network.HTTP.StatusCode (StatusCode(..))
 
 type LoginState = { username :: String, password :: String }
 
@@ -32,51 +34,55 @@ data LoginAction a
 type LoginEffects eff = HalogenEffects (ajax :: AJAX | eff)
 
 -- | The definition for the app's main UI component.
-ui :: forall eff. Component LoginState LoginAction (Aff (LoginEffects eff))
-ui = component render eval
-  where
+ui :: forall eff. H.Component HH.HTML LoginAction LoginState Void (Aff (LoginEffects eff))
+ui = H.component 
+  { initialState: const initialState
+  , render 
+  , eval
+  , receiver: const Nothing
+  } where
 
-  render :: LoginState -> ComponentHTML LoginAction
+  render :: LoginState -> H.ComponentHTML LoginAction
   render st =
-    H.div 
-      [ P.classes (className <$> ["container"]) ]
-      [ H.form 
-        [ P.classes [ className "form-signin" ] ]
-        [ H.h2    [ P.classes [ className "form-signin-heading" ]] [ H.text "Aftok Login" ] 
-        , H.label [ P.for "inputUsername", P.classes [ className "sr-only" ]] [ H.text "username" ]
-        , H.input
-          [ P.inputType P.InputText
+    HH.div 
+      [ P.classes (ClassName <$> ["container"]) ]
+      [ HH.form 
+        [ P.classes [ ClassName "form-signin" ] ]
+        [ HH.h2    [ P.classes [ ClassName "form-signin-heading" ]] [ HH.text "Aftok Login" ] 
+        , HH.label [ P.for "inputUsername", P.classes [ ClassName "sr-only" ]] [ HH.text "username" ]
+        , HH.input
+          [ P.type_ P.InputText
           , P.id_ "inputUsername"
-          , P.classes [ className "form-control" ]
+          , P.classes [ ClassName "form-control" ]
           , P.placeholder "username"
           , P.required true
           , P.autofocus true
           , P.value st.username
           , E.onValueInput (E.input SetUsername)
           ]
-        , H.label [ P.for "inputPassword", P.classes [ className "sr-only" ]] [ H.text "username" ]
-        , H.input
-          [ P.inputType P.InputPassword
+        , HH.label [ P.for "inputPassword", P.classes [ ClassName "sr-only" ]] [ HH.text "username" ]
+        , HH.input
+          [ P.type_ P.InputPassword
           , P.id_ "inputPassword"
-          , P.classes [ className "form-control" ]
+          , P.classes [ ClassName "form-control" ]
           , P.placeholder "password"
           , P.required true
           , P.value st.password
           , E.onValueInput (E.input SetPassword)
           ]
-        , H.button
-          [ P.classes (className <$> ["btn", "btn-primary"])
+        , HH.button
+          [ P.classes (ClassName <$> ["btn", "btn-primary"])
           , E.onClick (E.input_ (Login st.username st.password)) 
           ]
-          [ H.text "Sign in" ]
+          [ HH.text "Sign in" ]
         ]
       ]
 
-  eval :: Natural LoginAction (ComponentDSL LoginState LoginAction (Aff (LoginEffects eff)))
-  eval (SetUsername user next) = modify (_ { username = user }) $> next
-  eval (SetPassword pass next) = modify (_ { password = pass }) $> next
+  eval :: LoginAction ~> H.ComponentDSL LoginState LoginAction Void (Aff (LoginEffects eff))
+  eval (SetUsername user next) = H.modify (_ { username = user }) $> next
+  eval (SetPassword pass next) = H.modify (_ { password = pass }) $> next
   eval (Login user pass next) = do
-    result <- liftAff' (login user pass)
+    result <- H.liftAff (login user pass)
     pure next
 
 data LoginResponse 
@@ -87,12 +93,13 @@ data LoginResponse
 -- | Post credentials to the login service and interpret the response
 login :: forall eff. String -> String -> Aff (ajax :: AJAX | eff) LoginResponse
 login user pass = do
-  result <- affjax $ { method: POST
+  result <- affjax $ { method: Left POST
                      , url: "/login"
                      , headers: []
                      , content: Nothing :: Maybe String
                      , username: Just user
                      , password: Just pass
+                     , withCredentials: true
                      }
   pure $ case result.status of 
     StatusCode 403 -> Forbidden

@@ -3,6 +3,7 @@ cabal.sandbox.config
 .cabal-sandbox
 .stack-work
 Setup
+.stack-work
 
 *.swp
 tags

@@ -5,3 +5,4 @@
 /.pulp-cache
 /src/.webpack.js
 /dist/aftok.js
+.psc-package
