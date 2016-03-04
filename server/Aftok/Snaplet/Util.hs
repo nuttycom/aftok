@@ -1,14 +1,14 @@
 module Aftok.Snaplet.Util where
 
-import ClassyPrelude 
+import           ClassyPrelude
 
-import Control.Monad.Trans.Maybe
-import Data.ByteString.Char8 as B
-import Data.Time.ISO8601
-import Data.Thyme.Time
-import Data.Thyme.Clock as C
+import           Control.Monad.Trans.Maybe
+import           Data.ByteString.Char8     as B
+import           Data.Thyme.Clock          as C
+import           Data.Thyme.Time
+import           Data.Time.ISO8601
 
-import Snap.Core
+import           Snap.Core
 
 timeParam :: MonadSnap m => ByteString -> m (Maybe C.UTCTime)
 timeParam k = runMaybeT $ do

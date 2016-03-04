@@ -1,31 +1,31 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Aftok.Interval 
+module Aftok.Interval
   ( Interval(..), interval, start, end, ilen
   , Interval'(..), interval', start', end'
   , intervalJSON, parseIntervalJSON
   , containsInclusive
   ) where
 
-import ClassyPrelude
+import           ClassyPrelude
 
-import Control.Lens(makeLenses, (^.))
-import Data.Aeson
-import Data.AffineSpace
-import Data.Aeson.Types
-import Data.Thyme.Clock as C
-import Data.Thyme.LocalTime()
-import Data.Thyme.Format.Aeson()
+import           Control.Lens            (makeLenses, (^.))
+import           Data.Aeson
+import           Data.Aeson.Types
+import           Data.AffineSpace
+import           Data.Thyme.Clock        as C
+import           Data.Thyme.Format.Aeson ()
+import           Data.Thyme.LocalTime    ()
 
 data Interval = Interval { _start :: C.UTCTime
-                         , _end   :: C.UTCTime 
+                         , _end   :: C.UTCTime
                          } deriving (Show, Eq, Ord)
 
-data Interval' = Before { _end'  :: C.UTCTime } 
+data Interval' = Before { _end' :: C.UTCTime }
                | During { _start' :: C.UTCTime, _end' :: C.UTCTime }
                | After  { _start' :: C.UTCTime }
 
-makeLenses ''Interval                         
+makeLenses ''Interval
 makeLenses ''Interval'
 
 interval :: C.UTCTime -> C.UTCTime -> Interval

@@ -1,7 +1,7 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE TemplateHaskell    #-}
 
-module Aftok.TimeLog 
+module Aftok.TimeLog
   ( LogEntry(..)
   , btcAddr, event, eventMeta
   , LogEvent(..)
@@ -17,23 +17,23 @@ module Aftok.TimeLog
   , linearDepreciation
   ) where
 
-import ClassyPrelude
+import           ClassyPrelude
 
-import Control.Lens
-import Data.AdditiveGroup
-import Data.Aeson as A
-import Data.AffineSpace
-import Data.Foldable as F
-import Data.Heap as H
-import Data.List.NonEmpty as L
-import Data.Map.Strict as MS
-import Data.Ratio()
-import Data.Thyme.Clock as C
-import Data.UUID
-import Data.VectorSpace
+import           Control.Lens
+import           Data.AdditiveGroup
+import           Data.Aeson         as A
+import           Data.AffineSpace
+import           Data.Foldable      as F
+import           Data.Heap          as H
+import           Data.List.NonEmpty as L
+import           Data.Map.Strict    as MS
+import           Data.Ratio         ()
+import           Data.Thyme.Clock   as C
+import           Data.UUID
+import           Data.VectorSpace
 
-import Aftok
-import Aftok.Interval
+import           Aftok
+import           Aftok.Interval
 
 data LogEvent = StartWork { _eventTime :: C.UTCTime }
               | StopWork  { _eventTime :: C.UTCTime }
@@ -55,15 +55,15 @@ nameEvent "start" = return StartWork
 nameEvent "stop"  = return StopWork
 nameEvent _       = mzero
 
-data LogEntry = LogEntry 
-  { _btcAddr :: BtcAddr
-  , _event   :: LogEvent 
+data LogEntry = LogEntry
+  { _btcAddr   :: BtcAddr
+  , _event     :: LogEvent
   , _eventMeta :: Maybe A.Value
   } deriving (Show, Eq)
 makeLenses ''LogEntry
 
 instance Ord LogEntry where
-  compare a b = 
+  compare a b =
     let ordElems e = (e ^. event, e ^. btcAddr)
     in  ordElems a `compare` ordElems b
 
@@ -93,7 +93,7 @@ type NDT = C.NominalDiffTime
  - this result is multiplied by the length of an interval of work to determine
  - the depreciated value of the work.
  -}
-type DepF = C.UTCTime -> Interval -> NDT 
+type DepF = C.UTCTime -> Interval -> NDT
 
 toDepF :: DepreciationFunction -> DepF
 toDepF (LinearDepreciation undepLength depLength)  = linearDepreciation undepLength depLength
@@ -111,20 +111,20 @@ workCredit df ptime ivals = getSum $ F.foldMap (Sum . df ptime) ivals
  - work allocated to each address.
  -}
 payouts :: DepF -> C.UTCTime -> WorkIndex -> Payouts
-payouts dep ptime (WorkIndex widx) = 
+payouts dep ptime (WorkIndex widx) =
   let addIntervalDiff :: (Functor f, Foldable f) => NDT -> f Interval -> (NDT, NDT)
-      addIntervalDiff total ivals = (^+^ total) &&& id $ workCredit dep ptime ivals 
+      addIntervalDiff total ivals = (^+^ total) &&& id $ workCredit dep ptime ivals
 
       (totalTime, keyTimes) = MS.mapAccum addIntervalDiff zeroV widx
 
   in  Payouts $ fmap ((/ toSeconds totalTime) . toSeconds) keyTimes
 
 workIndex :: Foldable f => f LogEntry -> WorkIndex
-workIndex logEntries = 
+workIndex logEntries =
   let sortedEntries = F.foldr H.insert H.empty logEntries
       rawIndex = F.foldl' appendLogEntry MS.empty sortedEntries
 
-      accum k l m = case nonEmpty (rights l) of 
+      accum k l m = case nonEmpty (rights l) of
         Just l' -> MS.insert k l' m
         Nothing -> m
 
@@ -138,7 +138,7 @@ workIndex logEntries =
 type RawIndex = Map BtcAddr [Either LogEvent Interval]
 
 appendLogEntry :: RawIndex -> LogEntry -> RawIndex
-appendLogEntry idx (LogEntry k ev _) = 
+appendLogEntry idx (LogEntry k ev _) =
   let combine (StartWork t) (StopWork t') | t' > t = Right $ Interval t t'
       combine (e1 @ (StartWork _)) (e2 @ (StartWork _)) = Left $ min e1 e2 -- ignore redundant starts
       combine (e1 @ (StopWork  _)) (e2 @ (StopWork  _)) = Left $ min e1 e2 -- ignore redundant ends
@@ -151,7 +151,7 @@ appendLogEntry idx (LogEntry k ev _) =
 
       ivals = case MS.lookup k idx of
         -- if it is possible to extend an interval at the top of the stack
-        -- because the end of that interval is the same 
+        -- because the end of that interval is the same
         Just (Right ival : xs) -> case extension ival ev of
           Just e' -> Left e' : xs
           Nothing -> Left ev : Right ival : xs
@@ -167,18 +167,18 @@ appendLogEntry idx (LogEntry k ev _) =
 linearDepreciation :: Months -- ^ The number of initial months during which no depreciation occurs
                    -> Months -- ^ The number of months over which each logged interval will be depreciated
                    -> DepF   -- ^ The resulting configured depreciation function.
-linearDepreciation undepLength depLength = 
+linearDepreciation undepLength depLength =
   let monthsLength :: Months -> NDT
       monthsLength (Months i) = fromSeconds $ 60 * 60 * 24 * 30 * i
 
       maxDepreciable :: NDT
-      maxDepreciable = monthsLength undepLength ^+^ monthsLength depLength 
+      maxDepreciable = monthsLength undepLength ^+^ monthsLength depLength
 
       depPct :: NDT -> Rational
-      depPct dt = 
+      depPct dt =
         if dt < monthsLength undepLength then 1
         else toSeconds (max zeroV (maxDepreciable ^-^ dt)) / toSeconds maxDepreciable
 
-  in  \ptime ival -> 
+  in  \ptime ival ->
     let depreciation = depPct $ ptime .-. (ival ^. end)
     in  depreciation *^ ilen ival
