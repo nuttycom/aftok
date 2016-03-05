@@ -6,6 +6,7 @@ import           ClassyPrelude
 import           Control.Lens
 import           Data.Hourglass
 import           Data.Thyme.Clock as C
+import           Data.Thyme.Format ()
 import           Data.UUID
 
 import           Aftok
@@ -28,12 +29,12 @@ data Bid = Bid
   , _bidSeconds :: Seconds
   , _bidAmount  :: Satoshi
   , _bidTime    :: C.UTCTime
-  } deriving Eq
+  } deriving (Eq, Show)
 makeLenses ''Bid
 
 bidOrder :: Bid -> Bid -> Ordering
 bidOrder =
-  comparing costRatio
+  comparing costRatio `mappend` comparing (^. bidTime)
   where
     secs bid = toRational $ bid ^. bidSeconds
     btc  bid = toRational $ bid ^. bidAmount
@@ -46,18 +47,18 @@ winningBids auction = winningBids' (auction ^. raiseAmount)
 winningBids' :: Satoshi -> [Bid] -> [Bid]
 winningBids' raiseAmount' bids = 
   let takeWinningBids :: Satoshi -> [Bid] -> [Bid]
-      takeWinningBids total (x : xs)
+      takeWinningBids total (bid : xs)
         -- if the total is fully within the raise amount
-        | total + (x ^. bidAmount) < raiseAmount' =
-          x : takeWinningBids (total + (x ^. bidAmount)) xs
+        | total + (bid ^. bidAmount) < raiseAmount' =
+          bid : takeWinningBids (total + (bid ^. bidAmount)) xs
 
         -- if the last bid will exceed the raise amount, reduce it to fit
         | total < raiseAmount' =
           let remainder = raiseAmount' - total
-              winFraction = toRational remainder / toRational (x ^. bidAmount)
-              remainderSeconds = Seconds . round $ winFraction * toRational (x ^. bidSeconds)
+              winFraction = toRational remainder / toRational (bid ^. bidAmount)
+              remainderSeconds = Seconds . round $ winFraction * toRational (bid ^. bidSeconds)
 
-          in  [x & bidSeconds .~ remainderSeconds & bidAmount .~ remainder]
+          in  [bid & bidSeconds .~ remainderSeconds & bidAmount .~ remainder]
 
         | otherwise = []
 
