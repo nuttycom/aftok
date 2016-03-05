@@ -5,7 +5,7 @@ module Aftok.Auction where
 import           ClassyPrelude
 import           Control.Lens
 import           Data.Hourglass
-import           Data.Thyme.Clock as C
+import           Data.Thyme.Clock  as C
 import           Data.Thyme.Format ()
 import           Data.UUID
 
@@ -32,6 +32,15 @@ data Bid = Bid
   } deriving (Eq, Show)
 makeLenses ''Bid
 
+data AuctionResult
+  = WinningBids [Bid]
+  | InsufficientBids Satoshi
+  deriving (Show, Eq)
+
+bidsTotal :: [Bid] -> Satoshi
+bidsTotal bids =
+  foldl' (\s b -> s + (b^.bidAmount)) (Satoshi 0) bids
+
 bidOrder :: Bid -> Bid -> Ordering
 bidOrder =
   comparing costRatio `mappend` comparing (^. bidTime)
@@ -41,11 +50,11 @@ bidOrder =
     costRatio bid = secs bid / btc bid
 
 -- lowest bids of seconds/btc win
-winningBids :: Auction -> [Bid] -> [Bid]
-winningBids auction = winningBids' (auction ^. raiseAmount) 
+runAuction :: Auction -> [Bid] -> AuctionResult
+runAuction auction = runAuction' (auction ^. raiseAmount)
 
-winningBids' :: Satoshi -> [Bid] -> [Bid]
-winningBids' raiseAmount' bids = 
+runAuction' :: Satoshi -> [Bid] -> AuctionResult
+runAuction' raiseAmount' bids =
   let takeWinningBids :: Satoshi -> [Bid] -> [Bid]
       takeWinningBids total (bid : xs)
         -- if the total is fully within the raise amount
@@ -63,4 +72,9 @@ winningBids' raiseAmount' bids =
         | otherwise = []
 
       takeWinningBids _ [] = []
-  in  takeWinningBids 0 $ sortBy bidOrder bids
+
+      submittedTotal = bidsTotal bids
+  in  if submittedTotal >= raiseAmount'
+        then WinningBids $ takeWinningBids 0 $ sortBy bidOrder bids
+        else InsufficientBids (raiseAmount' - submittedTotal)
+

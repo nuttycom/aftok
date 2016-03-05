@@ -50,7 +50,6 @@ library
     , HsOpenSSL           >= 0.11     && < 0.12
     , kan-extensions
     , lens                >= 4.11
-    --, network-bitcoin     >= 1.8      && < 1.9
     , old-locale          >= 1.0 
     , postgresql-simple   == 0.5.*
     , safe                >= 0.3.9    && < 0.4
@@ -82,10 +81,10 @@ Test-Suite spec
     , bifunctors
     , containers
     , hspec         >= 2.1.7
+    , HUnit
     , hourglass
     , iso8601-time
     , lens
-    , network-bitcoin
     , QuickCheck    >= 2.8
     , semigroups
     , text

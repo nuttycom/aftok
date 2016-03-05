@@ -21,36 +21,36 @@ import           Aftok.TimeLog
 import           Test.Hspec
 import           Test.QuickCheck
 
-instance Arbitrary BtcAddr where
-  arbitrary = BtcAddr . pack <$> vectorOf 34 arbitrary
+genBtcAddr :: Gen BtcAddr
+genBtcAddr =
+  BtcAddr . pack <$> vectorOf 34 arbitrary
 
-instance Arbitrary Interval where
-  arbitrary = do
+genInterval :: Gen I.Interval
+genInterval = do
+  startTime <- arbitrary
+  delta <- arbitrary :: Gen (Positive T.NominalDiffTime)
+  pure $ I.interval startTime (startTime .+^ getPositive delta)
+
+genIntervals :: Gen (L.NonEmpty I.Interval)
+genIntervals =
+  let deltas = fmap T.fromSeconds <$> ((listOf $ choose (0, 72 * 60 * 60)) :: Gen[Int])
+
+      buildIntervals :: T.UTCTime -> [NominalDiffTime] -> [I.Interval]
+      buildIntervals t (d : s : dx) | d > 0 =
+        let ival = I.interval t (t .+^ d)
+        in  ival : buildIntervals (ival ^. I.end .+^ s) dx
+      buildIntervals _ _ = []
+  in  do
     startTime <- arbitrary
-    delta <- arbitrary :: Gen (Positive T.NominalDiffTime)
-    pure $ I.interval startTime (startTime .+^ getPositive delta)
-
-newtype Intervals = Intervals (L.NonEmpty Interval)
-
-buildIntervals :: T.UTCTime -> [NominalDiffTime] -> [Interval]
-buildIntervals t (d : s : dx) | d > 0 =
-  let ival = I.interval t (t .+^ d)
-  in  ival : buildIntervals (ival ^. end .+^ s) dx
-buildIntervals _ _ = []
-
-instance Arbitrary Intervals where
-  arbitrary = do
-    startTime <- arbitrary
-    let deltas = fmap T.fromSeconds <$> ((listOf $ choose (0, 72 * 60 * 60)) :: Gen[Int])
     intervals <- suchThat (buildIntervals startTime <$> deltas) (not.null)
-    pure . Intervals $ L.fromList intervals
+    pure $ L.fromList intervals
 
-instance Arbitrary WorkIndex where
-  arbitrary =
-    let record = do addr <- arbitrary
-                    Intervals ivals <- arbitrary
-                    pure (addr, ivals)
-    in  WorkIndex . M.fromList <$> listOf record
+genWorkIndex :: Gen WorkIndex
+genWorkIndex =
+  let record = do addr <- genBtcAddr
+                  ivals <- genIntervals
+                  pure (addr, ivals)
+  in  WorkIndex . M.fromList <$> listOf record
 
 spec :: Spec
 spec = do
@@ -85,9 +85,9 @@ spec = do
 
       in (workIndex testLogEntries) `shouldBe` expected
 
-    it "recovers a work index from events" $ property $
-      \(WorkIndex widx) ->
-        let mergeAdjacent ((Interval s e) : (Interval s' e') : xs) | e == s' = mergeAdjacent $ Interval s e' : xs
+    it "recovers a work index from events" $
+      forAll genWorkIndex $ \(WorkIndex widx) ->
+        let mergeAdjacent ((I.Interval s e) : (I.Interval s' e') : xs) | e == s' = mergeAdjacent $ I.Interval s e' : xs
             mergeAdjacent (x : xs) = x : mergeAdjacent xs
             mergeAdjacent [] = []
 
