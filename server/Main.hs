@@ -1,25 +1,25 @@
 module Main where
 
-import ClassyPrelude 
+import           ClassyPrelude
 
-import qualified Data.Aeson as A
-import System.Environment
+import qualified Data.Aeson                                  as A
+import           System.Environment
 
-import Aftok.TimeLog
-import Aftok.Json
+import           Aftok.Json
+import           Aftok.TimeLog
 
-import Aftok.QConfig
-import Aftok.Snaplet
-import Aftok.Snaplet.Auth
-import Aftok.Snaplet.Users
-import Aftok.Snaplet.WorkLog
-import Aftok.Snaplet.Projects
+import           Aftok.QConfig
+import           Aftok.Snaplet
+import           Aftok.Snaplet.Auth
+import           Aftok.Snaplet.Projects
+import           Aftok.Snaplet.Users
+import           Aftok.Snaplet.WorkLog
 
-import Snap.Core
-import Snap.Snaplet
-import Snap.Snaplet.PostgresqlSimple
-import Snap.Snaplet.Auth.Backends.PostgresqlSimple
-import Snap.Snaplet.Session.Backends.CookieSession
+import           Snap.Core
+import           Snap.Snaplet
+import           Snap.Snaplet.Auth.Backends.PostgresqlSimple
+import           Snap.Snaplet.PostgresqlSimple
+import           Snap.Snaplet.Session.Backends.CookieSession
 
 main :: IO ()
 main = do
@@ -30,7 +30,7 @@ main = do
 
 appInit :: QConfig -> SnapletInit App App
 appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
-  sesss <- nestSnaplet "sessions" sess $ 
+  sesss <- nestSnaplet "sessions" sess $
            initCookieSessionManager (authSiteKey cfg) "quookie" (cookieTimeout cfg)
   pgs   <- nestSnaplet "db" db $ pgsInit' (pgsConfig cfg)
   auths <- nestSnaplet "auth" auth $ initPostgresAuth sess pgs
@@ -51,7 +51,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
 
       amendEventRoute    = serveJSON amendmentIdJSON $ method PUT amendEventHandler
 
-  addRoutes [ ("login",             loginRoute)   
+  addRoutes [ ("login",             loginRoute)
             , ("register",          registerRoute)
             , ("accept_invitation", acceptInviteRoute)
 
@@ -60,14 +60,14 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
 
             , ("projects/:projectId",                   projectRoute)
             , ("projects/:projectId/logStart/:btcAddr", logEventRoute StartWork)
-            , ("projects/:projectId/logEnd/:btcAddr",   logEventRoute StopWork) 
+            , ("projects/:projectId/logEnd/:btcAddr",   logEventRoute StopWork)
             , ("projects/:projectId/logEntries",        logEntriesRoute)
             , ("projects/:projectId/intervals",         logIntervalsRoute)
             , ("projects/:projectId/payouts",           payoutsRoute)
             , ("projects/:projectId/invite",            inviteRoute)
 
             , ("events/:eventId/amend", amendEventRoute)
-            ] 
+            ]
   return $ App sesss pgs auths
 
 serveJSON :: (MonadSnap m, A.ToJSON a) => (b -> a) -> m b -> m ()

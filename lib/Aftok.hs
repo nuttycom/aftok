@@ -1,17 +1,19 @@
-{-# LANGUAGE NoImplicitPrelude, TemplateHaskell, DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE NoImplicitPrelude  #-}
+{-# LANGUAGE TemplateHaskell    #-}
 
 module Aftok where
 
-import ClassyPrelude
+import           ClassyPrelude
 
-import Control.Lens(makePrisms, makeLenses)
-import Data.Aeson
-import Data.Aeson.Types
-import Data.ByteString.Base64.URL as B64
-import Data.Data
-import Data.Thyme.Clock as C
-import Data.UUID
-import OpenSSL.Random
+import           Control.Lens               (makeLenses, makePrisms)
+import           Data.Aeson
+import           Data.Aeson.Types
+import           Data.ByteString.Base64.URL as B64
+import           Data.Data
+import           Data.Thyme.Clock           as C
+import           Data.UUID
+import           OpenSSL.Random
 
 newtype BtcAddr = BtcAddr Text deriving (Show, Eq, Ord)
 makePrisms ''BtcAddr
@@ -19,7 +21,7 @@ makePrisms ''BtcAddr
 parseBtcAddr :: Text -> Maybe BtcAddr
 parseBtcAddr = Just . BtcAddr -- FIXME: perform validation
 
-newtype Months = Months Integer 
+newtype Months = Months Integer
   deriving (Eq, Show, Data, Typeable)
 
 data DepreciationFunction = LinearDepreciation Months Months
@@ -35,9 +37,9 @@ newtype Email = Email Text deriving (Show, Eq)
 makePrisms ''Email
 
 data User = User
-  { _username :: UserName
+  { _username    :: UserName
   , _userAddress :: BtcAddr
-  , _userEmail :: Email
+  , _userEmail   :: Email
   }
 makeLenses ''User
 
@@ -46,10 +48,10 @@ makePrisms ''ProjectId
 
 type ProjectName = Text
 data Project = Project
-  { _projectName :: ProjectName
+  { _projectName   :: ProjectName
   , _inceptionDate :: C.UTCTime
-  , _initiator :: UserId
-  , _depf :: DepreciationFunction
+  , _initiator     :: UserId
+  , _depf          :: DepreciationFunction
   }
 makeLenses ''Project
 
@@ -69,10 +71,10 @@ parseInvCode t = do
 renderInvCode :: InvitationCode -> Text
 renderInvCode (InvitationCode bs) = decodeUtf8 $ B64.encode bs
 
-data Invitation = Invitation 
-  { _projectId :: ProjectId
-  , _invitingUser :: UserId
-  , _invitedEmail :: Email
+data Invitation = Invitation
+  { _projectId      :: ProjectId
+  , _invitingUser   :: UserId
+  , _invitedEmail   :: Email
   , _invitationTime :: C.UTCTime
   , _acceptanceTime :: Maybe C.UTCTime
   }
@@ -93,7 +95,7 @@ instance FromJSON DepreciationFunction where
     t <- v .: "type" :: Parser Text
     args <- v .: "arguments"
     case unpack t of
-      "LinearDepreciation" -> 
+      "LinearDepreciation" ->
         let undep = Months <$> (args .: "undep")
             dep   = Months <$> (args .: "dep")
         in  LinearDepreciation <$> undep <*> dep

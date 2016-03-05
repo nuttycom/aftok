@@ -1,42 +1,42 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Aftok.Snaplet.Users 
+module Aftok.Snaplet.Users
   ( registerHandler
   , acceptInvitationHandler
   ) where
 
-import ClassyPrelude 
+import           ClassyPrelude
 
-import Control.Lens
-import Data.Aeson as A
-import Data.Text as T
-import Data.Thyme.Clock as C
+import           Control.Lens
+import           Data.Aeson         as A
+import           Data.Text          as T
+import           Data.Thyme.Clock   as C
 
-import Aftok
-import Aftok.Database
-import Aftok.Snaplet
-import Aftok.Snaplet.Auth
+import           Aftok
+import           Aftok.Database
+import           Aftok.Snaplet
+import           Aftok.Snaplet.Auth
 
-import Snap.Core
-import Snap.Snaplet
-import qualified Snap.Snaplet.Auth as AU
+import           Snap.Core
+import           Snap.Snaplet
+import qualified Snap.Snaplet.Auth  as AU
 
 data CUser = CU
-  { _cuser :: User
-  , _password :: ByteString
+  { _cuser           :: User
+  , _password        :: ByteString
   , _invitationCodes :: [InvitationCode]
   }
 makeLenses ''CUser
 
 instance FromJSON CUser where
-  parseJSON (Object v) = 
+  parseJSON (Object v) =
     let parseUser = User <$> (UserName <$> v .: "username")
                          <*> (BtcAddr  <$> v .: "btcAddr")
                          <*> (Email    <$> v .: "email")
 
-        parseInvitationCodes c = either 
-          (\e -> fail $ "Invitation code was rejected as invalid: " <> e) 
-          pure 
+        parseInvitationCodes c = either
+          (\e -> fail $ "Invitation code was rejected as invalid: " <> e)
+          pure
           (traverse parseInvCode c)
 
     in  CU <$> parseUser
@@ -57,21 +57,21 @@ registerHandler = do
         void $ traverse (acceptInvitation userId t) (userData ^. invitationCodes)
         return userId
   authUser <- with auth createSUser
-  either throwDenied (\_ -> createQUser) authUser 
+  either throwDenied (\_ -> createQUser) authUser
 
 acceptInvitationHandler :: Handler App App ()
 acceptInvitationHandler = do
   uid <- requireUserId
   t <- liftIO C.getCurrentTime
-  params <- getParams 
+  params <- getParams
   invCodes <- maybe
     (snapError 400 "invCode parameter is required")
     (pure . traverse (parseInvCode . decodeUtf8))
     (lookup "invCode" params)
-  either 
+  either
     (\e -> snapError 400 $ "Invitation code was rejected as invalid: " <> T.pack e)
     (\cx -> void . snapEval $ traverse (acceptInvitation uid t) cx)
     invCodes
-  
-  
-  
+
+
+

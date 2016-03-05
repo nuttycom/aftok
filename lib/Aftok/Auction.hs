@@ -2,21 +2,21 @@
 
 module Aftok.Auction where
 
-import ClassyPrelude
-import Control.Lens
-import Data.Hourglass
-import Data.UUID
-import Data.Thyme.Clock as C
+import           ClassyPrelude
+import           Control.Lens
+import           Data.Hourglass
+import           Data.Thyme.Clock as C
+import           Data.UUID
 
-import Aftok
-import Aftok.Types
+import           Aftok
+import           Aftok.Types
 
 newtype AuctionId = AuctionId UUID deriving (Show, Eq)
 makePrisms ''AuctionId
 
-data Auction = Auction 
+data Auction = Auction
   { _raiseAmount :: Satoshi
-  , _auctionEnd :: C.UTCTime 
+  , _auctionEnd  :: C.UTCTime
   }
 makeLenses ''Auction
 
@@ -32,24 +32,24 @@ data Bid = Bid
 makeLenses ''Bid
 
 instance Ord Bid where
-  (<=) b1 b2 = 
+  (<=) b1 b2 =
     costRatio b1 <= costRatio b2
-    where 
+    where
       secs bid = toRational $ bid ^. bidSeconds
       btc  bid = toRational $ bid ^. bidAmount
       costRatio bid = secs bid / btc bid
 
 -- lowest bids of seconds/btc win
 winningBids :: Auction -> [Bid] -> [Bid]
-winningBids auction bids = 
+winningBids auction bids =
   let takeWinningBids :: Satoshi -> [Bid] -> [Bid]
       takeWinningBids total (x : xs)
         -- if the total is fully within the raise amount
-        | total + (x ^. bidAmount) < (auction ^. raiseAmount) = 
+        | total + (x ^. bidAmount) < (auction ^. raiseAmount) =
           x : takeWinningBids (total + (x ^. bidAmount)) xs
 
         -- if the last bid will exceed the raise amount, reduce it to fit
-        | total < (auction ^. raiseAmount) = 
+        | total < (auction ^. raiseAmount) =
           let remainder = (auction ^. raiseAmount) - total
               winFraction = toRational remainder / toRational (x ^. bidAmount)
               remainderSeconds = Seconds . round $ winFraction * toRational (x ^. bidSeconds)
@@ -57,6 +57,6 @@ winningBids auction bids =
           in  [x & bidSeconds .~ remainderSeconds & bidAmount .~ remainder]
 
         | otherwise = []
-        
+
       takeWinningBids _ [] = []
   in  takeWinningBids 0 $ sort bids

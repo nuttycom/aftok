@@ -1,28 +1,29 @@
-{-# LANGUAGE TemplateHaskell, FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TemplateHaskell   #-}
 
 module Aftok.Snaplet where
 
-import ClassyPrelude 
+import           ClassyPrelude
 
-import Control.Lens
-import Control.Monad.Reader
-import Control.Monad.State
-import Control.Monad.Trans.Either
-import qualified Data.Aeson as A
-import Data.Attoparsec.ByteString(Parser, parseOnly)
+import           Control.Lens
+import           Control.Monad.Reader
+import           Control.Monad.State
+import           Control.Monad.Trans.Either
+import qualified Data.Aeson                    as A
+import           Data.Attoparsec.ByteString    (Parser, parseOnly)
 
-import Aftok
-import Aftok.Database
-import Aftok.Database.PostgreSQL
-import Aftok.Util
+import           Aftok
+import           Aftok.Database
+import           Aftok.Database.PostgreSQL
+import           Aftok.Util
 
-import Snap.Core
-import Snap.Snaplet
-import Snap.Snaplet.PostgresqlSimple
-import qualified Snap.Snaplet.Auth as AU
-import Snap.Snaplet.Session
+import           Snap.Core
+import           Snap.Snaplet
+import qualified Snap.Snaplet.Auth             as AU
+import           Snap.Snaplet.PostgresqlSimple
+import           Snap.Snaplet.Session
 
-data App = App 
+data App = App
   { _sess :: Snaplet SessionManager
   , _db   :: Snaplet Postgres
   , _auth :: Snaplet (AU.AuthManager App)
@@ -35,9 +36,9 @@ instance HasPostgres (Handler b App) where
 
 snapEval :: (MonadSnap m, HasPostgres m) => DBProg a -> m a
 snapEval p = do
-  let handleDBError (OpForbidden (UserId uid) reason) = 
+  let handleDBError (OpForbidden (UserId uid) reason) =
         snapError 403 $ tshow reason <> " (User " <> tshow uid <> ")"
-      handleDBError (SubjectNotFound) = 
+      handleDBError (SubjectNotFound) =
         snapError 404 "The subject of the requested operation could not be found."
 
   e <- liftPG $ \conn -> runEitherT (runQDBM conn $ interpret dbEval p)
@@ -52,7 +53,7 @@ snapError c t = do
 ok :: MonadSnap m => m a
 ok = do
   modifyResponse $ setResponseCode 200
-  getResponse >>= finishWith 
+  getResponse >>= finishWith
 
 parseParam :: MonadSnap m => ByteString -> Parser a -> m a
 parseParam name parser = do

@@ -1,13 +1,15 @@
-{-# LANGUAGE OverloadedStrings, ScopedTypeVariables, NoImplicitPrelude #-}
+{-# LANGUAGE NoImplicitPrelude   #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Aftok.Util.HttpSpec where
 
-import ClassyPrelude
+import           ClassyPrelude
 
-import Aftok.Util.Http
-import Data.Attoparsec.ByteString 
+import           Aftok.Util.Http
+import           Data.Attoparsec.ByteString
 
-import Test.Hspec
+import           Test.Hspec
 
 spec :: Spec
 spec = do
