@@ -1,17 +1,19 @@
-{-# LANGUAGE GADTs, DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE ExplicitForAll     #-}
+{-# LANGUAGE GADTs              #-}
 
 module Aftok.Database where
 
-import ClassyPrelude
-import Control.Lens
-import Data.AffineSpace
-import Data.Thyme.Clock as C
+import           ClassyPrelude
+import           Control.Lens
+import           Data.AffineSpace
+import           Data.Thyme.Clock as C
 
-import Aftok
-import Aftok.Auction
-import Aftok.Interval
-import Aftok.TimeLog
-import Aftok.Util
+import           Aftok
+import           Aftok.Auction
+import           Aftok.Interval
+import           Aftok.TimeLog
+import           Aftok.Util
 
 type KeyedUser     = (UserId, User)
 type KeyedLogEntry = (ProjectId, UserId, LogEntry)
@@ -57,13 +59,13 @@ data DBError = OpForbidden UserId OpForbiddenReason
              | SubjectNotFound
              deriving (Eq, Show, Typeable)
 
-instance Exception DBError 
+instance Exception DBError
 
 raiseOpForbidden :: UserId -> OpForbiddenReason -> DBOp x -> DBOp x
-raiseOpForbidden uid r = RaiseDBError (OpForbidden uid r) 
+raiseOpForbidden uid r = RaiseDBError (OpForbidden uid r)
 
 raiseSubjectNotFound :: DBOp x -> DBOp x
-raiseSubjectNotFound = RaiseDBError SubjectNotFound 
+raiseSubjectNotFound = RaiseDBError SubjectNotFound
 
 class DBEval m where
   dbEval :: DBOp a -> m a
@@ -89,21 +91,21 @@ createProject p = do
 
 findProject :: ProjectId -> UserId -> DBProg (Maybe Project)
 findProject pid uid = do
-  kps <- findUserProjects uid 
+  kps <- findUserProjects uid
   pure $ fmap snd (find (\(pid', _) -> pid' == pid) kps)
-  
+
 findUserProjects :: UserId -> DBProg [KeyedProject]
 findUserProjects = fc . FindUserProjects
 
 withProjectAuth :: ProjectId -> UserId -> DBOp a -> DBProg a
 withProjectAuth pid uid act = do
   px <- findUserProjects uid
-  fc $ if any (\(pid', _) -> pid' == pid) px 
-    then act 
+  fc $ if any (\(pid', _) -> pid' == pid) px
+    then act
     else raiseOpForbidden uid UserNotProjectMember act
 
 addUserToProject :: ProjectId -> InvitingUID -> InvitedUID -> DBProg ()
-addUserToProject pid current new = 
+addUserToProject pid current new =
   withProjectAuth pid current $ AddUserToProject pid current new
 
 createInvitation :: ProjectId -> InvitingUID -> Email -> C.UTCTime -> DBProg InvitationCode
@@ -118,20 +120,20 @@ acceptInvitation uid t ic = do
   inv <- findInvitation ic
   let act = AcceptInvitation uid ic t
   case inv of
-    Nothing -> 
+    Nothing ->
       fc $ raiseSubjectNotFound act
-    Just i | t .-. (i ^. invitationTime) > fromSeconds (60 * 60 * 72 :: Int) -> 
+    Just i | t .-. (i ^. invitationTime) > fromSeconds (60 * 60 * 72 :: Int) ->
       fc $ raiseOpForbidden uid InvitationExpired act
-    Just i | isJust (i ^. acceptanceTime) -> 
+    Just i | isJust (i ^. acceptanceTime) ->
       fc $ raiseOpForbidden uid InvitationAlreadyAccepted act
-    Just i -> 
+    Just i ->
       withProjectAuth (i ^. projectId) (i ^. invitingUser) act
 
 -- Log ops
 
 -- TODO: ignore "duplicate" events within some small time limit?
 createEvent :: ProjectId -> UserId -> LogEntry -> DBProg EventId
-createEvent p u l = withProjectAuth p u $ CreateEvent p u l 
+createEvent p u l = withProjectAuth p u $ CreateEvent p u l
 
 amendEvent :: UserId -> EventId -> EventAmendment -> DBProg AmendmentId
 amendEvent uid eid a = do
