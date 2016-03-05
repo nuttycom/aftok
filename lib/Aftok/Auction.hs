@@ -41,16 +41,19 @@ bidOrder =
 
 -- lowest bids of seconds/btc win
 winningBids :: Auction -> [Bid] -> [Bid]
-winningBids auction bids =
+winningBids auction = winningBids' (auction ^. raiseAmount) 
+
+winningBids' :: Satoshi -> [Bid] -> [Bid]
+winningBids' raiseAmount' bids = 
   let takeWinningBids :: Satoshi -> [Bid] -> [Bid]
       takeWinningBids total (x : xs)
         -- if the total is fully within the raise amount
-        | total + (x ^. bidAmount) < (auction ^. raiseAmount) =
+        | total + (x ^. bidAmount) < raiseAmount' =
           x : takeWinningBids (total + (x ^. bidAmount)) xs
 
         -- if the last bid will exceed the raise amount, reduce it to fit
-        | total < (auction ^. raiseAmount) =
-          let remainder = (auction ^. raiseAmount) - total
+        | total < raiseAmount' =
+          let remainder = raiseAmount' - total
               winFraction = toRational remainder / toRational (x ^. bidAmount)
               remainderSeconds = Seconds . round $ winFraction * toRational (x ^. bidSeconds)
 
