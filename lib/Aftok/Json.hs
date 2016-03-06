@@ -17,6 +17,7 @@ import           Data.Map.Strict                  as MS
 import           Aftok
 import           Aftok.Database
 import           Aftok.Interval
+import           Aftok.Project
 import           Aftok.TimeLog
 
 import qualified Language.Haskell.TH              as TH

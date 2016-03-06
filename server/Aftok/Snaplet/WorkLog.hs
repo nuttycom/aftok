@@ -12,6 +12,7 @@ import           Aftok
 import           Aftok.Database
 import           Aftok.Interval
 import           Aftok.Json
+import           Aftok.Project
 import           Aftok.TimeLog
 
 import           Aftok.Snaplet

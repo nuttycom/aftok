@@ -1,7 +1,12 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Aftok.Snaplet.Projects where
+module Aftok.Snaplet.Projects 
+  ( projectCreateHandler
+  , projectListHandler
+  , projectGetHandler
+  , projectInviteHandler
+  ) where
 
 import           ClassyPrelude
 
@@ -16,6 +21,7 @@ import           Text.StringTemplate
 
 import           Aftok
 import           Aftok.Database
+import           Aftok.Project
 import           Aftok.QConfig
 import           Aftok.Snaplet
 import           Aftok.Snaplet.Auth
@@ -23,9 +29,9 @@ import           Aftok.Snaplet.Auth
 import           Snap.Core
 import           Snap.Snaplet
 
-data CProject = CP { cpn :: Text, cpdepf :: DepreciationFunction }
+data ProjectCreateRequest = CP { cpn :: Text, cpdepf :: DepreciationFunction }
 
-instance FromJSON CProject where
+instance FromJSON ProjectCreateRequest where
   parseJSON (Object v) = CP <$> v .: "projectName" <*> v .: "depf"
   parseJSON _ = mzero
 

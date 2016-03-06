@@ -10,6 +10,7 @@ import           Data.UUID                  (fromASCIIBytes)
 import           Aftok
 import           Aftok.Database
 import           Aftok.Snaplet
+import           Aftok.Project
 import           Aftok.Util.Http            (authHeaderParser)
 
 import           Snap.Core

@@ -18,9 +18,10 @@ import           Database.PostgreSQL.Simple.FromField
 import           Database.PostgreSQL.Simple.FromRow
 
 import           Aftok
-import           Aftok.Auction
+import           Aftok.Auction as A
 import           Aftok.Database
 import           Aftok.Interval
+import           Aftok.Project as P
 import           Aftok.TimeLog
 import           Aftok.Types
 
@@ -90,7 +91,8 @@ qdbLogEntryParser =
 
 auctionParser :: RowParser Auction
 auctionParser =
-  Auction <$> fieldWith btcParser
+  Auction <$> fieldWith uidParser
+          <*> fieldWith btcParser
           <*> fieldWith utcParser
 
 bidParser :: RowParser Bid
@@ -210,9 +212,13 @@ instance DBEval QDBM where
 
   dbEval (CreateAuction pid auc) =
     pinsert AuctionId
-      "INSERT INTO auctions (project_id, raise_amount, end_time) \
-      \VALUES (?, ?, ?) RETURNING id"
-      (pid ^. _ProjectId, auc ^. (raiseAmount.to fromSatoshi), auc ^. (auctionEnd.to fromThyme))
+      "INSERT INTO auctions (project_id, user_id, raise_amount, end_time) \
+      \VALUES (?, ?, ?, ?) RETURNING id"
+      ( pid ^. _ProjectId
+      , auc ^. (A.initiator . _UserId)
+      , auc ^. (raiseAmount.to fromSatoshi)
+      , auc ^. (auctionEnd.to fromThyme)
+      )
 
   dbEval (FindAuction aucId) =
     headMay <$> pquery auctionParser
@@ -279,7 +285,7 @@ instance DBEval QDBM where
     pinsert ProjectId
       "INSERT INTO projects (project_name, inception_date, initiator_id, depreciation_fn) \
       \VALUES (?, ?, ?, ?) RETURNING id"
-      (p ^. projectName, p ^. (inceptionDate.to fromThyme), p ^. (initiator._UserId), toJSON $ p ^. depf)
+      (p ^. projectName, p ^. (inceptionDate.to fromThyme), p ^. (P.initiator . _UserId), toJSON $ p ^. depf)
 
   dbEval (FindProject (ProjectId pid)) =
     headMay <$> pquery projectParser

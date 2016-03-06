@@ -17,7 +17,10 @@ newtype AuctionId = AuctionId UUID deriving (Show, Eq)
 makePrisms ''AuctionId
 
 data Auction = Auction
-  { _raiseAmount  :: Satoshi
+  { _initiator    :: UserId
+  --, _createdAt    :: C.UTCTime
+  , _raiseAmount  :: Satoshi
+  --, _auctionStart :: C.UTCTime
   , _auctionEnd   :: C.UTCTime
   }
 makeLenses ''Auction

@@ -11,6 +11,7 @@ import           Aftok.TimeLog
 import           Aftok.QConfig
 import           Aftok.Snaplet
 import           Aftok.Snaplet.Auth
+import           Aftok.Snaplet.Auctions
 import           Aftok.Snaplet.Projects
 import           Aftok.Snaplet.Users
 import           Aftok.Snaplet.WorkLog
@@ -49,6 +50,8 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
       payoutsRoute       = serveJSON payoutsJSON $ method GET payoutsHandler
       inviteRoute        = void . method POST $ projectInviteHandler cfg
 
+      auctionCreateRoute = void $ method POST auctionCreateHandler
+
       amendEventRoute    = serveJSON amendmentIdJSON $ method PUT amendEventHandler
 
   addRoutes [ ("login",             loginRoute)
@@ -65,6 +68,8 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
             , ("projects/:projectId/intervals",         logIntervalsRoute)
             , ("projects/:projectId/payouts",           payoutsRoute)
             , ("projects/:projectId/invite",            inviteRoute)
+
+            , ("projects/:projectId/auctions", auctionCreateRoute)
 
             , ("events/:eventId/amend", amendEventRoute)
             ]

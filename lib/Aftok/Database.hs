@@ -10,7 +10,8 @@ import           Data.AffineSpace
 import           Data.Thyme.Clock as C
 
 import           Aftok
-import           Aftok.Auction (Auction, AuctionId, Bid, BidId)
+import           Aftok.Project as P
+import           Aftok.Auction as A
 import           Aftok.Interval
 import           Aftok.TimeLog
 import           Aftok.Util
@@ -86,7 +87,7 @@ findUserByName = fc . FindUserByName
 createProject :: Project -> DBProg ProjectId
 createProject p = do
   pid <- fc $ CreateProject p
-  addUserToProject pid (p ^. initiator) (p ^. initiator)
+  addUserToProject pid (p ^. P.initiator) (p ^. P.initiator)
   return pid
 
 findProject :: ProjectId -> UserId -> DBProg (Maybe Project)
@@ -152,3 +153,8 @@ findEvents p u i = fc $ FindEvents p u i
 readWorkIndex :: ProjectId -> UserId -> DBProg WorkIndex
 readWorkIndex pid uid = withProjectAuth pid uid $ ReadWorkIndex pid
 
+-- Auction ops
+
+createAuction :: ProjectId -> Auction -> DBProg AuctionId
+createAuction pid a = do
+  withProjectAuth pid (a ^. A.initiator) $ CreateAuction pid a

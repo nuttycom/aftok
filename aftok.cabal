@@ -26,6 +26,7 @@ library
                       Aftok.Database.PostgreSQL
                       Aftok.Interval
                       Aftok.Json
+                      Aftok.Project
                       Aftok.TimeLog
                       Aftok.Types
                       Aftok.Util
