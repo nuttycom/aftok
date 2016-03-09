@@ -4,20 +4,21 @@ module Aftok.Auction where
 
 import           ClassyPrelude
 import           Control.Lens
+import           Control.Monad.State
 import           Data.Hourglass
 import           Data.Thyme.Clock  as C
 import           Data.Thyme.Format ()
 import           Data.UUID
 
-import           Aftok
-import           Aftok.Types
+import           Aftok (UserId)
+import           Aftok.Types (Satoshi(..))
 
 newtype AuctionId = AuctionId UUID deriving (Show, Eq)
 makePrisms ''AuctionId
 
 data Auction = Auction
-  { _raiseAmount :: Satoshi
-  , _auctionEnd  :: C.UTCTime
+  { _raiseAmount  :: Satoshi
+  , _auctionEnd   :: C.UTCTime
   }
 makeLenses ''Auction
 
@@ -31,6 +32,12 @@ data Bid = Bid
   , _bidTime    :: C.UTCTime
   } deriving (Eq, Show)
 makeLenses ''Bid
+
+data Commitment = Commitment
+  { _baseBid :: Bid
+  , _commitmentSeconds :: Seconds
+  , _commitmentAmount :: Satoshi
+  }
 
 data AuctionResult
   = WinningBids [Bid]
@@ -77,4 +84,24 @@ runAuction' raiseAmount' bids =
   in  if submittedTotal >= raiseAmount'
         then WinningBids $ takeWinningBids 0 $ sortBy bidOrder bids
         else InsufficientBids (raiseAmount' - submittedTotal)
+
+bidCommitment :: Satoshi -> Bid -> State Satoshi (Maybe Commitment)
+bidCommitment raiseAmount' bid = do
+  raised <- get
+  case raised of
+    -- if the total is fully within the raise amount
+    x | x + (bid ^. bidAmount) < raiseAmount' ->
+      put (x + bid ^. bidAmount) >> 
+      (pure . Just $ Commitment bid (bid ^. bidSeconds) (bid ^. bidAmount))
+
+    -- if the last bid will exceed the raise amount, reduce it to fit
+    x | x < raiseAmount' ->
+      let remainder = raiseAmount' - x
+          winFraction = toRational remainder / toRational (bid ^. bidAmount)
+          remainderSeconds = Seconds . round $ winFraction * toRational (bid ^. bidSeconds)
+      in  put (x + remainder) >>
+          (pure . Just $ Commitment bid (remainderSeconds) remainder)
+
+    -- otherwise, 
+    _ -> pure Nothing
 

@@ -10,7 +10,7 @@ import           Data.AffineSpace
 import           Data.Thyme.Clock as C
 
 import           Aftok
-import           Aftok.Auction
+import           Aftok.Auction (Auction, AuctionId, Bid, BidId)
 import           Aftok.Interval
 import           Aftok.TimeLog
 import           Aftok.Util
