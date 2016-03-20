@@ -43,7 +43,7 @@ data DBOp a where
   FindEvents       :: ProjectId -> UserId -> Interval' -> DBOp [LogEntry]
   ReadWorkIndex    :: ProjectId -> DBOp WorkIndex
 
-  CreateAuction    :: ProjectId -> Auction -> DBOp AuctionId
+  CreateAuction    :: Auction -> DBOp AuctionId
   FindAuction      :: AuctionId -> DBOp (Maybe Auction)
   CreateBid        :: AuctionId -> Bid -> DBOp BidId
   ReadBids         :: AuctionId -> DBOp [Bid]
@@ -105,6 +105,15 @@ withProjectAuth pid uid act = do
     then act
     else raiseOpForbidden uid UserNotProjectMember act
 
+checkProjectAuth :: ProjectId -> UserId -> DBOp a -> DBProg ()
+checkProjectAuth pid uid act = do
+  px <- findUserProjects uid
+  if any (\(pid', _) -> pid' == pid) px
+    then pure ()
+    else void . fc $ raiseOpForbidden uid UserNotProjectMember act
+
+
+
 addUserToProject :: ProjectId -> InvitingUID -> InvitedUID -> DBProg ()
 addUserToProject pid current new =
   withProjectAuth pid current $ AddUserToProject pid current new
@@ -128,7 +137,7 @@ acceptInvitation uid t ic = do
     Just i | isJust (i ^. acceptanceTime) ->
       fc $ raiseOpForbidden uid InvitationAlreadyAccepted act
     Just i ->
-      withProjectAuth (i ^. projectId) (i ^. invitingUser) act
+      withProjectAuth (i ^. P.projectId) (i ^. P.invitingUser) act
 
 -- Log ops
 
@@ -155,6 +164,14 @@ readWorkIndex pid uid = withProjectAuth pid uid $ ReadWorkIndex pid
 
 -- Auction ops
 
-createAuction :: ProjectId -> Auction -> DBProg AuctionId
-createAuction pid a = do
-  withProjectAuth pid (a ^. A.initiator) $ CreateAuction pid a
+createAuction :: Auction -> DBProg AuctionId
+createAuction a = do
+  withProjectAuth (a ^. A.projectId) (a ^. A.initiator) $ CreateAuction a
+
+findAuction :: AuctionId -> UserId -> DBProg (Maybe Auction)
+findAuction aid uid = 
+  let findAuc = FindAuction aid
+  in  do
+    maybeAuc <- fc findAuc
+    _ <- traverse (\auc -> checkProjectAuth (auc ^. A.projectId) uid findAuc) maybeAuc
+    pure maybeAuc

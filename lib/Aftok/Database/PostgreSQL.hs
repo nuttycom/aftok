@@ -91,7 +91,8 @@ qdbLogEntryParser =
 
 auctionParser :: RowParser Auction
 auctionParser =
-  Auction <$> fieldWith uidParser
+  Auction <$> fieldWith pidParser
+          <*> fieldWith uidParser
           <*> fieldWith btcParser
           <*> fieldWith utcParser
 
@@ -210,11 +211,11 @@ instance DBEval QDBM where
       (Only pid)
     pure $ workIndex logEntries
 
-  dbEval (CreateAuction pid auc) =
+  dbEval (CreateAuction auc) =
     pinsert AuctionId
       "INSERT INTO auctions (project_id, user_id, raise_amount, end_time) \
       \VALUES (?, ?, ?, ?) RETURNING id"
-      ( pid ^. _ProjectId
+      ( auc ^. (A.projectId . _ProjectId)
       , auc ^. (A.initiator . _UserId)
       , auc ^. (raiseAmount.to fromSatoshi)
       , auc ^. (auctionEnd.to fromThyme)

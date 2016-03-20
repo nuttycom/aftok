@@ -11,13 +11,15 @@ import           Data.Thyme.Format ()
 import           Data.UUID
 
 import           Aftok (UserId)
+import           Aftok.Project (ProjectId)
 import           Aftok.Types (Satoshi(..))
 
 newtype AuctionId = AuctionId UUID deriving (Show, Eq)
 makePrisms ''AuctionId
 
 data Auction = Auction
-  { _initiator    :: UserId
+  { _projectId    :: ProjectId
+  , _initiator    :: UserId
   --, _createdAt    :: C.UTCTime
   , _raiseAmount  :: Satoshi
   --, _auctionStart :: C.UTCTime

@@ -37,4 +37,4 @@ auctionCreateHandler = do
   requestBody <- readRequestJSON 4096
   req <- either (snapError 400 . tshow) pure $ parseEither auctionCreateParser requestBody
   --t <- liftIO C.getCurrentTime
-  snapEval . createAuction pid $ Auction uid (Satoshi . raiseAmount $ req) (auctionEnd req)
+  snapEval . createAuction $ Auction pid uid (Satoshi . raiseAmount $ req) (auctionEnd req)
