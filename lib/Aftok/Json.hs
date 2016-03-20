@@ -8,17 +8,19 @@ import           ClassyPrelude
 import           Control.Lens                     hiding ((.=))
 import           Data.Aeson
 import           Data.Aeson.Types
-import qualified Data.Attoparsec.ByteString.Char8 as P
+import qualified Data.Attoparsec.ByteString.Char8 as PC
 import qualified Data.ByteString.Char8            as C
 import           Data.Data
 import           Data.List.NonEmpty               as L
 import           Data.Map.Strict                  as MS
 
 import           Aftok
+import           Aftok.Auction                    as A
 import           Aftok.Database
 import           Aftok.Interval
-import           Aftok.Project
+import           Aftok.Project                    as P
 import           Aftok.TimeLog
+import           Aftok.Types
 
 import qualified Language.Haskell.TH              as TH
 import           Language.Haskell.TH.Quote
@@ -30,8 +32,8 @@ data Version = Version { majorVersion :: Word8
 instance Show Version where
   show Version{..} = intercalate "." $ fmap show [majorVersion, minorVersion]
 
-versionParser :: P.Parser Version
-versionParser = Version <$> P.decimal <*> (P.char '.' >> P.decimal)
+versionParser :: PC.Parser Version
+versionParser = Version <$> PC.decimal <*> (PC.char '.' >> PC.decimal)
 
 version :: QuasiQuoter
 version = QuasiQuoter { quoteExp = quoteVersionExp
@@ -43,7 +45,7 @@ version = QuasiQuoter { quoteExp = quoteVersionExp
 -- TODO: Include source location information, and implement quote patterns.
 quoteVersionExp :: String -> TH.Q TH.Exp
 quoteVersionExp s = do
-  v <- either (fail . show) pure $ P.parseOnly versionParser (C.pack s)
+  v <- either (fail . show) pure $ PC.parseOnly versionParser (C.pack s)
   dataToExpQ (const Nothing) v
 
 versioned :: Version -> Value -> Value
@@ -57,7 +59,7 @@ versioned ver v = object [ "schemaVersion" .= tshow ver
 unversion :: (Version -> Value -> Parser a) -> Value -> Parser a
 unversion f (Object v) = do
   verstr   <- v .: "schemaVersion"
-  vers  <- either fail pure $ P.parseOnly versionParser (encodeUtf8 verstr)
+  vers  <- either fail pure $ PC.parseOnly versionParser (encodeUtf8 verstr)
   v .: "value" >>= f vers
 
 unversion _ x =
@@ -90,7 +92,14 @@ projectJSON :: Project -> Value
 projectJSON p = v1 $
   object [ "projectName"    .= (p ^. projectName)
          , "inceptionDate"  .= (p ^. inceptionDate)
-         , "initiator"      .= tshow (p ^. (initiator._UserId))
+         , "initiator"      .= tshow (p ^. (P.initiator._UserId))
+         ]
+
+auctionJSON :: Auction -> Value
+auctionJSON x = v1 $
+  object [ "projectId"    .= tshow (x ^. (A.projectId._ProjectId))
+         , "initiator"    .= tshow (x ^. (A.initiator._UserId))
+         , "raiseAmount"  .= (x ^. (raiseAmount._Satoshi))
          ]
 
 payoutsJSON :: Payouts -> Value

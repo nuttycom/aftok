@@ -46,11 +46,12 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
       projectRoute       = serveJSON projectJSON $ method GET projectGetHandler
       logEventRoute f    = serveJSON eventIdJSON . method POST $ logWorkHandler f
       logEntriesRoute    = serveJSON (fmap logEntryJSON) $ method GET logEntriesHandler
-      logIntervalsRoute  = serveJSON workIndexJSON   $ method GET loggedIntervalsHandler
+      logIntervalsRoute  = serveJSON workIndexJSON $ method GET loggedIntervalsHandler
       payoutsRoute       = serveJSON payoutsJSON $ method GET payoutsHandler
       inviteRoute        = void . method POST $ projectInviteHandler cfg
 
       auctionCreateRoute = void $ method POST auctionCreateHandler
+      auctionRoute       = serveJSON auctionJSON $ method GET auctionGetHandler
 
       amendEventRoute    = serveJSON amendmentIdJSON $ method PUT amendEventHandler
 
@@ -70,6 +71,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
             , ("projects/:projectId/invite",            inviteRoute)
 
             , ("projects/:projectId/auctions", auctionCreateRoute)
+            , ("auctions/:auctionId",          auctionRoute)
 
             , ("events/:eventId/amend", amendEventRoute)
             ]
