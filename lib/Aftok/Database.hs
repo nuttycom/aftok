@@ -112,8 +112,6 @@ checkProjectAuth pid uid act = do
     then pure ()
     else void . fc $ raiseOpForbidden uid UserNotProjectMember act
 
-
-
 addUserToProject :: ProjectId -> InvitingUID -> InvitedUID -> DBProg ()
 addUserToProject pid current new =
   withProjectAuth pid current $ AddUserToProject pid current new
@@ -175,3 +173,9 @@ findAuction aid uid =
     maybeAuc <- fc findAuc
     _ <- traverse (\auc -> checkProjectAuth (auc ^. A.projectId) uid findAuc) maybeAuc
     pure maybeAuc
+
+createBid :: AuctionId -> UserId -> Bid -> DBProg (BidId)
+createBid aid uid bid = do
+  maybeAuc <- findAuction aid uid
+  let createOp = CreateBid aid bid
+  fc $ maybe (raiseSubjectNotFound createOp) (const createOp) maybeAuc

@@ -88,6 +88,10 @@ qdbProjectJSON (pid, project) = v1 $
          , "project" .= projectJSON project
          ]
 
+projectIdJSON :: ProjectId -> Value
+projectIdJSON pid = v1 $
+  object [ "projectId" .= tshow (pid ^. _ProjectId) ]
+
 projectJSON :: Project -> Value
 projectJSON p = v1 $
   object [ "projectName"    .= (p ^. projectName)
@@ -95,12 +99,21 @@ projectJSON p = v1 $
          , "initiator"      .= tshow (p ^. (P.initiator._UserId))
          ]
 
+auctionIdJSON :: AuctionId -> Value
+auctionIdJSON pid = v1 $
+  object [ "auctionId" .= tshow (pid ^. _AuctionId) ]
+
 auctionJSON :: Auction -> Value
 auctionJSON x = v1 $
   object [ "projectId"    .= tshow (x ^. (A.projectId._ProjectId))
          , "initiator"    .= tshow (x ^. (A.initiator._UserId))
          , "raiseAmount"  .= (x ^. (raiseAmount._Satoshi))
          ]
+
+bidIdJSON :: BidId -> Value
+bidIdJSON pid = v1 $
+  object [ "bidId" .= tshow (pid ^. _BidId) ]
+
 
 payoutsJSON :: Payouts -> Value
 payoutsJSON (Payouts m) = v1 $

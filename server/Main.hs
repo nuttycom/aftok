@@ -40,18 +40,19 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
       registerRoute      = void $ method POST registerHandler
       acceptInviteRoute  = void $ method POST acceptInvitationHandler
 
-      projectCreateRoute = void $ method POST projectCreateHandler
+      projectCreateRoute = serveJSON projectIdJSON $ method POST projectCreateHandler
       listProjectsRoute  = serveJSON (fmap qdbProjectJSON) $ method GET projectListHandler
 
       projectRoute       = serveJSON projectJSON $ method GET projectGetHandler
-      logEventRoute f    = serveJSON eventIdJSON . method POST $ logWorkHandler f
+      logEventRoute f    = serveJSON eventIdJSON $ method POST (logWorkHandler f)
       logEntriesRoute    = serveJSON (fmap logEntryJSON) $ method GET logEntriesHandler
       logIntervalsRoute  = serveJSON workIndexJSON $ method GET loggedIntervalsHandler
       payoutsRoute       = serveJSON payoutsJSON $ method GET payoutsHandler
       inviteRoute        = void . method POST $ projectInviteHandler cfg
 
-      auctionCreateRoute = void $ method POST auctionCreateHandler
+      auctionCreateRoute = serveJSON auctionIdJSON $ method POST auctionCreateHandler
       auctionRoute       = serveJSON auctionJSON $ method GET auctionGetHandler
+      auctionBidRoute    = serveJSON bidIdJSON $ method POST auctionBidHandler
 
       amendEventRoute    = serveJSON amendmentIdJSON $ method PUT amendEventHandler
 
@@ -72,6 +73,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
 
             , ("projects/:projectId/auctions", auctionCreateRoute)
             , ("auctions/:auctionId",          auctionRoute)
+            , ("auctions/:auctionId/bid",      auctionBidRoute)
 
             , ("events/:eventId/amend", amendEventRoute)
             ]
