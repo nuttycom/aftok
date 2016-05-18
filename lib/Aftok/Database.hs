@@ -48,12 +48,13 @@ data DBOp a where
   CreateBid        :: AuctionId -> Bid -> DBOp BidId
   ReadBids         :: AuctionId -> DBOp [Bid]
 
-  RaiseDBError     :: forall x. DBError -> DBOp x -> DBOp x
+  RaiseDBError     :: forall x y. DBError -> DBOp x -> DBOp y
 
 data OpForbiddenReason = UserNotProjectMember
                        | UserNotEventLogger
                        | InvitationExpired
                        | InvitationAlreadyAccepted
+                       | AuctionEnded
                        deriving (Eq, Show, Typeable)
 
 data DBError = OpForbidden UserId OpForbiddenReason
@@ -65,7 +66,7 @@ instance Exception DBError
 raiseOpForbidden :: UserId -> OpForbiddenReason -> DBOp x -> DBOp x
 raiseOpForbidden uid r = RaiseDBError (OpForbidden uid r)
 
-raiseSubjectNotFound :: DBOp x -> DBOp x
+raiseSubjectNotFound :: DBOp y -> DBOp x
 raiseSubjectNotFound = RaiseDBError SubjectNotFound
 
 class DBEval m where
@@ -168,14 +169,25 @@ createAuction a = do
 
 findAuction :: AuctionId -> UserId -> DBProg (Maybe Auction)
 findAuction aid uid = 
-  let findAuc = FindAuction aid
+  let findOp = FindAuction aid
   in  do
-    maybeAuc <- fc findAuc
-    _ <- traverse (\auc -> checkProjectAuth (auc ^. A.projectId) uid findAuc) maybeAuc
+    maybeAuc <- fc findOp
+    _ <- traverse (\auc -> checkProjectAuth (auc ^. A.projectId) uid findOp) maybeAuc
     pure maybeAuc
 
+findAuction' :: AuctionId -> UserId -> DBProg Auction
+findAuction' aid uid = 
+  let findOp = FindAuction aid
+  in  do
+    maybeAuc <- fc findOp
+    _ <- traverse (\auc -> checkProjectAuth (auc ^. A.projectId) uid findOp) maybeAuc
+    maybe (fc $ raiseSubjectNotFound findOp) pure maybeAuc
+
 createBid :: AuctionId -> UserId -> Bid -> DBProg (BidId)
-createBid aid uid bid = do
-  maybeAuc <- findAuction aid uid
+createBid aid uid bid = 
   let createOp = CreateBid aid bid
-  fc $ maybe (raiseSubjectNotFound createOp) (const createOp) maybeAuc
+  in  do
+    auc <- findAuction' aid uid
+    fc $ if view bidTime bid > view auctionEnd auc 
+      then raiseOpForbidden uid AuctionEnded createOp
+      else createOp

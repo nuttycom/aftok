@@ -65,3 +65,4 @@ auctionBidHandler = do
   requestBody <- readRequestJSON 4096
   bid <- either (snapError 400 . tshow) pure $ parseEither (bidCreateParser uid timestamp) requestBody
   snapEval $ createBid aid uid bid
+    
