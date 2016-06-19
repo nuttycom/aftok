@@ -12,7 +12,7 @@ import           OpenSSL.Random
 
 import           Aftok
 
-newtype ProjectId = ProjectId UUID deriving (Show, Eq)
+newtype ProjectId = ProjectId UUID deriving (Show, Eq, Ord)
 makePrisms ''ProjectId
 
 type ProjectName = Text

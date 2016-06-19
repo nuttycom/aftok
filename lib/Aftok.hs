@@ -24,7 +24,7 @@ newtype Months = Months Integer
 data DepreciationFunction = LinearDepreciation Months Months
   deriving (Eq, Show, Data, Typeable)
 
-newtype UserId = UserId UUID deriving (Show, Eq)
+newtype UserId = UserId UUID deriving (Show, Eq, Ord)
 makePrisms ''UserId
 
 newtype UserName = UserName Text deriving (Show, Eq)
