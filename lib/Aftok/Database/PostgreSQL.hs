@@ -156,17 +156,31 @@ transactQDBM (QDBM rt) = QDBM $ do
   lift . EitherT $ withTransaction conn (runEitherT $ runReaderT rt conn)
 
 instance DBEval QDBM where
-  dbEval (CreateEvent (ProjectId pid) (UserId uid) (LogEntry a e m)) =
-    pinsert EventId
-      "INSERT INTO work_events (project_id, user_id, btc_addr, event_type, event_time, event_metadata) \
-      \VALUES (?, ?, ?, ?, ?, ?) \
-      \RETURNING id"
-      ( pid, uid
-      , a ^. _BtcAddr
-      , eventName e
-      , fromThyme $ e ^. eventTime
-      , m
-      )
+  dbEval (CreateEvent (ProjectId pid) (UserId uid) (LogEntry c e m)) =
+    case c of 
+      CreditToAddress addr -> 
+        pinsert EventId
+          "INSERT INTO work_events \
+          \(project_id, user_id, credit_to_btc_addr, event_type, event_time, event_metadata) \
+          \VALUES (?, ?, ?, ?, ?, ?) \
+          \RETURNING id"
+          ( pid, uid, addr ^. _BtcAddr, eventName e, fromThyme $ e ^. eventTime, m)
+
+      CreditToProject pid ->
+        pinsert EventId
+          "INSERT INTO work_events \
+          \(project_id, user_id, credit_to_project_id, event_type, event_time, event_metadata) \
+          \VALUES (?, ?, ?, ?, ?, ?) \
+          \RETURNING id"
+          ( pid, uid, pid ^. _ProjectId, eventName e, fromThyme $ e ^. eventTime, m)
+
+      CreditToUser uid ->
+        pinsert EventId
+          "INSERT INTO work_events \
+          \(project_id, user_id, credit_to_user_id, event_type, event_time, event_metadata) \
+          \VALUES (?, ?, ?, ?, ?, ?) \
+          \RETURNING id"
+          ( pid, uid, pid ^. _UserId, eventName e, fromThyme $ e ^. eventTime, m)
 
   dbEval (FindEvent (EventId eid)) =
     headMay <$> pquery qdbLogEntryParser
@@ -192,17 +206,38 @@ instance DBEval QDBM where
 
   dbEval (AmendEvent (EventId eid) (TimeChange mt t)) =
     pinsert AmendmentId
-      "INSERT INTO event_time_amendments (event_id, mod_time, event_time) VALUES (?, ?, ?) RETURNING id"
+      "INSERT INTO event_time_amendments \
+      \(event_id, amended_at, event_time) \
+      \VALUES (?, ?, ?) RETURNING id"
       ( eid, fromThyme $ mt ^. _ModTime, fromThyme t )
 
-  dbEval (AmendEvent (EventId eid) (AddressChange mt addr)) =
-    pinsert AmendmentId
-      "INSERT INTO event_addr_amendments (event_id, mod_time, btc_addr) VALUES (?, ?, ?) RETURNING id"
-      ( eid, fromThyme $ mt ^. _ModTime, addr ^. _BtcAddr )
+  dbEval (AmendEvent (EventId eid) (CreditToChange mt creditTo)) =
+    case creditTo of
+      CreditToAddress addr ->
+        pinsert AmendmentId
+          "INSERT INTO event_credit_to_amendments \
+          \(event_id, amended_at, credit_to_type, credit_to_btc_addr) \
+          \VALUES (?, ?, ?, ?) RETURNING id"
+          ( eid, fromThyme $ mt ^. _ModTime, "credit_to_address", addr ^. _BtcAddr )
+
+      CreditToProject pid ->
+        pinsert AmendmentId
+          "INSERT INTO event_credit_to_amendments \
+          \(event_id, amended_at, credit_to_type, credit_to_project_id) \
+          \VALUES (?, ?, ?, ?) RETURNING id"
+          ( eid, fromThyme $ mt ^. _ModTime, "credit_to_project", pid ^. _ProjectId )
+
+      CreditToUser uid -> 
+          "INSERT INTO event_credit_to_amendments \
+          \(event_id, amended_at, credit_to_type, credit_to_user_id) \
+          \VALUES (?, ?, ?, ?) RETURNING id"
+          ( eid, fromThyme $ mt ^. _ModTime, "credit_to_user", uid ^. _UserId )
 
   dbEval (AmendEvent (EventId eid) (MetadataChange mt v)) =
     pinsert AmendmentId
-      "INSERT INTO event_metadata_amendments (event_id, mod_time, btc_addr) VALUES (?, ?, ?) RETURNING id"
+      "INSERT INTO event_metadata_amendments \
+      \(event_id, amended_at, event_metadata) \
+      \VALUES (?, ?, ?) RETURNING id"
       ( eid, fromThyme $ mt ^. _ModTime, v)
 
   dbEval (ReadWorkIndex (ProjectId pid)) = do

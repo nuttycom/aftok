@@ -1,0 +1,48 @@
+Description: (Describe migration here.)
+Created: 2016-10-14 02:49:48.862103 UTC
+Depends: 2016-10-13_05-36-55_user-event-log
+Apply: |
+
+  create type credit_to_t as enum ('credit_to_address', 'credit_to_user', 'credit_to_project');
+
+  alter table work_events add column credit_to_type credit_to_t not null default 'credit_to_user';
+  alter table work_events alter column btc_addr drop not null;
+  alter table work_events rename column btc_addr to credit_to_btc_addr;
+  alter table work_events add column credit_to_user_id uuid references users(id);
+  alter table work_events add column credit_to_project_id uuid references projects(id);
+
+  create table event_time_amendments(
+    event_id uuid references work_events,
+    amended_at timestamp with time zone not null,
+    event_time timestamp with time zone not null
+  );
+
+  create table event_credit_to_amendments(
+    event_id uuid references work_events,
+    amended_at timestamp with time zone not null,
+    credit_to_type credit_to_t not null,
+    credit_to_btc_addr text,
+    credit_to_user_id uuid references users(id),
+    credit_to_project_id uuid references projects(id)
+  );
+
+  create table event_metadata_amendments(
+    event_id uuid references work_events,
+    amended_at timestamp with time zone not null,
+    event_metadata json not null
+  );
+
+Revert: |
+  drop table event_metadata_amendments;
+  drop table event_credit_to_amendments;
+  drop table event_time_amendments;
+
+  alter table work_events drop column credit_to_project_id;
+  alter table work_events drop column credit_to_user_id;
+  alter table work_events rename column credit_to_btc_addr to btc_addr;
+  alter table work_events alter column btc_addr set not null;
+  alter table work_events drop column credit_to_type;
+
+  drop type credit_to_t;
+  
+
