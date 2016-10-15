@@ -16,6 +16,7 @@ import           Data.UUID                            (UUID)
 import           Database.PostgreSQL.Simple
 import           Database.PostgreSQL.Simple.FromField
 import           Database.PostgreSQL.Simple.FromRow
+import           Database.PostgreSQL.Simple.Types     (Null)
 
 import           Aftok
 import           Aftok.Auction as A
@@ -33,25 +34,6 @@ instance MonadIO QDBM where
 
 runQDBM :: Connection -> QDBM a -> EitherT DBError IO a
 runQDBM conn (QDBM r) = runReaderT r conn
-
-eventTypeParser :: FieldParser (C.UTCTime -> LogEvent)
-eventTypeParser f v = do
-  tn <- typename f
-  case tn of
-    "event_t" ->
-      let err = UnexpectedNull (B.unpack tn)
-                               (tableOid f)
-                               (maybe "" B.unpack (name f))
-                               "UTCTime -> LogEvent"
-                               "columns of type event_t should not contain null values"
-      in  maybe (conversionError err) (nameEvent . decodeUtf8) v
-    _ ->
-      let err = Incompatible (B.unpack tn)
-                             (tableOid f)
-                             (maybe "" B.unpack (name f))
-                             "UTCTime -> LogEvent"
-                             "column was not of type event_t"
-      in conversionError err
 
 uidParser :: FieldParser UserId
 uidParser f v = UserId <$> fromField f v
@@ -77,9 +59,53 @@ btcParser f v = (Satoshi . fromInteger) <$> fromField f v
 utcParser :: FieldParser C.UTCTime
 utcParser f v = toThyme <$> fromField f v
 
+nullField :: RowParser Null
+nullField = field
+
+eventTypeParser :: FieldParser (C.UTCTime -> LogEvent)
+eventTypeParser f v = do
+  tn <- typename f
+  case tn of
+    "event_t" ->
+      let err = UnexpectedNull (B.unpack tn)
+                               (tableOid f)
+                               (maybe "" B.unpack (name f))
+                               "UTCTime -> LogEvent"
+                               "columns of type event_t should not contain null values"
+      in  maybe (conversionError err) (nameEvent . decodeUtf8) v
+    _ ->
+      let err = Incompatible (B.unpack tn)
+                             (tableOid f)
+                             (maybe "" B.unpack (name f))
+                             "UTCTime -> LogEvent"
+                             "column was not of type event_t"
+      in conversionError err
+
+creditToParser :: FieldParser (RowParser CreditTo)
+creditToParser f v = do
+  tn <- typename f
+  let parser :: Text -> Conversion (RowParser CreditTo)
+      parser tname = pure $ case tname of 
+        "credit_to_btc_addr" -> CreditToAddress <$> (fieldWith btcAddrParser <* nullField <* nullField)
+        "credit_to_user"     -> CreditToUser    <$> (nullField *> fieldWith uidParser <* nullField)
+        "credit_to_project"  -> CreditToProject <$> (nullField *> nullField *> fieldWith pidParser)
+        _ -> empty
+
+  case tn of
+    "credit_to_t" -> maybe empty (parser . decodeUtf8) v
+    _ -> conversionError $ 
+      Incompatible 
+        (B.unpack tn)
+        (tableOid f)
+        (maybe "" B.unpack (name f))
+        "RowParser CreditTo"
+        "column was not of type event_t"
+
+  
+
 logEntryParser :: RowParser LogEntry
 logEntryParser =
-  LogEntry <$> fieldWith btcAddrParser
+  LogEntry <$> join (fieldWith creditToParser)
            <*> (fieldWith eventTypeParser <*> fieldWith utcParser)
            <*> field
 
@@ -161,30 +187,32 @@ instance DBEval QDBM where
       CreditToAddress addr -> 
         pinsert EventId
           "INSERT INTO work_events \
-          \(project_id, user_id, credit_to_btc_addr, event_type, event_time, event_metadata) \
-          \VALUES (?, ?, ?, ?, ?, ?) \
+          \(project_id, user_id, credit_to_type, credit_to_btc_addr, event_type, event_time, event_metadata) \
+          \VALUES (?, ?, ?, ?, ?, ?, ?) \
           \RETURNING id"
-          ( pid, uid, addr ^. _BtcAddr, eventName e, fromThyme $ e ^. eventTime, m)
+          ( pid, uid, creditToName c, addr ^. _BtcAddr, eventName e, fromThyme $ e ^. eventTime, m)
 
-      CreditToProject pid ->
+      CreditToProject pid' ->
         pinsert EventId
           "INSERT INTO work_events \
-          \(project_id, user_id, credit_to_project_id, event_type, event_time, event_metadata) \
-          \VALUES (?, ?, ?, ?, ?, ?) \
+          \(project_id, user_id, credit_to_type, credit_to_project_id, event_type, event_time, event_metadata) \
+          \VALUES (?, ?, ?, ?, ?, ?, ?) \
           \RETURNING id"
-          ( pid, uid, pid ^. _ProjectId, eventName e, fromThyme $ e ^. eventTime, m)
+          ( pid, uid, creditToName c, pid' ^. _ProjectId, eventName e, fromThyme $ e ^. eventTime, m)
 
-      CreditToUser uid ->
+      CreditToUser uid' ->
         pinsert EventId
           "INSERT INTO work_events \
-          \(project_id, user_id, credit_to_user_id, event_type, event_time, event_metadata) \
-          \VALUES (?, ?, ?, ?, ?, ?) \
+          \(project_id, user_id, credit_to_type, credit_to_user_id, event_type, event_time, event_metadata) \
+          \VALUES (?, ?, ?, ?, ?, ?, ?) \
           \RETURNING id"
-          ( pid, uid, pid ^. _UserId, eventName e, fromThyme $ e ^. eventTime, m)
+          ( pid, uid, creditToName c, uid' ^. _UserId, eventName e, fromThyme $ e ^. eventTime, m)
 
   dbEval (FindEvent (EventId eid)) =
     headMay <$> pquery qdbLogEntryParser
-      "SELECT project_id, user_id, btc_addr, event_type, event_time, event_metadata FROM work_events \
+      "SELECT project_id, user_id, \
+      \credit_to_type, credit_to_btc_addr, credit_to_user_id, credit_to_project_id, \
+      \event_type, event_time, event_metadata FROM work_events \
       \WHERE id = ?"
       (Only eid)
 
@@ -211,27 +239,28 @@ instance DBEval QDBM where
       \VALUES (?, ?, ?) RETURNING id"
       ( eid, fromThyme $ mt ^. _ModTime, fromThyme t )
 
-  dbEval (AmendEvent (EventId eid) (CreditToChange mt creditTo)) =
-    case creditTo of
+  dbEval (AmendEvent (EventId eid) (CreditToChange mt c)) =
+    case c of
       CreditToAddress addr ->
         pinsert AmendmentId
           "INSERT INTO event_credit_to_amendments \
           \(event_id, amended_at, credit_to_type, credit_to_btc_addr) \
           \VALUES (?, ?, ?, ?) RETURNING id"
-          ( eid, fromThyme $ mt ^. _ModTime, "credit_to_address", addr ^. _BtcAddr )
+          ( eid, fromThyme $ mt ^. _ModTime, creditToName c, addr ^. _BtcAddr )
 
       CreditToProject pid ->
         pinsert AmendmentId
           "INSERT INTO event_credit_to_amendments \
           \(event_id, amended_at, credit_to_type, credit_to_project_id) \
           \VALUES (?, ?, ?, ?) RETURNING id"
-          ( eid, fromThyme $ mt ^. _ModTime, "credit_to_project", pid ^. _ProjectId )
+          ( eid, fromThyme $ mt ^. _ModTime, creditToName c, pid ^. _ProjectId )
 
       CreditToUser uid -> 
+        pinsert AmendmentId
           "INSERT INTO event_credit_to_amendments \
           \(event_id, amended_at, credit_to_type, credit_to_user_id) \
           \VALUES (?, ?, ?, ?) RETURNING id"
-          ( eid, fromThyme $ mt ^. _ModTime, "credit_to_user", uid ^. _UserId )
+          ( eid, fromThyme $ mt ^. _ModTime, creditToName c, uid ^. _UserId )
 
   dbEval (AmendEvent (EventId eid) (MetadataChange mt v)) =
     pinsert AmendmentId

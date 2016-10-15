@@ -3,7 +3,7 @@
 
 module Aftok.TimeLog
   ( LogEntry(..), creditTo, event, eventMeta
-  , CreditTo(..), _CreditToAddress, _CreditToUser, _CreditToProject
+  , CreditTo(..), _CreditToAddress, _CreditToUser, _CreditToProject, creditToName
   , LogEvent(..), eventName, nameEvent, eventTime
   , WorkIndex(WorkIndex), _WorkIndex, workIndex
   , DepF, toDepF
@@ -64,6 +64,11 @@ data CreditTo
   | CreditToProject ProjectId
   deriving (Show, Eq, Ord)
 makePrisms ''CreditTo
+
+creditToName :: CreditTo -> Text
+creditToName (CreditToAddress _) = "credit_to_address"
+creditToName (CreditToUser _) = "credit_to_user"
+creditToName (CreditToProject _) = "credit_to_project"
 
 data LogEntry = LogEntry
   { _creditTo  :: CreditTo

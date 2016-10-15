@@ -14,6 +14,7 @@ import           Data.Data
 import           Data.List.NonEmpty               as L
 import           Data.Map.Strict                  as MS
 import           Data.HashMap.Strict              as O
+import           Data.UUID                        as U
 
 import           Aftok
 import           Aftok.Auction                    as A
@@ -121,18 +122,25 @@ bidIdJSON pid = v1 $
   object [ "bidId" .= tshow (pid ^. _BidId) ]
 
 creditToJSON :: CreditTo -> Value
-creditToJSON (CreditToAddress addr) = v2 $ object [ "creditToAddress" .= addr ]
-creditToJSON (CreditToUser uid)     = v2 $ object [ "creditToUser"    .= (uid ^. _UserId) ]
+creditToJSON (CreditToAddress addr) = v2 $ object [ "creditToAddress" .= (addr ^. _BtcAddr) ]
+creditToJSON (CreditToUser uid)     = v2 $ object [ "creditToUser"    .= tshow (uid ^. _UserId) ]
 creditToJSON (CreditToProject pid)  = v2 $ object [ "creditToProject" .= projectIdJSON pid ]
 
 payoutsJSON :: Payouts -> Value
-payoutsJSON (Payouts m) = v1 $
-  toJSON $ (creditToJSON *** id) <$> MS.assocs m
+payoutsJSON (Payouts m) = v2 $
+  let payoutsRec :: (CreditTo, Rational) -> Value
+      payoutsRec (c, r) = object [ "creditTo" .= creditToJSON c
+                                 , "payoutRatio" .= r
+                                 ]
+  in  toJSON $ fmap payoutsRec (MS.assocs m)
 
-workIndexJSONV1 :: WorkIndex -> Value
-workIndexJSONV1 (WorkIndex widx) = v1 $
-  toJSON $ (L.toList . fmap intervalJSON) <$> 
-  MS.mapKeysMonotonic (^? (_CreditToAddress._BtcAddr)) widx
+workIndexJSON :: WorkIndex -> Value
+workIndexJSON (WorkIndex widx) = v2 $
+  let widxRec :: (CreditTo, NonEmpty Interval) -> Value
+      widxRec (c, l) = object [ "creditTo"  .= creditToJSON c
+                              , "intervals" .= (intervalJSON <$> L.toList l)
+                              ]
+  in  toJSON $ fmap widxRec (MS.assocs widx)
 
 eventIdJSON :: EventId -> Value
 eventIdJSON (EventId eid) = v1 $
@@ -155,8 +163,14 @@ amendmentIdJSON (AmendmentId aid) = v1 $
 -------------
 
 parsePayoutsJSON :: Value -> Parser Payouts
-parsePayoutsJSON = unv1 "payouts" $ \v ->
-  Payouts . MS.mapKeys (CreditToAddress . BtcAddr) <$> parseJSON v
+parsePayoutsJSON = unversion $ \ver -> case ver of
+  (Version 1 _) -> \v -> Payouts . MS.mapKeys (CreditToAddress . BtcAddr) <$> parseJSON v 
+  (Version 2 0) -> \v -> do
+    xs <- parseJSON v
+    let parsePayoutRecord x = (,) <$> (parseCreditTo =<< (x .: "creditTo"))
+                                  <*> x .: "payoutRatio"
+    Payouts . MS.fromList <$> traverse parsePayoutRecord xs 
+  _             -> badVersion "Payouts" ver
 
 parseEventAmendment :: ModTime -> Value -> Parser EventAmendment
 parseEventAmendment t = unversion $ \v -> case v of
@@ -170,10 +184,10 @@ parseEventAmendmentV1 t v@(Object x) =
       parseA "timeChange"     = TimeChange t <$> x .: "eventTime"
       parseA "addrChange"     = CreditToChange t <$> parseCreditTo v
       parseA "metadataChange" = MetadataChange t <$> x .: "eventMeta"
-      parseA id = fail . show $ "Amendment type " <> id <> " not recognized."
+      parseA tid = fail . show $ "Amendment type " <> tid <> " not recognized."
   in  x .: "amendment" >>= parseA 
 
-parseEventAmendmentV1 t x =
+parseEventAmendmentV1 _ x =
   fail $ "Value " <> show x <> " is not a JSON object."
 
 parseEventAmendmentV2 :: ModTime -> Value -> Parser EventAmendment
@@ -182,10 +196,10 @@ parseEventAmendmentV2 t v@(Object x) =
       parseA "timeChange"     = TimeChange t <$> x .: "eventTime"
       parseA "creditToChange" = CreditToChange t <$> parseCreditTo v
       parseA "metadataChange" = MetadataChange t <$> x .: "eventMeta"
-      parseA id = fail . show $ "Amendment type " <> id <> " not recognized."
+      parseA tid = fail . show $ "Amendment type " <> tid <> " not recognized."
   in  x .: "amendment" >>= parseA 
 
-parseEventAmendmentV2 t x =
+parseEventAmendmentV2 _ x =
   fail $ "Value " <> show x <> " is not a JSON object."
 
 parseBtcAddrJson :: Value -> Parser BtcAddr
@@ -195,9 +209,14 @@ parseBtcAddrJson v = do
 
 parseCreditTo :: Value -> Parser CreditTo
 parseCreditTo = unversion $ \x -> case x of
-  Version 1 0 -> withObject "BtcAddr" parseCreditToV1
+  Version 1 0 -> withObject "BtcAddr"  parseCreditToV1
   Version 2 0 -> withObject "CreditTo" parseCreditToV2
   _           -> badVersion "EventAmendment" x
+
+parseUUID :: Value -> Parser U.UUID
+parseUUID v = do
+  str <- parseJSON v
+  maybe (fail $ "Value " <> str <> "Could not be parsed as a valid UUID.") pure $ U.fromString str
 
 parseCreditToV1 :: Object -> Parser CreditTo 
 parseCreditToV1 x = CreditToAddress <$> (parseBtcAddrJson =<< (x .: "btcAddr"))
@@ -207,13 +226,15 @@ parseCreditToV2 x =
   let parseCreditToAddr (Object x') = do 
         addrText <- O.lookup "creditToAddress" x'
         pure (CreditToAddress <$> parseBtcAddrJson addrText)
-      parseCreditToAddr x' = Nothing
+      parseCreditToAddr _ = Nothing
 
-      parseCreditToUser (Object x') = Nothing
-      parseCreditToUser x' = Nothing
+      parseCreditToUser (Object x') = do
+        userText <- O.lookup "creditToUser" x'
+        pure (CreditToUser . UserId <$> parseUUID userText)
+      parseCreditToUser _ = Nothing
 
-      parseCreditToProject (Object x') = Nothing
-      parseCreditToProject x' = Nothing
+      --parseCreditToProject (Object x') = Nothing
+      parseCreditToProject _ = Nothing
 
       notFound = fail $ "Value " <> show x <> " does not represent a CreditTo value."
       parseV v = (parseCreditToAddr v <|> parseCreditToUser v <|> parseCreditToProject v)

@@ -7,7 +7,7 @@ Apply: |
 
   alter table work_events add column credit_to_type credit_to_t not null default 'credit_to_user';
   alter table work_events alter column btc_addr drop not null;
-  alter table work_events rename column btc_addr to credit_to_btc_addr;
+  alter table work_events rename column btc_addr to credit_to_address;
   alter table work_events add column credit_to_user_id uuid references users(id);
   alter table work_events add column credit_to_project_id uuid references projects(id);
 
