@@ -26,6 +26,16 @@ logWorkHandler :: (C.UTCTime -> LogEvent) -> Handler App App EventId
 logWorkHandler evCtr = do
   uid <- requireUserId
   pid <- requireProjectId
+  requestBody <- readRequestBody 4096
+  timestamp <- liftIO C.getCurrentTime
+  case A.eitherDecode requestBody >>= parseEither (parseLogEntry evCtr) of
+    Left err -> snapError 400 $ "Unable to parse log entry " <> (tshow requestBody) <> ": " <> tshow err
+    Right entry -> snapEval $ createEvent pid uid (entry timestamp)
+
+logWorkBTCHandler :: (C.UTCTime -> LogEvent) -> Handler App App EventId
+logWorkBTCHandler evCtr = do
+  uid <- requireUserId
+  pid <- requireProjectId
   addrBytes <- getParam "btcAddr"
   requestBody <- readRequestBody 4096
   timestamp <- liftIO C.getCurrentTime
@@ -35,16 +45,6 @@ logWorkHandler evCtr = do
     Just addr ->
       snapEval . createEvent pid uid $
         LogEntry (CreditToAddress addr) (evCtr timestamp) (A.decode requestBody)
-
-recordLogEntryHandler :: Handler App App EventId
-recordLogEntryHandler = do
-  uid <- requireUserId
-  pid <- requireProjectId
-  requestBody <- readRequestBody 4096
-  timestamp <- liftIO C.getCurrentTime
-  case A.eitherDecode requestBody >>= parseEither parseLogEntry of
-    Left err -> snapError 400 $ "Unable to parse log entry " <> (tshow requestBody) <> ": " <> tshow err
-    Right entry -> snapEval $ createEvent pid uid (entry timestamp)
 
 loggedIntervalsHandler :: Handler App App WorkIndex
 loggedIntervalsHandler = do

@@ -45,7 +45,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
 
       projectRoute        = serveJSON projectJSON $ method GET projectGetHandler
       logWorkRoute f      = serveJSON eventIdJSON $ method POST (logWorkHandler f)
-      recordLogEntryRoute = serveJSON eventIdJSON $ method POST recordLogEntryHandler
+      logWorkBTCRoute f   = serveJSON eventIdJSON $ method POST (logWorkBTCHandler f)
       logEntriesRoute     = serveJSON (fmap logEntryJSON) $ method GET logEntriesHandler
       logIntervalsRoute   = serveJSON workIndexJSON $ method GET loggedIntervalsHandler
       payoutsRoute        = serveJSON payoutsJSON $ method GET payoutsHandler
@@ -65,9 +65,10 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
             , ("projects", listProjectsRoute)
 
             , ("projects/:projectId",                   projectRoute)
-            , ("projects/:projectId/logStart/:btcAddr", logWorkRoute StartWork)
-            , ("projects/:projectId/logEnd/:btcAddr",   logWorkRoute StopWork)
-            , ("projects/:projectId/logWorkEvent",      recordLogEntryRoute)
+            , ("projects/:projectId/logStart",          logWorkRoute StartWork)
+            , ("projects/:projectId/logEnd",            logWorkRoute StopWork)
+            , ("projects/:projectId/logStart/:btcAddr", logWorkBTCRoute StartWork)
+            , ("projects/:projectId/logEnd/:btcAddr",   logWorkBTCRoute StopWork)
             , ("projects/:projectId/logEntries",        logEntriesRoute)
             , ("projects/:projectId/intervals",         logIntervalsRoute)
             , ("projects/:projectId/payouts",           payoutsRoute)
