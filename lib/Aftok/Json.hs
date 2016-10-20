@@ -14,6 +14,7 @@ import           Data.Data
 import           Data.List.NonEmpty               as L
 import           Data.Map.Strict                  as MS
 import           Data.HashMap.Strict              as O
+import           Data.Thyme.Clock                 as C
 import           Data.UUID                        as U
 
 import           Aftok
@@ -246,15 +247,13 @@ parseCreditToV2 x =
     body <- x .: "creditTo"
     fromMaybe notFound $ parseV body 
 
-parseLogEvent :: Object -> Parser LogEvent
-parseLogEvent x = 
-  (StartWork <$> x .: "start") <|> (StopWork <$> x .: "stop")
-
-parseLogEntry :: Value -> Parser LogEntry
+parseLogEntry :: Value -> Parser (C.UTCTime -> LogEntry)
 parseLogEntry = unversion parseLogEntry' where 
-  parseLogEntry' (Version 2 0) (Object x) =
-    LogEntry <$> (x .: "creditTo" >>= parseCreditTo)
-             <*> (x .: "event" >>= parseLogEvent)
-             <*> (x .: "eventMeta")
+  parseLogEntry' (Version 2 0) (Object x) = do
+    creditTo'  <- x .: "creditTo" >>= parseCreditTo
+    eventCtr   <- x .: "eventType" >>= nameEvent
+    eventMeta' <- x .: "eventMeta"
+    pure $ \t -> LogEntry creditTo' (eventCtr t) eventMeta'
+
   parseLogEntry' v x = badVersion "LogEntry" v x
 

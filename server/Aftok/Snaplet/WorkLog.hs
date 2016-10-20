@@ -44,7 +44,7 @@ recordLogEntryHandler = do
   timestamp <- liftIO C.getCurrentTime
   case A.eitherDecode requestBody >>= parseEither parseLogEntry of
     Left err -> snapError 400 $ "Unable to parse log entry " <> (tshow requestBody) <> ": " <> tshow err
-    Right entry -> snapEval $ createEvent pid uid (event.eventTime .~ timestamp $ entry)
+    Right entry -> snapEval $ createEvent pid uid (entry timestamp)
 
 loggedIntervalsHandler :: Handler App App WorkIndex
 loggedIntervalsHandler = do
