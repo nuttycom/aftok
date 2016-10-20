@@ -51,8 +51,8 @@ eventName (StartWork _) = "start"
 eventName (StopWork  _) = "stop"
 
 nameEvent :: MonadPlus m => Text -> m (C.UTCTime -> LogEvent)
-nameEvent "start" = return StartWork
-nameEvent "stop"  = return StopWork
+nameEvent "start" = pure StartWork
+nameEvent "stop"  = pure StopWork
 nameEvent _       = mzero
 
 data CreditTo 

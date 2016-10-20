@@ -115,6 +115,7 @@ Executable aftok-server
     , containers
     , configurator              
     , either
+    , errors
     , hourglass
     , HStringTemplate           >= 0.8.3
     , iso8601-time

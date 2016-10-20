@@ -60,8 +60,8 @@ versioned ver v = object [ "schemaVersion" .= tshow ver
  -}
 unversion :: (Version -> Value -> Parser a) -> Value -> Parser a
 unversion f (Object v) = do
-  verstr   <- v .: "schemaVersion"
-  vers  <- either fail pure $ PC.parseOnly versionParser (encodeUtf8 verstr)
+  verstr <- v .: "schemaVersion"
+  vers   <- either fail pure $ PC.parseOnly versionParser (encodeUtf8 verstr)
   v .: "value" >>= f vers
 
 unversion _ x =
@@ -146,11 +146,14 @@ eventIdJSON :: EventId -> Value
 eventIdJSON (EventId eid) = v1 $
   object [ "eventId" .= tshow eid ]
 
+
+logEventJSON :: LogEvent -> Value
+logEventJSON ev = object [ eventName ev .= object [ "eventTime" .= (ev ^. eventTime) ] ]
+
 logEntryJSON :: LogEntry -> Value
 logEntryJSON (LogEntry c ev m) = v2 $ 
   object [ "creditTo"  .= creditToJSON c
-         , "eventType" .= eventName ev
-         , "eventTime" .= (ev ^. eventTime)
+         , "event" .= logEventJSON ev
          , "eventMeta" .= m
          ]
 
@@ -207,16 +210,16 @@ parseBtcAddrJson v = do
   t <- parseJSON v
   maybe (fail $ show t <> " is not a valid BTC address") pure $ parseBtcAddr t
 
-parseCreditTo :: Value -> Parser CreditTo
-parseCreditTo = unversion $ \x -> case x of
-  Version 1 0 -> withObject "BtcAddr"  parseCreditToV1
-  Version 2 0 -> withObject "CreditTo" parseCreditToV2
-  _           -> badVersion "EventAmendment" x
-
 parseUUID :: Value -> Parser U.UUID
 parseUUID v = do
   str <- parseJSON v
   maybe (fail $ "Value " <> str <> "Could not be parsed as a valid UUID.") pure $ U.fromString str
+
+parseCreditTo :: Value -> Parser CreditTo
+parseCreditTo = unversion $ \v -> case v of
+  Version 1 0 -> withObject "BtcAddr"  parseCreditToV1
+  Version 2 0 -> withObject "CreditTo" parseCreditToV2
+  _           -> badVersion "EventAmendment" v
 
 parseCreditToV1 :: Object -> Parser CreditTo 
 parseCreditToV1 x = CreditToAddress <$> (parseBtcAddrJson =<< (x .: "btcAddr"))
@@ -242,4 +245,16 @@ parseCreditToV2 x =
   in  do
     body <- x .: "creditTo"
     fromMaybe notFound $ parseV body 
+
+parseLogEvent :: Object -> Parser LogEvent
+parseLogEvent x = 
+  (StartWork <$> x .: "start") <|> (StopWork <$> x .: "stop")
+
+parseLogEntry :: Value -> Parser LogEntry
+parseLogEntry = unversion parseLogEntry' where 
+  parseLogEntry' (Version 2 0) (Object x) =
+    LogEntry <$> (x .: "creditTo" >>= parseCreditTo)
+             <*> (x .: "event" >>= parseLogEvent)
+             <*> (x .: "eventMeta")
+  parseLogEntry' v x = badVersion "LogEntry" v x
 

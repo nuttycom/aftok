@@ -36,25 +36,26 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
   pgs   <- nestSnaplet "db" db $ pgsInit' (pgsConfig cfg)
   auths <- nestSnaplet "auth" auth $ initPostgresAuth sess pgs
 
-  let loginRoute         = requireLogin >> redirect "/home"
-      registerRoute      = void $ method POST registerHandler
-      acceptInviteRoute  = void $ method POST acceptInvitationHandler
+  let loginRoute          = requireLogin >> redirect "/home"
+      registerRoute       = void $ method POST registerHandler
+      acceptInviteRoute   = void $ method POST acceptInvitationHandler
 
-      projectCreateRoute = serveJSON projectIdJSON $ method POST projectCreateHandler
-      listProjectsRoute  = serveJSON (fmap qdbProjectJSON) $ method GET projectListHandler
+      projectCreateRoute  = serveJSON projectIdJSON $ method POST projectCreateHandler
+      listProjectsRoute   = serveJSON (fmap qdbProjectJSON) $ method GET projectListHandler
 
-      projectRoute       = serveJSON projectJSON $ method GET projectGetHandler
-      logEventRoute f    = serveJSON eventIdJSON $ method POST (logWorkHandler f)
-      logEntriesRoute    = serveJSON (fmap logEntryJSON) $ method GET logEntriesHandler
-      logIntervalsRoute  = serveJSON workIndexJSON $ method GET loggedIntervalsHandler
-      payoutsRoute       = serveJSON payoutsJSON $ method GET payoutsHandler
-      inviteRoute        = void . method POST $ projectInviteHandler cfg
+      projectRoute        = serveJSON projectJSON $ method GET projectGetHandler
+      logWorkRoute f      = serveJSON eventIdJSON $ method POST (logWorkHandler f)
+      recordLogEntryRoute = serveJSON eventIdJSON $ method POST recordLogEntryHandler
+      logEntriesRoute     = serveJSON (fmap logEntryJSON) $ method GET logEntriesHandler
+      logIntervalsRoute   = serveJSON workIndexJSON $ method GET loggedIntervalsHandler
+      payoutsRoute        = serveJSON payoutsJSON $ method GET payoutsHandler
+      inviteRoute         = void . method POST $ projectInviteHandler cfg
 
-      auctionCreateRoute = serveJSON auctionIdJSON $ method POST auctionCreateHandler
-      auctionRoute       = serveJSON auctionJSON $ method GET auctionGetHandler
-      auctionBidRoute    = serveJSON bidIdJSON $ method POST auctionBidHandler
+      auctionCreateRoute  = serveJSON auctionIdJSON $ method POST auctionCreateHandler
+      auctionRoute        = serveJSON auctionJSON $ method GET auctionGetHandler
+      auctionBidRoute     = serveJSON bidIdJSON $ method POST auctionBidHandler
 
-      amendEventRoute    = serveJSON amendmentIdJSON $ method PUT amendEventHandler
+      amendEventRoute     = serveJSON amendmentIdJSON $ method PUT amendEventHandler
 
   addRoutes [ ("login",             loginRoute)
             , ("register",          registerRoute)
@@ -64,8 +65,9 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
             , ("projects", listProjectsRoute)
 
             , ("projects/:projectId",                   projectRoute)
-            , ("projects/:projectId/logStart/:btcAddr", logEventRoute StartWork)
-            , ("projects/:projectId/logEnd/:btcAddr",   logEventRoute StopWork)
+            , ("projects/:projectId/logStart/:btcAddr", logWorkRoute StartWork)
+            , ("projects/:projectId/logEnd/:btcAddr",   logWorkRoute StopWork)
+            , ("projects/:projectId/logWorkEvent",      recordLogEntryRoute)
             , ("projects/:projectId/logEntries",        logEntriesRoute)
             , ("projects/:projectId/intervals",         logIntervalsRoute)
             , ("projects/:projectId/payouts",           payoutsRoute)
