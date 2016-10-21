@@ -1,39 +1,31 @@
 ## Dockerfile for the Aftok environment
-FROM       phusion/baseimage:0.9.16
+FROM       phusion/baseimage:0.9.19
 MAINTAINER Kris Nuttycombe <kris@aftok.com>
 
 ## ensure locale is set during build
 ENV LANG            C.UTF-8
 
 # Base GHC/cabal install
-RUN echo 'deb http://ppa.launchpad.net/hvr/ghc/ubuntu trusty main' > /etc/apt/sources.list.d/ghc.list && \
-    apt-key adv --keyserver keyserver.ubuntu.com --recv-keys F6F88286 && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends cabal-install-1.22 ghc-7.10.2 happy-1.19.5 alex-3.1.4 \
-            zlib1g-dev libtinfo-dev libsqlite3-0 libsqlite3-dev ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
-
-ENV PATH /root/.cabal/bin:/opt/cabal/1.22/bin:/opt/ghc/7.10.2/bin:/opt/happy/1.19.5/bin:/opt/alex/3.1.4/bin:$PATH
+RUN echo 'deb http://download.fpcomplete.com/ubuntu xenial main' > /etc/apt/sources.list.d/fpco.list && \
+    apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 575159689BEFB442
 
 # Install libpq-dev to enable postgresql-simple build
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends wget && \
-    echo 'deb http://apt.postgresql.org/pub/repos/apt/ trusty-pgdg main' > /etc/apt/sources.list.d/pgdg.list && \
-    wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends libpq-dev
+    apt-get install -y --no-install-recommends libpq-dev stack
 
 # Install and build aftok-server dependencies
 ADD ./aftok.cabal /opt/aftok/aftok.cabal
-WORKDIR /opt/aftok
-RUN cabal update
-RUN cabal install cpphs 
-RUN cabal install --only-dependencies -j4 
-
-# Install and build aftok-server sources
+ADD ./stack.yaml  /opt/aftok/stack.yaml
 ADD ./lib         /opt/aftok/lib
 ADD ./server      /opt/aftok/server
-RUN cabal configure && cabal build aftok-server
+ADD ./test        /opt/aftok/test
+WORKDIR /opt/aftok
+
+RUN stack setup
+RUN stack install cpphs 
+
+# Install and build aftok-server sources
+RUN stack build
 
 # Set up /etc/aftok volume for configuration information
 RUN mkdir /etc/aftok
