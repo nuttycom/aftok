@@ -251,7 +251,7 @@ parseLogEntry :: (C.UTCTime -> LogEvent) -> Value -> Parser (C.UTCTime -> LogEnt
 parseLogEntry f = unversion parseLogEntry' where 
   parseLogEntry' (Version 2 0) (Object x) = do
     creditTo'  <- x .: "creditTo" >>= parseCreditTo
-    eventMeta' <- x .: "eventMeta"
+    eventMeta' <- x .:? "eventMeta"
     pure $ \t -> LogEntry creditTo' (f t) eventMeta'
 
   parseLogEntry' v x = badVersion "LogEntry" v x
