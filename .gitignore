@@ -19,3 +19,4 @@ local
 
 docker-conf
 client/.pulp-cache
+moo.cfg
