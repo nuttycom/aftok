@@ -27,19 +27,14 @@ import           Snap
 data AuctionCreateRequest = CA { raiseAmount :: Word64, auctionEnd :: C.UTCTime }
 
 auctionCreateParser :: Value -> Parser AuctionCreateRequest
-auctionCreateParser = unv1 "auctions" $ \v ->
-  case v of
-    (Object o) -> CA <$> o .: "raiseAmount"
-                     <*> o .: "auctionEnd"
-    _          -> mzero
+auctionCreateParser = unv1 "auctions" p where
+  p o = CA <$> o .: "raiseAmount" <*> o .: "auctionEnd"
 
 bidCreateParser :: UserId -> C.UTCTime-> Value -> Parser Bid
-bidCreateParser uid t = unv1 "bids" $ \v ->
-  case v of
-    (Object o) -> Bid uid <$> (Seconds <$> o .: "bidSeconds")
-                          <*> (Satoshi <$> o .: "bidAmount")
-                          <*> pure t
-    _          -> mzero
+bidCreateParser uid t = unv1 "bids" p where
+  p o = Bid uid <$> (Seconds <$> o .: "bidSeconds")
+                <*> (Satoshi <$> o .: "bidAmount")
+                <*> pure t
 
 auctionCreateHandler :: Handler App App AuctionId
 auctionCreateHandler = do
@@ -65,4 +60,3 @@ auctionBidHandler = do
   requestBody <- readRequestJSON 4096
   bid <- either (snapError 400 . tshow) pure $ parseEither (bidCreateParser uid timestamp) requestBody
   snapEval $ createBid aid uid bid
-    

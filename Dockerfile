@@ -14,18 +14,20 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends libpq-dev stack
 
 # Install and build aftok-server dependencies
-ADD ./aftok.cabal /opt/aftok/aftok.cabal
-ADD ./stack.yaml  /opt/aftok/stack.yaml
-ADD ./lib         /opt/aftok/lib
-ADD ./server      /opt/aftok/server
-ADD ./test        /opt/aftok/test
+RUN mkdir -p /opt/aftok/bin
 WORKDIR /opt/aftok
+ADD ./aftok.cabal /opt/aftok/aftok.cabal
+ADD ./docker/stack.yaml  /opt/aftok/stack.yaml
 
 RUN stack setup
 RUN stack install cpphs 
 
-# Install and build aftok-server sources
-RUN stack build
+ADD ./lib         /opt/aftok/lib
+ADD ./server      /opt/aftok/server
+ADD ./test        /opt/aftok/test
+
+# build and install and aftok-server sources
+RUN stack install
 
 # Set up /etc/aftok volume for configuration information
 RUN mkdir /etc/aftok
