@@ -61,20 +61,19 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
             , ("register",          registerRoute)
             , ("accept_invitation", acceptInviteRoute)
 
-            , ("projects", projectCreateRoute)
-            , ("projects", listProjectsRoute)
-
-            , ("projects/:projectId",                   projectRoute)
-            , ("projects/:projectId/logStart",          logWorkRoute StartWork)
-            , ("projects/:projectId/logEnd",            logWorkRoute StopWork)
             , ("projects/:projectId/logStart/:btcAddr", logWorkBTCRoute StartWork)
             , ("projects/:projectId/logEnd/:btcAddr",   logWorkBTCRoute StopWork)
+            , ("projects/:projectId/logStart",          logWorkRoute StartWork)
+            , ("projects/:projectId/logEnd",            logWorkRoute StopWork)
+            , ("projects/:projectId/auctions",          auctionCreateRoute)
             , ("projects/:projectId/logEntries",        logEntriesRoute)
             , ("projects/:projectId/intervals",         logIntervalsRoute)
             , ("projects/:projectId/payouts",           payoutsRoute)
             , ("projects/:projectId/invite",            inviteRoute)
+            , ("projects/:projectId",                   projectRoute)
+            , ("projects", projectCreateRoute)
+            , ("projects", listProjectsRoute)
 
-            , ("projects/:projectId/auctions", auctionCreateRoute)
             , ("auctions/:auctionId",          auctionRoute)
             , ("auctions/:auctionId/bid",      auctionBidRoute)
 

@@ -39,7 +39,7 @@ projectCreateHandler :: Handler App App ProjectId
 projectCreateHandler = do
   uid <- requireUserId
   requestBody <- readRequestBody 4096
-  cp <- maybe (snapError 400 "Could not parse project data") pure $ A.decode requestBody
+  cp <- either (snapError 400 . tshow) pure $ A.eitherDecode requestBody
   t <- liftIO C.getCurrentTime
   snapEval . createProject $ Project (cpn cp) t uid (cpdepf cp)
 
