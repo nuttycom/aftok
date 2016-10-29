@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE ExplicitForAll     #-}
 {-# LANGUAGE RecordWildCards    #-}
 
 module Aftok.Json where
@@ -11,9 +12,9 @@ import           Data.Aeson.Types
 import qualified Data.Attoparsec.ByteString.Char8 as PC
 import qualified Data.ByteString.Char8            as C
 import           Data.Data
+import           Data.HashMap.Strict              as O
 import           Data.List.NonEmpty               as L
 import           Data.Map.Strict                  as MS
-import           Data.HashMap.Strict              as O
 import           Data.Thyme.Clock                 as C
 import           Data.UUID                        as U
 
@@ -152,7 +153,7 @@ logEventJSON :: LogEvent -> Value
 logEventJSON ev = object [ eventName ev .= object [ "eventTime" .= (ev ^. eventTime) ] ]
 
 logEntryJSON :: LogEntry -> Value
-logEntryJSON (LogEntry c ev m) = v2 $ 
+logEntryJSON (LogEntry c ev m) = v2 $
   obj [ "creditTo"  .= creditToJSON c
       , "event" .= logEventJSON ev
       , "eventMeta" .= m
@@ -167,23 +168,23 @@ amendmentIdJSON (AmendmentId aid) = v1 $
 -------------
 
 parseCreditTo :: Value -> Parser CreditTo
-parseCreditTo = unversion "CreditTo" $ p where 
+parseCreditTo = unversion "CreditTo" $ p where
   p (Version 1 0) = parseCreditToV1
   p (Version 2 0) = parseCreditToV2
   p ver           = badVersion "EventAmendment" ver
 
-parseCreditToV1 :: Object -> Parser CreditTo 
+parseCreditToV1 :: Object -> Parser CreditTo
 parseCreditToV1 x = CreditToAddress <$> (parseBtcAddrJson =<< (x .: "btcAddr"))
 
 parseCreditToV2 :: Object -> Parser CreditTo
-parseCreditToV2 o = 
-  let parseCreditToAddr o' = 
+parseCreditToV2 o =
+  let parseCreditToAddr o' =
         fmap CreditToAddress . parseBtcAddrJson <$> O.lookup "creditToAddress" o'
 
-      parseCreditToUser o' = 
+      parseCreditToUser o' =
         fmap (CreditToUser . UserId) . parseUUID <$> O.lookup "creditToUser" o'
 
-      parseCreditToProject o' = 
+      parseCreditToProject o' =
         fmap (CreditToProject . ProjectId) . parseUUID <$> O.lookup "creditToProject" o'
 
       notFound = fail $ "Value " <> show o <> " does not represent a CreditTo value."
@@ -195,7 +196,7 @@ parsePayoutsJSON :: Value -> Parser Payouts
 parsePayoutsJSON = unversion "Payouts" $ p where
   p :: Version -> Object -> Parser Payouts
   p (Version 1 _) v = Payouts . MS.mapKeys (CreditToAddress . BtcAddr) <$> parseJSON (Object v)
-  p (Version 2 0) v =  
+  p (Version 2 0) v =
     let parsePayoutRecord x = (,) <$> (parseCreditToV2 =<< (x .: "creditTo")) <*> x .: "payoutRatio"
     in  Payouts . MS.fromList <$> (traverse parsePayoutRecord =<< parseJSON (Object v))
   p ver x = badVersion "Payouts" ver x
@@ -213,7 +214,7 @@ parseEventAmendmentV1 t o =
       parseA "addrChange"     = CreditToChange t <$> parseCreditToV1 o
       parseA "metadataChange" = MetadataChange t <$> o .: "eventMeta"
       parseA tid = fail . show $ "Amendment type " <> tid <> " not recognized."
-  in  o .: "amendment" >>= parseA 
+  in  o .: "amendment" >>= parseA
 
 parseEventAmendmentV2 :: ModTime -> Object -> Parser EventAmendment
 parseEventAmendmentV2 t o =
@@ -222,7 +223,7 @@ parseEventAmendmentV2 t o =
       parseA "creditToChange" = CreditToChange t <$> parseCreditToV2 o
       parseA "metadataChange" = MetadataChange t <$> o .: "eventMeta"
       parseA tid = fail . show $ "Amendment type " <> tid <> " not recognized."
-  in  o .: "amendment" >>= parseA 
+  in  o .: "amendment" >>= parseA
 
 parseBtcAddrJson :: Value -> Parser BtcAddr
 parseBtcAddrJson v = do
@@ -235,7 +236,7 @@ parseUUID v = do
   maybe (fail $ "Value " <> str <> "Could not be parsed as a valid UUID.") pure $ U.fromString str
 
 parseLogEntry :: (C.UTCTime -> LogEvent) -> Value -> Parser (C.UTCTime -> LogEntry)
-parseLogEntry f = unversion "LogEntry" p where 
+parseLogEntry f = unversion "LogEntry" p where
   p (Version 2 0) o = do
     creditTo'  <- o .: "creditTo" >>= parseCreditToV2
     eventMeta' <- o .:? "eventMeta"

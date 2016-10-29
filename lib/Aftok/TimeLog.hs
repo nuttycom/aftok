@@ -33,7 +33,7 @@ import           Data.VectorSpace
 
 import           Aftok
 import           Aftok.Interval
-import           Aftok.Project (ProjectId)
+import           Aftok.Project      (ProjectId)
 
 data LogEvent = StartWork { _eventTime :: C.UTCTime }
               | StopWork  { _eventTime :: C.UTCTime }
@@ -55,12 +55,12 @@ nameEvent "start" = pure StartWork
 nameEvent "stop"  = pure StopWork
 nameEvent _       = mzero
 
-data CreditTo 
+data CreditTo
   -- payouts are made directly to this address, or to an address replacing this one
-  = CreditToAddress BtcAddr 
+  = CreditToAddress BtcAddr
   -- payouts are distributed as requested by the specified contributor
   | CreditToUser UserId
-  -- payouts are distributed to this project's contributors 
+  -- payouts are distributed to this project's contributors
   | CreditToProject ProjectId
   deriving (Show, Eq, Ord)
 makePrisms ''CreditTo

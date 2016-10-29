@@ -10,8 +10,8 @@ import           Aftok.TimeLog
 
 import           Aftok.QConfig
 import           Aftok.Snaplet
-import           Aftok.Snaplet.Auth
 import           Aftok.Snaplet.Auctions
+import           Aftok.Snaplet.Auth
 import           Aftok.Snaplet.Projects
 import           Aftok.Snaplet.Users
 import           Aftok.Snaplet.WorkLog

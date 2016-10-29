@@ -8,7 +8,7 @@ import           Data.Aeson.Types
 import           Data.Thyme.Clock   as C
 import           Data.UUID          as U
 
-import           Aftok (parseBtcAddr)
+import           Aftok              (parseBtcAddr)
 import           Aftok.Database
 import           Aftok.Interval
 import           Aftok.Json

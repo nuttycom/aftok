@@ -10,9 +10,9 @@ import           Data.AffineSpace
 import           Data.Thyme.Clock as C
 
 import           Aftok
-import           Aftok.Project as P
-import           Aftok.Auction as A
+import           Aftok.Auction    as A
 import           Aftok.Interval
+import           Aftok.Project    as P
 import           Aftok.TimeLog
 import           Aftok.Util
 
@@ -168,7 +168,7 @@ createAuction a = do
   withProjectAuth (a ^. A.projectId) (a ^. A.initiator) $ CreateAuction a
 
 findAuction :: AuctionId -> UserId -> DBProg (Maybe Auction)
-findAuction aid uid = 
+findAuction aid uid =
   let findOp = FindAuction aid
   in  do
     maybeAuc <- fc findOp
@@ -176,7 +176,7 @@ findAuction aid uid =
     pure maybeAuc
 
 findAuction' :: AuctionId -> UserId -> DBProg Auction
-findAuction' aid uid = 
+findAuction' aid uid =
   let findOp = FindAuction aid
   in  do
     maybeAuc <- fc findOp
@@ -184,10 +184,10 @@ findAuction' aid uid =
     maybe (fc $ raiseSubjectNotFound findOp) pure maybeAuc
 
 createBid :: AuctionId -> UserId -> Bid -> DBProg (BidId)
-createBid aid uid bid = 
+createBid aid uid bid =
   let createOp = CreateBid aid bid
   in  do
     auc <- findAuction' aid uid
-    fc $ if view bidTime bid > view auctionEnd auc 
+    fc $ if view bidTime bid > view auctionEnd auc
       then raiseOpForbidden uid AuctionEnded createOp
       else createOp

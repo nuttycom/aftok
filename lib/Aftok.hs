@@ -6,7 +6,7 @@ module Aftok where
 
 import           ClassyPrelude
 
-import           Control.Lens               (makeLenses, makePrisms)
+import           Control.Lens     (makeLenses, makePrisms)
 import           Data.Aeson
 import           Data.Aeson.Types
 import           Data.Data

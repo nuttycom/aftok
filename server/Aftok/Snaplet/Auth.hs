@@ -7,10 +7,10 @@ import           Data.Attoparsec.ByteString (parseOnly, takeByteString)
 import           Data.UUID                  (fromASCIIBytes)
 
 import           Aftok
-import           Aftok.Auction              (AuctionId(..))
+import           Aftok.Auction              (AuctionId (..))
 import           Aftok.Database
-import           Aftok.Snaplet
 import           Aftok.Project
+import           Aftok.Snaplet
 import           Aftok.Util.Http            (authHeaderParser)
 
 import           Snap.Core

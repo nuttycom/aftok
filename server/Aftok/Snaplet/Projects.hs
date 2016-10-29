@@ -1,7 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Aftok.Snaplet.Projects 
+module Aftok.Snaplet.Projects
   ( projectCreateHandler
   , projectListHandler
   , projectGetHandler

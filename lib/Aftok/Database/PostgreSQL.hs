@@ -19,10 +19,10 @@ import           Database.PostgreSQL.Simple.FromRow
 import           Database.PostgreSQL.Simple.Types     (Null)
 
 import           Aftok
-import           Aftok.Auction as A
+import           Aftok.Auction                        as A
 import           Aftok.Database
 import           Aftok.Interval
-import           Aftok.Project as P
+import           Aftok.Project                        as P
 import           Aftok.TimeLog
 import           Aftok.Types
 
@@ -85,7 +85,7 @@ creditToParser :: FieldParser (RowParser CreditTo)
 creditToParser f v = do
   tn <- typename f
   let parser :: Text -> Conversion (RowParser CreditTo)
-      parser tname = pure $ case tname of 
+      parser tname = pure $ case tname of
         "credit_to_btc_addr" -> CreditToAddress <$> (fieldWith btcAddrParser <* nullField <* nullField)
         "credit_to_user"     -> CreditToUser    <$> (nullField *> fieldWith uidParser <* nullField)
         "credit_to_project"  -> CreditToProject <$> (nullField *> nullField *> fieldWith pidParser)
@@ -93,15 +93,15 @@ creditToParser f v = do
 
   case tn of
     "credit_to_t" -> maybe empty (parser . decodeUtf8) v
-    _ -> conversionError $ 
-      Incompatible 
+    _ -> conversionError $
+      Incompatible
         (B.unpack tn)
         (tableOid f)
         (maybe "" B.unpack (name f))
         "RowParser CreditTo"
         "column was not of type event_t"
 
-  
+
 
 logEntryParser :: RowParser LogEntry
 logEntryParser =
@@ -183,8 +183,8 @@ transactQDBM (QDBM rt) = QDBM $ do
 
 instance DBEval QDBM where
   dbEval (CreateEvent (ProjectId pid) (UserId uid) (LogEntry c e m)) =
-    case c of 
-      CreditToAddress addr -> 
+    case c of
+      CreditToAddress addr ->
         pinsert EventId
           "INSERT INTO work_events \
           \(project_id, user_id, credit_to_type, credit_to_btc_addr, event_type, event_time, event_metadata) \
@@ -255,7 +255,7 @@ instance DBEval QDBM where
           \VALUES (?, ?, ?, ?) RETURNING id"
           ( eid, fromThyme $ mt ^. _ModTime, creditToName c, pid ^. _ProjectId )
 
-      CreditToUser uid -> 
+      CreditToUser uid ->
         pinsert AmendmentId
           "INSERT INTO event_credit_to_amendments \
           \(event_id, amended_at, credit_to_type, credit_to_user_id) \

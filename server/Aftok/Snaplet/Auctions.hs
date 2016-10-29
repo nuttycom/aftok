@@ -10,12 +10,12 @@ import           ClassyPrelude
 
 import           Data.Aeson
 import           Data.Aeson.Types
-import           Data.Hourglass.Types (Seconds(..))
-import           Data.Thyme.Clock   as C
+import           Data.Hourglass.Types (Seconds (..))
+import           Data.Thyme.Clock     as C
 
-import           Aftok              (UserId)
-import           Aftok.Auction      (AuctionId, Auction(..), BidId, Bid(..))
-import           Aftok.Database     (createAuction, findAuction, createBid)
+import           Aftok                (UserId)
+import           Aftok.Auction        (Auction (..), AuctionId, Bid (..), BidId)
+import           Aftok.Database       (createAuction, createBid, findAuction)
 import           Aftok.Json
 import           Aftok.Types
 
