@@ -24,11 +24,13 @@ import           Aftok.Snaplet.Auth
 
 import           Snap
 
-data AuctionCreateRequest = CA { raiseAmount :: Word64, auctionEnd :: C.UTCTime }
+data AuctionCreateRequest = CA { raiseAmount :: Word64, auctionStart :: C.UTCTime , auctionEnd :: C.UTCTime }
 
 auctionCreateParser :: Value -> Parser AuctionCreateRequest
 auctionCreateParser = unv1 "auctions" p where
-  p o = CA <$> o .: "raiseAmount" <*> o .: "auctionEnd"
+  p o = CA <$> o .: "raiseAmount"
+           <*> o .: "auctionStart"
+           <*> o .: "auctionEnd"
 
 bidCreateParser :: UserId -> C.UTCTime-> Value -> Parser Bid
 bidCreateParser uid t = unv1 "bids" p where
@@ -42,8 +44,9 @@ auctionCreateHandler = do
   pid <- requireProjectId
   requestBody <- readRequestJSON 4096
   req <- either (snapError 400 . tshow) pure $ parseEither auctionCreateParser requestBody
-  --t <- liftIO C.getCurrentTime
-  snapEval . createAuction $ Auction pid uid (Satoshi . raiseAmount $ req) (auctionEnd req)
+  t <- liftIO C.getCurrentTime
+  snapEval . createAuction $ 
+    Auction pid uid t (Satoshi . raiseAmount $ req) (auctionStart req) (auctionEnd req)
 
 auctionGetHandler :: Handler App App Auction
 auctionGetHandler = do

@@ -119,7 +119,9 @@ auctionParser :: RowParser Auction
 auctionParser =
   Auction <$> fieldWith pidParser
           <*> fieldWith uidParser
+          <*> fieldWith utcParser
           <*> fieldWith btcParser
+          <*> fieldWith utcParser
           <*> fieldWith utcParser
 
 bidParser :: RowParser Bid
@@ -287,7 +289,7 @@ instance DBEval QDBM where
 
   dbEval (FindAuction aucId) =
     headMay <$> pquery auctionParser
-      "SELECT raise_amount, end_time FROM auctions WHERE id = ?"
+      "SELECT project_id, initiator_id, created_at, raise_amount, start_time, end_time FROM auctions WHERE id = ?"
       (Only (aucId ^. _AuctionId))
 
   dbEval (CreateBid (AuctionId aucId) bid) =
