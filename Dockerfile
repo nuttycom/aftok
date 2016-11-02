@@ -33,9 +33,13 @@ RUN stack setup
 RUN stack install cpphs 
 RUN stack build --only-dependencies
 
+RUN apt-get install -y libsqlite3-dev
+RUN stack install dbmigrations
+
 ADD ./lib         /opt/aftok/lib
 ADD ./server      /opt/aftok/server
 ADD ./test        /opt/aftok/test
+ADD ./migrations  /opt/aftok/migrations
 
 # build and install and aftok-server sources
 RUN stack install
