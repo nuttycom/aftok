@@ -11,9 +11,12 @@ import           Data.Thyme.Clock as C
 
 import           Aftok
 import           Aftok.Auction    as A
+import           Aftok.Billables  as B
 import           Aftok.Interval
+import           Aftok.Payments
 import           Aftok.Project    as P
 import           Aftok.TimeLog
+import           Aftok.Types
 import           Aftok.Util
 
 type KeyedUser     = (UserId, User)
@@ -47,6 +50,12 @@ data DBOp a where
   FindAuction      :: AuctionId -> DBOp (Maybe Auction)
   CreateBid        :: AuctionId -> Bid -> DBOp BidId
   ReadBids         :: AuctionId -> DBOp [Bid]
+
+  CreateBillable   :: Billable ProjectId Satoshi -> DBOp BillableId
+  ReadBillable     :: BillableId -> DBOp (Maybe (Billable ProjectId Satoshi))
+
+  CreatePaymentRequest :: UserId -> PaymentRequest ProjectId BillableId -> DBOp PaymentRequestId
+  CreatePayment        :: Payment PaymentRequestId UserId -> DBOp PaymentId
 
   RaiseDBError     :: forall x y. DBError -> DBOp x -> DBOp y
 
@@ -161,6 +170,22 @@ findEvents p u i = fc $ FindEvents p u i
 readWorkIndex :: ProjectId -> UserId -> DBProg WorkIndex
 readWorkIndex pid uid = withProjectAuth pid uid $ ReadWorkIndex pid
 
+-- Billing ops
+
+createBillable :: UserId -> Billable ProjectId Satoshi -> DBProg BillableId
+createBillable uid b = withProjectAuth (b ^. B.project) uid $ CreateBillable b
+
+readBillable :: BillableId -> DBProg (Maybe (Billable ProjectId Satoshi))
+readBillable = fc . ReadBillable
+
+--createPaymentRequest :: BillableId -> DBProg PaymentRequestId
+--createPaymentRequest bid = do
+--  billable <- readBillable bid
+  
+
+readPaymentHistory :: UserId -> DBProg [Payment PaymentRequestId UserId]
+readPaymentHistory = error "Not yet implemented"
+
 -- Auction ops
 
 createAuction :: Auction -> DBProg AuctionId
@@ -183,7 +208,7 @@ findAuction' aid uid =
     _ <- traverse (\auc -> checkProjectAuth (auc ^. A.projectId) uid findOp) maybeAuc
     maybe (fc $ raiseSubjectNotFound findOp) pure maybeAuc
 
-createBid :: AuctionId -> UserId -> Bid -> DBProg (BidId)
+createBid :: AuctionId -> UserId -> Bid -> DBProg BidId
 createBid aid uid bid =
   let createOp = CreateBid aid bid
   in  do

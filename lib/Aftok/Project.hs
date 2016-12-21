@@ -5,9 +5,11 @@ module Aftok.Project where
 import           ClassyPrelude
 
 import           Control.Lens               (makeLenses, makePrisms)
+
 import           Data.ByteString.Base64.URL as B64
 import           Data.Thyme.Clock           as C
 import           Data.UUID
+
 import           OpenSSL.Random
 
 import           Aftok

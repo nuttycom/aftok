@@ -31,9 +31,9 @@ makeLenses ''CUser
 
 instance FromJSON CUser where
   parseJSON (Object v) =
-    let parseUser = User <$> (UserName <$> v .: "username")
-                         <*> (BtcAddr  <$> v .: "btcAddr")
-                         <*> (Email    <$> v .: "email")
+    let parseUser = User <$> (UserName      <$> v .: "username")
+                         <*> (parseBtcAddr  <$> v .: "btcAddr")
+                         <*> (Email         <$> v .: "email")
 
         parseInvitationCodes c = either
           (\e -> fail $ "Invitation code was rejected as invalid: " <> e)

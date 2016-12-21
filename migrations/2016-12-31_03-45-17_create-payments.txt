@@ -1,0 +1,72 @@
+Description: Create tables for persistence of billable & payments data.
+Created: 2016-12-31 03:45:38.125915 UTC
+Depends: 2016-10-13_05-36-55_user-event-log
+Apply: |
+  create type aftok_event_t as enum(
+    'create_user',
+    'create_project',
+    'add_user_to_project',
+    'create_invitation',
+    'accept_invitation',
+    'create_event',
+    'amend_event',
+    'create_auction',
+    'create_bid',
+    'create_billable',
+    'create_payment_request',
+    'create_payment'
+  );
+
+  -- a log of raw events - the current state of the database
+  -- should be reproducible by replaying the entire history of
+  -- events
+  create table if not exists aftok_events (
+    id uuid primary key default uuid_generate_v4(),
+    event_time timestamp with time zone not null,
+    event_type aftok_event_t not null,
+    event_json json not null
+  );
+
+  create type recurrence_t as enum ('onetime', 'weekly', 'semimonthly', 'monthly', 'annually');
+
+  create table if not exists billables (
+    id uuid primary key default uuid_generate_v4(),
+    project_id uuid not null references projects(id),
+    event_id uuid not null references aftok_events(id),
+    name text not null,
+    description text,
+    recurrence_type recurrence_t not null,
+    recurrence_count int,
+    billing_amount numeric not null,
+    grace_period_days int not null
+  );
+
+  create table if not exists subscriptions (
+    id uuid primary key default uuid_generate_v4(),
+    user_id uuid not null references users(id),
+    billable_id uuid not null references billables(id),
+    event_id uuid not null references aftok_events(id)
+  );
+
+  create table if not exists payment_requests (
+    id uuid primary key default uuid_generate_v4(),
+    subscription_id uuid not null references subscriptions(id),
+    event_id uuid not null references aftok_events(id),
+    request_data bytea not null
+  );
+
+  create table if not exists payments (
+    id uuid primary key default uuid_generate_v4(),
+    payment_request_id uuid not null references payment_requests(id),
+    event_id uuid not null references aftok_events(id),
+    payment_data bytea not null
+  );
+
+Revert: |
+  drop table payments;
+  drop table payment_requests;
+  drop table subscriptions;
+  drop table billables;
+  drop table aftok_events;
+
+

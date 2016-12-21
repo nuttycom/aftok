@@ -12,11 +12,18 @@ import           Data.Aeson.Types
 import           Data.Data
 import           Data.UUID
 
-newtype BtcAddr = BtcAddr Text deriving (Show, Eq, Ord)
+import           Network.Haskoin.Crypto (Address(..), base58ToAddr) 
+
+newtype BtcAddr = BtcAddr Address deriving (Show, Eq, Ord)
 makePrisms ''BtcAddr
 
 parseBtcAddr :: Text -> Maybe BtcAddr
-parseBtcAddr = Just . BtcAddr -- FIXME: perform validation
+parseBtcAddr addr = BtcAddr <$> (base58ToAddr . encodeUtf8) addr
+
+instance FromJSON BtcAddr where
+  parseJSON v = do
+    t <- parseJSON v
+    maybe (fail $ show t <> " is not a valid BTC address") pure $ parseBtcAddr t
 
 newtype Months = Months Integer
   deriving (Eq, Show, Data, Typeable)
@@ -35,7 +42,7 @@ makePrisms ''Email
 
 data User = User
   { _username    :: UserName
-  , _userAddress :: BtcAddr
+  , _userAddress :: Maybe BtcAddr
   , _userEmail   :: Email
   }
 makeLenses ''User

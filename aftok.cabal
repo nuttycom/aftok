@@ -19,22 +19,27 @@ library
                     , OverloadedStrings
                     , RecordWildCards
                     , ScopedTypeVariables
+                    , KindSignatures
   exposed-modules:    Aftok
                       Aftok.Auction
+                      Aftok.Billables
                       Aftok.Client
                       Aftok.Database
                       Aftok.Database.PostgreSQL
                       Aftok.Interval
                       Aftok.Json
+                      Aftok.Payments
                       Aftok.Project
+                      Aftok.Time
                       Aftok.TimeLog
                       Aftok.Types
                       Aftok.Util
                       Aftok.Util.Http
   build-depends:      
       base                >= 4.8.0
+    , bippy               == 0.1.0.0
     , classy-prelude      == 0.12.*
-    , aeson               == 0.9.*
+    , aeson               >= 0.11.2
     , attoparsec          == 0.13.*
     , base64-bytestring   == 1.0.*
     , bifunctors
@@ -46,6 +51,7 @@ library
     , errors              == 2.1.*
     , free
     , groups              >= 0.4      && < 0.5
+    , haskoin-core        >= 0.4
     , heaps               >= 0.3.1    && < 0.4
     , hourglass           >= 0.2.6    && < 0.3
     , HsOpenSSL           >= 0.11     && < 0.12
@@ -53,7 +59,7 @@ library
     , lens                >= 4.11
     , mtl
     , old-locale          >= 1.0 
-    , postgresql-simple   == 0.5.*
+    , postgresql-simple   >= 0.5.2.0
     , safe                >= 0.3.9    && < 0.4
     , semigroups
     , semigroupoids
@@ -75,6 +81,7 @@ Test-Suite spec
                     , OverloadedStrings
                     , RecordWildCards
                     , ScopedTypeVariables
+                    , KindSignatures
   build-depends:    
       aftok
     , base
@@ -103,7 +110,19 @@ Executable aftok-server
                     , OverloadedStrings
                     , RecordWildCards
                     , ScopedTypeVariables
+                    , KindSignatures
+
   main-is:            Main.hs
+
+  other-modules: Aftok.QConfig
+               , Aftok.Snaplet
+               , Aftok.Snaplet.Auctions
+               , Aftok.Snaplet.Auth
+               , Aftok.Snaplet.Projects
+               , Aftok.Snaplet.Users
+               , Aftok.Snaplet.Util
+               , Aftok.Snaplet.WorkLog
+
   build-depends:      
       aftok
     , base
@@ -111,6 +130,7 @@ Executable aftok-server
     , attoparsec
     , base64-bytestring
     , bytestring
+    , bippy
     , classy-prelude            
     , containers
     , configurator              

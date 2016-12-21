@@ -14,9 +14,11 @@ import           Data.Thyme.Clock                     as C
 import           Data.Thyme.Time
 import           Data.UUID                            (UUID)
 import           Database.PostgreSQL.Simple
-import           Database.PostgreSQL.Simple.FromField
+import           Database.PostgreSQL.Simple.FromField 
 import           Database.PostgreSQL.Simple.FromRow
 import           Database.PostgreSQL.Simple.Types     (Null)
+
+import           Network.Haskoin.Crypto (addrToBase58)
 
 import           Aftok
 import           Aftok.Auction                        as A
@@ -51,7 +53,15 @@ emailParser :: FieldParser Email
 emailParser f v = Email <$> fromField f v
 
 btcAddrParser :: FieldParser BtcAddr
-btcAddrParser f v = BtcAddr <$> fromField f v
+btcAddrParser f v = do
+  addrMay <- parseBtcAddr <$> fromField f v
+  let err = ConversionFailed { errSQLType = "text"
+                             , errSQLTableOid = tableOid f
+                             , errSQLField = maybe "" B.unpack (name f)
+                             , errHaskellType = "BtcAddr"
+                             , errMessage = "could not deserialize value to a valid BTC address"
+                             }
+  maybe (conversionError err) pure addrMay
 
 btcParser :: FieldParser Satoshi
 btcParser f v = (Satoshi . fromInteger) <$> fromField f v
@@ -67,18 +77,20 @@ eventTypeParser f v = do
   tn <- typename f
   case tn of
     "event_t" ->
-      let err = UnexpectedNull (B.unpack tn)
-                               (tableOid f)
-                               (maybe "" B.unpack (name f))
-                               "UTCTime -> LogEvent"
-                               "columns of type event_t should not contain null values"
+      let err = UnexpectedNull { errSQLType = B.unpack tn
+                               , errSQLTableOid = tableOid f
+                               , errSQLField = maybe "" B.unpack (name f)
+                               , errHaskellType = "UTCTime -> LogEvent"
+                               , errMessage = "columns of type event_t should not contain null values"
+                               }
       in  maybe (conversionError err) (nameEvent . decodeUtf8) v
     _ ->
-      let err = Incompatible (B.unpack tn)
-                             (tableOid f)
-                             (maybe "" B.unpack (name f))
-                             "UTCTime -> LogEvent"
-                             "column was not of type event_t"
+      let err = Incompatible { errSQLType = B.unpack tn
+                             , errSQLTableOid = tableOid f
+                             , errSQLField = maybe "" B.unpack (name f)
+                             , errHaskellType = "UTCTime -> LogEvent"
+                             , errMessage = "column was not of type event_t"
+                             }
       in conversionError err
 
 creditToParser :: FieldParser (RowParser CreditTo)
@@ -134,7 +146,7 @@ bidParser =
 userParser :: RowParser User
 userParser =
   User <$> fieldWith usernameParser
-       <*> fieldWith btcAddrParser
+       <*> fieldWith (optionalField btcAddrParser)
        <*> (Email <$> field)
 
 qdbUserParser :: RowParser KeyedUser
@@ -192,7 +204,7 @@ instance DBEval QDBM where
           \(project_id, user_id, credit_to_type, credit_to_btc_addr, event_type, event_time, event_metadata) \
           \VALUES (?, ?, ?, ?, ?, ?, ?) \
           \RETURNING id"
-          ( pid, uid, creditToName c, addr ^. _BtcAddr, eventName e, fromThyme $ e ^. eventTime, m)
+          ( pid, uid, creditToName c, addr ^. _BtcAddr . to addrToBase58, eventName e, fromThyme $ e ^. eventTime, m)
 
       CreditToProject pid' ->
         pinsert EventId
@@ -248,7 +260,7 @@ instance DBEval QDBM where
           "INSERT INTO event_credit_to_amendments \
           \(event_id, amended_at, credit_to_type, credit_to_btc_addr) \
           \VALUES (?, ?, ?, ?) RETURNING id"
-          ( eid, fromThyme $ mt ^. _ModTime, creditToName c, addr ^. _BtcAddr )
+          ( eid, fromThyme $ mt ^. _ModTime, creditToName c, addr ^. _BtcAddr . to addrToBase58 )
 
       CreditToProject pid ->
         pinsert AmendmentId
@@ -283,7 +295,7 @@ instance DBEval QDBM where
       \VALUES (?, ?, ?, ?) RETURNING id"
       ( auc ^. (A.projectId . _ProjectId)
       , auc ^. (A.initiator . _UserId)
-      , auc ^. (raiseAmount.to fromSatoshi)
+      , auc ^. (raiseAmount . satoshi)
       , auc ^. (auctionEnd.to fromThyme)
       )
 
@@ -299,7 +311,7 @@ instance DBEval QDBM where
       ( aucId
       , bid ^. (bidUser._UserId)
       , case bid ^. bidSeconds of (Seconds i) -> i
-      , bid ^. (bidAmount.to fromSatoshi)
+      , bid ^. (bidAmount . satoshi)
       , bid ^. (bidTime.to fromThyme)
       )
 
@@ -309,9 +321,14 @@ instance DBEval QDBM where
       (Only (aucId ^. _AuctionId))
 
   dbEval (CreateUser user') =
-    pinsert UserId
+    let addrMay :: Maybe ByteString
+        addrMay = user' ^? (userAddress . traverse . _BtcAddr . to addrToBase58)
+    in  pinsert UserId
       "INSERT INTO users (handle, btc_addr, email) VALUES (?, ?, ?) RETURNING id"
-      (user' ^. (username._UserName), user' ^. (userAddress._BtcAddr), user' ^. userEmail._Email)
+      ( user' ^. (username._UserName)
+      , addrMay
+      , user' ^. userEmail._Email
+      )
 
   dbEval (FindUser (UserId uid)) =
     headMay <$> pquery userParser
@@ -372,4 +389,13 @@ instance DBEval QDBM where
       "INSERT INTO project_companions (project_id, user_id, invited_by) VALUES (?, ?, ?)"
       (pid ^. _ProjectId, new ^. _UserId, current ^. _UserId)
 
+  dbEval (CreateBillable _) = error "Not implemented"
+  dbEval (ReadBillable _) = error "Not implemented" 
+  dbEval (CreatePaymentRequest _ _) = error "Not implemented"
+  dbEval (CreatePayment _ ) = error "Not implemented"
+
+
   dbEval (RaiseDBError err _) = QDBM . lift $ left err
+
+
+

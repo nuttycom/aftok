@@ -1,13 +1,12 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell            #-}
 
-module Aftok.Types where
+module Aftok.Types (Satoshi(..), satoshi) where
 
 import           ClassyPrelude
 import           Control.Lens
+import           Network.Bippy.Types (Satoshi(..))
 
-newtype Satoshi = Satoshi { fromSatoshi :: Word64 }
-                  deriving (Show, Eq, Ord, Num, Real, Bounded)
-makePrisms ''Satoshi
-
+satoshi :: Lens' Satoshi Word64 
+satoshi inj (Satoshi value) = Satoshi <$> inj value
 

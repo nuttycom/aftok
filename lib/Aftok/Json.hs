@@ -15,6 +15,7 @@ import           Data.Data
 import           Data.HashMap.Strict              as O
 import           Data.List.NonEmpty               as L
 import           Data.Map.Strict                  as MS
+import qualified Data.Text                        as T
 import           Data.Thyme.Clock                 as C
 import           Data.UUID                        as U
 
@@ -25,6 +26,7 @@ import           Aftok.Interval
 import           Aftok.Project                    as P
 import           Aftok.TimeLog
 import           Aftok.Types
+import           Aftok.Util (traverseKeys)
 
 import qualified Language.Haskell.TH              as TH
 import           Language.Haskell.TH.Quote
@@ -116,7 +118,7 @@ auctionJSON :: Auction -> Value
 auctionJSON x = v1 $
   obj [ "projectId"    .= tshow (x ^. (A.projectId._ProjectId))
       , "initiator"    .= tshow (x ^. (A.initiator._UserId))
-      , "raiseAmount"  .= (x ^. (raiseAmount._Satoshi))
+      , "raiseAmount"  .= (x ^. (raiseAmount . satoshi))
       ]
 
 bidIdJSON :: BidId -> Value
@@ -174,12 +176,12 @@ parseCreditTo = unversion "CreditTo" $ p where
   p ver           = badVersion "EventAmendment" ver
 
 parseCreditToV1 :: Object -> Parser CreditTo
-parseCreditToV1 x = CreditToAddress <$> (parseBtcAddrJson =<< (x .: "btcAddr"))
+parseCreditToV1 x = CreditToAddress <$> (parseJSON =<< (x .: "btcAddr"))
 
 parseCreditToV2 :: Object -> Parser CreditTo
 parseCreditToV2 o =
   let parseCreditToAddr o' =
-        fmap CreditToAddress . parseBtcAddrJson <$> O.lookup "creditToAddress" o'
+        fmap CreditToAddress . parseJSON <$> O.lookup "creditToAddress" o'
 
       parseCreditToUser o' =
         fmap (CreditToUser . UserId) . parseUUID <$> O.lookup "creditToUser" o'
@@ -195,11 +197,20 @@ parseCreditToV2 o =
 parsePayoutsJSON :: Value -> Parser Payouts
 parsePayoutsJSON = unversion "Payouts" $ p where
   p :: Version -> Object -> Parser Payouts
-  p (Version 1 _) v = Payouts . MS.mapKeys (CreditToAddress . BtcAddr) <$> parseJSON (Object v)
+  p (Version 1 _) v = 
+    let parseKey :: String -> Parser CreditTo
+        parseKey k = maybe 
+                     (fail $ "Key " <> k <> " cannot be parsed as a valid BTC address.") 
+                     (pure . CreditToAddress) 
+                     (parseBtcAddr $ T.pack k)
+    in  Payouts <$> join (traverseKeys parseKey <$> parseJSON (Object v))
+    
   p (Version 2 0) v =
     let parsePayoutRecord x = (,) <$> (parseCreditToV2 =<< (x .: "creditTo")) <*> x .: "payoutRatio"
     in  Payouts . MS.fromList <$> (traverse parsePayoutRecord =<< parseJSON (Object v))
-  p ver x = badVersion "Payouts" ver x
+
+  p ver x = 
+    badVersion "Payouts" ver x
 
 parseEventAmendment :: ModTime -> Value -> Parser EventAmendment
 parseEventAmendment t = unversion "EventAmendment" $ p where
@@ -224,11 +235,6 @@ parseEventAmendmentV2 t o =
       parseA "metadataChange" = MetadataChange t <$> o .: "eventMeta"
       parseA tid = fail . show $ "Amendment type " <> tid <> " not recognized."
   in  o .: "amendment" >>= parseA
-
-parseBtcAddrJson :: Value -> Parser BtcAddr
-parseBtcAddrJson v = do
-  t <- parseJSON v
-  maybe (fail $ show t <> " is not a valid BTC address") pure $ parseBtcAddr t
 
 parseUUID :: Value -> Parser U.UUID
 parseUUID v = do

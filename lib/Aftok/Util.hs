@@ -5,6 +5,7 @@ module Aftok.Util where
 import           ClassyPrelude
 import           Control.Monad.Free.Church
 import           Data.Functor.Coyoneda
+import           Data.Map.Strict as M
 
 type Program f a = F (Coyoneda f) a
 
@@ -16,3 +17,8 @@ interpret nt p =
 
 fc :: f a -> Program f a
 fc = liftF . liftCoyoneda
+
+traverseKeys :: (Ord k, Applicative f) => (a -> f k) -> Map a b -> f (Map k b)
+traverseKeys f m = 
+  let insf a b m' = flip insert b <$> f a <*> m'
+  in  foldrWithKey insf (pure M.empty) m

@@ -25,8 +25,7 @@ Library
 
   * Events
     * User-identified events
-      - Associate events with user identifier as well as BTC address, and add 
-        late resolution of BTC addresses at point of payout calculation.
+      - add late resolution of BTC addresses at point of payout calculation.
   * User
     * Payout Address Update
       - authenticate by asking the user to sign and broadcast a small txn with a specific
