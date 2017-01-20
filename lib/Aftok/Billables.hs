@@ -4,48 +4,66 @@ module Aftok.Billables where
 
 import           ClassyPrelude
 
-import           Control.Lens               (makeLenses)
+import           Control.Lens               (makeLenses, makePrisms)
 
 import           Data.UUID
 import           Aftok.Time (Days(..))
+import           Aftok.Project (ProjectId)
+import           Aftok (UserId)
+import           Aftok.Types (Satoshi)
 
 newtype BillableId = BillableId UUID deriving (Show, Eq)
+makePrisms ''BillableId
 
-
-data BillingFrequency 
+data Recurrence
   = Annually
   | Monthly Int
   | SemiMonthly
   | Weekly Int
-makeLenses ''BillingFrequency
-
-data Recurrence
-  = Recurring { _frequency :: BillingFrequency } 
   | OneTime   
 makeLenses ''Recurrence
 
-data Billable (p :: *) (c :: *) = Billable
+recurrenceName :: Recurrence -> Text
+recurrenceName Annually  = "annually"
+recurrenceName (Monthly _) = "monthly"
+recurrenceName SemiMonthly = "semimonthly"
+recurrenceName (Weekly _)  = "weekly"
+recurrenceName OneTime   = "onetime"
+
+recurrenceCount :: Recurrence -> Maybe Int
+recurrenceCount Annually = Nothing
+recurrenceCount (Monthly i) = Just i
+recurrenceCount SemiMonthly = Nothing
+recurrenceCount (Weekly i)  = Just i
+recurrenceCount OneTime  = Nothing
+
+data Billable' (p :: *) (u :: *) (c :: *) = Billable
   { _project :: p
+  , _creator :: u
   , _name :: Text
   , _description :: Text
   , _recurrence :: Recurrence
   , _amount :: c
   , _gracePeriod :: Days
   }
-makeLenses ''Billable
+makeLenses ''Billable'
 
-monthly :: BillingFrequency
+type Billable = Billable' ProjectId UserId Satoshi
+
+monthly :: Recurrence
 monthly = Monthly 1
 
-bimonthly :: BillingFrequency
+bimonthly :: Recurrence
 bimonthly = Monthly 2
 
-quarterly :: BillingFrequency
+quarterly :: Recurrence
 quarterly = Monthly 3
 
-seminannually :: BillingFrequency
+seminannually :: Recurrence
 seminannually = Monthly 6
 
-annually :: BillingFrequency
+annually :: Recurrence
 annually = Annually
+
+newtype SubscriptionId = SubscriptionId UUID deriving (Show, Eq)
 

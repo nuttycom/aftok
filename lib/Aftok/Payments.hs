@@ -15,18 +15,16 @@ newtype PaymentRequestId = PaymentRequestId UUID deriving (Show, Eq)
 
 newtype PaymentId = PaymentId UUID deriving (Show, Eq)
 
-data PaymentRequest (p :: *) (b :: *) = PaymentRequest
-  { _project :: p
+data PaymentRequest (s :: *) = PaymentRequest
+  { _subscription :: s
   , _paymentRequest :: P.PaymentRequest
   , _paymentRequestDate :: C.UTCTime
-  , _billable :: b
   }
 makeLenses ''PaymentRequest
 
-data Payment r u = Payment
+data Payment (r :: *) = Payment
   { _request :: r
   , _payment :: P.Payment
   , _paymentDate :: C.UTCTime
-  , _payor :: u
   }
 makeLenses ''Payment

@@ -23,6 +23,7 @@ Apply: |
   create table if not exists aftok_events (
     id uuid primary key default uuid_generate_v4(),
     event_time timestamp with time zone not null,
+    created_by uuid references users(id) null,
     event_type aftok_event_t not null,
     event_json json not null
   );

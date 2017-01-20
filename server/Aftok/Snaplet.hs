@@ -40,6 +40,8 @@ snapEval p = do
         snapError 403 $ tshow reason <> " (User " <> tshow uid <> ")"
       handleDBError (SubjectNotFound) =
         snapError 404 "The subject of the requested operation could not be found."
+      handleDBError (EventStorageFailed) =
+        snapError 500 "The event submitted could not be saved to the log."
 
   e <- liftPG $ \conn -> runEitherT (runQDBM conn $ interpret dbEval p)
   either handleDBError pure e

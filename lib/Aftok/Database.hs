@@ -16,7 +16,6 @@ import           Aftok.Interval
 import           Aftok.Payments
 import           Aftok.Project    as P
 import           Aftok.TimeLog
-import           Aftok.Types
 import           Aftok.Util
 
 type KeyedUser     = (UserId, User)
@@ -51,11 +50,13 @@ data DBOp a where
   CreateBid        :: AuctionId -> Bid -> DBOp BidId
   ReadBids         :: AuctionId -> DBOp [Bid]
 
-  CreateBillable   :: Billable ProjectId Satoshi -> DBOp BillableId
-  ReadBillable     :: BillableId -> DBOp (Maybe (Billable ProjectId Satoshi))
+  CreateBillable   :: Billable -> DBOp BillableId
+  ReadBillable     :: BillableId -> DBOp (Maybe Billable)
 
-  CreatePaymentRequest :: UserId -> PaymentRequest ProjectId BillableId -> DBOp PaymentRequestId
-  CreatePayment        :: Payment PaymentRequestId UserId -> DBOp PaymentId
+  CreateSubscription :: UserId -> BillableId -> DBOp SubscriptionId
+
+  CreatePaymentRequest :: PaymentRequest SubscriptionId -> DBOp PaymentRequestId
+  CreatePayment        :: Payment PaymentRequestId -> DBOp PaymentId
 
   RaiseDBError     :: forall x y. DBError -> DBOp x -> DBOp y
 
@@ -68,6 +69,7 @@ data OpForbiddenReason = UserNotProjectMember
 
 data DBError = OpForbidden UserId OpForbiddenReason
              | SubjectNotFound
+             | EventStorageFailed
              deriving (Eq, Show, Typeable)
 
 instance Exception DBError
@@ -172,10 +174,10 @@ readWorkIndex pid uid = withProjectAuth pid uid $ ReadWorkIndex pid
 
 -- Billing ops
 
-createBillable :: UserId -> Billable ProjectId Satoshi -> DBProg BillableId
-createBillable uid b = withProjectAuth (b ^. B.project) uid $ CreateBillable b
+createBillable :: Billable -> DBProg BillableId
+createBillable b = withProjectAuth (b ^. B.project) (b ^. B.creator) $ CreateBillable b
 
-readBillable :: BillableId -> DBProg (Maybe (Billable ProjectId Satoshi))
+readBillable :: BillableId -> DBProg (Maybe Billable)
 readBillable = fc . ReadBillable
 
 --createPaymentRequest :: BillableId -> DBProg PaymentRequestId
@@ -183,7 +185,7 @@ readBillable = fc . ReadBillable
 --  billable <- readBillable bid
   
 
-readPaymentHistory :: UserId -> DBProg [Payment PaymentRequestId UserId]
+readPaymentHistory :: UserId -> DBProg [Payment PaymentRequestId]
 readPaymentHistory = error "Not yet implemented"
 
 -- Auction ops
