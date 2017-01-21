@@ -445,8 +445,16 @@ updateCache dbop @ (CreatePaymentRequest req) = do
     , req ^. (paymentRequest . to (runPut . encodeMessage))
     )
   
-
-updateCache (CreatePayment _ ) = error "Not implemented"
+updateCache dbop @ (CreatePayment req) = do
+  eventId <- requireEventId dbop
+  pinsert PaymentId
+    "INSERT INTO payments \
+    \(payment_request_id, event_id, payment_data) \
+    \VALUES (?, ?, ?) RETURNING id"
+    ( req ^. (request . _PaymentRequestId)
+    , eventId ^. _EventId
+    , req ^. (payment . to (runPut . encodeMessage))
+    )
 
 updateCache (RaiseDBError err _) = raiseError err
 

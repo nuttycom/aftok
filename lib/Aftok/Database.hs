@@ -55,8 +55,8 @@ data DBOp a where
 
   CreateSubscription :: UserId -> BillableId -> DBOp SubscriptionId
 
-  CreatePaymentRequest :: PaymentRequest SubscriptionId -> DBOp PaymentRequestId
-  CreatePayment        :: Payment PaymentRequestId -> DBOp PaymentId
+  CreatePaymentRequest :: PaymentRequest -> DBOp PaymentRequestId
+  CreatePayment        :: Payment -> DBOp PaymentId
 
   RaiseDBError     :: forall x y. DBError -> DBOp x -> DBOp y
 
@@ -185,7 +185,7 @@ readBillable = fc . ReadBillable
 --  billable <- readBillable bid
   
 
-readPaymentHistory :: UserId -> DBProg [Payment PaymentRequestId]
+readPaymentHistory :: UserId -> DBProg [Payment]
 readPaymentHistory = error "Not yet implemented"
 
 -- Auction ops
