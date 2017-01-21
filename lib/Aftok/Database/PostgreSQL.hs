@@ -6,7 +6,7 @@ module Aftok.Database.PostgreSQL (QDBM(), runQDBM) where
 import           ClassyPrelude
 import           Control.Lens
 import           Control.Monad.Trans.Either
-import           Data.Aeson                           (toJSON)
+import           Data.Aeson                           (toJSON, Value)
 import qualified Data.ByteString.Char8                as B
 import           Data.Hourglass
 import           Data.List                            as L
@@ -27,6 +27,7 @@ import qualified Aftok.Auction                        as A
 import qualified Aftok.Billables                      as BI
 import           Aftok.Database
 import           Aftok.Interval
+import           Aftok.Json                           (billableJSON, subscriptionJSON)
 import           Aftok.Payments
 import qualified Aftok.Project                        as P
 import           Aftok.Time                           (Days(..), _Days)
@@ -202,11 +203,26 @@ transactQDBM (QDBM rt) = QDBM $ do
   lift . EitherT $ withTransaction conn (runEitherT $ runReaderT rt conn)
 
 storeEvent :: DBOp a -> Maybe (QDBM EventId)
-storeEvent (CreateBillable _) = error "Not implemented"
-storeEvent (CreateSubscription _ _) = error "Not implemented"
-storeEvent (CreatePaymentRequest _) = error "Not implemented"
-storeEvent (CreatePayment _) = error "Not implemented"
+storeEvent (CreateBillable uid b) = 
+  Just $ storeEventJSON uid "create_billable" (billableJSON b)
+
+storeEvent (CreateSubscription uid bid) = 
+  Just $ storeEventJSON uid "create_subscription" (subscriptionJSON uid bid)
+
+storeEvent (CreatePaymentRequest _ _) = error "Not implemented"
+storeEvent (CreatePayment _ _) = error "Not implemented"
 storeEvent _ = Nothing
+
+type EventType = Text
+
+storeEventJSON :: UserId -> EventType -> Value -> QDBM EventId
+storeEventJSON uid t v = do
+  timestamp <- liftIO C.getCurrentTime
+  pinsert EventId
+    "INSERT INTO aftok_events \
+    \(event_time, created_by, event_type, event_json) \
+    \VALUES (?, ?, ?, ?) RETURNING id"
+    (fromThyme timestamp, uid ^. _UserId, t, v)
 
 updateCache :: DBOp a -> QDBM a
 updateCache (CreateEvent (P.ProjectId pid) (UserId uid) (LogEntry c e m)) =
@@ -402,7 +418,7 @@ updateCache (AddUserToProject pid current new) = void $
     "INSERT INTO project_companions (project_id, user_id, invited_by) VALUES (?, ?, ?)"
     (pid ^. P._ProjectId, new ^. _UserId, current ^. _UserId)
 
-updateCache dbop @ (CreateBillable b) = do
+updateCache dbop @ (CreateBillable _ b) = do
   eventId <- requireEventId dbop
   pinsert BI.BillableId
     "INSERT INTO billables \
@@ -434,7 +450,7 @@ updateCache dbop @ (CreateSubscription uid bid) = do
     \VALUES (?, ?, ?) RETURNING id"
     (uid ^. _UserId, bid ^. BI._BillableId, eventId ^. _EventId)
 
-updateCache dbop @ (CreatePaymentRequest req) = do
+updateCache dbop @ (CreatePaymentRequest _ req) = do
   eventId <- requireEventId dbop
   pinsert PaymentRequestId
     "INSERT INTO payment_requests \
@@ -445,7 +461,7 @@ updateCache dbop @ (CreatePaymentRequest req) = do
     , req ^. (paymentRequest . to (runPut . encodeMessage))
     )
   
-updateCache dbop @ (CreatePayment req) = do
+updateCache dbop @ (CreatePayment _ req) = do
   eventId <- requireEventId dbop
   pinsert PaymentId
     "INSERT INTO payments \

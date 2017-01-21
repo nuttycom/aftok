@@ -50,13 +50,13 @@ data DBOp a where
   CreateBid        :: AuctionId -> Bid -> DBOp BidId
   ReadBids         :: AuctionId -> DBOp [Bid]
 
-  CreateBillable   :: Billable -> DBOp BillableId
+  CreateBillable   :: UserId -> Billable -> DBOp BillableId
   ReadBillable     :: BillableId -> DBOp (Maybe Billable)
 
   CreateSubscription :: UserId -> BillableId -> DBOp SubscriptionId
 
-  CreatePaymentRequest :: PaymentRequest -> DBOp PaymentRequestId
-  CreatePayment        :: Payment -> DBOp PaymentId
+  CreatePaymentRequest :: UserId -> PaymentRequest -> DBOp PaymentRequestId
+  CreatePayment        :: UserId -> Payment -> DBOp PaymentId
 
   RaiseDBError     :: forall x y. DBError -> DBOp x -> DBOp y
 
@@ -174,8 +174,9 @@ readWorkIndex pid uid = withProjectAuth pid uid $ ReadWorkIndex pid
 
 -- Billing ops
 
-createBillable :: Billable -> DBProg BillableId
-createBillable b = withProjectAuth (b ^. B.project) (b ^. B.creator) $ CreateBillable b
+createBillable :: UserId -> Billable -> DBProg BillableId
+createBillable uid b = 
+  withProjectAuth (b ^. B.project) uid $ CreateBillable uid b
 
 readBillable :: BillableId -> DBProg (Maybe Billable)
 readBillable = fc . ReadBillable

@@ -21,6 +21,7 @@ import           Data.UUID                        as U
 
 import           Aftok
 import           Aftok.Auction                    as A
+import qualified Aftok.Billables                  as B
 import           Aftok.Database
 import           Aftok.Interval
 import           Aftok.Project                    as P
@@ -151,19 +152,40 @@ eventIdJSON (EventId eid) = v1 $
   obj [ "eventId" .= tshow eid ]
 
 
-logEventJSON :: LogEvent -> Value
-logEventJSON ev = object [ eventName ev .= object [ "eventTime" .= (ev ^. eventTime) ] ]
+logEventJSON' :: LogEvent -> Value
+logEventJSON' ev = object [ eventName ev .= object [ "eventTime" .= (ev ^. eventTime) ] ]
 
 logEntryJSON :: LogEntry -> Value
 logEntryJSON (LogEntry c ev m) = v2 $
   obj [ "creditTo"  .= creditToJSON c
-      , "event" .= logEventJSON ev
+      , "event" .= logEventJSON' ev
       , "eventMeta" .= m
       ]
 
 amendmentIdJSON :: AmendmentId -> Value
 amendmentIdJSON (AmendmentId aid) = v1 $
   obj [ "amendmentId" .= tshow aid ]
+
+billableJSON :: B.Billable -> Value
+billableJSON b = v1 $
+  obj [ "projectId"   .= tshow (b ^. (B.project . _ProjectId))
+      , "name"        .= (b ^. B.name)
+      , "description" .= (b ^. B.description)
+      , "recurrence"  .= recurrenceJSON' (b ^. B.recurrence)
+      ]
+
+recurrenceJSON' :: B.Recurrence -> Value
+recurrenceJSON' B.Annually    = object [ "annually" .= Null ]
+recurrenceJSON' (B.Monthly i) = object [ "monthly " .= object [ "months" .= i ] ]
+recurrenceJSON' B.SemiMonthly = object [ "semimonthly" .= Null ]
+recurrenceJSON' (B.Weekly i)  = object [ "weekly " .= object [ "weeks" .= i ] ]
+recurrenceJSON' B.OneTime     = object [ "onetime" .= Null ]
+
+subscriptionJSON :: UserId -> B.BillableId -> Value
+subscriptionJSON uid bid = v1 $ 
+  obj [ "userId"     .= tshow (uid ^. _UserId)
+      , "billableId" .= tshow (bid ^. B._BillableId)
+      ]
 
 -------------
 -- Parsers --
