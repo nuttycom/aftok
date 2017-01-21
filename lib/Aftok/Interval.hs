@@ -45,4 +45,4 @@ intervalJSON ival = object ["start" .= (ival ^. start), "end" .= (ival ^. end)]
 
 parseIntervalJSON :: Value -> Parser Interval
 parseIntervalJSON (Object v) = interval <$> v .: "start" <*> v .: "end"
-parseIntervalJSON _ = mzero
+parseIntervalJSON _          = mzero

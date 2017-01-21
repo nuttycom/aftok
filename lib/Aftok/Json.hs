@@ -10,14 +10,14 @@ import           Control.Lens                     hiding ((.=))
 import           Data.Aeson
 import           Data.Aeson.Types
 import qualified Data.Attoparsec.ByteString.Char8 as PC
-import qualified Data.ByteString.Char8            as C
 import qualified Data.ByteString.Base64           as B64
-import Data.ProtocolBuffers (encodeMessage)
+import qualified Data.ByteString.Char8            as C
 import           Data.Data
 import           Data.HashMap.Strict              as O
 import           Data.List.NonEmpty               as L
 import           Data.Map.Strict                  as MS
-import           Data.Serialize.Put                   (runPut)
+import           Data.ProtocolBuffers             (encodeMessage)
+import           Data.Serialize.Put               (runPut)
 import qualified Data.Text                        as T
 import           Data.Thyme.Clock                 as C
 import           Data.UUID                        as U
@@ -31,7 +31,7 @@ import           Aftok.Payments
 import           Aftok.Project                    as P
 import           Aftok.TimeLog
 import           Aftok.Types
-import           Aftok.Util (traverseKeys)
+import           Aftok.Util                       (traverseKeys)
 
 import qualified Language.Haskell.TH              as TH
 import           Language.Haskell.TH.Quote
@@ -85,7 +85,7 @@ v2 = versioned $ Version 2 0
 unv1 :: String -> (Object -> Parser a) -> Value -> Parser a
 unv1 name f = unversion name $ p where
   p (Version 1 0) = f
-  p ver = badVersion name ver
+  p ver           = badVersion name ver
 
 badVersion :: forall v a. String -> Version -> v -> Parser a
 badVersion name ver = const . fail $ "Unrecognized " <> name <> " schema version: " <> show ver
@@ -186,7 +186,7 @@ recurrenceJSON' (B.Weekly i)  = object [ "weekly " .= object [ "weeks" .= i ] ]
 recurrenceJSON' B.OneTime     = object [ "onetime" .= Null ]
 
 subscriptionJSON :: UserId -> B.BillableId -> Value
-subscriptionJSON uid bid = v1 $ 
+subscriptionJSON uid bid = v1 $
   obj [ "userId"     .= tshow (uid ^. _UserId)
       , "billableId" .= tshow (bid ^. B._BillableId)
       ]
@@ -237,26 +237,26 @@ parseCreditToV2 o =
 parsePayoutsJSON :: Value -> Parser Payouts
 parsePayoutsJSON = unversion "Payouts" $ p where
   p :: Version -> Object -> Parser Payouts
-  p (Version 1 _) v = 
+  p (Version 1 _) v =
     let parseKey :: String -> Parser CreditTo
-        parseKey k = maybe 
-                     (fail $ "Key " <> k <> " cannot be parsed as a valid BTC address.") 
-                     (pure . CreditToAddress) 
+        parseKey k = maybe
+                     (fail $ "Key " <> k <> " cannot be parsed as a valid BTC address.")
+                     (pure . CreditToAddress)
                      (parseBtcAddr $ T.pack k)
     in  Payouts <$> join (traverseKeys parseKey <$> parseJSON (Object v))
-    
+
   p (Version 2 0) v =
     let parsePayoutRecord x = (,) <$> (parseCreditToV2 =<< (x .: "creditTo")) <*> x .: "payoutRatio"
     in  Payouts . MS.fromList <$> (traverse parsePayoutRecord =<< parseJSON (Object v))
 
-  p ver x = 
+  p ver x =
     badVersion "Payouts" ver x
 
 parseEventAmendment :: ModTime -> Value -> Parser EventAmendment
 parseEventAmendment t = unversion "EventAmendment" $ p where
   p (Version 1 _) = parseEventAmendmentV1 t
   p (Version 2 0) = parseEventAmendmentV2 t
-  p ver = badVersion "EventAmendment" ver
+  p ver           = badVersion "EventAmendment" ver
 
 parseEventAmendmentV1 :: ModTime -> Object -> Parser EventAmendment
 parseEventAmendmentV1 t o =

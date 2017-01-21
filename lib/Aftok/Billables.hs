@@ -4,13 +4,13 @@ module Aftok.Billables where
 
 import           ClassyPrelude
 
-import           Control.Lens               (makeLenses, makePrisms)
+import           Control.Lens  (makeLenses, makePrisms)
 
-import           Data.UUID
-import           Aftok.Time (Days(..))
+import           Aftok         (UserId)
 import           Aftok.Project (ProjectId)
-import           Aftok (UserId)
-import           Aftok.Types (Satoshi)
+import           Aftok.Time    (Days (..))
+import           Aftok.Types   (Satoshi)
+import           Data.UUID
 
 newtype BillableId = BillableId UUID deriving (Show, Eq)
 makePrisms ''BillableId
@@ -20,30 +20,30 @@ data Recurrence
   | Monthly Int
   | SemiMonthly
   | Weekly Int
-  | OneTime   
+  | OneTime
 makeLenses ''Recurrence
 
 recurrenceName :: Recurrence -> Text
-recurrenceName Annually  = "annually"
+recurrenceName Annually    = "annually"
 recurrenceName (Monthly _) = "monthly"
 recurrenceName SemiMonthly = "semimonthly"
 recurrenceName (Weekly _)  = "weekly"
-recurrenceName OneTime   = "onetime"
+recurrenceName OneTime     = "onetime"
 
 recurrenceCount :: Recurrence -> Maybe Int
-recurrenceCount Annually = Nothing
+recurrenceCount Annually    = Nothing
 recurrenceCount (Monthly i) = Just i
 recurrenceCount SemiMonthly = Nothing
 recurrenceCount (Weekly i)  = Just i
-recurrenceCount OneTime  = Nothing
+recurrenceCount OneTime     = Nothing
 
 data Billable' (p :: *) (u :: *) (c :: *) = Billable
-  { _project :: p
-  , _creator :: u
-  , _name :: Text
+  { _project     :: p
+  , _creator     :: u
+  , _name        :: Text
   , _description :: Text
-  , _recurrence :: Recurrence
-  , _amount :: c
+  , _recurrence  :: Recurrence
+  , _amount      :: c
   , _gracePeriod :: Days
   }
 makeLenses ''Billable'

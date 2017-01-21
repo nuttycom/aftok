@@ -175,7 +175,7 @@ readWorkIndex pid uid = withProjectAuth pid uid $ ReadWorkIndex pid
 -- Billing ops
 
 createBillable :: UserId -> Billable -> DBProg BillableId
-createBillable uid b = 
+createBillable uid b =
   withProjectAuth (b ^. B.project) uid $ CreateBillable uid b
 
 readBillable :: BillableId -> DBProg (Maybe Billable)
@@ -184,7 +184,7 @@ readBillable = fc . ReadBillable
 --createPaymentRequest :: BillableId -> DBProg PaymentRequestId
 --createPaymentRequest bid = do
 --  billable <- readBillable bid
-  
+
 
 readPaymentHistory :: UserId -> DBProg [Payment]
 readPaymentHistory = error "Not yet implemented"

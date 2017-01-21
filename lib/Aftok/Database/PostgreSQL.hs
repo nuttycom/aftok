@@ -6,11 +6,11 @@ module Aftok.Database.PostgreSQL (QDBM(), runQDBM) where
 import           ClassyPrelude
 import           Control.Lens
 import           Control.Monad.Trans.Either
-import           Data.Aeson                           (toJSON, Value)
+import           Data.Aeson                           (Value, toJSON)
 import qualified Data.ByteString.Char8                as B
 import           Data.Hourglass
 import           Data.List                            as L
-import Data.ProtocolBuffers (encodeMessage)
+import           Data.ProtocolBuffers                 (encodeMessage)
 import           Data.Serialize.Put                   (runPut)
 import           Data.Thyme.Clock                     as C
 import           Data.Thyme.Time
@@ -20,17 +20,20 @@ import           Database.PostgreSQL.Simple.FromField
 import           Database.PostgreSQL.Simple.FromRow
 import           Database.PostgreSQL.Simple.Types     (Null)
 
-import           Network.Haskoin.Crypto (addrToBase58)
+import           Network.Haskoin.Crypto               (addrToBase58)
 
 import           Aftok
 import qualified Aftok.Auction                        as A
 import qualified Aftok.Billables                      as BI
 import           Aftok.Database
 import           Aftok.Interval
-import           Aftok.Json                           (billableJSON, subscriptionJSON, paymentRequestJSON, paymentJSON)
+import           Aftok.Json                           (billableJSON,
+                                                       paymentJSON,
+                                                       paymentRequestJSON,
+                                                       subscriptionJSON)
 import           Aftok.Payments
 import qualified Aftok.Project                        as P
-import           Aftok.Time                           (Days(..), _Days)
+import           Aftok.Time                           (Days (..), _Days)
 import           Aftok.TimeLog
 import           Aftok.Types
 
@@ -81,12 +84,12 @@ nullField = field
 recurrenceParser :: RowParser BI.Recurrence
 recurrenceParser =
   let prec :: Text -> RowParser BI.Recurrence
-      prec "annually" = nullField *> pure BI.Annually
-      prec "monthly"  = BI.Monthly <$> field
+      prec "annually"    = nullField *> pure BI.Annually
+      prec "monthly"     = BI.Monthly <$> field
       prec "semimonthly" = nullField *> pure BI.SemiMonthly
-      prec "weekly"   = BI.Weekly <$> field
-      prec "onetime"  = nullField *> pure BI.OneTime
-      prec _ = empty
+      prec "weekly"      = BI.Weekly <$> field
+      prec "onetime"     = nullField *> pure BI.OneTime
+      prec _             = empty
   in  field >>= prec
 
 eventTypeParser :: FieldParser (C.UTCTime -> LogEvent)
@@ -100,7 +103,7 @@ creditToParser :: RowParser CreditTo
 creditToParser = join $ fieldWith creditToParser'
 
 creditToParser' :: FieldParser (RowParser CreditTo)
-creditToParser' f v =   
+creditToParser' f v =
   let parser :: Text -> RowParser CreditTo
       parser "credit_to_btc_addr" = CreditToAddress <$> (fieldWith btcAddrParser <* nullField <* nullField)
       parser "credit_to_user"     = CreditToUser    <$> (nullField *> fieldWith uidParser <* nullField)
@@ -108,7 +111,7 @@ creditToParser' f v =
       parser _ = empty
   in do
     tn <- typename f
-    if tn /= "credit_to_t" 
+    if tn /= "credit_to_t"
       then returnError Incompatible f "column was not of type credit_to_t"
       else maybe empty (pure . parser . decodeUtf8) v
 
@@ -203,16 +206,16 @@ transactQDBM (QDBM rt) = QDBM $ do
   lift . EitherT $ withTransaction conn (runEitherT $ runReaderT rt conn)
 
 storeEvent :: DBOp a -> Maybe (QDBM EventId)
-storeEvent (CreateBillable uid b) = 
+storeEvent (CreateBillable uid b) =
   Just $ storeEventJSON uid "create_billable" (billableJSON b)
 
-storeEvent (CreateSubscription uid bid) = 
+storeEvent (CreateSubscription uid bid) =
   Just $ storeEventJSON uid "create_subscription" (subscriptionJSON uid bid)
 
-storeEvent (CreatePaymentRequest uid req) = 
+storeEvent (CreatePaymentRequest uid req) =
   Just $ storeEventJSON uid "create_payment_request" (paymentRequestJSON req)
 
-storeEvent (CreatePayment uid req) = 
+storeEvent (CreatePayment uid req) =
   Just $ storeEventJSON uid "create_payment" (paymentJSON req)
 
 storeEvent _ = Nothing
@@ -461,10 +464,10 @@ updateCache dbop @ (CreatePaymentRequest _ req) = do
     \(subscription_id, event_id, request_data) \
     \VALUES (?, ?, ?) RETURNING id"
     ( req ^. (subscription . BI._SubscriptionId)
-    , eventId ^. _EventId 
+    , eventId ^. _EventId
     , req ^. (paymentRequest . to (runPut . encodeMessage))
     )
-  
+
 updateCache dbop @ (CreatePayment _ req) = do
   eventId <- requireEventId dbop
   pinsert PaymentId

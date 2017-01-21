@@ -33,7 +33,7 @@ data ProjectCreateRequest = CP { cpn :: Text, cpdepf :: DepreciationFunction }
 
 instance FromJSON ProjectCreateRequest where
   parseJSON (Object v) = CP <$> v .: "projectName" <*> v .: "depf"
-  parseJSON _ = mzero
+  parseJSON _          = mzero
 
 projectCreateHandler :: Handler App App ProjectId
 projectCreateHandler = do

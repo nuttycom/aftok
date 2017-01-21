@@ -67,7 +67,7 @@ makePrisms ''CreditTo
 
 creditToName :: CreditTo -> Text
 creditToName (CreditToAddress _) = "credit_to_address"
-creditToName (CreditToUser _) = "credit_to_user"
+creditToName (CreditToUser _)    = "credit_to_user"
 creditToName (CreditToProject _) = "credit_to_project"
 
 data LogEntry = LogEntry
