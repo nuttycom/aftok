@@ -11,10 +11,13 @@ import           Data.Aeson
 import           Data.Aeson.Types
 import qualified Data.Attoparsec.ByteString.Char8 as PC
 import qualified Data.ByteString.Char8            as C
+import qualified Data.ByteString.Base64           as B64
+import Data.ProtocolBuffers (encodeMessage)
 import           Data.Data
 import           Data.HashMap.Strict              as O
 import           Data.List.NonEmpty               as L
 import           Data.Map.Strict                  as MS
+import           Data.Serialize.Put                   (runPut)
 import qualified Data.Text                        as T
 import           Data.Thyme.Clock                 as C
 import           Data.UUID                        as U
@@ -24,6 +27,7 @@ import           Aftok.Auction                    as A
 import qualified Aftok.Billables                  as B
 import           Aftok.Database
 import           Aftok.Interval
+import           Aftok.Payments
 import           Aftok.Project                    as P
 import           Aftok.TimeLog
 import           Aftok.Types
@@ -168,7 +172,7 @@ amendmentIdJSON (AmendmentId aid) = v1 $
 
 billableJSON :: B.Billable -> Value
 billableJSON b = v1 $
-  obj [ "projectId"   .= tshow (b ^. (B.project . _ProjectId))
+  obj [ "projectId"   .= (b ^. (B.project . _ProjectId . to tshow))
       , "name"        .= (b ^. B.name)
       , "description" .= (b ^. B.description)
       , "recurrence"  .= recurrenceJSON' (b ^. B.recurrence)
@@ -185,6 +189,20 @@ subscriptionJSON :: UserId -> B.BillableId -> Value
 subscriptionJSON uid bid = v1 $ 
   obj [ "userId"     .= tshow (uid ^. _UserId)
       , "billableId" .= tshow (bid ^. B._BillableId)
+      ]
+
+paymentRequestJSON :: PaymentRequest -> Value
+paymentRequestJSON r = v1 $
+  obj [ "subscription_id" .= (r ^. (subscription . B._SubscriptionId . to tshow))
+      , "payment_request_protobuf_64" .= (r ^. (paymentRequest . to (decodeUtf8 . B64.encode . runPut . encodeMessage)))
+      , "payment_request_date" .= (r ^. paymentRequestDate)
+      ]
+
+paymentJSON :: Payment -> Value
+paymentJSON r = v1 $
+  obj [ "payment_request_id"  .= (r ^. (request . _PaymentRequestId . to tshow))
+      , "payment_protobuf_64" .= (r ^. (payment . to (decodeUtf8 . B64.encode . runPut . encodeMessage)))
+      , "payment_date" .= (r ^. paymentDate)
       ]
 
 -------------

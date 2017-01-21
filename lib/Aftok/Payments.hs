@@ -19,7 +19,7 @@ makePrisms ''PaymentRequestId
 newtype PaymentId = PaymentId UUID deriving (Show, Eq)
 makePrisms ''PaymentId
 
-data PaymentRequest' (s :: *) = PaymentRequest
+data PaymentRequest' s = PaymentRequest
   { _subscription :: s
   , _paymentRequest :: P.PaymentRequest
   , _paymentRequestDate :: C.UTCTime
@@ -28,7 +28,7 @@ makeLenses ''PaymentRequest'
 
 type PaymentRequest = PaymentRequest' SubscriptionId
 
-data Payment' (r :: *) = Payment
+data Payment' r = Payment
   { _request :: r
   , _payment :: P.Payment
   , _paymentDate :: C.UTCTime

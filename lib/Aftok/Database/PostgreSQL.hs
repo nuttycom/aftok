@@ -27,7 +27,7 @@ import qualified Aftok.Auction                        as A
 import qualified Aftok.Billables                      as BI
 import           Aftok.Database
 import           Aftok.Interval
-import           Aftok.Json                           (billableJSON, subscriptionJSON)
+import           Aftok.Json                           (billableJSON, subscriptionJSON, paymentRequestJSON, paymentJSON)
 import           Aftok.Payments
 import qualified Aftok.Project                        as P
 import           Aftok.Time                           (Days(..), _Days)
@@ -209,8 +209,12 @@ storeEvent (CreateBillable uid b) =
 storeEvent (CreateSubscription uid bid) = 
   Just $ storeEventJSON uid "create_subscription" (subscriptionJSON uid bid)
 
-storeEvent (CreatePaymentRequest _ _) = error "Not implemented"
-storeEvent (CreatePayment _ _) = error "Not implemented"
+storeEvent (CreatePaymentRequest uid req) = 
+  Just $ storeEventJSON uid "create_payment_request" (paymentRequestJSON req)
+
+storeEvent (CreatePayment uid req) = 
+  Just $ storeEventJSON uid "create_payment" (paymentJSON req)
+
 storeEvent _ = Nothing
 
 type EventType = Text
