@@ -66,4 +66,5 @@ annually :: Recurrence
 annually = Annually
 
 newtype SubscriptionId = SubscriptionId UUID deriving (Show, Eq)
+makePrisms ''SubscriptionId
 

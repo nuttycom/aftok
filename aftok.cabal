@@ -45,6 +45,7 @@ library
     , bifunctors
     , blaze-builder       
     , bytestring
+    , cereal
     , containers          >= 0.5.6
     , configurator             
     , either              >= 4.4.1
@@ -60,6 +61,7 @@ library
     , mtl
     , old-locale          >= 1.0 
     , postgresql-simple   >= 0.5.2.0
+    , protobuf
     , safe                >= 0.3.9    && < 0.4
     , semigroups
     , semigroupoids

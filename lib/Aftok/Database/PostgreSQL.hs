@@ -10,6 +10,8 @@ import           Data.Aeson                           (toJSON)
 import qualified Data.ByteString.Char8                as B
 import           Data.Hourglass
 import           Data.List                            as L
+import Data.ProtocolBuffers (encodeMessage)
+import           Data.Serialize.Put                   (runPut)
 import           Data.Thyme.Clock                     as C
 import           Data.Thyme.Time
 import           Data.UUID                            (UUID)
@@ -25,6 +27,7 @@ import qualified Aftok.Auction                        as A
 import qualified Aftok.Billables                      as BI
 import           Aftok.Database
 import           Aftok.Interval
+import           Aftok.Payments
 import qualified Aftok.Project                        as P
 import           Aftok.Time                           (Days(..), _Days)
 import           Aftok.TimeLog
@@ -92,8 +95,11 @@ eventTypeParser f v = do
     then returnError Incompatible f "column was not of type event_t"
     else maybe (returnError UnexpectedNull f "event type may not be null") (nameEvent . decodeUtf8) v
 
-creditToParser :: FieldParser (RowParser CreditTo)
-creditToParser f v =   
+creditToParser :: RowParser CreditTo
+creditToParser = join $ fieldWith creditToParser'
+
+creditToParser' :: FieldParser (RowParser CreditTo)
+creditToParser' f v =   
   let parser :: Text -> RowParser CreditTo
       parser "credit_to_btc_addr" = CreditToAddress <$> (fieldWith btcAddrParser <* nullField <* nullField)
       parser "credit_to_user"     = CreditToUser    <$> (nullField *> fieldWith uidParser <* nullField)
@@ -107,7 +113,7 @@ creditToParser f v =
 
 logEntryParser :: RowParser LogEntry
 logEntryParser =
-  LogEntry <$> join (fieldWith creditToParser)
+  LogEntry <$> creditToParser
            <*> (fieldWith eventTypeParser <*> fieldWith utcParser)
            <*> field
 
@@ -400,7 +406,7 @@ updateCache dbop @ (CreateBillable b) = do
   eventId <- requireEventId dbop
   pinsert BI.BillableId
     "INSERT INTO billables \
-    \(project_id, event_id, name, description, recurrence_type, recurrence_count, billing_amount, grace_period_days)\
+    \(project_id, event_id, name, description, recurrence_type, recurrence_count, billing_amount, grace_period_days) \
     \VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id"
     ( b ^. (BI.project . P._ProjectId)
     , eventId ^. _EventId
@@ -420,8 +426,26 @@ updateCache (ReadBillable bid) =
     \WHERE b.id = ?"
     (Only (bid ^. BI._BillableId))
 
-updateCache (CreateSubscription _ _) = error "Not implemented"
-updateCache (CreatePaymentRequest _) = error "Not implemented"
+updateCache dbop @ (CreateSubscription uid bid) = do
+  eventId <- requireEventId dbop
+  pinsert BI.SubscriptionId
+    "INSERT INTO subscriptions \
+    \(user_id, billable_id, event_id) \
+    \VALUES (?, ?, ?) RETURNING id"
+    (uid ^. _UserId, bid ^. BI._BillableId, eventId ^. _EventId)
+
+updateCache dbop @ (CreatePaymentRequest req) = do
+  eventId <- requireEventId dbop
+  pinsert PaymentRequestId
+    "INSERT INTO payment_requests \
+    \(subscription_id, event_id, request_data) \
+    \VALUES (?, ?, ?) RETURNING id"
+    ( req ^. (subscription . BI._SubscriptionId)
+    , eventId ^. _EventId 
+    , req ^. (paymentRequest . to (runPut . encodeMessage))
+    )
+  
+
 updateCache (CreatePayment _ ) = error "Not implemented"
 
 updateCache (RaiseDBError err _) = raiseError err
