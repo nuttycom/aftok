@@ -1,11 +1,13 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleInstances  #-}
 {-# LANGUAGE ExplicitForAll     #-}
+{-# LANGUAGE TupleSections      #-}
 {-# LANGUAGE GADTs              #-}
 
 module Aftok.Database where
 
 import           ClassyPrelude
-import           Control.Lens
+import           Control.Lens (view, (^.))
 import           Data.AffineSpace
 import           Data.Thyme.Clock as C
 
@@ -13,7 +15,7 @@ import           Aftok
 import           Aftok.Auction    as A
 import           Aftok.Billables  as B
 import           Aftok.Interval
-import           Aftok.Payments
+import           Aftok.Payments.Types
 import           Aftok.Project    as P
 import           Aftok.TimeLog
 import           Aftok.Util
@@ -23,8 +25,6 @@ type KeyedLogEntry = (ProjectId, UserId, LogEntry)
 type KeyedProject  = (ProjectId, Project)
 type InvitingUID   = UserId
 type InvitedUID    = UserId
-
-type DBProg a = Program DBOp a
 
 data DBOp a where
   CreateUser       :: User -> DBOp UserId
@@ -53,7 +53,8 @@ data DBOp a where
   CreateBillable   :: UserId -> Billable -> DBOp BillableId
   ReadBillable     :: BillableId -> DBOp (Maybe Billable)
 
-  CreateSubscription :: UserId -> BillableId -> DBOp SubscriptionId
+  CreateSubscription :: UserId -> Subscription -> DBOp SubscriptionId
+  FindSubscriptions :: UserId -> ProjectId -> DBOp [(SubscriptionId, Subscription)]
 
   CreatePaymentRequest :: UserId -> PaymentRequest -> DBOp PaymentRequestId
   CreatePayment        :: UserId -> Payment -> DBOp PaymentId
@@ -74,148 +75,156 @@ data DBError = OpForbidden UserId OpForbiddenReason
 
 instance Exception DBError
 
-raiseOpForbidden :: UserId -> OpForbiddenReason -> DBOp x -> DBOp x
-raiseOpForbidden uid r = RaiseDBError (OpForbidden uid r)
+class (Monad m) => MonadDB (m :: * -> *) where
+  liftdb :: DBOp x -> m x
 
-raiseSubjectNotFound :: DBOp y -> DBOp x
-raiseSubjectNotFound = RaiseDBError SubjectNotFound
+instance MonadDB (Program DBOp) where
+  liftdb = fc
 
-class DBEval m where
-  dbEval :: DBOp a -> m a
+raiseOpForbidden :: (MonadDB m) => UserId -> OpForbiddenReason -> DBOp x -> m x
+raiseOpForbidden uid r op = liftdb $ RaiseDBError (OpForbidden uid r) op
+
+raiseSubjectNotFound :: (MonadDB m) => DBOp y -> m x
+raiseSubjectNotFound op = liftdb $ RaiseDBError SubjectNotFound op
 
 -- User ops
 
-createUser :: User -> DBProg UserId
-createUser = fc . CreateUser
+createUser :: (MonadDB m) => User -> m UserId
+createUser = liftdb . CreateUser
 
-findUser :: UserId -> DBProg (Maybe User)
-findUser = fc . FindUser
+findUser :: (MonadDB m) => UserId -> m (Maybe User)
+findUser = liftdb . FindUser
 
-findUserByName :: UserName -> DBProg (Maybe KeyedUser)
-findUserByName = fc . FindUserByName
+findUserByName :: (MonadDB m) => UserName -> m (Maybe KeyedUser)
+findUserByName = liftdb . FindUserByName
 
 -- Project ops
 
-createProject :: Project -> DBProg ProjectId
+createProject :: (MonadDB m) => Project -> m ProjectId
 createProject p = do
-  pid <- fc $ CreateProject p
+  pid <- liftdb $ CreateProject p
   addUserToProject pid (p ^. P.initiator) (p ^. P.initiator)
   return pid
 
-findProject :: ProjectId -> UserId -> DBProg (Maybe Project)
+findProject :: (MonadDB m) => ProjectId -> UserId -> m (Maybe Project)
 findProject pid uid = do
   kps <- findUserProjects uid
   pure $ fmap snd (find (\(pid', _) -> pid' == pid) kps)
 
-findUserProjects :: UserId -> DBProg [KeyedProject]
-findUserProjects = fc . FindUserProjects
+findUserProjects :: (MonadDB m) => UserId -> m [KeyedProject]
+findUserProjects = liftdb . FindUserProjects
 
-withProjectAuth :: ProjectId -> UserId -> DBOp a -> DBProg a
+withProjectAuth :: (MonadDB m) => ProjectId -> UserId -> DBOp a -> m a
 withProjectAuth pid uid act = do
   px <- findUserProjects uid
-  fc $ if any (\(pid', _) -> pid' == pid) px
-    then act
+  if any (\(pid', _) -> pid' == pid) px
+    then liftdb act
     else raiseOpForbidden uid UserNotProjectMember act
 
-checkProjectAuth :: ProjectId -> UserId -> DBOp a -> DBProg ()
+checkProjectAuth :: (MonadDB m) => ProjectId -> UserId -> DBOp a -> m ()
 checkProjectAuth pid uid act = do
   px <- findUserProjects uid
   if any (\(pid', _) -> pid' == pid) px
     then pure ()
-    else void . fc $ raiseOpForbidden uid UserNotProjectMember act
+    else void $ raiseOpForbidden uid UserNotProjectMember act
 
-addUserToProject :: ProjectId -> InvitingUID -> InvitedUID -> DBProg ()
+addUserToProject :: (MonadDB m) => ProjectId -> InvitingUID -> InvitedUID -> m ()
 addUserToProject pid current new =
   withProjectAuth pid current $ AddUserToProject pid current new
 
-createInvitation :: ProjectId -> InvitingUID -> Email -> C.UTCTime -> DBProg InvitationCode
+createInvitation :: (MonadDB m) => ProjectId -> InvitingUID -> Email -> C.UTCTime -> m InvitationCode
 createInvitation pid current email t =
   withProjectAuth pid current $ CreateInvitation pid current email t
 
-findInvitation :: InvitationCode -> DBProg (Maybe Invitation)
-findInvitation ic = fc $ FindInvitation ic
+findInvitation :: (MonadDB m) => InvitationCode -> m (Maybe Invitation)
+findInvitation ic = liftdb $ FindInvitation ic
 
-acceptInvitation :: UserId -> C.UTCTime -> InvitationCode-> DBProg ()
+acceptInvitation :: (MonadDB m) => UserId -> C.UTCTime -> InvitationCode-> m ()
 acceptInvitation uid t ic = do
   inv <- findInvitation ic
   let act = AcceptInvitation uid ic t
   case inv of
     Nothing ->
-      fc $ raiseSubjectNotFound act
+      raiseSubjectNotFound act
     Just i | t .-. (i ^. invitationTime) > fromSeconds (60 * 60 * 72 :: Int) ->
-      fc $ raiseOpForbidden uid InvitationExpired act
+      raiseOpForbidden uid InvitationExpired act
     Just i | isJust (i ^. acceptanceTime) ->
-      fc $ raiseOpForbidden uid InvitationAlreadyAccepted act
+      raiseOpForbidden uid InvitationAlreadyAccepted act
     Just i ->
       withProjectAuth (i ^. P.projectId) (i ^. P.invitingUser) act
 
 -- Log ops
 
 -- TODO: ignore "duplicate" events within some small time limit?
-createEvent :: ProjectId -> UserId -> LogEntry -> DBProg EventId
+createEvent :: (MonadDB m) => ProjectId -> UserId -> LogEntry -> m EventId
 createEvent p u l = withProjectAuth p u $ CreateEvent p u l
 
-amendEvent :: UserId -> EventId -> EventAmendment -> DBProg AmendmentId
+amendEvent :: (MonadDB m) => UserId -> EventId -> EventAmendment -> m AmendmentId
 amendEvent uid eid a = do
   ev <- findEvent eid
   let act = AmendEvent eid a
       forbidden = raiseOpForbidden uid UserNotEventLogger act
-      missing = raiseSubjectNotFound act
-  fc $ maybe missing (\(_, uid', _) -> if uid' == uid then act else forbidden) ev
+      missing   = raiseSubjectNotFound act
+  maybe missing (\(_, uid', _) -> if uid' == uid then liftdb act else forbidden) ev
 
-findEvent :: EventId -> DBProg (Maybe KeyedLogEntry)
-findEvent = fc . FindEvent
+findEvent :: (MonadDB m) => EventId -> m (Maybe KeyedLogEntry)
+findEvent = liftdb . FindEvent
 
-findEvents :: ProjectId -> UserId -> Interval' -> DBProg [LogEntry]
-findEvents p u i = fc $ FindEvents p u i
+findEvents :: (MonadDB m) => ProjectId -> UserId -> Interval' -> m [LogEntry]
+findEvents p u i = liftdb $ FindEvents p u i
 
-readWorkIndex :: ProjectId -> UserId -> DBProg WorkIndex
+readWorkIndex :: (MonadDB m) => ProjectId -> UserId -> m WorkIndex
 readWorkIndex pid uid = withProjectAuth pid uid $ ReadWorkIndex pid
 
 -- Billing ops
 
-createBillable :: UserId -> Billable -> DBProg BillableId
+createBillable :: (MonadDB m) => UserId -> Billable -> m BillableId
 createBillable uid b =
   withProjectAuth (b ^. B.project) uid $ CreateBillable uid b
 
-readBillable :: BillableId -> DBProg (Maybe Billable)
-readBillable = fc . ReadBillable
+readBillable :: (MonadDB m) => BillableId -> m (Maybe Billable)
+readBillable = liftdb . ReadBillable
 
---createPaymentRequest :: BillableId -> DBProg PaymentRequestId
---createPaymentRequest bid = do
---  billable <- readBillable bid
+findSubscriptions :: (MonadDB m) 
+                  => UserId 
+                  -> ProjectId 
+                  -> m [(SubscriptionId, Subscription' Billable)]
+findSubscriptions uid pid = do
+  subscriptions <- liftdb $ FindSubscriptions uid pid
+  let sub'' s = sequenceA <$> traverse readBillable s
+      sub' (sid, s) = fmap (fmap (sid,)) (sub'' s)
+  catMaybes <$> traverse sub' subscriptions 
 
-
-readPaymentHistory :: UserId -> DBProg [Payment]
+readPaymentHistory :: (MonadDB m) => UserId -> m [Payment]
 readPaymentHistory = error "Not yet implemented"
 
 -- Auction ops
 
-createAuction :: Auction -> DBProg AuctionId
+createAuction :: (MonadDB m) => Auction -> m AuctionId
 createAuction a = do
   withProjectAuth (a ^. A.projectId) (a ^. A.initiator) $ CreateAuction a
 
-findAuction :: AuctionId -> UserId -> DBProg (Maybe Auction)
+findAuction :: (MonadDB m) => AuctionId -> UserId -> m (Maybe Auction)
 findAuction aid uid =
   let findOp = FindAuction aid
   in  do
-    maybeAuc <- fc findOp
+    maybeAuc <- liftdb findOp
     _ <- traverse (\auc -> checkProjectAuth (auc ^. A.projectId) uid findOp) maybeAuc
     pure maybeAuc
 
-findAuction' :: AuctionId -> UserId -> DBProg Auction
+findAuction' :: (MonadDB m) => AuctionId -> UserId -> m Auction
 findAuction' aid uid =
   let findOp = FindAuction aid
   in  do
-    maybeAuc <- fc findOp
+    maybeAuc <- liftdb findOp
     _ <- traverse (\auc -> checkProjectAuth (auc ^. A.projectId) uid findOp) maybeAuc
-    maybe (fc $ raiseSubjectNotFound findOp) pure maybeAuc
+    maybe (raiseSubjectNotFound findOp) pure maybeAuc
 
-createBid :: AuctionId -> UserId -> Bid -> DBProg BidId
+createBid :: (MonadDB m) => AuctionId -> UserId -> Bid -> m BidId
 createBid aid uid bid =
   let createOp = CreateBid aid bid
   in  do
     auc <- findAuction' aid uid
-    fc $ if view bidTime bid > view auctionEnd auc
+    if view bidTime bid > view auctionEnd auc
       then raiseOpForbidden uid AuctionEnded createOp
-      else createOp
+      else liftdb createOp

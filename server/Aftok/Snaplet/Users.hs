@@ -19,7 +19,7 @@ import           Aftok.Snaplet
 import           Aftok.Snaplet.Auth
 
 import           Snap.Core
-import           Snap.Snaplet
+import           Snap.Snaplet       as S
 import qualified Snap.Snaplet.Auth  as AU
 
 data CUser = CU
@@ -46,7 +46,7 @@ instance FromJSON CUser where
 
   parseJSON _ = mzero
 
-registerHandler :: Handler App App UserId
+registerHandler :: S.Handler App App UserId
 registerHandler = do
   requestBody <- readRequestBody 4096
   -- allow any number of 'invitationCode' query parameters
@@ -60,7 +60,7 @@ registerHandler = do
   authUser <- with auth createSUser
   either throwDenied (\_ -> createQUser) authUser
 
-acceptInvitationHandler :: Handler App App ()
+acceptInvitationHandler :: S.Handler App App ()
 acceptInvitationHandler = do
   uid <- requireUserId
   t <- liftIO C.getCurrentTime

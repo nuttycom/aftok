@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE ExplicitForAll     #-}
 {-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE TypeApplications   #-}
 
 module Aftok.Json where
 
@@ -29,6 +30,7 @@ import           Aftok.Database
 import           Aftok.Interval
 import           Aftok.Payments
 import           Aftok.Project                    as P
+import           Aftok.Time
 import           Aftok.TimeLog
 import           Aftok.Types
 import           Aftok.Util                       (traverseKeys)
@@ -176,6 +178,9 @@ billableJSON b = v1 $
       , "name"        .= (b ^. B.name)
       , "description" .= (b ^. B.description)
       , "recurrence"  .= recurrenceJSON' (b ^. B.recurrence)
+      , "amount"      .= (b ^. (B.amount . satoshi))
+      , "gracePeriod" .= (b ^. (B.gracePeriod . _Days))
+      , "requestExpiryPeriod" .= (C.toSeconds' <$> (b ^. B.requestExpiryPeriod))
       ]
 
 recurrenceJSON' :: B.Recurrence -> Value
@@ -185,10 +190,10 @@ recurrenceJSON' B.SemiMonthly = object [ "semimonthly" .= Null ]
 recurrenceJSON' (B.Weekly i)  = object [ "weekly " .= object [ "weeks" .= i ] ]
 recurrenceJSON' B.OneTime     = object [ "onetime" .= Null ]
 
-subscriptionJSON :: UserId -> B.BillableId -> Value
-subscriptionJSON uid bid = v1 $
-  obj [ "userId"     .= tshow (uid ^. _UserId)
-      , "billableId" .= tshow (bid ^. B._BillableId)
+createSubscriptionJSON :: UserId -> B.Subscription -> Value
+createSubscriptionJSON uid sub = v1 $
+  obj [ "user_id"     .= tshow (uid ^. _UserId)
+      , "billable_id" .= tshow (sub ^. (B.billable . B._BillableId))
       ]
 
 paymentRequestJSON :: PaymentRequest -> Value

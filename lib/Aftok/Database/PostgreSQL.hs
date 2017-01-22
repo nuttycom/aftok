@@ -7,7 +7,6 @@ import           ClassyPrelude
 import           Control.Lens
 import           Control.Monad.Trans.Either
 import           Data.Aeson                           (Value, toJSON)
-import qualified Data.ByteString.Char8                as B
 import           Data.Hourglass
 import           Data.List                            as L
 import           Data.ProtocolBuffers                 (encodeMessage)
@@ -24,13 +23,13 @@ import           Network.Haskoin.Crypto               (addrToBase58)
 
 import           Aftok
 import qualified Aftok.Auction                        as A
-import qualified Aftok.Billables                      as BI
+import qualified Aftok.Billables                      as B
 import           Aftok.Database
 import           Aftok.Interval
 import           Aftok.Json                           (billableJSON,
                                                        paymentJSON,
                                                        paymentRequestJSON,
-                                                       subscriptionJSON)
+                                                       createSubscriptionJSON)
 import           Aftok.Payments
 import qualified Aftok.Project                        as P
 import           Aftok.Time                           (Days (..), _Days)
@@ -46,51 +45,29 @@ instance MonadIO QDBM where
 runQDBM :: Connection -> QDBM a -> EitherT DBError IO a
 runQDBM conn (QDBM r) = runReaderT r conn
 
-uidParser :: FieldParser UserId
-uidParser f v = UserId <$> fromField f v
+uidParser :: RowParser UserId
+uidParser = UserId <$> field
 
-pidParser :: FieldParser P.ProjectId
-pidParser f v = P.ProjectId <$> fromField f v
+pidParser :: RowParser P.ProjectId
+pidParser = P.ProjectId <$> field
 
-secondsParser :: FieldParser Seconds
-secondsParser f v = Seconds <$> fromField f v
-
-usernameParser :: FieldParser UserName
-usernameParser f v = UserName <$> fromField f v
-
-emailParser :: FieldParser Email
-emailParser f v = Email <$> fromField f v
+subscriptionIdParser :: RowParser B.SubscriptionId
+subscriptionIdParser = B.SubscriptionId <$> field
 
 btcAddrParser :: FieldParser BtcAddr
 btcAddrParser f v = do
   addrMay <- parseBtcAddr <$> fromField f v
-  let err = ConversionFailed { errSQLType = "text"
-                             , errSQLTableOid = tableOid f
-                             , errSQLField = maybe "" B.unpack (name f)
-                             , errHaskellType = "BtcAddr"
-                             , errMessage = "could not deserialize value to a valid BTC address"
-                             }
-  maybe (conversionError err) pure addrMay
+  let err = returnError ConversionFailed f "could not deserialize value to a valid BTC address"
+  maybe err pure addrMay
 
-btcParser :: FieldParser Satoshi
-btcParser f v = (Satoshi . fromInteger) <$> fromField f v
+btcParser :: RowParser Satoshi
+btcParser = (Satoshi . fromInteger) <$> field
 
-utcParser :: FieldParser C.UTCTime
-utcParser f v = toThyme <$> fromField f v
+utcParser :: RowParser C.UTCTime
+utcParser = toThyme <$> field
 
 nullField :: RowParser Null
 nullField = field
-
-recurrenceParser :: RowParser BI.Recurrence
-recurrenceParser =
-  let prec :: Text -> RowParser BI.Recurrence
-      prec "annually"    = nullField *> pure BI.Annually
-      prec "monthly"     = BI.Monthly <$> field
-      prec "semimonthly" = nullField *> pure BI.SemiMonthly
-      prec "weekly"      = BI.Weekly <$> field
-      prec "onetime"     = nullField *> pure BI.OneTime
-      prec _             = empty
-  in  field >>= prec
 
 eventTypeParser :: FieldParser (C.UTCTime -> LogEvent)
 eventTypeParser f v = do
@@ -99,6 +76,10 @@ eventTypeParser f v = do
     then returnError Incompatible f "column was not of type event_t"
     else maybe (returnError UnexpectedNull f "event type may not be null") (nameEvent . decodeUtf8) v
 
+nominalDiffTimeParser :: FieldParser NominalDiffTime
+nominalDiffTimeParser f v = 
+  C.fromSeconds' <$> fromField f v
+
 creditToParser :: RowParser CreditTo
 creditToParser = join $ fieldWith creditToParser'
 
@@ -106,8 +87,8 @@ creditToParser' :: FieldParser (RowParser CreditTo)
 creditToParser' f v =
   let parser :: Text -> RowParser CreditTo
       parser "credit_to_btc_addr" = CreditToAddress <$> (fieldWith btcAddrParser <* nullField <* nullField)
-      parser "credit_to_user"     = CreditToUser    <$> (nullField *> fieldWith uidParser <* nullField)
-      parser "credit_to_project"  = CreditToProject <$> (nullField *> nullField *> fieldWith pidParser)
+      parser "credit_to_user"     = CreditToUser    <$> (nullField *> uidParser <* nullField)
+      parser "credit_to_project"  = CreditToProject <$> (nullField *> nullField *> pidParser)
       parser _ = empty
   in do
     tn <- typename f
@@ -118,71 +99,89 @@ creditToParser' f v =
 logEntryParser :: RowParser LogEntry
 logEntryParser =
   LogEntry <$> creditToParser
-           <*> (fieldWith eventTypeParser <*> fieldWith utcParser)
+           <*> (fieldWith eventTypeParser <*> utcParser)
            <*> field
 
 qdbLogEntryParser :: RowParser KeyedLogEntry
 qdbLogEntryParser =
-  (,,) <$> fieldWith pidParser
-       <*> fieldWith uidParser
+  (,,) <$> pidParser
+       <*> uidParser
        <*> logEntryParser
 
 auctionParser :: RowParser A.Auction
 auctionParser =
-  A.Auction <$> fieldWith pidParser
-            <*> fieldWith uidParser
-            <*> fieldWith utcParser
-            <*> fieldWith btcParser
-            <*> fieldWith utcParser
-            <*> fieldWith utcParser
+  A.Auction <$> pidParser
+            <*> uidParser
+            <*> utcParser
+            <*> btcParser
+            <*> utcParser
+            <*> utcParser
 
 bidParser :: RowParser A.Bid
 bidParser =
-  A.Bid <$> fieldWith uidParser
-        <*> fieldWith secondsParser
-        <*> fieldWith btcParser
-        <*> fieldWith utcParser
+  A.Bid <$> uidParser
+        <*> (Seconds <$> field)
+        <*> btcParser
+        <*> utcParser
 
 userParser :: RowParser User
 userParser =
-  User <$> fieldWith usernameParser
+  User <$> (UserName <$> field)
        <*> fieldWith (optionalField btcAddrParser)
        <*> (Email <$> field)
 
 qdbUserParser :: RowParser KeyedUser
 qdbUserParser =
-  (,) <$> fieldWith uidParser
+  (,) <$> uidParser
       <*> userParser
 
 projectParser :: RowParser P.Project
 projectParser =
   P.Project <$> field
-            <*> fieldWith utcParser
-            <*> fieldWith uidParser
+            <*> utcParser
+            <*> uidParser
             <*> fieldWith fromJSONField
 
 invitationParser :: RowParser P.Invitation
 invitationParser =
-  P.Invitation <$> fieldWith pidParser
-               <*> fieldWith uidParser
-               <*> fieldWith emailParser
-               <*> fieldWith utcParser
+  P.Invitation <$> pidParser
+               <*> uidParser
+               <*> fmap Email field
+               <*> utcParser
                <*> fmap (fmap toThyme) field
 
 qdbProjectParser :: RowParser KeyedProject
 qdbProjectParser =
-  (,) <$> fieldWith pidParser
+  (,) <$> pidParser
       <*> projectParser
 
-billableParser :: RowParser BI.Billable
+billableParser :: RowParser B.Billable
 billableParser =
-  BI.Billable <$> fieldWith pidParser
-              <*> fieldWith uidParser
-              <*> field
-              <*> field
-              <*> recurrenceParser
-              <*> fieldWith btcParser
-              <*> (Days <$> field)
+  B.Billable <$> pidParser
+             <*> uidParser
+             <*> field
+             <*> field
+             <*> recurrenceParser
+             <*> btcParser
+             <*> (Days <$> field)
+             <*> fieldWith (optionalField nominalDiffTimeParser)
+
+recurrenceParser :: RowParser B.Recurrence
+recurrenceParser =
+  let prec :: Text -> RowParser B.Recurrence
+      prec "annually"    = nullField *> pure B.Annually
+      prec "monthly"     = B.Monthly <$> field
+      prec "semimonthly" = nullField *> pure B.SemiMonthly
+      prec "weekly"      = B.Weekly <$> field
+      prec "onetime"     = nullField *> pure B.OneTime
+      prec _             = empty
+  in  field >>= prec
+
+subscriptionParser :: RowParser B.Subscription
+subscriptionParser = 
+  B.Subscription <$> (B.BillableId <$> field)
+                 <*> (toThyme <$> field)
+                 <*> ((fmap toThyme) <$> field)
 
 pexec :: (ToRow d) => Query -> d -> QDBM Int64
 pexec q d = QDBM $ do
@@ -209,8 +208,8 @@ storeEvent :: DBOp a -> Maybe (QDBM EventId)
 storeEvent (CreateBillable uid b) =
   Just $ storeEventJSON uid "create_billable" (billableJSON b)
 
-storeEvent (CreateSubscription uid bid) =
-  Just $ storeEventJSON uid "create_subscription" (subscriptionJSON uid bid)
+storeEvent (CreateSubscription uid s) =
+  Just $ storeEventJSON uid "create_subscription" (createSubscriptionJSON uid s)
 
 storeEvent (CreatePaymentRequest uid req) =
   Just $ storeEventJSON uid "create_payment_request" (paymentRequestJSON req)
@@ -231,8 +230,8 @@ storeEventJSON uid t v = do
     \VALUES (?, ?, ?, ?) RETURNING id"
     (fromThyme timestamp, uid ^. _UserId, t, v)
 
-updateCache :: DBOp a -> QDBM a
-updateCache (CreateEvent (P.ProjectId pid) (UserId uid) (LogEntry c e m)) =
+pgEval :: DBOp a -> QDBM a
+pgEval (CreateEvent (P.ProjectId pid) (UserId uid) (LogEntry c e m)) =
   case c of
     CreditToAddress addr ->
       pinsert EventId
@@ -258,7 +257,7 @@ updateCache (CreateEvent (P.ProjectId pid) (UserId uid) (LogEntry c e m)) =
         \RETURNING id"
         ( pid, uid, creditToName c, uid' ^. _UserId, eventName e, fromThyme $ e ^. eventTime, m)
 
-updateCache (FindEvent (EventId eid)) =
+pgEval (FindEvent (EventId eid)) =
   headMay <$> pquery qdbLogEntryParser
     "SELECT project_id, user_id, \
     \credit_to_type, credit_to_btc_addr, credit_to_user_id, credit_to_project_id, \
@@ -266,7 +265,7 @@ updateCache (FindEvent (EventId eid)) =
     \WHERE id = ?"
     (Only eid)
 
-updateCache (FindEvents (P.ProjectId pid) (UserId uid) ival) =
+pgEval (FindEvents (P.ProjectId pid) (UserId uid) ival) =
   let q (Before e) = pquery logEntryParser
         "SELECT btc_addr, event_type, event_time, event_metadata FROM work_events \
         \WHERE project_id = ? AND user_id = ? AND event_time <= ?"
@@ -282,14 +281,14 @@ updateCache (FindEvents (P.ProjectId pid) (UserId uid) ival) =
         (pid, uid, fromThyme s)
   in  q ival
 
-updateCache (AmendEvent (EventId eid) (TimeChange mt t)) =
+pgEval (AmendEvent (EventId eid) (TimeChange mt t)) =
   pinsert AmendmentId
     "INSERT INTO event_time_amendments \
     \(event_id, amended_at, event_time) \
     \VALUES (?, ?, ?) RETURNING id"
     ( eid, fromThyme $ mt ^. _ModTime, fromThyme t )
 
-updateCache (AmendEvent (EventId eid) (CreditToChange mt c)) =
+pgEval (AmendEvent (EventId eid) (CreditToChange mt c)) =
   case c of
     CreditToAddress addr ->
       pinsert AmendmentId
@@ -312,20 +311,20 @@ updateCache (AmendEvent (EventId eid) (CreditToChange mt c)) =
         \VALUES (?, ?, ?, ?) RETURNING id"
         ( eid, fromThyme $ mt ^. _ModTime, creditToName c, uid ^. _UserId )
 
-updateCache (AmendEvent (EventId eid) (MetadataChange mt v)) =
+pgEval (AmendEvent (EventId eid) (MetadataChange mt v)) =
   pinsert AmendmentId
     "INSERT INTO event_metadata_amendments \
     \(event_id, amended_at, event_metadata) \
     \VALUES (?, ?, ?) RETURNING id"
     ( eid, fromThyme $ mt ^. _ModTime, v)
 
-updateCache (ReadWorkIndex (P.ProjectId pid)) = do
+pgEval (ReadWorkIndex (P.ProjectId pid)) = do
   logEntries <- pquery logEntryParser
     "SELECT btc_addr, event_type, event_time, event_metadata FROM work_events WHERE project_id = ?"
     (Only pid)
   pure $ workIndex logEntries
 
-updateCache (CreateAuction auc) =
+pgEval (CreateAuction auc) =
   pinsert A.AuctionId
     "INSERT INTO auctions (project_id, user_id, raise_amount, end_time) \
     \VALUES (?, ?, ?, ?) RETURNING id"
@@ -335,12 +334,12 @@ updateCache (CreateAuction auc) =
     , auc ^. (A.auctionEnd . to fromThyme)
     )
 
-updateCache (FindAuction aucId) =
+pgEval (FindAuction aucId) =
   headMay <$> pquery auctionParser
     "SELECT project_id, initiator_id, created_at, raise_amount, start_time, end_time FROM auctions WHERE id = ?"
     (Only (aucId ^. A._AuctionId))
 
-updateCache (CreateBid (A.AuctionId aucId) bid) =
+pgEval (CreateBid (A.AuctionId aucId) bid) =
   pinsert A.BidId
     "INSERT INTO bids (auction_id, bidder_id, bid_seconds, bid_amount, bid_time) \
     \VALUES (?, ?, ?, ?, ?) RETURNING id"
@@ -351,12 +350,12 @@ updateCache (CreateBid (A.AuctionId aucId) bid) =
     , bid ^. (A.bidTime . to fromThyme)
     )
 
-updateCache (ReadBids aucId) =
+pgEval (ReadBids aucId) =
   pquery bidParser
     "SELECT user_id, bid_seconds, bid_amount, bid_time FROM bids WHERE auction_id = ?"
     (Only (aucId ^. A._AuctionId))
 
-updateCache (CreateUser user') =
+pgEval (CreateUser user') =
   let addrMay :: Maybe ByteString
       addrMay = user' ^? (userAddress . traverse . _BtcAddr . to addrToBase58)
   in  pinsert UserId
@@ -366,17 +365,17 @@ updateCache (CreateUser user') =
     , user' ^. userEmail._Email
     )
 
-updateCache (FindUser (UserId uid)) =
+pgEval (FindUser (UserId uid)) =
   headMay <$> pquery userParser
     "SELECT handle, btc_addr, email FROM users WHERE id = ?"
     (Only uid)
 
-updateCache (FindUserByName (UserName h)) =
+pgEval (FindUserByName (UserName h)) =
   headMay <$> pquery qdbUserParser
     "SELECT id, handle, btc_addr, email FROM users WHERE handle = ?"
     (Only h)
 
-updateCache (CreateInvitation (P.ProjectId pid) (UserId uid) (Email e) t) = do
+pgEval (CreateInvitation (P.ProjectId pid) (UserId uid) (Email e) t) = do
   invCode <- liftIO P.randomInvCode
   void $ pexec
     "INSERT INTO invitations (project_id, invitor_id, invitee_email, invitation_key, invitation_time) \
@@ -384,13 +383,13 @@ updateCache (CreateInvitation (P.ProjectId pid) (UserId uid) (Email e) t) = do
     (pid, uid, e, P.renderInvCode invCode, fromThyme t)
   pure invCode
 
-updateCache (FindInvitation ic) =
+pgEval (FindInvitation ic) =
   headMay <$> pquery invitationParser
     "SELECT project_id, invitor_id, invitee_email, invitation_time, acceptance_time \
     \FROM invitations WHERE invitation_key = ?"
     (Only $ P.renderInvCode ic)
 
-updateCache (AcceptInvitation (UserId uid) ic t) = transactQDBM $ do
+pgEval (AcceptInvitation (UserId uid) ic t) = transactQDBM $ do
   void $ pexec
     "UPDATE invitations SET acceptance_time = ? WHERE invitation_key = ?"
     (fromThyme t, P.renderInvCode ic)
@@ -401,18 +400,18 @@ updateCache (AcceptInvitation (UserId uid) ic t) = transactQDBM $ do
     \WHERE i.invitation_key = ?"
     (uid, fromThyme t, P.renderInvCode ic)
 
-updateCache (CreateProject p) =
+pgEval (CreateProject p) =
   pinsert P.ProjectId
     "INSERT INTO projects (project_name, inception_date, initiator_id, depreciation_fn) \
     \VALUES (?, ?, ?, ?) RETURNING id"
     (p ^. P.projectName, p ^. (P.inceptionDate . to fromThyme), p ^. (P.initiator . _UserId), toJSON $ p ^. P.depf)
 
-updateCache (FindProject (P.ProjectId pid)) =
+pgEval (FindProject (P.ProjectId pid)) =
   headMay <$> pquery projectParser
     "SELECT project_name, inception_date, initiator_id, depreciation_fn FROM projects WHERE id = ?"
     (Only pid)
 
-updateCache (FindUserProjects (UserId uid)) =
+pgEval (FindUserProjects (UserId uid)) =
   pquery qdbProjectParser
     "SELECT p.id, p.project_name, p.inception_date, p.initiator_id, p.depreciation_fn \
     \FROM projects p LEFT OUTER JOIN project_companions pc ON pc.project_id = p.id \
@@ -420,55 +419,65 @@ updateCache (FindUserProjects (UserId uid)) =
     \OR p.initiator_id = ?"
     (uid, uid)
 
-updateCache (AddUserToProject pid current new) = void $
+pgEval (AddUserToProject pid current new) = void $
   pexec
     "INSERT INTO project_companions (project_id, user_id, invited_by) VALUES (?, ?, ?)"
     (pid ^. P._ProjectId, new ^. _UserId, current ^. _UserId)
 
-updateCache dbop @ (CreateBillable _ b) = do
+pgEval dbop @ (CreateBillable _ b) = do
   eventId <- requireEventId dbop
-  pinsert BI.BillableId
+  pinsert B.BillableId
     "INSERT INTO billables \
     \(project_id, event_id, name, description, recurrence_type, recurrence_count, billing_amount, grace_period_days) \
     \VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id"
-    ( b ^. (BI.project . P._ProjectId)
+    ( b ^. (B.project . P._ProjectId)
     , eventId ^. _EventId
-    , b ^. BI.name
-    , b ^. BI.description
-    , b ^. (BI.recurrence . to BI.recurrenceName)
-    , b ^. (BI.recurrence . to BI.recurrenceCount)
-    , b ^. (BI.amount . satoshi)
-    , b ^. (BI.gracePeriod . _Days)
+    , b ^. B.name
+    , b ^. B.description
+    , b ^. (B.recurrence . to B.recurrenceName)
+    , b ^. (B.recurrence . to B.recurrenceCount)
+    , b ^. (B.amount . satoshi)
+    , b ^. (B.gracePeriod . _Days)
     )
 
-updateCache (ReadBillable bid) =
+pgEval (ReadBillable bid) =
   headMay <$> pquery billableParser
     "SELECT b.project_id, e.created_by, b.name, b.description, b.recurrence_type, b.recurrence_count, \
     \       b.billing_amount, b.grace_period_days \
     \FROM billables b JOIN aftok_events e ON e.id = b.event_id \
     \WHERE b.id = ?"
-    (Only (bid ^. BI._BillableId))
+    (Only (bid ^. B._BillableId))
 
-updateCache dbop @ (CreateSubscription uid bid) = do
+pgEval dbop @ (CreateSubscription uid s) = do
   eventId <- requireEventId dbop
-  pinsert BI.SubscriptionId
+  pinsert B.SubscriptionId
     "INSERT INTO subscriptions \
     \(user_id, billable_id, event_id) \
     \VALUES (?, ?, ?) RETURNING id"
-    (uid ^. _UserId, bid ^. BI._BillableId, eventId ^. _EventId)
+    (uid ^. _UserId, s ^. (B.billable . B._BillableId), eventId ^. _EventId)
 
-updateCache dbop @ (CreatePaymentRequest _ req) = do
+pgEval (FindSubscriptions uid pid) = 
+  pquery ((,) <$> subscriptionIdParser <*> subscriptionParser)
+    "SELECT id, billable_id, start_date, end_date \
+    \FROM subscriptions s \
+    \JOIN billables b ON b.id = s.billable_id \
+    \WHERE s.user_id = ? \
+    \AND b.project_id = ?"
+    (uid ^. _UserId, pid ^. P._ProjectId)
+
+
+pgEval dbop @ (CreatePaymentRequest _ req) = do
   eventId <- requireEventId dbop
   pinsert PaymentRequestId
     "INSERT INTO payment_requests \
     \(subscription_id, event_id, request_data) \
     \VALUES (?, ?, ?) RETURNING id"
-    ( req ^. (subscription . BI._SubscriptionId)
+    ( req ^. (subscription . B._SubscriptionId)
     , eventId ^. _EventId
     , req ^. (paymentRequest . to (runPut . encodeMessage))
     )
 
-updateCache dbop @ (CreatePayment _ req) = do
+pgEval dbop @ (CreatePayment _ req) = do
   eventId <- requireEventId dbop
   pinsert PaymentId
     "INSERT INTO payments \
@@ -479,7 +488,7 @@ updateCache dbop @ (CreatePayment _ req) = do
     , req ^. (payment . to (runPut . encodeMessage))
     )
 
-updateCache (RaiseDBError err _) = raiseError err
+pgEval (RaiseDBError err _) = raiseError err
 
 requireEventId :: DBOp a -> QDBM EventId
 requireEventId = maybe (raiseError EventStorageFailed) id . storeEvent
@@ -487,5 +496,5 @@ requireEventId = maybe (raiseError EventStorageFailed) id . storeEvent
 raiseError :: DBError -> QDBM a
 raiseError = QDBM . lift . left
 
-instance DBEval QDBM where
-  dbEval e = updateCache e
+instance MonadDB QDBM where
+  liftdb = pgEval

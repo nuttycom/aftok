@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 module Aftok.QConfig where
 
 import           ClassyPrelude
@@ -5,6 +6,7 @@ import           ClassyPrelude
 import qualified Data.ByteString.Char8         as C
 import qualified Data.Configurator             as C
 import qualified Data.Configurator.Types       as CT
+import qualified Network.Bippy.Types           as B
 import qualified Network.Mail.SMTP             as SMTP
 import qualified Network.Socket                as NS
 import           System.Environment
@@ -21,6 +23,7 @@ data QConfig = QConfig
   , cookieTimeout :: Maybe Int
   , pgsConfig     :: PGSConfig
   , smtpConfig    :: SmtpConfig
+  , btcConfig     :: BtcConfig
   , templatePath  :: System.IO.FilePath
   }
 
@@ -30,6 +33,9 @@ data SmtpConfig = SmtpConfig
   , smtpUser :: SMTP.UserName
   , smtpPass :: SMTP.Password
   }
+
+data BtcConfig = BtcConfig 
+  { btcNetwork :: B.Network }
 
 loadQConfig :: System.IO.FilePath -> IO QConfig
 loadQConfig cfgFile = do
@@ -46,6 +52,7 @@ readQConfig cfg pc =
           <*> C.lookup cfg "cookieTimeout"
           <*> maybe (mkPGSConfig $ C.subconfig "db" cfg) pure pc
           <*> readSmtpConfig cfg
+          <*> readBtcConfig cfg
           <*> C.lookupDefault "/opt/aftok/server/templates/" cfg "templatePath"
 
 readSmtpConfig :: CT.Config -> IO SmtpConfig
@@ -55,7 +62,14 @@ readSmtpConfig cfg =
              <*> C.require cfg "smtpUser"
              <*> C.require cfg "smtpKey"
 
-baseSnapConfig :: MonadSnap m => QConfig -> SC.Config m a -> SC.Config m a
+readBtcConfig :: CT.Config -> IO BtcConfig
+readBtcConfig cfg = 
+  let parseNetwork :: String -> B.Network
+      parseNetwork "main" = B.MainNet
+      parseNetwork _ = B.TestNet
+  in  (BtcConfig . parseNetwork) <$> C.require cfg "network"
+
+baseSnapConfig :: QConfig -> SC.Config m a -> SC.Config m a
 baseSnapConfig qc =
   SC.setHostname (hostname qc) .
   SC.setPort (port qc)
@@ -64,4 +78,5 @@ baseSnapConfig qc =
 -- config file.
 snapConfig :: QConfig -> IO (SC.Config Snap a)
 snapConfig qc = SC.commandLineConfig $ baseSnapConfig qc SC.emptyConfig
+
 

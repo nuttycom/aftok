@@ -27,7 +27,7 @@ import           Aftok.Snaplet
 import           Aftok.Snaplet.Auth
 
 import           Snap.Core
-import           Snap.Snaplet
+import           Snap.Snaplet               as S
 
 data ProjectCreateRequest = CP { cpn :: Text, cpdepf :: DepreciationFunction }
 
@@ -35,7 +35,7 @@ instance FromJSON ProjectCreateRequest where
   parseJSON (Object v) = CP <$> v .: "projectName" <*> v .: "depf"
   parseJSON _          = mzero
 
-projectCreateHandler :: Handler App App ProjectId
+projectCreateHandler :: S.Handler App App ProjectId
 projectCreateHandler = do
   uid <- requireUserId
   requestBody <- readRequestBody 4096
@@ -43,19 +43,19 @@ projectCreateHandler = do
   t <- liftIO C.getCurrentTime
   snapEval . createProject $ Project (cpn cp) t uid (cpdepf cp)
 
-projectListHandler :: Handler App App [KeyedProject]
+projectListHandler :: S.Handler App App [KeyedProject]
 projectListHandler = do
   uid <- requireUserId
   snapEval $ findUserProjects uid
 
-projectGetHandler :: Handler App App Project
+projectGetHandler :: S.Handler App App Project
 projectGetHandler = do
   uid <- requireUserId
   pid <- requireProjectId
   mp <- snapEval $ findProject pid uid
   maybe (snapError 404 $ "Project not found for id " <> tshow pid) pure mp
 
-projectInviteHandler :: QConfig -> Handler App App ()
+projectInviteHandler :: QConfig -> S.Handler App App ()
 projectInviteHandler cfg = do
   uid <- requireUserId
   pid <- requireProjectId

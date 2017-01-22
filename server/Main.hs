@@ -32,7 +32,7 @@ main = do
 appInit :: QConfig -> SnapletInit App App
 appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
   sesss <- nestSnaplet "sessions" sess $
-           initCookieSessionManager (authSiteKey cfg) "quookie" (cookieTimeout cfg)
+           initCookieSessionManager (authSiteKey cfg) "quookie" (Just "aftok.com") (cookieTimeout cfg)
   pgs   <- nestSnaplet "db" db $ pgsInit' (pgsConfig cfg)
   auths <- nestSnaplet "auth" auth $ initPostgresAuth sess pgs
 

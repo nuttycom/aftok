@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RankNTypes #-}
 
 module Aftok.Util where
@@ -7,16 +8,18 @@ import           Control.Monad.Free.Church
 import           Data.Functor.Coyoneda
 import           Data.Map.Strict           as M
 
-type Program f a = F (Coyoneda f) a
+newtype Program (f :: * -> *) (a :: *) = Program 
+  { runProgram :: F (Coyoneda f) a }
+  deriving (Functor, Applicative, Monad)
 
 -- Shouldn't this exist already in a library somewhere?
 interpret :: Monad m => (forall x. f x -> m x) -> Program f a -> m a
 interpret nt p =
   let eval (Coyoneda cf cm) = nt cm >>= cf
-  in  iterM eval p
+  in  iterM eval (runProgram p)
 
 fc :: f a -> Program f a
-fc = liftF . liftCoyoneda
+fc = Program . liftF . liftCoyoneda
 
 traverseKeys :: (Ord k, Applicative f) => (a -> f k) -> Map a b -> f (Map k b)
 traverseKeys f m =

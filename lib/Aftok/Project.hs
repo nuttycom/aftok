@@ -5,12 +5,11 @@ module Aftok.Project where
 import           ClassyPrelude
 
 import           Control.Lens               (makeLenses, makePrisms)
+import           Crypto.Random.Types        (MonadRandom, getRandomBytes)
 
 import           Data.ByteString.Base64.URL as B64
 import           Data.Thyme.Clock           as C
 import           Data.UUID
-
-import           OpenSSL.Random
 
 import           Aftok
 
@@ -18,6 +17,7 @@ newtype ProjectId = ProjectId UUID deriving (Show, Eq, Ord)
 makePrisms ''ProjectId
 
 type ProjectName = Text
+
 data Project = Project
   { _projectName   :: ProjectName
   , _inceptionDate :: C.UTCTime
@@ -29,8 +29,8 @@ makeLenses ''Project
 newtype InvitationCode = InvitationCode ByteString deriving (Eq)
 makePrisms ''InvitationCode
 
-randomInvCode :: IO InvitationCode
-randomInvCode = InvitationCode <$> randBytes 32
+randomInvCode :: (MonadRandom m) => m InvitationCode
+randomInvCode = InvitationCode <$> getRandomBytes 32
 
 parseInvCode :: Text -> Either String InvitationCode
 parseInvCode t = do

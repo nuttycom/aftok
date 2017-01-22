@@ -29,6 +29,7 @@ library
                       Aftok.Interval
                       Aftok.Json
                       Aftok.Payments
+                      Aftok.Payments.Types
                       Aftok.Project
                       Aftok.Time
                       Aftok.TimeLog
@@ -36,42 +37,43 @@ library
                       Aftok.Util
                       Aftok.Util.Http
   build-depends:      
-      base                >= 4.8.0
-    , bippy               == 0.1.0.0
-    , classy-prelude      == 0.12.*
-    , aeson               >= 0.11.2
-    , attoparsec          == 0.13.*
-    , base64-bytestring   == 1.0.*
+      base                
+    , bippy               
+    , classy-prelude      
+    , aeson              
+    , attoparsec         
+    , base64-bytestring 
     , bifunctors
     , blaze-builder       
     , bytestring
     , cereal
-    , containers          >= 0.5.6
+    , containers       
     , configurator             
-    , either              >= 4.4.1
-    , errors              == 2.1.*
+    , cryptonite
+    , either          
+    , errors         
     , free
-    , groups              >= 0.4      && < 0.5
-    , haskoin-core        >= 0.4
-    , heaps               >= 0.3.1    && < 0.4
-    , hourglass           >= 0.2.6    && < 0.3
-    , HsOpenSSL           >= 0.11     && < 0.12
+    , groups        
+    , haskoin-core 
+    , heaps       
+    , hourglass  
     , kan-extensions
-    , lens                >= 4.11
+    , lens     
     , mtl
-    , old-locale          >= 1.0 
-    , postgresql-simple   >= 0.5.2.0
+    , network-uri
+    , old-locale        
+    , postgresql-simple
     , protobuf
-    , safe                >= 0.3.9    && < 0.4
+    , safe            
     , semigroups
     , semigroupoids
     , template-haskell
-    , text                >= 1.2.1    && < 1.3
-    , thyme               >= 0.3.5    && < 0.4
-    , uuid                >= 1.3.10   && < 1.4
+    , text           
+    , thyme         
+    , uuid         
     , unordered-containers
     , vector-space
-    , wreq                >= 0.4
+    , wreq        
 
 Test-Suite spec
   default-language:   Haskell2010
@@ -92,12 +94,12 @@ Test-Suite spec
     , attoparsec
     , bifunctors
     , containers
-    , hspec         >= 2.1.7
+    , hspec      
     , HUnit
     , hourglass
     , iso8601-time
     , lens
-    , QuickCheck    >= 2.8
+    , QuickCheck 
     , semigroups
     , text
     , thyme
@@ -139,22 +141,22 @@ Executable aftok-server
     , either
     , errors
     , hourglass
-    , HStringTemplate           >= 0.8.3
+    , HStringTemplate          
     , iso8601-time
-    , HsOpenSSL           
+    --, HsOpenSSL           
     , lens
     , mime-mail
-    , mtl                       >= 2.2    && < 3
-    , MonadCatchIO-transformers >= 0.3    && < 0.4
+    , mtl                     
+    --, MonadCatchIO-transformers
     , network                   
     , optparse-applicative      
     , postgresql-simple
-    , resource-pool-catchio
-    , smtp-mail                 >= 0.1.4.5
-    , snap                      >= 0.14
-    , snap-core                 >= 0.9    && < 0.11
-    , snap-server               >= 0.9    && < 0.11
-    , snaplet-postgresql-simple >= 0.6    && < 0.11
+    --, resource-pool-catchio
+    , smtp-mail               
+    , snap                    
+    , snap-core              
+    , snap-server           
+    , snaplet-postgresql-simple
     , text
     , thyme
     , transformers

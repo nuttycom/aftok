@@ -20,9 +20,9 @@ import           Aftok.Snaplet.Auth
 import           Aftok.Snaplet.Util
 
 import           Snap.Core
-import           Snap.Snaplet
+import           Snap.Snaplet       as S
 
-logWorkHandler :: (C.UTCTime -> LogEvent) -> Handler App App EventId
+logWorkHandler :: (C.UTCTime -> LogEvent) -> S.Handler App App EventId
 logWorkHandler evCtr = do
   uid <- requireUserId
   pid <- requireProjectId
@@ -32,7 +32,7 @@ logWorkHandler evCtr = do
     Left err -> snapError 400 $ "Unable to parse log entry " <> (tshow requestBody) <> ": " <> tshow err
     Right entry -> snapEval $ createEvent pid uid (entry timestamp)
 
-logWorkBTCHandler :: (C.UTCTime -> LogEvent) -> Handler App App EventId
+logWorkBTCHandler :: (C.UTCTime -> LogEvent) -> S.Handler App App EventId
 logWorkBTCHandler evCtr = do
   uid <- requireUserId
   pid <- requireProjectId
@@ -46,13 +46,13 @@ logWorkBTCHandler evCtr = do
       snapEval . createEvent pid uid $
         LogEntry (CreditToAddress addr) (evCtr timestamp) (A.decode requestBody)
 
-loggedIntervalsHandler :: Handler App App WorkIndex
+loggedIntervalsHandler :: S.Handler App App WorkIndex
 loggedIntervalsHandler = do
   uid <- requireUserId
   pid <- requireProjectId
   snapEval $ readWorkIndex pid uid
 
-logEntriesHandler :: Handler App App [LogEntry]
+logEntriesHandler :: S.Handler App App [LogEntry]
 logEntriesHandler = do
   uid <- requireUserId
   pid <- requireProjectId
@@ -64,7 +64,7 @@ logEntriesHandler = do
     (Nothing, Nothing) -> snapError 400 "You must at least one of the \"after\" or \"before\" query parameter"
   snapEval $ findEvents pid uid ival
 
-payoutsHandler :: Handler App App Payouts
+payoutsHandler :: S.Handler App App Payouts
 payoutsHandler = do
   uid <- requireUserId
   pid <- requireProjectId
@@ -74,7 +74,7 @@ payoutsHandler = do
   ptime <- liftIO $ C.getCurrentTime
   pure $ payouts (toDepF $ project ^. depf) ptime widx
 
-amendEventHandler :: Handler App App AmendmentId
+amendEventHandler :: S.Handler App App AmendmentId
 amendEventHandler = do
   uid <- requireUserId
   eventIdBytes <- getParam "eventId"

@@ -19,10 +19,10 @@ import           Aftok.Database       (createAuction, createBid, findAuction)
 import           Aftok.Json
 import           Aftok.Types
 
-import           Aftok.Snaplet
+import           Aftok.Snaplet        as S
 import           Aftok.Snaplet.Auth
 
-import           Snap
+import           Snap.Snaplet               as S
 
 data AuctionCreateRequest = CA { raiseAmount :: Word64, auctionStart :: C.UTCTime , auctionEnd :: C.UTCTime }
 
@@ -38,7 +38,7 @@ bidCreateParser uid t = unv1 "bids" p where
                 <*> (Satoshi <$> o .: "bidAmount")
                 <*> pure t
 
-auctionCreateHandler :: Handler App App AuctionId
+auctionCreateHandler :: S.Handler App App AuctionId
 auctionCreateHandler = do
   uid <- requireUserId
   pid <- requireProjectId
@@ -48,14 +48,14 @@ auctionCreateHandler = do
   snapEval . createAuction $
     Auction pid uid t (Satoshi . raiseAmount $ req) (auctionStart req) (auctionEnd req)
 
-auctionGetHandler :: Handler App App Auction
+auctionGetHandler :: S.Handler App App Auction
 auctionGetHandler = do
   uid <- requireUserId
   aid <- requireAuctionId
   maybeAuc <- snapEval $ findAuction aid uid -- this will verify auction access
   maybe (snapError 404 $ "Auction not found for id " <> tshow aid) pure maybeAuc
 
-auctionBidHandler :: Handler App App BidId
+auctionBidHandler :: S.Handler App App BidId
 auctionBidHandler = do
   uid <- requireUserId
   aid <- requireAuctionId

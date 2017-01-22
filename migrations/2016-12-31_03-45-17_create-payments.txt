@@ -46,7 +46,9 @@ Apply: |
     id uuid primary key default uuid_generate_v4(),
     user_id uuid not null references users(id),
     billable_id uuid not null references billables(id),
-    event_id uuid not null references aftok_events(id)
+    event_id uuid not null references aftok_events(id),
+    start_date date not null,
+    end_date date null
   );
 
   create table if not exists payment_requests (

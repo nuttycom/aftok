@@ -18,7 +18,7 @@ import           Aftok.Database.PostgreSQL
 import           Aftok.Util
 
 import           Snap.Core
-import           Snap.Snaplet
+import           Snap.Snaplet                  as S
 import qualified Snap.Snaplet.Auth             as AU
 import           Snap.Snaplet.PostgresqlSimple
 import           Snap.Snaplet.Session
@@ -30,11 +30,11 @@ data App = App
   }
 makeLenses ''App
 
-instance HasPostgres (Handler b App) where
+instance HasPostgres (S.Handler b App) where
   getPostgresState = with db get
   setLocalPostgresState s = local (set (db . snapletValue) s)
 
-snapEval :: (MonadSnap m, HasPostgres m) => DBProg a -> m a
+snapEval :: (MonadSnap m, HasPostgres m) => Program DBOp a -> m a
 snapEval p = do
   let handleDBError (OpForbidden (UserId uid) reason) =
         snapError 403 $ tshow reason <> " (User " <> tshow uid <> ")"
@@ -43,7 +43,7 @@ snapEval p = do
       handleDBError (EventStorageFailed) =
         snapError 500 "The event submitted could not be saved to the log."
 
-  e <- liftPG $ \conn -> runEitherT (runQDBM conn $ interpret dbEval p)
+  e <- liftPG $ \conn -> liftIO $ runEitherT (runQDBM conn $ interpret liftdb p)
   either handleDBError pure e
 
 snapError :: MonadSnap m => Int -> Text -> m a
@@ -67,9 +67,9 @@ parseParam name parser = do
       pure
       (parseOnly parser bytes)
 
-readRequestJSON :: MonadSnap m => Int64 -> m A.Value
-readRequestJSON i = do
-  requestBody <- A.decode <$> readRequestBody i
+readRequestJSON :: MonadSnap m => Word64 -> m A.Value
+readRequestJSON len = do
+  requestBody <- A.decode <$> readRequestBody len
   maybe (snapError 400 "Could not interpret request body as a nonempty JSON value.") pure requestBody
 
 

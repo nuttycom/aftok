@@ -8,14 +8,20 @@ import           Network.Bippy.Types
 import           Snap.Core
 import           Snap.Snaplet
 
-requestPaymentHandler :: Handler App App
-requestPaymentHandler = do
+import           Aftok.QConfig
+
+requestPaymentHandler :: QConfig -> Handler App App
+requestPaymentHandler cfg = do
   -- get payout percentages from payouts handler
   uid <- requireUserId
   pid <- requireProjectId
   ptime <- liftIO $ C.getCurrentTime
-  payouts <- snapEval $ fc (ReadWorkIndex pid)
-  pure $ payouts (toDepF $ project ^. depf) ptime widx
-  -- look up the outstanding
+  widx <- snapEval $ fc (ReadWorkIndex pid)
+  -- look up outstanding subscriptions the user has for this project
+  -- determine which subscriptions need to be paid
+  -- create a payment request for each subscription
   undefined
+
+  
+
 

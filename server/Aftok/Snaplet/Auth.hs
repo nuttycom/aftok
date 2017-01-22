@@ -14,10 +14,10 @@ import           Aftok.Snaplet
 import           Aftok.Util.Http            (authHeaderParser)
 
 import           Snap.Core
-import           Snap.Snaplet
+import           Snap.Snaplet               as S
 import qualified Snap.Snaplet.Auth          as AU
 
-requireLogin :: Handler App App AU.AuthUser
+requireLogin :: S.Handler App App AU.AuthUser
 requireLogin = do
   req <- getRequest
   rawHeader    <- maybe throwChallenge pure $ getHeader "Authorization" req
@@ -25,12 +25,12 @@ requireLogin = do
   authResult   <- with auth $ AU.loginByUsername uname (AU.ClearText pwd) False
   either throwDenied pure authResult
 
-requireUser :: Handler App App AU.AuthUser
+requireUser :: S.Handler App App AU.AuthUser
 requireUser = do
   currentUser <- with auth AU.currentUser
   maybe requireLogin pure currentUser
 
-requireUserId :: Handler App App UserId
+requireUserId :: S.Handler App App UserId
 requireUserId = do
   currentUser <- UserName . AU.userLogin <$> requireLogin
   qdbUser <- snapEval $ findUserByName currentUser

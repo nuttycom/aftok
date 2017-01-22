@@ -117,7 +117,7 @@ toDepF (LinearDepreciation undepLength depLength)  = linearDepreciation undepLen
  - Given a depreciation function, the "current" time, and a foldable functor of log intervals,
  - produce the total, depreciated length of work to be credited to an address.
  -}
-workCredit :: (Functor f, Foldable f) => DepF -> C.UTCTime -> f Interval -> NDT
+workCredit :: (Foldable f) => DepF -> C.UTCTime -> f Interval -> NDT
 workCredit df ptime ivals = getSum $ F.foldMap (Sum . df ptime) ivals
 
 {-|
@@ -127,7 +127,7 @@ workCredit df ptime ivals = getSum $ F.foldMap (Sum . df ptime) ivals
  -}
 payouts :: DepF -> C.UTCTime -> WorkIndex -> Payouts
 payouts dep ptime (WorkIndex widx) =
-  let addIntervalDiff :: (Functor f, Foldable f) => NDT -> f Interval -> (NDT, NDT)
+  let addIntervalDiff :: (Foldable f) => NDT -> f Interval -> (NDT, NDT)
       addIntervalDiff total ivals = (^+^ total) &&& id $ workCredit dep ptime ivals
 
       (totalTime, keyTimes) = MS.mapAccum addIntervalDiff zeroV widx
