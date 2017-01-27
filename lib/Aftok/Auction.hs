@@ -6,18 +6,23 @@ import           ClassyPrelude
 import           Control.Lens
 import           Control.Monad.State
 import           Data.Hourglass
-import           Data.Thyme.Clock  as C
-import           Data.Thyme.Format ()
+import           Data.Thyme.Clock    as C
+import           Data.Thyme.Format   ()
 import           Data.UUID
 
-import           Aftok (UserId)
-import           Aftok.Types (Satoshi(..))
+import           Aftok               (UserId)
+import           Aftok.Project       (ProjectId)
+import           Aftok.Types         (Satoshi (..))
 
 newtype AuctionId = AuctionId UUID deriving (Show, Eq)
 makePrisms ''AuctionId
 
 data Auction = Auction
-  { _raiseAmount  :: Satoshi
+  { _projectId    :: ProjectId
+  , _initiator    :: UserId
+  , _createdAt    :: C.UTCTime
+  , _raiseAmount  :: Satoshi
+  , _auctionStart :: C.UTCTime
   , _auctionEnd   :: C.UTCTime
   }
 makeLenses ''Auction
@@ -34,9 +39,9 @@ data Bid = Bid
 makeLenses ''Bid
 
 data Commitment = Commitment
-  { _baseBid :: Bid
+  { _baseBid           :: Bid
   , _commitmentSeconds :: Seconds
-  , _commitmentAmount :: Satoshi
+  , _commitmentAmount  :: Satoshi
   }
 
 data AuctionResult
@@ -91,7 +96,7 @@ bidCommitment raiseAmount' bid = do
   case raised of
     -- if the total is fully within the raise amount
     x | x + (bid ^. bidAmount) < raiseAmount' ->
-      put (x + bid ^. bidAmount) >> 
+      put (x + bid ^. bidAmount) >>
       (pure . Just $ Commitment bid (bid ^. bidSeconds) (bid ^. bidAmount))
 
     -- if the last bid will exceed the raise amount, reduce it to fit
@@ -102,6 +107,6 @@ bidCommitment raiseAmount' bid = do
       in  put (x + remainder) >>
           (pure . Just $ Commitment bid (remainderSeconds) remainder)
 
-    -- otherwise, 
+    -- otherwise,
     _ -> pure Nothing
 

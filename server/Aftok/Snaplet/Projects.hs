@@ -1,7 +1,12 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Aftok.Snaplet.Projects where
+module Aftok.Snaplet.Projects
+  ( projectCreateHandler
+  , projectListHandler
+  , projectGetHandler
+  , projectInviteHandler
+  ) where
 
 import           ClassyPrelude
 
@@ -16,6 +21,7 @@ import           Text.StringTemplate
 
 import           Aftok
 import           Aftok.Database
+import           Aftok.Project
 import           Aftok.QConfig
 import           Aftok.Snaplet
 import           Aftok.Snaplet.Auth
@@ -23,9 +29,9 @@ import           Aftok.Snaplet.Auth
 import           Snap.Core
 import           Snap.Snaplet
 
-data CProject = CP { cpn :: Text, cpdepf :: DepreciationFunction }
+data ProjectCreateRequest = CP { cpn :: Text, cpdepf :: DepreciationFunction }
 
-instance FromJSON CProject where
+instance FromJSON ProjectCreateRequest where
   parseJSON (Object v) = CP <$> v .: "projectName" <*> v .: "depf"
   parseJSON _ = mzero
 
@@ -33,7 +39,7 @@ projectCreateHandler :: Handler App App ProjectId
 projectCreateHandler = do
   uid <- requireUserId
   requestBody <- readRequestBody 4096
-  cp <- maybe (snapError 400 "Could not parse project data") pure $ A.decode requestBody
+  cp <- either (snapError 400 . tshow) pure $ A.eitherDecode requestBody
   t <- liftIO C.getCurrentTime
   snapEval . createProject $ Project (cpn cp) t uid (cpdepf cp)
 

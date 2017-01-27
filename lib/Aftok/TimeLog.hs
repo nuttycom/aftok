@@ -2,10 +2,9 @@
 {-# LANGUAGE TemplateHaskell    #-}
 
 module Aftok.TimeLog
-  ( LogEntry(..)
-  , btcAddr, event, eventMeta
-  , LogEvent(..)
-  , eventName, nameEvent, eventTime
+  ( LogEntry(..), creditTo, event, eventMeta
+  , CreditTo(..), _CreditToAddress, _CreditToUser, _CreditToProject, creditToName
+  , LogEvent(..), eventName, nameEvent, eventTime
   , WorkIndex(WorkIndex), _WorkIndex, workIndex
   , DepF, toDepF
   , EventId(EventId), _EventId
@@ -34,6 +33,7 @@ import           Data.VectorSpace
 
 import           Aftok
 import           Aftok.Interval
+import           Aftok.Project      (ProjectId)
 
 data LogEvent = StartWork { _eventTime :: C.UTCTime }
               | StopWork  { _eventTime :: C.UTCTime }
@@ -51,12 +51,27 @@ eventName (StartWork _) = "start"
 eventName (StopWork  _) = "stop"
 
 nameEvent :: MonadPlus m => Text -> m (C.UTCTime -> LogEvent)
-nameEvent "start" = return StartWork
-nameEvent "stop"  = return StopWork
+nameEvent "start" = pure StartWork
+nameEvent "stop"  = pure StopWork
 nameEvent _       = mzero
 
+data CreditTo
+  -- payouts are made directly to this address, or to an address replacing this one
+  = CreditToAddress BtcAddr
+  -- payouts are distributed as requested by the specified contributor
+  | CreditToUser UserId
+  -- payouts are distributed to this project's contributors
+  | CreditToProject ProjectId
+  deriving (Show, Eq, Ord)
+makePrisms ''CreditTo
+
+creditToName :: CreditTo -> Text
+creditToName (CreditToAddress _) = "credit_to_address"
+creditToName (CreditToUser _) = "credit_to_user"
+creditToName (CreditToProject _) = "credit_to_project"
+
 data LogEntry = LogEntry
-  { _btcAddr   :: BtcAddr
+  { _creditTo  :: CreditTo
   , _event     :: LogEvent
   , _eventMeta :: Maybe A.Value
   } deriving (Show, Eq)
@@ -64,7 +79,7 @@ makeLenses ''LogEntry
 
 instance Ord LogEntry where
   compare a b =
-    let ordElems e = (e ^. event, e ^. btcAddr)
+    let ordElems e = (e ^. event, e ^. creditTo)
     in  ordElems a `compare` ordElems b
 
 newtype EventId = EventId UUID deriving (Show, Eq)
@@ -74,16 +89,16 @@ newtype ModTime = ModTime C.UTCTime
 makePrisms ''ModTime
 
 data EventAmendment = TimeChange ModTime C.UTCTime
-                    | AddressChange ModTime BtcAddr
+                    | CreditToChange ModTime CreditTo
                     | MetadataChange ModTime A.Value
 
 newtype AmendmentId = AmendmentId UUID deriving (Show, Eq)
 makePrisms ''AmendmentId
 
-newtype Payouts = Payouts (Map BtcAddr Rational)
+newtype Payouts = Payouts (Map CreditTo Rational)
 makePrisms ''Payouts
 
-newtype WorkIndex = WorkIndex (Map BtcAddr (NonEmpty Interval)) deriving (Show, Eq)
+newtype WorkIndex = WorkIndex (Map CreditTo (NonEmpty Interval)) deriving (Show, Eq)
 makePrisms ''WorkIndex
 
 type NDT = C.NominalDiffTime
@@ -135,7 +150,7 @@ workIndex logEntries =
  - extended if a new start is encountered at the same instant as the end of the
  - interval) or start events awaiting completion.
  -}
-type RawIndex = Map BtcAddr [Either LogEvent Interval]
+type RawIndex = Map CreditTo [Either LogEvent Interval]
 
 appendLogEntry :: RawIndex -> LogEntry -> RawIndex
 appendLogEntry idx (LogEntry k ev _) =

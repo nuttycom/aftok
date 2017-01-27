@@ -1,0 +1,10 @@
+Description: (Describe migration here.)
+Created: 2016-10-29 20:54:59.060159 UTC
+Depends: 2016-10-13_05-36-55_user-event-log
+Apply: |
+  ALTER TABLE auctions ADD COLUMN created_at timestamp with time zone not null;
+  ALTER TABLE auctions ADD COLUMN start_time timestamp with time zone not null;
+
+Revert: |
+  ALTER TABLE auctions DROP COLUMN start_time;
+  ALTER TABLE auctions DROP COLUMN created_at;

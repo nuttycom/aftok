@@ -16,11 +16,13 @@ import           Data.UUID                            (UUID)
 import           Database.PostgreSQL.Simple
 import           Database.PostgreSQL.Simple.FromField
 import           Database.PostgreSQL.Simple.FromRow
+import           Database.PostgreSQL.Simple.Types     (Null)
 
 import           Aftok
-import           Aftok.Auction
+import           Aftok.Auction                        as A
 import           Aftok.Database
 import           Aftok.Interval
+import           Aftok.Project                        as P
 import           Aftok.TimeLog
 import           Aftok.Types
 
@@ -32,25 +34,6 @@ instance MonadIO QDBM where
 
 runQDBM :: Connection -> QDBM a -> EitherT DBError IO a
 runQDBM conn (QDBM r) = runReaderT r conn
-
-eventTypeParser :: FieldParser (C.UTCTime -> LogEvent)
-eventTypeParser f v = do
-  tn <- typename f
-  case tn of
-    "event_t" ->
-      let err = UnexpectedNull (B.unpack tn)
-                               (tableOid f)
-                               (maybe "" B.unpack (name f))
-                               "UTCTime -> LogEvent"
-                               "columns of type event_t should not contain null values"
-      in  maybe (conversionError err) (nameEvent . decodeUtf8) v
-    _ ->
-      let err = Incompatible (B.unpack tn)
-                             (tableOid f)
-                             (maybe "" B.unpack (name f))
-                             "UTCTime -> LogEvent"
-                             "column was not of type event_t"
-      in conversionError err
 
 uidParser :: FieldParser UserId
 uidParser f v = UserId <$> fromField f v
@@ -76,9 +59,53 @@ btcParser f v = (Satoshi . fromInteger) <$> fromField f v
 utcParser :: FieldParser C.UTCTime
 utcParser f v = toThyme <$> fromField f v
 
+nullField :: RowParser Null
+nullField = field
+
+eventTypeParser :: FieldParser (C.UTCTime -> LogEvent)
+eventTypeParser f v = do
+  tn <- typename f
+  case tn of
+    "event_t" ->
+      let err = UnexpectedNull (B.unpack tn)
+                               (tableOid f)
+                               (maybe "" B.unpack (name f))
+                               "UTCTime -> LogEvent"
+                               "columns of type event_t should not contain null values"
+      in  maybe (conversionError err) (nameEvent . decodeUtf8) v
+    _ ->
+      let err = Incompatible (B.unpack tn)
+                             (tableOid f)
+                             (maybe "" B.unpack (name f))
+                             "UTCTime -> LogEvent"
+                             "column was not of type event_t"
+      in conversionError err
+
+creditToParser :: FieldParser (RowParser CreditTo)
+creditToParser f v = do
+  tn <- typename f
+  let parser :: Text -> Conversion (RowParser CreditTo)
+      parser tname = pure $ case tname of
+        "credit_to_btc_addr" -> CreditToAddress <$> (fieldWith btcAddrParser <* nullField <* nullField)
+        "credit_to_user"     -> CreditToUser    <$> (nullField *> fieldWith uidParser <* nullField)
+        "credit_to_project"  -> CreditToProject <$> (nullField *> nullField *> fieldWith pidParser)
+        _ -> empty
+
+  case tn of
+    "credit_to_t" -> maybe empty (parser . decodeUtf8) v
+    _ -> conversionError $
+      Incompatible
+        (B.unpack tn)
+        (tableOid f)
+        (maybe "" B.unpack (name f))
+        "RowParser CreditTo"
+        "column was not of type event_t"
+
+
+
 logEntryParser :: RowParser LogEntry
 logEntryParser =
-  LogEntry <$> fieldWith btcAddrParser
+  LogEntry <$> join (fieldWith creditToParser)
            <*> (fieldWith eventTypeParser <*> fieldWith utcParser)
            <*> field
 
@@ -90,7 +117,11 @@ qdbLogEntryParser =
 
 auctionParser :: RowParser Auction
 auctionParser =
-  Auction <$> fieldWith btcParser
+  Auction <$> fieldWith pidParser
+          <*> fieldWith uidParser
+          <*> fieldWith utcParser
+          <*> fieldWith btcParser
+          <*> fieldWith utcParser
           <*> fieldWith utcParser
 
 bidParser :: RowParser Bid
@@ -153,21 +184,37 @@ transactQDBM (QDBM rt) = QDBM $ do
   lift . EitherT $ withTransaction conn (runEitherT $ runReaderT rt conn)
 
 instance DBEval QDBM where
-  dbEval (CreateEvent (ProjectId pid) (UserId uid) (LogEntry a e m)) =
-    pinsert EventId
-      "INSERT INTO work_events (project_id, user_id, btc_addr, event_type, event_time, event_metadata) \
-      \VALUES (?, ?, ?, ?, ?, ?) \
-      \RETURNING id"
-      ( pid, uid
-      , a ^. _BtcAddr
-      , eventName e
-      , fromThyme $ e ^. eventTime
-      , m
-      )
+  dbEval (CreateEvent (ProjectId pid) (UserId uid) (LogEntry c e m)) =
+    case c of
+      CreditToAddress addr ->
+        pinsert EventId
+          "INSERT INTO work_events \
+          \(project_id, user_id, credit_to_type, credit_to_btc_addr, event_type, event_time, event_metadata) \
+          \VALUES (?, ?, ?, ?, ?, ?, ?) \
+          \RETURNING id"
+          ( pid, uid, creditToName c, addr ^. _BtcAddr, eventName e, fromThyme $ e ^. eventTime, m)
+
+      CreditToProject pid' ->
+        pinsert EventId
+          "INSERT INTO work_events \
+          \(project_id, user_id, credit_to_type, credit_to_project_id, event_type, event_time, event_metadata) \
+          \VALUES (?, ?, ?, ?, ?, ?, ?) \
+          \RETURNING id"
+          ( pid, uid, creditToName c, pid' ^. _ProjectId, eventName e, fromThyme $ e ^. eventTime, m)
+
+      CreditToUser uid' ->
+        pinsert EventId
+          "INSERT INTO work_events \
+          \(project_id, user_id, credit_to_type, credit_to_user_id, event_type, event_time, event_metadata) \
+          \VALUES (?, ?, ?, ?, ?, ?, ?) \
+          \RETURNING id"
+          ( pid, uid, creditToName c, uid' ^. _UserId, eventName e, fromThyme $ e ^. eventTime, m)
 
   dbEval (FindEvent (EventId eid)) =
     headMay <$> pquery qdbLogEntryParser
-      "SELECT project_id, user_id, btc_addr, event_type, event_time, event_metadata FROM work_events \
+      "SELECT project_id, user_id, \
+      \credit_to_type, credit_to_btc_addr, credit_to_user_id, credit_to_project_id, \
+      \event_type, event_time, event_metadata FROM work_events \
       \WHERE id = ?"
       (Only eid)
 
@@ -189,17 +236,39 @@ instance DBEval QDBM where
 
   dbEval (AmendEvent (EventId eid) (TimeChange mt t)) =
     pinsert AmendmentId
-      "INSERT INTO event_time_amendments (event_id, mod_time, event_time) VALUES (?, ?, ?) RETURNING id"
+      "INSERT INTO event_time_amendments \
+      \(event_id, amended_at, event_time) \
+      \VALUES (?, ?, ?) RETURNING id"
       ( eid, fromThyme $ mt ^. _ModTime, fromThyme t )
 
-  dbEval (AmendEvent (EventId eid) (AddressChange mt addr)) =
-    pinsert AmendmentId
-      "INSERT INTO event_addr_amendments (event_id, mod_time, btc_addr) VALUES (?, ?, ?) RETURNING id"
-      ( eid, fromThyme $ mt ^. _ModTime, addr ^. _BtcAddr )
+  dbEval (AmendEvent (EventId eid) (CreditToChange mt c)) =
+    case c of
+      CreditToAddress addr ->
+        pinsert AmendmentId
+          "INSERT INTO event_credit_to_amendments \
+          \(event_id, amended_at, credit_to_type, credit_to_btc_addr) \
+          \VALUES (?, ?, ?, ?) RETURNING id"
+          ( eid, fromThyme $ mt ^. _ModTime, creditToName c, addr ^. _BtcAddr )
+
+      CreditToProject pid ->
+        pinsert AmendmentId
+          "INSERT INTO event_credit_to_amendments \
+          \(event_id, amended_at, credit_to_type, credit_to_project_id) \
+          \VALUES (?, ?, ?, ?) RETURNING id"
+          ( eid, fromThyme $ mt ^. _ModTime, creditToName c, pid ^. _ProjectId )
+
+      CreditToUser uid ->
+        pinsert AmendmentId
+          "INSERT INTO event_credit_to_amendments \
+          \(event_id, amended_at, credit_to_type, credit_to_user_id) \
+          \VALUES (?, ?, ?, ?) RETURNING id"
+          ( eid, fromThyme $ mt ^. _ModTime, creditToName c, uid ^. _UserId )
 
   dbEval (AmendEvent (EventId eid) (MetadataChange mt v)) =
     pinsert AmendmentId
-      "INSERT INTO event_metadata_amendments (event_id, mod_time, btc_addr) VALUES (?, ?, ?) RETURNING id"
+      "INSERT INTO event_metadata_amendments \
+      \(event_id, amended_at, event_metadata) \
+      \VALUES (?, ?, ?) RETURNING id"
       ( eid, fromThyme $ mt ^. _ModTime, v)
 
   dbEval (ReadWorkIndex (ProjectId pid)) = do
@@ -208,15 +277,19 @@ instance DBEval QDBM where
       (Only pid)
     pure $ workIndex logEntries
 
-  dbEval (CreateAuction pid auc) =
+  dbEval (CreateAuction auc) =
     pinsert AuctionId
-      "INSERT INTO auctions (project_id, raise_amount, end_time) \
-      \VALUES (?, ?, ?) RETURNING id"
-      (pid ^. _ProjectId, auc ^. (raiseAmount.to fromSatoshi), auc ^. (auctionEnd.to fromThyme))
+      "INSERT INTO auctions (project_id, user_id, raise_amount, end_time) \
+      \VALUES (?, ?, ?, ?) RETURNING id"
+      ( auc ^. (A.projectId . _ProjectId)
+      , auc ^. (A.initiator . _UserId)
+      , auc ^. (raiseAmount.to fromSatoshi)
+      , auc ^. (auctionEnd.to fromThyme)
+      )
 
   dbEval (FindAuction aucId) =
     headMay <$> pquery auctionParser
-      "SELECT raise_amount, end_time FROM auctions WHERE id = ?"
+      "SELECT project_id, initiator_id, created_at, raise_amount, start_time, end_time FROM auctions WHERE id = ?"
       (Only (aucId ^. _AuctionId))
 
   dbEval (CreateBid (AuctionId aucId) bid) =
@@ -279,7 +352,7 @@ instance DBEval QDBM where
     pinsert ProjectId
       "INSERT INTO projects (project_name, inception_date, initiator_id, depreciation_fn) \
       \VALUES (?, ?, ?, ?) RETURNING id"
-      (p ^. projectName, p ^. (inceptionDate.to fromThyme), p ^. (initiator._UserId), toJSON $ p ^. depf)
+      (p ^. projectName, p ^. (inceptionDate.to fromThyme), p ^. (P.initiator . _UserId), toJSON $ p ^. depf)
 
   dbEval (FindProject (ProjectId pid)) =
     headMay <$> pquery projectParser

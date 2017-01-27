@@ -22,6 +22,10 @@ createdb -O aftok -h 127.0.0.1 -p 5432 -U aftok -W -E UTF8 aftok
 sudo -u postgres psql -c 'create extension if not exists "uuid-ossp";' aftok
 psql -h 127.0.0.1 -p 5432 -U aftok -W -f sql/aftok-pg.sql aftok
 
+# get the aftok image from dockerhub
+docker login
+docker pull nuttycom/aftok:0.1
+
 # start the snap application
 docker run --name aftok-server -v /opt/containers/aftok-server:/etc/aftok:ro --net="host" -d nuttycom/aftok
 

@@ -10,8 +10,9 @@ import           Data.AffineSpace
 import           Data.Thyme.Clock as C
 
 import           Aftok
-import           Aftok.Auction (Auction, AuctionId, Bid, BidId)
+import           Aftok.Auction    as A
 import           Aftok.Interval
+import           Aftok.Project    as P
 import           Aftok.TimeLog
 import           Aftok.Util
 
@@ -42,17 +43,18 @@ data DBOp a where
   FindEvents       :: ProjectId -> UserId -> Interval' -> DBOp [LogEntry]
   ReadWorkIndex    :: ProjectId -> DBOp WorkIndex
 
-  CreateAuction    :: ProjectId -> Auction -> DBOp AuctionId
+  CreateAuction    :: Auction -> DBOp AuctionId
   FindAuction      :: AuctionId -> DBOp (Maybe Auction)
   CreateBid        :: AuctionId -> Bid -> DBOp BidId
   ReadBids         :: AuctionId -> DBOp [Bid]
 
-  RaiseDBError     :: forall x. DBError -> DBOp x -> DBOp x
+  RaiseDBError     :: forall x y. DBError -> DBOp x -> DBOp y
 
 data OpForbiddenReason = UserNotProjectMember
                        | UserNotEventLogger
                        | InvitationExpired
                        | InvitationAlreadyAccepted
+                       | AuctionEnded
                        deriving (Eq, Show, Typeable)
 
 data DBError = OpForbidden UserId OpForbiddenReason
@@ -64,7 +66,7 @@ instance Exception DBError
 raiseOpForbidden :: UserId -> OpForbiddenReason -> DBOp x -> DBOp x
 raiseOpForbidden uid r = RaiseDBError (OpForbidden uid r)
 
-raiseSubjectNotFound :: DBOp x -> DBOp x
+raiseSubjectNotFound :: DBOp y -> DBOp x
 raiseSubjectNotFound = RaiseDBError SubjectNotFound
 
 class DBEval m where
@@ -86,7 +88,7 @@ findUserByName = fc . FindUserByName
 createProject :: Project -> DBProg ProjectId
 createProject p = do
   pid <- fc $ CreateProject p
-  addUserToProject pid (p ^. initiator) (p ^. initiator)
+  addUserToProject pid (p ^. P.initiator) (p ^. P.initiator)
   return pid
 
 findProject :: ProjectId -> UserId -> DBProg (Maybe Project)
@@ -103,6 +105,13 @@ withProjectAuth pid uid act = do
   fc $ if any (\(pid', _) -> pid' == pid) px
     then act
     else raiseOpForbidden uid UserNotProjectMember act
+
+checkProjectAuth :: ProjectId -> UserId -> DBOp a -> DBProg ()
+checkProjectAuth pid uid act = do
+  px <- findUserProjects uid
+  if any (\(pid', _) -> pid' == pid) px
+    then pure ()
+    else void . fc $ raiseOpForbidden uid UserNotProjectMember act
 
 addUserToProject :: ProjectId -> InvitingUID -> InvitedUID -> DBProg ()
 addUserToProject pid current new =
@@ -127,7 +136,7 @@ acceptInvitation uid t ic = do
     Just i | isJust (i ^. acceptanceTime) ->
       fc $ raiseOpForbidden uid InvitationAlreadyAccepted act
     Just i ->
-      withProjectAuth (i ^. projectId) (i ^. invitingUser) act
+      withProjectAuth (i ^. P.projectId) (i ^. P.invitingUser) act
 
 -- Log ops
 
@@ -152,3 +161,33 @@ findEvents p u i = fc $ FindEvents p u i
 readWorkIndex :: ProjectId -> UserId -> DBProg WorkIndex
 readWorkIndex pid uid = withProjectAuth pid uid $ ReadWorkIndex pid
 
+-- Auction ops
+
+createAuction :: Auction -> DBProg AuctionId
+createAuction a = do
+  withProjectAuth (a ^. A.projectId) (a ^. A.initiator) $ CreateAuction a
+
+findAuction :: AuctionId -> UserId -> DBProg (Maybe Auction)
+findAuction aid uid =
+  let findOp = FindAuction aid
+  in  do
+    maybeAuc <- fc findOp
+    _ <- traverse (\auc -> checkProjectAuth (auc ^. A.projectId) uid findOp) maybeAuc
+    pure maybeAuc
+
+findAuction' :: AuctionId -> UserId -> DBProg Auction
+findAuction' aid uid =
+  let findOp = FindAuction aid
+  in  do
+    maybeAuc <- fc findOp
+    _ <- traverse (\auc -> checkProjectAuth (auc ^. A.projectId) uid findOp) maybeAuc
+    maybe (fc $ raiseSubjectNotFound findOp) pure maybeAuc
+
+createBid :: AuctionId -> UserId -> Bid -> DBProg (BidId)
+createBid aid uid bid =
+  let createOp = CreateBid aid bid
+  in  do
+    auc <- findAuction' aid uid
+    fc $ if view bidTime bid > view auctionEnd auc
+      then raiseOpForbidden uid AuctionEnded createOp
+      else createOp

@@ -3,18 +3,18 @@ module Aftok.Snaplet.Auth where
 import           ClassyPrelude
 
 import           Control.Lens
--- import Control.Monad.State
 import           Data.Attoparsec.ByteString (parseOnly, takeByteString)
 import           Data.UUID                  (fromASCIIBytes)
 
 import           Aftok
+import           Aftok.Auction              (AuctionId (..))
 import           Aftok.Database
+import           Aftok.Project
 import           Aftok.Snaplet
 import           Aftok.Util.Http            (authHeaderParser)
 
 import           Snap.Core
 import           Snap.Snaplet
--- import Snap.Snaplet.PostgresqlSimple
 import qualified Snap.Snaplet.Auth          as AU
 
 requireLogin :: Handler App App AU.AuthUser
@@ -48,6 +48,17 @@ requireProjectId = do
     pidParser = do
       bs <- takeByteString
       pure $ ProjectId <$> fromASCIIBytes bs
+
+requireAuctionId :: MonadSnap m => m AuctionId
+requireAuctionId = do
+  maybeAid <- parseParam "auctionId" aidParser
+  maybe (snapError 400 "Value of parameter \"auctionId\" cannot be parsed as a valid UUID")
+        pure
+        maybeAid
+  where
+    aidParser = do
+      bs <- takeByteString
+      pure $ AuctionId <$> fromASCIIBytes bs
 
 throwChallenge :: MonadSnap m => m a
 throwChallenge = do

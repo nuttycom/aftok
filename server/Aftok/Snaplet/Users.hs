@@ -14,6 +14,7 @@ import           Data.Thyme.Clock   as C
 
 import           Aftok
 import           Aftok.Database
+import           Aftok.Project
 import           Aftok.Snaplet
 import           Aftok.Snaplet.Auth
 

@@ -23,19 +23,26 @@ Required for launch
 Library
 -------
 
+  * Events
+    * User-identified events
+      - Associate events with user identifier as well as BTC address, and add 
+        late resolution of BTC addresses at point of payout calculation.
   * User
     * Payout Address Update
       - authenticate by asking the user to sign and broadcast a small txn with a specific
         amount from the old address to the new address
   * Payouts
-    * Payouts should not include events younger than <commit_delay hours> to permit amends.
+    * Payouts should not include events younger than <commit_delay hours> to permit amends. 
     * Find current verified address for each payout.
       * Come up with a user-friendly and reliable way to ensure that users
         don't make errors in their BTC addresses. Maybe use very small 
         confirmation transactions, as is done when establishing ACH access
         to checking accounts?
-    * Include hours won in resource auction - requires confirmation that contribution
+    * Include hours won in resource auction - requires confirmation that contribution - Kris wip
       was actually made (observed in the confirmed blockchain)
+    * Ensure that we avoid creating dust transactions on the blockchain. Any payout fragment
+      falling below the estimated cost of redemption should be instead deducted from the 
+      cost to the purchaser?
   * Resource Pooling
     * Resource auction bids should include the source address which will be used in the CoinJoin txn.
     * Create election for resource acquisition designee
@@ -46,8 +53,9 @@ Library
     * List Proposals
     * Record Vote
 
-Webserver
----------
+Server
+------
+
   * Authentication
     * Integrate server-session package? https://github.com/yesodweb/serversession/blob/master/README.md
       We don't really use sessions at the moment, but this will be useful once there's a UI. 
@@ -57,11 +65,10 @@ Webserver
     * Use the BIP-70 Bitcoin Payment Protocol to create payment requests.
     * Record requested payments
 
-Payouts Service
----------------
+Scheduled event Service
+-----------------------
 
-  * Read blockchain transactions
-    * Payout Address Update validation
+  * Based on blockchain transactions:
     * When a resource acquisition CoinJoin is observed, record time awards
     * Read history of payments and provide reconciliation and recordkeeping
       functionality.

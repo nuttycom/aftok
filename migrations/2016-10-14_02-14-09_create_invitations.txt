@@ -1,0 +1,16 @@
+Description: (Describe migration here.)
+Created: 2016-10-14 02:14:22.631128 UTC
+Depends: 2016-10-14_02-11-24_project_companions_invitations 2016-10-13_05-36-55_user-event-log
+Apply: |
+  create table if not exists invitations (
+    id uuid primary key default uuid_generate_v4(),
+    project_id uuid references projects(id) not null,
+    invitor_id uuid references users (id) not null,
+    invitee_email text not null,
+    invitation_key text not null,
+    invitation_time timestamp with time zone not null default (now() at time zone 'UTC'),
+    acceptance_time timestamp with time zone
+  );
+
+Revert: |
+  drop table invitations;

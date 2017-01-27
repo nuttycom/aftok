@@ -19,3 +19,5 @@ local
 
 docker-conf
 client/.pulp-cache
+moo.cfg
+site_key.txt

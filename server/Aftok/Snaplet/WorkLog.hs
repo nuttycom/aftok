@@ -8,10 +8,11 @@ import           Data.Aeson.Types
 import           Data.Thyme.Clock   as C
 import           Data.UUID          as U
 
-import           Aftok
+import           Aftok              (parseBtcAddr)
 import           Aftok.Database
 import           Aftok.Interval
 import           Aftok.Json
+import           Aftok.Project
 import           Aftok.TimeLog
 
 import           Aftok.Snaplet
@@ -25,6 +26,16 @@ logWorkHandler :: (C.UTCTime -> LogEvent) -> Handler App App EventId
 logWorkHandler evCtr = do
   uid <- requireUserId
   pid <- requireProjectId
+  requestBody <- readRequestBody 4096
+  timestamp <- liftIO C.getCurrentTime
+  case A.eitherDecode requestBody >>= parseEither (parseLogEntry evCtr) of
+    Left err -> snapError 400 $ "Unable to parse log entry " <> (tshow requestBody) <> ": " <> tshow err
+    Right entry -> snapEval $ createEvent pid uid (entry timestamp)
+
+logWorkBTCHandler :: (C.UTCTime -> LogEvent) -> Handler App App EventId
+logWorkBTCHandler evCtr = do
+  uid <- requireUserId
+  pid <- requireProjectId
   addrBytes <- getParam "btcAddr"
   requestBody <- readRequestBody 4096
   timestamp <- liftIO C.getCurrentTime
@@ -32,7 +43,8 @@ logWorkHandler evCtr = do
     Nothing ->
       snapError 400 $ "Unable to parse bitcoin address from " <> (tshow addrBytes)
     Just addr ->
-      snapEval $ createEvent pid uid (LogEntry addr (evCtr timestamp) (A.decode requestBody))
+      snapEval . createEvent pid uid $
+        LogEntry (CreditToAddress addr) (evCtr timestamp) (A.decode requestBody)
 
 loggedIntervalsHandler :: Handler App App WorkIndex
 loggedIntervalsHandler = do
