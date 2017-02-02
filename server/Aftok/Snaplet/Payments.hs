@@ -16,11 +16,11 @@ requestPaymentHandler cfg = do
   uid <- requireUserId
   pid <- requireProjectId
   ptime <- liftIO $ C.getCurrentTime
-  widx <- snapEval $ fc (ReadWorkIndex pid)
+  createPaymentRequests ptime memogen urigen plgen uid pid
   -- look up outstanding subscriptions the user has for this project
   -- determine which subscriptions need to be paid
   -- create a payment request for each subscription
-  undefined
+  
 
   
 

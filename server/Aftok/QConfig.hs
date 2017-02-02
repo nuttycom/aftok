@@ -6,7 +6,9 @@ import           ClassyPrelude
 import qualified Data.ByteString.Char8         as C
 import qualified Data.Configurator             as C
 import qualified Data.Configurator.Types       as CT
-import qualified Network.Bippy.Types           as B
+import           Data.X509
+import           Data.X509.File (readSignedObject, readKeyFile)
+import qualified Network.Bippy.Types           as BT
 import qualified Network.Mail.SMTP             as SMTP
 import qualified Network.Socket                as NS
 import           System.Environment
@@ -16,6 +18,8 @@ import           Snap.Core
 import qualified Snap.Http.Server.Config       as SC
 import           Snap.Snaplet.PostgresqlSimple
 
+import qualified Aftok.Payments as AP
+
 data QConfig = QConfig
   { hostname      :: ByteString
   , port          :: Int
@@ -23,7 +27,7 @@ data QConfig = QConfig
   , cookieTimeout :: Maybe Int
   , pgsConfig     :: PGSConfig
   , smtpConfig    :: SmtpConfig
-  , btcConfig     :: BtcConfig
+  , billingConfig :: BillingConfig
   , templatePath  :: System.IO.FilePath
   }
 
@@ -34,8 +38,11 @@ data SmtpConfig = SmtpConfig
   , smtpPass :: SMTP.Password
   }
 
-data BtcConfig = BtcConfig 
-  { btcNetwork :: B.Network }
+data BillingConfig = BillingConfig
+  { network :: BT.Network
+  , signingKeyFile :: System.IO.FilePath
+  , certsFile :: System.IO.FilePath
+  }
 
 loadQConfig :: System.IO.FilePath -> IO QConfig
 loadQConfig cfgFile = do
@@ -52,7 +59,7 @@ readQConfig cfg pc =
           <*> C.lookup cfg "cookieTimeout"
           <*> maybe (mkPGSConfig $ C.subconfig "db" cfg) pure pc
           <*> readSmtpConfig cfg
-          <*> readBtcConfig cfg
+          <*> readBillingConfig cfg
           <*> C.lookupDefault "/opt/aftok/server/templates/" cfg "templatePath"
 
 readSmtpConfig :: CT.Config -> IO SmtpConfig
@@ -62,12 +69,15 @@ readSmtpConfig cfg =
              <*> C.require cfg "smtpUser"
              <*> C.require cfg "smtpKey"
 
-readBtcConfig :: CT.Config -> IO BtcConfig
-readBtcConfig cfg = 
-  let parseNetwork :: String -> B.Network
-      parseNetwork "main" = B.MainNet
-      parseNetwork _ = B.TestNet
-  in  (BtcConfig . parseNetwork) <$> C.require cfg "network"
+readBillingConfig :: CT.Config -> IO BillingConfig
+readBillingConfig cfg = 
+  BillingConfig <$> (parseNetwork <$> C.require cfg "network")
+                <*> C.require cfg "signingKeyFile"
+                <*> C.require cfg "certsFile"
+  where parseNetwork :: String -> BT.Network
+        parseNetwork "main" = BT.MainNet
+        parseNetwork _ = BT.TestNet
+                    
 
 baseSnapConfig :: QConfig -> SC.Config m a -> SC.Config m a
 baseSnapConfig qc =
@@ -79,4 +89,13 @@ baseSnapConfig qc =
 snapConfig :: QConfig -> IO (SC.Config Snap a)
 snapConfig qc = SC.commandLineConfig $ baseSnapConfig qc SC.emptyConfig
 
-
+toBillingConfig :: BillingConfig -> IO AP.BillingConfig
+toBillingConfig c = do
+  privKeys   <- readKeyFile (signingKeyFile c)
+  pkiEntries <- readSignedObject (certsFile c)
+  privKey <- case headMay privKeys of
+    Just (PrivKeyRSA k) -> pure k
+    Just (PrivKeyDSA _) -> fail "DSA keys not supported for payment request signing."
+    Nothing             -> fail $ "No keys found in private key file " <> signingKeyFile c
+  let pkiData = BT.X509SHA256 . CertificateChain $ pkiEntries
+  pure $ AP.BillingConfig (network c) privKey pkiData
