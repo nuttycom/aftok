@@ -8,16 +8,17 @@ module Aftok.Payments
 
 import           ClassyPrelude
 
-import           Control.Lens  (makeLenses, view, (%~), (^.))
+import           Control.Error.Util (maybeT)
+import           Control.Lens  (makeClassy, makeClassyPrisms, view, (%~), (^.), review)
 import           Control.Lens.Tuple
-import           Control.Monad.Except (MonadError)
-import           Crypto.PubKey.RSA.Types (Error(..), PrivateKey)
+import           Control.Monad.Except (MonadError, throwError)
+import qualified Crypto.PubKey.RSA.Types as RSA (Error(..), PrivateKey)
 import           Crypto.Random.Types (MonadRandom)
 
 import           Data.AffineSpace ((.+^))
 import           Data.Map.Strict (assocs)
+import           Data.Thyme.Time     as T
 import           Data.Thyme.Clock    as C
-import           Data.Thyme.Time.Core (fromThyme)
 
 import qualified Network.Bippy as B
 import qualified Network.Bippy.Proto as P
@@ -35,48 +36,139 @@ import           Aftok.Types (satoshi)
 
 data BillingConfig = BillingConfig
   { _network :: BT.Network
-  , _signingKey :: PrivateKey
+  , _signingKey :: RSA.PrivateKey
   , _pkiData :: BT.PKIData
   }
-makeLenses ''BillingConfig
+makeClassy ''BillingConfig
 
+data BillingOps (m :: * -> *) = BillingOps
+  { memoGen :: Subscription' Billable -> m (Maybe Text)           -- ^ generator user memo
+  , uriGen  :: Subscription' Billable -> m (Maybe URI)            -- ^ generator for payment response URL
+  , payloadGen :: Subscription' Billable -> m (Maybe ByteString)  -- ^ generator for merchant payload
+  }
 
-createPaymentRequests :: (MonadRandom m, MonadReader BillingConfig m, MonadError Error m, MonadDB m) => 
-                         C.UTCTime -- timestamp for payment request creation
-                      -> (Subscription' Billable -> m (Maybe Text))       -- generator user memo
-                      -> (Subscription' Billable -> m (Maybe URI))        -- generator for payment response URL
-                      -> (Subscription' Billable -> m (Maybe ByteString)) -- generator for merchant payload
-                      -> UserId    -- user responsible for payment
-                      -> ProjectId -- project whose worklog is to be paid out to
+data PaymentRequestStatus 
+  = Paid Payment           -- ^ the request was paid with the specified payment
+  | Unpaid PaymentRequest  -- ^ the request has not been paid, but has not yet expired
+  | Expired PaymentRequest -- ^ the request was not paid prior to the expiration date
+
+data PaymentError
+  = Overdue SubscriptionId
+  | SigningError RSA.Error
+makeClassyPrisms ''PaymentError
+  
+
+createPaymentRequests :: ( MonadRandom m
+                         , MonadReader r m, HasBillingConfig r
+                         , MonadError e m,  AsPaymentError e
+                         , MonadDB m
+                         ) 
+                      => BillingOps m -- ^ generators for payment request components
+                      -> C.UTCTime    -- ^ timestamp for payment request creation
+                      -> UserId       -- ^ customer responsible for payment
+                      -> ProjectId    -- ^ project whose worklog is to be paid
                       -> m [PaymentRequestId]
-createPaymentRequests t memogen urigen plgen custId pid = do
+createPaymentRequests ops now custId pid = do
   subscriptions <- findSubscriptions custId pid
+  join <$> traverse (createSubscriptionPaymentRequests ops now custId) subscriptions 
+
+createSubscriptionPaymentRequests :: 
+     ( MonadRandom m
+     , MonadReader r m, HasBillingConfig r
+     , MonadError e m, AsPaymentError e
+     , MonadDB m
+     ) 
+  => BillingOps m 
+  -> C.UTCTime
+  -> UserId
+  -> (SubscriptionId, Subscription)
+  -> m [PaymentRequestId]
+createSubscriptionPaymentRequests ops now custId (sid, sub) = do
+  billableSub <- maybeT (raiseSubjectNotFound . FindBillable $ sub ^. billable) pure $
+                 traverse findBillable sub
+  paymentRequests <- findPaymentRequests sid
+  billableDates   <- findUnbilledDates now (view billable billableSub) paymentRequests $
+                     takeWhile (< view _utctDay now) $ billingSchedule billableSub
+  traverse (createPaymentRequest ops now custId sid billableSub) billableDates
+
+createPaymentRequest :: 
+     ( MonadRandom m
+     , MonadReader r m, HasBillingConfig r
+     , MonadError e m, AsPaymentError e
+     , MonadDB m
+     ) 
+  => BillingOps m 
+  -> C.UTCTime
+  -> UserId
+  -> SubscriptionId
+  -> Subscription' Billable
+  -> T.Day
+  -> m PaymentRequestId
+createPaymentRequest ops now custId sid sub bday = do
   cfg <- ask
-  let createPaymentDetails' s = do
-        memo <- memogen s
-        uri <- urigen s
-        payload <- plgen s
-        createPaymentDetails t memo uri payload (s ^. billable)
+  memo    <- memoGen ops sub
+  uri     <- uriGen ops sub
+  payload <- payloadGen ops sub
+  details <- createPaymentDetails bday now memo uri payload (sub ^. billable)
+  reqErr  <- B.createPaymentRequest (cfg ^. signingKey) (cfg ^. pkiData) details
+  req     <- either (throwError . review _SigningError) pure reqErr
+  liftdb $ CreatePaymentRequest custId (PaymentRequest sid req now bday)
+  
+{-
+ - FIXME: The current implementation expects the billing day to be a suitable
+ - key for comparison to payment requests. This is almost certainly inadequate.
+ -}
+findUnbilledDates :: (MonadDB m, MonadError e m, AsPaymentError e)
+                  => C.UTCTime -- ^ the date against which payment request expiration should be checked
+                  -> Billable
+                  -> [(PaymentRequestId, PaymentRequest)] -- ^ the list of existing payment requests 
+                  -> [T.Day]   -- ^ the list of expected billing days
+                  -> m [T.Day] -- ^ the list of billing days for which no payment request exists
+findUnbilledDates now b (px @ (p : ps)) (dx @ (d : ds)) =
+  case compare (view (_2 . billingDate) p) d of
+    EQ -> getRequestStatus now p >>= \s -> case s of
+            Expired r -> if view _utctDay now > addDays (view gracePeriod b) (view billingDate r) 
+                           then throwError (review _Overdue (r ^. subscription))
+                           else fmap (d :) $ findUnbilledDates now b px dx -- d will be rebilled
+            _         -> findUnbilledDates now b ps ds -- if paid or unpaid, nothing to do
+    GT -> fmap (d :) $ findUnbilledDates now b px ds 
+    LT -> findUnbilledDates now b ps dx
+findUnbilledDates _ _ _ ds = pure ds
 
-      createPaymentRequest (sid, s) = do
-        details <- createPaymentDetails' s 
-        req <- B.createPaymentRequest (cfg ^. signingKey) (cfg ^. pkiData) details
-        liftdb $ CreatePaymentRequest custId (PaymentRequest sid req t)
-  traverse createPaymentRequest subscriptions
 
-createPaymentDetails :: (MonadRandom m, MonadReader BillingConfig m, MonadDB m) =>
-                        C.UTCTime         -- timestamp for payment request creation
-                     -> Maybe Text        -- user memo
-                     -> Maybe URI         -- payment response URL
-                     -> Maybe ByteString  -- merchant payload
-                     -> Billable 
+{- Check whether the specified payment request has a payment associated with
+ - it, and return a PaymentRequestStatus value indicating the result.
+ -}
+getRequestStatus :: (MonadDB m) 
+                 => C.UTCTime -- ^ the date against which request expiration should be checked
+                 -> (PaymentRequestId, PaymentRequest) -- ^ the request for which to find a payment
+                 -> m PaymentRequestStatus
+getRequestStatus now (reqid, req) = 
+  let ifUnpaid = (if isExpired now (view paymentRequest req) then Expired else Unpaid) req
+  in  maybe ifUnpaid Paid <$> findPayment reqid
+
+{- Create the PaymentDetails section of the payment request.
+ -}
+createPaymentDetails :: (MonadRandom m, MonadReader r m, HasBillingConfig r, MonadDB m) 
+                     => T.Day              -- ^ payout date (billing date)
+                     -> C.UTCTime          -- ^ timestamp of payment request creation
+                     -> Maybe Text         -- ^ user memo
+                     -> Maybe URI          -- ^ payment response URL
+                     -> Maybe ByteString   -- ^ merchant payload
+                     -> Billable           -- ^ billing information
                      -> m P.PaymentDetails
-createPaymentDetails t memo uri payload b = do
-  payouts <- getProjectPayouts t (b ^. project)
-  outputs <- createPayoutsOutputs t (b ^. amount) payouts
-  let expiry = (BT.Expiry . fromThyme . (t .+^)) <$> (b ^. requestExpiryPeriod)
+createPaymentDetails payoutDate billingTime memo uri payload b = do
+  payouts <- getProjectPayouts payoutTime (b ^. project)
+  outputs <- createPayoutsOutputs payoutTime (b ^. amount) payouts
+  let expiry = (BT.Expiry . T.fromThyme . (billingTime .+^)) <$> (b ^. requestExpiryPeriod)
   cfg <- ask
-  pure $ B.createPaymentDetails (cfg ^. network) outputs (fromThyme t) expiry memo uri payload
+  pure $ B.createPaymentDetails 
+    (cfg ^. network) 
+    outputs 
+    (T.fromThyme billingTime) 
+    expiry memo uri payload
+  where 
+    payoutTime = T.mkUTCTime payoutDate (fromInteger 0)
 
 
 getProjectPayouts :: (MonadDB m) => C.UTCTime -> ProjectId -> m TL.Payouts

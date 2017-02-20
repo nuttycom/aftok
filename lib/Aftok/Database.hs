@@ -8,6 +8,7 @@ module Aftok.Database where
 
 import           ClassyPrelude
 import           Control.Lens (view, (^.))
+import           Control.Monad.Trans.Maybe (MaybeT(..))
 import           Data.AffineSpace
 import           Data.Thyme.Clock as C
 
@@ -20,20 +21,18 @@ import           Aftok.Project    as P
 import           Aftok.TimeLog
 import           Aftok.Util
 
-type KeyedUser     = (UserId, User)
 type KeyedLogEntry = (ProjectId, UserId, LogEntry)
-type KeyedProject  = (ProjectId, Project)
 type InvitingUID   = UserId
 type InvitedUID    = UserId
 
 data DBOp a where
   CreateUser       :: User -> DBOp UserId
   FindUser         :: UserId -> DBOp (Maybe User)
-  FindUserByName   :: UserName -> DBOp (Maybe KeyedUser)
+  FindUserByName   :: UserName -> DBOp (Maybe (UserId, User))
 
   CreateProject    :: Project -> DBOp ProjectId
   FindProject      :: ProjectId -> DBOp (Maybe Project)
-  FindUserProjects :: UserId -> DBOp [KeyedProject]
+  FindUserProjects :: UserId -> DBOp [(ProjectId, Project)]
   AddUserToProject :: ProjectId -> InvitingUID -> InvitedUID -> DBOp ()
   CreateInvitation :: ProjectId -> InvitingUID -> Email -> C.UTCTime -> DBOp InvitationCode
   FindInvitation   :: InvitationCode -> DBOp (Maybe Invitation)
@@ -48,16 +47,21 @@ data DBOp a where
   CreateAuction    :: Auction -> DBOp AuctionId
   FindAuction      :: AuctionId -> DBOp (Maybe Auction)
   CreateBid        :: AuctionId -> Bid -> DBOp BidId
-  ReadBids         :: AuctionId -> DBOp [Bid]
+  FindBids         :: AuctionId -> DBOp [(BidId, Bid)]
 
   CreateBillable   :: UserId -> Billable -> DBOp BillableId
-  ReadBillable     :: BillableId -> DBOp (Maybe Billable)
+  FindBillable     :: BillableId -> DBOp (Maybe Billable)
 
   CreateSubscription :: UserId -> Subscription -> DBOp SubscriptionId
+  FindSubscription  :: SubscriptionId -> DBOp (Maybe Subscription)
   FindSubscriptions :: UserId -> ProjectId -> DBOp [(SubscriptionId, Subscription)]
 
-  CreatePaymentRequest :: UserId -> PaymentRequest -> DBOp PaymentRequestId
-  CreatePayment        :: UserId -> Payment -> DBOp PaymentId
+  CreatePaymentRequest  :: UserId -> PaymentRequest -> DBOp PaymentRequestId
+  FindPaymentRequest    :: PaymentRequestId -> DBOp (Maybe PaymentRequest)
+  FindPaymentRequests   :: SubscriptionId -> DBOp [(PaymentRequestId, PaymentRequest)]
+
+  CreatePayment  :: UserId -> Payment -> DBOp PaymentId
+  FindPayments   :: PaymentRequestId -> DBOp [(PaymentId, Payment)]
 
   RaiseDBError     :: forall x y. DBError -> DBOp x -> DBOp y
 
@@ -95,7 +99,7 @@ createUser = liftdb . CreateUser
 findUser :: (MonadDB m) => UserId -> m (Maybe User)
 findUser = liftdb . FindUser
 
-findUserByName :: (MonadDB m) => UserName -> m (Maybe KeyedUser)
+findUserByName :: (MonadDB m) => UserName -> m (Maybe (UserId, User))
 findUserByName = liftdb . FindUserByName
 
 -- Project ops
@@ -111,7 +115,7 @@ findProject pid uid = do
   kps <- findUserProjects uid
   pure $ fmap snd (find (\(pid', _) -> pid' == pid) kps)
 
-findUserProjects :: (MonadDB m) => UserId -> m [KeyedProject]
+findUserProjects :: (MonadDB m) => UserId -> m [(ProjectId, Project)]
 findUserProjects = liftdb . FindUserProjects
 
 withProjectAuth :: (MonadDB m) => ProjectId -> UserId -> DBOp a -> m a
@@ -182,21 +186,22 @@ createBillable :: (MonadDB m) => UserId -> Billable -> m BillableId
 createBillable uid b =
   withProjectAuth (b ^. B.project) uid $ CreateBillable uid b
 
-readBillable :: (MonadDB m) => BillableId -> m (Maybe Billable)
-readBillable = liftdb . ReadBillable
+findBillable :: (MonadDB m) => BillableId -> MaybeT m Billable
+findBillable = MaybeT . liftdb . FindBillable
 
-findSubscriptions :: (MonadDB m) 
-                  => UserId 
-                  -> ProjectId 
-                  -> m [(SubscriptionId, Subscription' Billable)]
-findSubscriptions uid pid = do
-  subscriptions <- liftdb $ FindSubscriptions uid pid
-  let sub'' s = sequenceA <$> traverse readBillable s
-      sub' (sid, s) = fmap (fmap (sid,)) (sub'' s)
-  catMaybes <$> traverse sub' subscriptions 
+findSubscriptions :: (MonadDB m) => UserId -> ProjectId -> m [(SubscriptionId, Subscription)]
+findSubscriptions uid pid = liftdb $ FindSubscriptions uid pid
 
-readPaymentHistory :: (MonadDB m) => UserId -> m [Payment]
-readPaymentHistory = error "Not yet implemented"
+findSubscriptionBillable :: (MonadDB m) => SubscriptionId -> MaybeT m (Subscription' Billable)
+findSubscriptionBillable sid = do
+  sub <- MaybeT . liftdb $ FindSubscription sid
+  traverse findBillable sub 
+
+findPaymentRequests :: (MonadDB m) => SubscriptionId -> m [(PaymentRequestId, PaymentRequest)]
+findPaymentRequests = liftdb . FindPaymentRequests
+
+findPayment :: (MonadDB m) => PaymentRequestId -> m (Maybe Payment)
+findPayment prid = (fmap snd . headMay) <$> liftdb (FindPayments prid)
 
 -- Auction ops
 

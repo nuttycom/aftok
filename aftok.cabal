@@ -31,7 +31,6 @@ library
                       Aftok.Payments
                       Aftok.Payments.Types
                       Aftok.Project
-                      Aftok.Time
                       Aftok.TimeLog
                       Aftok.Types
                       Aftok.Util
@@ -70,6 +69,7 @@ library
     , template-haskell
     , text           
     , thyme         
+    , transformers
     , uuid         
     , unordered-containers
     , vector-space

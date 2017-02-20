@@ -43,7 +43,7 @@ projectCreateHandler = do
   t <- liftIO C.getCurrentTime
   snapEval . createProject $ Project (cpn cp) t uid (cpdepf cp)
 
-projectListHandler :: S.Handler App App [KeyedProject]
+projectListHandler :: S.Handler App App [(ProjectId, Project)]
 projectListHandler = do
   uid <- requireUserId
   snapEval $ findUserProjects uid

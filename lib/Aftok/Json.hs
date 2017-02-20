@@ -21,16 +21,15 @@ import           Data.ProtocolBuffers             (encodeMessage)
 import           Data.Serialize.Put               (runPut)
 import qualified Data.Text                        as T
 import           Data.Thyme.Clock                 as C
+import           Data.Thyme.Calendar (showGregorian)
 import           Data.UUID                        as U
 
 import           Aftok
 import           Aftok.Auction                    as A
 import qualified Aftok.Billables                  as B
-import           Aftok.Database
 import           Aftok.Interval
 import           Aftok.Payments
 import           Aftok.Project                    as P
-import           Aftok.Time
 import           Aftok.TimeLog
 import           Aftok.Types
 import           Aftok.Util                       (traverseKeys)
@@ -100,7 +99,7 @@ obj = O.fromList
 -- Serializers --
 -----------------
 
-qdbProjectJSON :: KeyedProject -> Value
+qdbProjectJSON :: (ProjectId, Project) -> Value
 qdbProjectJSON (pid, project) = v1 $
   obj [ "projectId" .=  tshow (pid ^. _ProjectId)
       , "project" .= projectJSON project
@@ -179,14 +178,14 @@ billableJSON b = v1 $
       , "description" .= (b ^. B.description)
       , "recurrence"  .= recurrenceJSON' (b ^. B.recurrence)
       , "amount"      .= (b ^. (B.amount . satoshi))
-      , "gracePeriod" .= (b ^. (B.gracePeriod . _Days))
+      , "gracePeriod" .= (b ^. B.gracePeriod)
       , "requestExpiryPeriod" .= (C.toSeconds' <$> (b ^. B.requestExpiryPeriod))
       ]
 
 recurrenceJSON' :: B.Recurrence -> Value
 recurrenceJSON' B.Annually    = object [ "annually" .= Null ]
 recurrenceJSON' (B.Monthly i) = object [ "monthly " .= object [ "months" .= i ] ]
-recurrenceJSON' B.SemiMonthly = object [ "semimonthly" .= Null ]
+--recurrenceJSON' B.SemiMonthly = object [ "semimonthly" .= Null ]
 recurrenceJSON' (B.Weekly i)  = object [ "weekly " .= object [ "weeks" .= i ] ]
 recurrenceJSON' B.OneTime     = object [ "onetime" .= Null ]
 
@@ -200,7 +199,8 @@ paymentRequestJSON :: PaymentRequest -> Value
 paymentRequestJSON r = v1 $
   obj [ "subscription_id" .= (r ^. (subscription . B._SubscriptionId . to tshow))
       , "payment_request_protobuf_64" .= (r ^. (paymentRequest . to (decodeUtf8 . B64.encode . runPut . encodeMessage)))
-      , "payment_request_date" .= (r ^. paymentRequestDate)
+      , "payment_request_time" .= (r ^. paymentRequestTime)
+      , "billing_date" .= (r ^. (billingDate . to showGregorian))
       ]
 
 paymentJSON :: Payment -> Value

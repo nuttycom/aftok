@@ -3,7 +3,7 @@ packages:
 - '.'
 - location:
     git: git@github.com:aftok/bippy.git
-    commit: ddfc1bf0911351d0be51f33ea9e4166a24d2b19a
+    commit: 97fda0368ae660239d1b9398d44530cd5b05eec3
   extra-dep: true
 allow-newer: true
 extra-deps:

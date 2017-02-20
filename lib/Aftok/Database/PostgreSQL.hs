@@ -8,8 +8,9 @@ import           Control.Lens
 import           Control.Monad.Trans.Either
 import           Data.Aeson                           (Value, toJSON)
 import           Data.Hourglass
-import           Data.List                            as L
-import           Data.ProtocolBuffers                 (encodeMessage)
+import qualified Data.List                            as L
+import           Data.ProtocolBuffers                 (encodeMessage, decodeMessage)
+import           Data.Serialize.Get                   (runGet)
 import           Data.Serialize.Put                   (runPut)
 import           Data.Thyme.Clock                     as C
 import           Data.Thyme.Time
@@ -30,9 +31,8 @@ import           Aftok.Json                           (billableJSON,
                                                        paymentJSON,
                                                        paymentRequestJSON,
                                                        createSubscriptionJSON)
-import           Aftok.Payments
+import           Aftok.Payments.Types                    
 import qualified Aftok.Project                        as P
-import           Aftok.Time                           (Days (..), _Days)
 import           Aftok.TimeLog
 import           Aftok.Types
 
@@ -45,14 +45,8 @@ instance MonadIO QDBM where
 runQDBM :: Connection -> QDBM a -> EitherT DBError IO a
 runQDBM conn (QDBM r) = runReaderT r conn
 
-uidParser :: RowParser UserId
-uidParser = UserId <$> field
-
-pidParser :: RowParser P.ProjectId
-pidParser = P.ProjectId <$> field
-
-subscriptionIdParser :: RowParser B.SubscriptionId
-subscriptionIdParser = B.SubscriptionId <$> field
+idParser :: (UUID -> a) -> RowParser a
+idParser f = f <$> field
 
 btcAddrParser :: FieldParser BtcAddr
 btcAddrParser f v = do
@@ -87,8 +81,8 @@ creditToParser' :: FieldParser (RowParser CreditTo)
 creditToParser' f v =
   let parser :: Text -> RowParser CreditTo
       parser "credit_to_btc_addr" = CreditToAddress <$> (fieldWith btcAddrParser <* nullField <* nullField)
-      parser "credit_to_user"     = CreditToUser    <$> (nullField *> uidParser <* nullField)
-      parser "credit_to_project"  = CreditToProject <$> (nullField *> nullField *> pidParser)
+      parser "credit_to_user"     = CreditToUser    <$> (nullField *> idParser UserId <* nullField)
+      parser "credit_to_project"  = CreditToProject <$> (nullField *> nullField *> idParser P.ProjectId)
       parser _ = empty
   in do
     tn <- typename f
@@ -104,14 +98,14 @@ logEntryParser =
 
 qdbLogEntryParser :: RowParser KeyedLogEntry
 qdbLogEntryParser =
-  (,,) <$> pidParser
-       <*> uidParser
+  (,,) <$> idParser P.ProjectId
+       <*> idParser UserId
        <*> logEntryParser
 
 auctionParser :: RowParser A.Auction
 auctionParser =
-  A.Auction <$> pidParser
-            <*> uidParser
+  A.Auction <$> idParser P.ProjectId
+            <*> idParser UserId
             <*> utcParser
             <*> btcParser
             <*> utcParser
@@ -119,7 +113,7 @@ auctionParser =
 
 bidParser :: RowParser A.Bid
 bidParser =
-  A.Bid <$> uidParser
+  A.Bid <$> idParser UserId
         <*> (Seconds <$> field)
         <*> btcParser
         <*> utcParser
@@ -130,40 +124,30 @@ userParser =
        <*> fieldWith (optionalField btcAddrParser)
        <*> (Email <$> field)
 
-qdbUserParser :: RowParser KeyedUser
-qdbUserParser =
-  (,) <$> uidParser
-      <*> userParser
-
 projectParser :: RowParser P.Project
 projectParser =
   P.Project <$> field
             <*> utcParser
-            <*> uidParser
+            <*> idParser UserId
             <*> fieldWith fromJSONField
 
 invitationParser :: RowParser P.Invitation
 invitationParser =
-  P.Invitation <$> pidParser
-               <*> uidParser
+  P.Invitation <$> idParser P.ProjectId
+               <*> idParser UserId
                <*> fmap Email field
                <*> utcParser
                <*> fmap (fmap toThyme) field
 
-qdbProjectParser :: RowParser KeyedProject
-qdbProjectParser =
-  (,) <$> pidParser
-      <*> projectParser
-
 billableParser :: RowParser B.Billable
 billableParser =
-  B.Billable <$> pidParser
-             <*> uidParser
+  B.Billable <$> idParser P.ProjectId
+             <*> idParser UserId
              <*> field
              <*> field
              <*> recurrenceParser
              <*> btcParser
-             <*> (Days <$> field)
+             <*> field
              <*> fieldWith (optionalField nominalDiffTimeParser)
 
 recurrenceParser :: RowParser B.Recurrence
@@ -171,10 +155,10 @@ recurrenceParser =
   let prec :: Text -> RowParser B.Recurrence
       prec "annually"    = nullField *> pure B.Annually
       prec "monthly"     = B.Monthly <$> field
-      prec "semimonthly" = nullField *> pure B.SemiMonthly
+      --prec "semimonthly" = nullField *> pure B.SemiMonthly
       prec "weekly"      = B.Weekly <$> field
       prec "onetime"     = nullField *> pure B.OneTime
-      prec _             = empty
+      prec s             = fail $ "Unrecognized recurrence type: " ++ show s
   in  field >>= prec
 
 subscriptionParser :: RowParser B.Subscription
@@ -182,6 +166,19 @@ subscriptionParser =
   B.Subscription <$> (B.BillableId <$> field)
                  <*> (toThyme <$> field)
                  <*> ((fmap toThyme) <$> field)
+
+paymentRequestParser :: RowParser PaymentRequest
+paymentRequestParser = 
+  PaymentRequest <$> (B.SubscriptionId <$> field)
+                 <*> (field >>= (either fail pure . runGet decodeMessage))
+                 <*> (toThyme <$> field)
+                 <*> (toThyme <$> field)
+
+paymentParser :: RowParser Payment
+paymentParser = 
+  Payment <$> (PaymentRequestId <$> field)
+          <*> (field >>= (either fail pure . runGet decodeMessage))
+          <*> (toThyme <$> field)
 
 pexec :: (ToRow d) => Query -> d -> QDBM Int64
 pexec q d = QDBM $ do
@@ -350,9 +347,9 @@ pgEval (CreateBid (A.AuctionId aucId) bid) =
     , bid ^. (A.bidTime . to fromThyme)
     )
 
-pgEval (ReadBids aucId) =
-  pquery bidParser
-    "SELECT user_id, bid_seconds, bid_amount, bid_time FROM bids WHERE auction_id = ?"
+pgEval (FindBids aucId) =
+  pquery ((,) <$> idParser A.BidId <*> bidParser)
+    "SELECT id, user_id, bid_seconds, bid_amount, bid_time FROM bids WHERE auction_id = ?"
     (Only (aucId ^. A._AuctionId))
 
 pgEval (CreateUser user') =
@@ -371,7 +368,7 @@ pgEval (FindUser (UserId uid)) =
     (Only uid)
 
 pgEval (FindUserByName (UserName h)) =
-  headMay <$> pquery qdbUserParser
+  headMay <$> pquery ((,) <$> idParser UserId <*> userParser)
     "SELECT id, handle, btc_addr, email FROM users WHERE handle = ?"
     (Only h)
 
@@ -412,7 +409,7 @@ pgEval (FindProject (P.ProjectId pid)) =
     (Only pid)
 
 pgEval (FindUserProjects (UserId uid)) =
-  pquery qdbProjectParser
+  pquery ((,) <$> idParser P.ProjectId <*> projectParser)
     "SELECT p.id, p.project_name, p.inception_date, p.initiator_id, p.depreciation_fn \
     \FROM projects p LEFT OUTER JOIN project_companions pc ON pc.project_id = p.id \
     \WHERE pc.user_id = ? \
@@ -437,10 +434,10 @@ pgEval dbop @ (CreateBillable _ b) = do
     , b ^. (B.recurrence . to B.recurrenceName)
     , b ^. (B.recurrence . to B.recurrenceCount)
     , b ^. (B.amount . satoshi)
-    , b ^. (B.gracePeriod . _Days)
+    , b ^. (B.gracePeriod)
     )
 
-pgEval (ReadBillable bid) =
+pgEval (FindBillable bid) =
   headMay <$> pquery billableParser
     "SELECT b.project_id, e.created_by, b.name, b.description, b.recurrence_type, b.recurrence_count, \
     \       b.billing_amount, b.grace_period_days \
@@ -456,8 +453,15 @@ pgEval dbop @ (CreateSubscription uid s) = do
     \VALUES (?, ?, ?) RETURNING id"
     (uid ^. _UserId, s ^. (B.billable . B._BillableId), eventId ^. _EventId)
 
+pgEval (FindSubscription sid) = 
+  headMay <$> pquery subscriptionParser
+    "SELECT id, billable_id, start_date, end_date \
+    \FROM subscriptions s \
+    \WHERE s.id = ?"
+    (Only (sid ^. B._SubscriptionId))
+
 pgEval (FindSubscriptions uid pid) = 
-  pquery ((,) <$> subscriptionIdParser <*> subscriptionParser)
+  pquery ((,) <$> idParser B.SubscriptionId <*> subscriptionParser)
     "SELECT id, billable_id, start_date, end_date \
     \FROM subscriptions s \
     \JOIN billables b ON b.id = s.billable_id \
@@ -470,23 +474,47 @@ pgEval dbop @ (CreatePaymentRequest _ req) = do
   eventId <- requireEventId dbop
   pinsert PaymentRequestId
     "INSERT INTO payment_requests \
-    \(subscription_id, event_id, request_data) \
-    \VALUES (?, ?, ?) RETURNING id"
+    \(subscription_id, event_id, request_data, request_time, billing_date) \
+    \VALUES (?, ?, ?, ?, ?) RETURNING id"
     ( req ^. (subscription . B._SubscriptionId)
     , eventId ^. _EventId
     , req ^. (paymentRequest . to (runPut . encodeMessage))
+    , req ^. (paymentRequestTime . to fromThyme)
+    , req ^. (billingDate . to fromThyme)
     )
 
-pgEval dbop @ (CreatePayment _ req) = do
+pgEval (FindPaymentRequest rid) = 
+  headMay <$> pquery paymentRequestParser
+  "SELECT subscription_id, request_data, request_time, billing_date \
+  \FROM payment_requests \
+  \WHERE id = ?"
+  (Only (rid ^. _PaymentRequestId))
+  
+pgEval (FindPaymentRequests sid) = 
+  pquery ((,) <$> idParser PaymentRequestId <*> paymentRequestParser)
+  "SELECT id, subscription_id, request_data, request_time, billing_date \
+  \FROM payment_requests \
+  \WHERE subscription_id = ?"
+  (Only (sid ^. B._SubscriptionId))
+
+pgEval dbop @ (CreatePayment _ p) = do
   eventId <- requireEventId dbop
   pinsert PaymentId
     "INSERT INTO payments \
-    \(payment_request_id, event_id, payment_data) \
-    \VALUES (?, ?, ?) RETURNING id"
-    ( req ^. (request . _PaymentRequestId)
+    \(payment_request_id, event_id, payment_data, payment_date) \
+    \VALUES (?, ?, ?, ?) RETURNING id"
+    ( p ^. (request . _PaymentRequestId)
     , eventId ^. _EventId
-    , req ^. (payment . to (runPut . encodeMessage))
+    , p ^. (payment . to (runPut . encodeMessage))
+    , p ^. (paymentDate . to fromThyme)
     )
+
+pgEval (FindPayments rid) = 
+  pquery ((,) <$> idParser PaymentId <*> paymentParser)
+  "SELECT id, payment_request_id, payment_data, payment_date \
+  \FROM payments \
+  \WHERE payment_request_id = ?"
+  (Only (rid ^. _PaymentRequestId))
 
 pgEval (RaiseDBError err _) = raiseError err
 
