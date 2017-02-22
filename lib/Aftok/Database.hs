@@ -1,23 +1,23 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE FlexibleInstances  #-}
 {-# LANGUAGE ExplicitForAll     #-}
-{-# LANGUAGE TupleSections      #-}
+{-# LANGUAGE FlexibleInstances  #-}
 {-# LANGUAGE GADTs              #-}
+{-# LANGUAGE TupleSections      #-}
 
 module Aftok.Database where
 
 import           ClassyPrelude
-import           Control.Lens (view, (^.))
-import           Control.Monad.Trans.Maybe (MaybeT(..))
+import           Control.Lens              (view, (^.))
+import           Control.Monad.Trans.Maybe (MaybeT (..))
 import           Data.AffineSpace
-import           Data.Thyme.Clock as C
+import           Data.Thyme.Clock          as C
 
 import           Aftok
-import           Aftok.Auction    as A
-import           Aftok.Billables  as B
+import           Aftok.Auction             as A
+import           Aftok.Billables           as B
 import           Aftok.Interval
 import           Aftok.Payments.Types
-import           Aftok.Project    as P
+import           Aftok.Project             as P
 import           Aftok.TimeLog
 import           Aftok.Util
 
@@ -195,7 +195,7 @@ findSubscriptions uid pid = liftdb $ FindSubscriptions uid pid
 findSubscriptionBillable :: (MonadDB m) => SubscriptionId -> MaybeT m (Subscription' Billable)
 findSubscriptionBillable sid = do
   sub <- MaybeT . liftdb $ FindSubscription sid
-  traverse findBillable sub 
+  traverse findBillable sub
 
 findPaymentRequests :: (MonadDB m) => SubscriptionId -> m [(PaymentRequestId, PaymentRequest)]
 findPaymentRequests = liftdb . FindPaymentRequests

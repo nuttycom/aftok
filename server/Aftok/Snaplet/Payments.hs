@@ -20,8 +20,8 @@ requestPaymentHandler cfg = do
   -- look up outstanding subscriptions the user has for this project
   -- determine which subscriptions need to be paid
   -- create a payment request for each subscription
-  
 
-  
+
+
 
 

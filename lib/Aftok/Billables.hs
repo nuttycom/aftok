@@ -1,21 +1,21 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveFoldable    #-}
+{-# LANGUAGE DeriveFunctor     #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE TemplateHaskell   #-}
 
 module Aftok.Billables where
 
 import           ClassyPrelude
 
-import           Control.Lens  (makeLenses, makePrisms, preview, view, _Just)
-import           Data.List (unfoldr)
-import           Data.Thyme.Time as T
+import           Control.Lens     (makeLenses, makePrisms, preview, view, _Just)
+import           Data.List        (unfoldr)
 import           Data.Thyme.Clock as C
+import           Data.Thyme.Time  as T
 import           Data.UUID
 
-import           Aftok         (UserId)
-import           Aftok.Project (ProjectId)
-import           Aftok.Types   (Satoshi)
+import           Aftok            (UserId)
+import           Aftok.Project    (ProjectId)
+import           Aftok.Types      (Satoshi)
 
 newtype BillableId = BillableId UUID deriving (Show, Eq)
 makePrisms ''BillableId
@@ -58,13 +58,13 @@ annually :: Recurrence
 annually = Annually
 
 data Billable' p u c = Billable
-  { _project     :: p
-  , _creator     :: u
-  , _name        :: Text
-  , _description :: Text
-  , _recurrence  :: Recurrence
-  , _amount      :: c
-  , _gracePeriod :: Days
+  { _project             :: p
+  , _creator             :: u
+  , _name                :: Text
+  , _description         :: Text
+  , _recurrence          :: Recurrence
+  , _amount              :: c
+  , _gracePeriod         :: Days
   , _requestExpiryPeriod :: Maybe C.NominalDiffTime
   }
 makeLenses ''Billable'
@@ -75,24 +75,24 @@ newtype SubscriptionId = SubscriptionId UUID deriving (Show, Eq)
 makePrisms ''SubscriptionId
 
 data Subscription' b = Subscription
-  { _billable :: b
+  { _billable  :: b
   , _startTime :: C.UTCTime
-  , _endTime :: Maybe C.UTCTime
+  , _endTime   :: Maybe C.UTCTime
   } deriving (Functor, Foldable, Traversable)
 makeLenses ''Subscription'
 
 type Subscription = Subscription' BillableId
 
 nextRecurrence :: Recurrence -> T.Day -> Maybe T.Day
-nextRecurrence r = case r of 
+nextRecurrence r = case r of
   Annually  -> Just . T.addGregorianYearsClip 1
   Monthly m -> Just . T.addGregorianMonthsClip m
   Weekly w  -> Just . T.addDays (w * 7)
   OneTime   -> const Nothing
 
-{- 
+{-
  - A stream of dates upon which the specified subscription
- - should be billed, beginning with the first day of the 
+ - should be billed, beginning with the first day of the
  - subscription.
  -}
 billingSchedule :: Subscription' Billable -> [T.Day]

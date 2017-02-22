@@ -20,8 +20,8 @@ import           Data.Map.Strict                  as MS
 import           Data.ProtocolBuffers             (encodeMessage)
 import           Data.Serialize.Put               (runPut)
 import qualified Data.Text                        as T
+import           Data.Thyme.Calendar              (showGregorian)
 import           Data.Thyme.Clock                 as C
-import           Data.Thyme.Calendar (showGregorian)
 import           Data.UUID                        as U
 
 import           Aftok

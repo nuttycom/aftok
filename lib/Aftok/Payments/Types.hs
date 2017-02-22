@@ -1,22 +1,22 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveFoldable    #-}
+{-# LANGUAGE DeriveFunctor     #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE TemplateHaskell   #-}
 
 module Aftok.Payments.Types where
 
 import           ClassyPrelude
 
-import           Control.Lens  (makeLenses, makePrisms)
+import           Control.Lens        (makeLenses, makePrisms)
 
-import           Data.Thyme.Time     as T
 import           Data.Thyme.Clock    as C
+import           Data.Thyme.Time     as T
 import           Data.UUID
 
-import           Network.Bippy.Types (expiryTime, getPaymentDetails, getExpires)
 import qualified Network.Bippy.Proto as P
+import           Network.Bippy.Types (expiryTime, getExpires, getPaymentDetails)
 
-import Aftok.Billables (SubscriptionId)
+import           Aftok.Billables     (SubscriptionId)
 
 newtype PaymentRequestId = PaymentRequestId UUID deriving (Show, Eq)
 makePrisms ''PaymentRequestId
@@ -47,9 +47,9 @@ type Payment = Payment' PaymentRequestId
  - will still consider the payment request valid)
  -}
 isExpired :: C.UTCTime -> P.PaymentRequest -> Bool
-isExpired now req = 
+isExpired now req =
   let check = any ((now >) . T.toThyme . expiryTime)
-  -- using error here is reasonable since it would indicate 
+  -- using error here is reasonable since it would indicate
   -- a serialization problem
   in  either error (check . getExpires) $ getPaymentDetails req
-    
+

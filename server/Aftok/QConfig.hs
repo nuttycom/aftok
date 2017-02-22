@@ -7,7 +7,7 @@ import qualified Data.ByteString.Char8         as C
 import qualified Data.Configurator             as C
 import qualified Data.Configurator.Types       as CT
 import           Data.X509
-import           Data.X509.File (readSignedObject, readKeyFile)
+import           Data.X509.File                (readKeyFile, readSignedObject)
 import qualified Network.Bippy.Types           as BT
 import qualified Network.Mail.SMTP             as SMTP
 import qualified Network.Socket                as NS
@@ -18,7 +18,7 @@ import           Snap.Core
 import qualified Snap.Http.Server.Config       as SC
 import           Snap.Snaplet.PostgresqlSimple
 
-import qualified Aftok.Payments as AP
+import qualified Aftok.Payments                as AP
 
 data QConfig = QConfig
   { hostname      :: ByteString
@@ -39,9 +39,9 @@ data SmtpConfig = SmtpConfig
   }
 
 data BillingConfig = BillingConfig
-  { network :: BT.Network
+  { network        :: BT.Network
   , signingKeyFile :: System.IO.FilePath
-  , certsFile :: System.IO.FilePath
+  , certsFile      :: System.IO.FilePath
   }
 
 loadQConfig :: System.IO.FilePath -> IO QConfig
@@ -70,14 +70,14 @@ readSmtpConfig cfg =
              <*> C.require cfg "smtpKey"
 
 readBillingConfig :: CT.Config -> IO BillingConfig
-readBillingConfig cfg = 
+readBillingConfig cfg =
   BillingConfig <$> (parseNetwork <$> C.require cfg "network")
                 <*> C.require cfg "signingKeyFile"
                 <*> C.require cfg "certsFile"
   where parseNetwork :: String -> BT.Network
         parseNetwork "main" = BT.MainNet
-        parseNetwork _ = BT.TestNet
-                    
+        parseNetwork _      = BT.TestNet
+
 
 baseSnapConfig :: QConfig -> SC.Config m a -> SC.Config m a
 baseSnapConfig qc =

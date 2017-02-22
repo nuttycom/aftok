@@ -4,10 +4,10 @@ import           ClassyPrelude
 
 import           Data.UUID
 
-import           Network.Haskoin.Test (ArbitraryAddress(..))
+import           Network.Haskoin.Test (ArbitraryAddress (..))
 
-import           Aftok (BtcAddr(..))
-import           Aftok.Types (Satoshi(..))
+import           Aftok                (BtcAddr (..))
+import           Aftok.Types          (Satoshi (..))
 
 import           Test.QuickCheck
 

@@ -1,5 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RankNTypes                 #-}
 
 module Aftok.Util where
 
@@ -8,7 +8,7 @@ import           Control.Monad.Free.Church
 import           Data.Functor.Coyoneda
 import           Data.Map.Strict           as M
 
-newtype Program (f :: * -> *) (a :: *) = Program 
+newtype Program (f :: * -> *) (a :: *) = Program
   { runProgram :: F (Coyoneda f) a }
   deriving (Functor, Applicative, Monad)
 

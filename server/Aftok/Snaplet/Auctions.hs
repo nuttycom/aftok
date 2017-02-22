@@ -22,7 +22,7 @@ import           Aftok.Types
 import           Aftok.Snaplet        as S
 import           Aftok.Snaplet.Auth
 
-import           Snap.Snaplet               as S
+import           Snap.Snaplet         as S
 
 data AuctionCreateRequest = CA { raiseAmount :: Word64, auctionStart :: C.UTCTime , auctionEnd :: C.UTCTime }
 

@@ -9,7 +9,8 @@ import           Control.Monad.Trans.Either
 import           Data.Aeson                           (Value, toJSON)
 import           Data.Hourglass
 import qualified Data.List                            as L
-import           Data.ProtocolBuffers                 (encodeMessage, decodeMessage)
+import           Data.ProtocolBuffers                 (decodeMessage,
+                                                       encodeMessage)
 import           Data.Serialize.Get                   (runGet)
 import           Data.Serialize.Put                   (runPut)
 import           Data.Thyme.Clock                     as C
@@ -28,10 +29,10 @@ import qualified Aftok.Billables                      as B
 import           Aftok.Database
 import           Aftok.Interval
 import           Aftok.Json                           (billableJSON,
+                                                       createSubscriptionJSON,
                                                        paymentJSON,
-                                                       paymentRequestJSON,
-                                                       createSubscriptionJSON)
-import           Aftok.Payments.Types                    
+                                                       paymentRequestJSON)
+import           Aftok.Payments.Types
 import qualified Aftok.Project                        as P
 import           Aftok.TimeLog
 import           Aftok.Types
@@ -71,7 +72,7 @@ eventTypeParser f v = do
     else maybe (returnError UnexpectedNull f "event type may not be null") (nameEvent . decodeUtf8) v
 
 nominalDiffTimeParser :: FieldParser NominalDiffTime
-nominalDiffTimeParser f v = 
+nominalDiffTimeParser f v =
   C.fromSeconds' <$> fromField f v
 
 creditToParser :: RowParser CreditTo
@@ -153,29 +154,29 @@ billableParser =
 recurrenceParser :: RowParser B.Recurrence
 recurrenceParser =
   let prec :: Text -> RowParser B.Recurrence
-      prec "annually"    = nullField *> pure B.Annually
-      prec "monthly"     = B.Monthly <$> field
+      prec "annually" = nullField *> pure B.Annually
+      prec "monthly"  = B.Monthly <$> field
       --prec "semimonthly" = nullField *> pure B.SemiMonthly
-      prec "weekly"      = B.Weekly <$> field
-      prec "onetime"     = nullField *> pure B.OneTime
-      prec s             = fail $ "Unrecognized recurrence type: " ++ show s
+      prec "weekly"   = B.Weekly <$> field
+      prec "onetime"  = nullField *> pure B.OneTime
+      prec s          = fail $ "Unrecognized recurrence type: " ++ show s
   in  field >>= prec
 
 subscriptionParser :: RowParser B.Subscription
-subscriptionParser = 
+subscriptionParser =
   B.Subscription <$> (B.BillableId <$> field)
                  <*> (toThyme <$> field)
                  <*> ((fmap toThyme) <$> field)
 
 paymentRequestParser :: RowParser PaymentRequest
-paymentRequestParser = 
+paymentRequestParser =
   PaymentRequest <$> (B.SubscriptionId <$> field)
                  <*> (field >>= (either fail pure . runGet decodeMessage))
                  <*> (toThyme <$> field)
                  <*> (toThyme <$> field)
 
 paymentParser :: RowParser Payment
-paymentParser = 
+paymentParser =
   Payment <$> (PaymentRequestId <$> field)
           <*> (field >>= (either fail pure . runGet decodeMessage))
           <*> (toThyme <$> field)
@@ -453,14 +454,14 @@ pgEval dbop @ (CreateSubscription uid s) = do
     \VALUES (?, ?, ?) RETURNING id"
     (uid ^. _UserId, s ^. (B.billable . B._BillableId), eventId ^. _EventId)
 
-pgEval (FindSubscription sid) = 
+pgEval (FindSubscription sid) =
   headMay <$> pquery subscriptionParser
     "SELECT id, billable_id, start_date, end_date \
     \FROM subscriptions s \
     \WHERE s.id = ?"
     (Only (sid ^. B._SubscriptionId))
 
-pgEval (FindSubscriptions uid pid) = 
+pgEval (FindSubscriptions uid pid) =
   pquery ((,) <$> idParser B.SubscriptionId <*> subscriptionParser)
     "SELECT id, billable_id, start_date, end_date \
     \FROM subscriptions s \
@@ -483,14 +484,14 @@ pgEval dbop @ (CreatePaymentRequest _ req) = do
     , req ^. (billingDate . to fromThyme)
     )
 
-pgEval (FindPaymentRequest rid) = 
+pgEval (FindPaymentRequest rid) =
   headMay <$> pquery paymentRequestParser
   "SELECT subscription_id, request_data, request_time, billing_date \
   \FROM payment_requests \
   \WHERE id = ?"
   (Only (rid ^. _PaymentRequestId))
-  
-pgEval (FindPaymentRequests sid) = 
+
+pgEval (FindPaymentRequests sid) =
   pquery ((,) <$> idParser PaymentRequestId <*> paymentRequestParser)
   "SELECT id, subscription_id, request_data, request_time, billing_date \
   \FROM payment_requests \
@@ -509,7 +510,7 @@ pgEval dbop @ (CreatePayment _ p) = do
     , p ^. (paymentDate . to fromThyme)
     )
 
-pgEval (FindPayments rid) = 
+pgEval (FindPayments rid) =
   pquery ((,) <$> idParser PaymentId <*> paymentParser)
   "SELECT id, payment_request_id, payment_data, payment_date \
   \FROM payments \
