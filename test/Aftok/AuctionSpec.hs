@@ -1,12 +1,6 @@
-{-# OPTIONS_GHC -Wwarn -fno-warn-orphans #-}
-
 module Aftok.AuctionSpec (main, spec) where
 
 import           ClassyPrelude
-
-import           Aftok
-import           Aftok.Auction
-import           Aftok.Types
 
 import           Control.Lens
 import           Data.Hourglass
@@ -14,18 +8,18 @@ import           Data.Thyme.Clock ()
 import           Data.UUID
 import           Text.Read        (read)
 
+import           Aftok
+import           Aftok.Auction
+import           Aftok.Generators
+import           Aftok.Types
+
+
 import           Test.Hspec
 import           Test.HUnit.Base  (assertFailure)
 import           Test.QuickCheck
 
-uuidGen :: Gen UUID
-uuidGen = fromWords <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
-genSatoshi :: Gen Satoshi
-genSatoshi = Satoshi <$> arbitrary
-
 genBid :: Gen Bid
-genBid = Bid <$> (UserId <$> uuidGen)
+genBid = Bid <$> (UserId <$> genUUID)
              <*> (Seconds <$> arbitrary `suchThat` (>= 0))
              <*> genSatoshi `suchThat` (> Satoshi 0)
              <*> arbitrary
@@ -56,7 +50,7 @@ spec =
           WinningBids winners ->
             sortBy bidOrder winners `shouldBe` expected
 
-          InsufficientBids t  ->
+          InsufficientBids _  ->
             assertFailure "Sufficinent bids were presented, but auction algorithm asserted otherwise."
 
       it "ensures that the raise amount is fully consumed by the winning bids" $

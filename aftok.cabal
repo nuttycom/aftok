@@ -86,6 +86,12 @@ Test-Suite spec
                     , RecordWildCards
                     , ScopedTypeVariables
                     , KindSignatures
+  other-modules: Aftok.AuctionSpec
+               , Aftok.Generators
+               , Aftok.PaymentsSpec
+               , Aftok.TimeLogSpec
+               , Aftok.Util.HttpSpec
+
   build-depends:    
       aftok
     , base
@@ -96,6 +102,7 @@ Test-Suite spec
     , containers
     , hspec      
     , HUnit
+    , haskoin-core 
     , hourglass
     , iso8601-time
     , lens

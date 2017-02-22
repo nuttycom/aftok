@@ -15,15 +15,12 @@ import           Data.Thyme.Time    as T
 import           Data.Time.ISO8601
 
 import           Aftok
+import           Aftok.Generators
 import           Aftok.Interval     as I
 import           Aftok.TimeLog
 
 import           Test.Hspec
 import           Test.QuickCheck
-
-genBtcAddr :: Gen BtcAddr
-genBtcAddr =
-  BtcAddr . pack <$> vectorOf 34 arbitrary
 
 genInterval :: Gen I.Interval
 genInterval = do
@@ -49,7 +46,7 @@ genWorkIndex :: Gen WorkIndex
 genWorkIndex =
   let record = do addr <- genBtcAddr
                   ivals <- genIntervals
-                  pure (addr, ivals)
+                  pure (CreditToAddress addr, ivals)
   in  WorkIndex . M.fromList <$> listOf record
 
 spec :: Spec
@@ -69,11 +66,11 @@ spec = do
             [ parseISO8601 "2014-01-01T00:11:59Z"
             , parseISO8601 "2014-01-01T00:18:00Z" ]
 
-          testIntervals :: [(BtcAddr, Interval)]
+          testIntervals :: [(CreditTo, Interval)]
           testIntervals = do
             addr <- testAddrs
             (start', end') <- ClassyPrelude.zip starts ends
-            pure $ (addr, I.interval start' end')
+            pure $ (CreditToAddress addr, I.interval start' end')
 
           testLogEntries :: [LogEntry]
           testLogEntries = do
