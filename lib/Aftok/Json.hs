@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE ExplicitForAll     #-}
+{-# LANGUAGE RankNTypes         #-}
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE TypeApplications   #-}
 
@@ -29,6 +30,7 @@ import           Aftok.Auction                    as A
 import qualified Aftok.Billables                  as B
 import           Aftok.Interval
 import           Aftok.Payments
+import           Aftok.Payments.Types             (BillDetail)
 import           Aftok.Project                    as P
 import           Aftok.TimeLog
 import           Aftok.Types
@@ -98,6 +100,9 @@ obj = O.fromList
 -----------------
 -- Serializers --
 -----------------
+
+idJSON :: forall a. Lens' a UUID -> a -> Value
+idJSON l a = toJSON . tshow $ view l a
 
 qdbProjectJSON :: (ProjectId, Project) -> Value
 qdbProjectJSON (pid, project) = v1 $
@@ -172,15 +177,18 @@ amendmentIdJSON (AmendmentId aid) = v1 $
   obj [ "amendmentId" .= tshow aid ]
 
 billableJSON :: B.Billable -> Value
-billableJSON b = v1 $
-  obj [ "projectId"   .= (b ^. (B.project . _ProjectId . to tshow))
-      , "name"        .= (b ^. B.name)
-      , "description" .= (b ^. B.description)
-      , "recurrence"  .= recurrenceJSON' (b ^. B.recurrence)
-      , "amount"      .= (b ^. (B.amount . satoshi))
-      , "gracePeriod" .= (b ^. B.gracePeriod)
-      , "requestExpiryPeriod" .= (C.toSeconds' <$> (b ^. B.requestExpiryPeriod))
-      ]
+billableJSON = v1 . obj . billableKV
+
+billableKV :: (KeyValue kv) => B.Billable -> [kv]
+billableKV b =
+  [ "projectId"   .= (b ^. (B.project . _ProjectId . to tshow))
+  , "name"        .= (b ^. B.name)
+  , "description" .= (b ^. B.description)
+  , "recurrence"  .= recurrenceJSON' (b ^. B.recurrence)
+  , "amount"      .= (b ^. (B.amount . satoshi))
+  , "gracePeriod" .= (b ^. B.gracePeriod)
+  , "requestExpiryPeriod" .= (C.toSeconds' <$> (b ^. B.requestExpiryPeriod))
+  ]
 
 recurrenceJSON' :: B.Recurrence -> Value
 recurrenceJSON' B.Annually    = object [ "annually" .= Null ]
@@ -189,19 +197,46 @@ recurrenceJSON' (B.Monthly i) = object [ "monthly " .= object [ "months" .= i ] 
 recurrenceJSON' (B.Weekly i)  = object [ "weekly " .= object [ "weeks" .= i ] ]
 recurrenceJSON' B.OneTime     = object [ "onetime" .= Null ]
 
-createSubscriptionJSON :: UserId -> B.Subscription -> Value
-createSubscriptionJSON uid sub = v1 $
-  obj [ "user_id"     .= tshow (uid ^. _UserId)
-      , "billable_id" .= tshow (sub ^. (B.billable . B._BillableId))
+createSubscriptionJSON :: UserId -> B.BillableId -> Value
+createSubscriptionJSON uid bid = v1 $
+  obj [ "user_id"     .= idJSON _UserId uid
+      , "billable_id" .= idJSON B._BillableId bid
       ]
 
+subscriptionJSON :: B.Subscription -> Value
+subscriptionJSON = v1 . obj . subscriptionKV
+
+subscriptionKV :: (KeyValue kv) => B.Subscription -> [kv]
+subscriptionKV sub =
+  [ "user_id"     .= idJSON (B.customer . _UserId) sub
+  , "billable_id" .= idJSON (B.billable . B._BillableId) sub
+  , "start_time"  .= view B.startTime sub
+  , "end_time"    .= view B.endTime sub
+  ]
+
 paymentRequestJSON :: PaymentRequest -> Value
-paymentRequestJSON r = v1 $
-  obj [ "subscription_id" .= (r ^. (subscription . B._SubscriptionId . to tshow))
-      , "payment_request_protobuf_64" .= (r ^. (paymentRequest . to (decodeUtf8 . B64.encode . runPut . encodeMessage)))
-      , "payment_request_time" .= (r ^. paymentRequestTime)
-      , "billing_date" .= (r ^. (billingDate . to showGregorian))
-      ]
+paymentRequestJSON = v1 . obj . paymentRequestKV
+
+paymentRequestKV :: (KeyValue kv) => PaymentRequest -> [kv]
+paymentRequestKV r =
+  [ "subscription_id" .= (r ^. (subscription . B._SubscriptionId . to tshow))
+  , "payment_request_protobuf_64" .= (r ^. (paymentRequest . to (decodeUtf8 . B64.encode . runPut . encodeMessage)))
+  , "payment_request_time" .= (r ^. paymentRequestTime)
+  , "billing_date" .= (r ^. (billingDate . to showGregorian))
+  ]
+
+billDetailsJSON :: [BillDetail] -> Value
+billDetailsJSON r = v1 $
+  obj ["payment_requests" .= fmap billDetailJSON r ]
+
+billDetailJSON :: BillDetail -> Object
+billDetailJSON r =
+  obj $ concat
+    [ ["payment_request_id" .= idJSON _PaymentRequestId (view _1 r)]
+    , paymentRequestKV $ view _2 r
+    , subscriptionKV $ view _3 r
+    , billableKV $ view _4 r
+    ]
 
 paymentJSON :: Payment -> Value
 paymentJSON r = v1 $

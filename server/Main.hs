@@ -3,6 +3,8 @@ module Main where
 import           ClassyPrelude
 
 import qualified Data.Aeson                                  as A
+import           Data.ProtocolBuffers                        (encodeMessage)
+import           Data.Serialize.Put                          (runPutLazy)
 import           System.Environment
 
 import           Aftok.Json
@@ -12,6 +14,7 @@ import           Aftok.QConfig
 import           Aftok.Snaplet
 import           Aftok.Snaplet.Auctions
 import           Aftok.Snaplet.Auth
+import           Aftok.Snaplet.Payments
 import           Aftok.Snaplet.Projects
 import           Aftok.Snaplet.Users
 import           Aftok.Snaplet.WorkLog
@@ -55,6 +58,9 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
       auctionRoute        = serveJSON auctionJSON $ method GET auctionGetHandler
       auctionBidRoute     = serveJSON bidIdJSON $ method POST auctionBidHandler
 
+      payableRequestsRoute = serveJSON billDetailsJSON $ method GET listPayableRequestsHandler
+      paymentRequestRoute  = writeLBS . runPutLazy . encodeMessage =<< method GET getPaymentRequestHandler
+
       amendEventRoute     = serveJSON amendmentIdJSON $ method PUT amendEventHandler
 
   addRoutes [ ("login",             loginRoute)
@@ -76,6 +82,9 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
 
             , ("auctions/:auctionId",          auctionRoute)
             , ("auctions/:auctionId/bid",      auctionBidRoute)
+
+            , ("subscriptions/:subscriptionId/payment_requests", payableRequestsRoute)
+            , ("subscriptions/:subscriptionId/payment_requests/:paymentRequestId", paymentRequestRoute)
 
             , ("events/:eventId/amend", amendEventRoute)
             ]

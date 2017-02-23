@@ -164,7 +164,8 @@ recurrenceParser =
 
 subscriptionParser :: RowParser B.Subscription
 subscriptionParser =
-  B.Subscription <$> (B.BillableId <$> field)
+  B.Subscription <$> idParser UserId
+                 <*> idParser B.BillableId
                  <*> (toThyme <$> field)
                  <*> ((fmap toThyme) <$> field)
 
@@ -206,8 +207,8 @@ storeEvent :: DBOp a -> Maybe (QDBM EventId)
 storeEvent (CreateBillable uid b) =
   Just $ storeEventJSON uid "create_billable" (billableJSON b)
 
-storeEvent (CreateSubscription uid s) =
-  Just $ storeEventJSON uid "create_subscription" (createSubscriptionJSON uid s)
+storeEvent (CreateSubscription uid bid) =
+  Just $ storeEventJSON uid "create_subscription" (createSubscriptionJSON uid bid)
 
 storeEvent (CreatePaymentRequest uid req) =
   Just $ storeEventJSON uid "create_payment_request" (paymentRequestJSON req)
@@ -446,13 +447,16 @@ pgEval (FindBillable bid) =
     \WHERE b.id = ?"
     (Only (bid ^. B._BillableId))
 
-pgEval dbop @ (CreateSubscription uid s) = do
+pgEval dbop @ (CreateSubscription uid bid) = do
   eventId <- requireEventId dbop
   pinsert B.SubscriptionId
     "INSERT INTO subscriptions \
     \(user_id, billable_id, event_id) \
     \VALUES (?, ?, ?) RETURNING id"
-    (uid ^. _UserId, s ^. (B.billable . B._BillableId), eventId ^. _EventId)
+    ( view _UserId uid
+    , view B._BillableId bid
+    , view _EventId eventId
+    )
 
 pgEval (FindSubscription sid) =
   headMay <$> pquery subscriptionParser
@@ -463,7 +467,7 @@ pgEval (FindSubscription sid) =
 
 pgEval (FindSubscriptions uid pid) =
   pquery ((,) <$> idParser B.SubscriptionId <*> subscriptionParser)
-    "SELECT id, billable_id, start_date, end_date \
+    "SELECT id, user_id, billable_id, start_date, end_date \
     \FROM subscriptions s \
     \JOIN billables b ON b.id = s.billable_id \
     \WHERE s.user_id = ? \
@@ -497,6 +501,25 @@ pgEval (FindPaymentRequests sid) =
   \FROM payment_requests \
   \WHERE subscription_id = ?"
   (Only (sid ^. B._SubscriptionId))
+
+pgEval (FindUnpaidRequests sid) =
+  let rowp :: RowParser (PaymentRequestId, PaymentRequest, B.Subscription, B.Billable)
+      rowp = (,,,) <$> idParser PaymentRequestId
+                   <*> paymentRequestParser
+                   <*> subscriptionParser
+                   <*> billableParser
+  in  pquery rowp
+      "SELECT id, \
+      \       r.subscription_id, r.request_data, r.request_time, r.billing_date, \
+      \       s.user_id, s.billable_id, s.start_date, s.end_date, \
+      \       b.project_id, e.created_by, b.name, b.description, b.recurrence_type, \
+      \       b.recurrence_count, b.billing_amount, b.grace_period_days \
+      \FROM payment_requests r \
+      \JOIN subscriptions s on s.id = r.subscription_id \
+      \JOIN billables b on b.id = s.billable_id \
+      \WHERE subscription_id = ? \
+      \AND r.id NOT IN (SELECT payment_request_id FROM payments)"
+      (Only (sid ^. B._SubscriptionId))
 
 pgEval dbop @ (CreatePayment _ p) = do
   eventId <- requireEventId dbop

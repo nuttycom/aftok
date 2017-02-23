@@ -129,6 +129,7 @@ Executable aftok-server
                , Aftok.Snaplet
                , Aftok.Snaplet.Auctions
                , Aftok.Snaplet.Auth
+               , Aftok.Snaplet.Payments
                , Aftok.Snaplet.Projects
                , Aftok.Snaplet.Users
                , Aftok.Snaplet.Util
@@ -142,6 +143,7 @@ Executable aftok-server
     , base64-bytestring
     , bytestring
     , bippy
+    , cereal
     , classy-prelude            
     , containers
     , configurator              
@@ -158,6 +160,7 @@ Executable aftok-server
     , network                   
     , optparse-applicative      
     , postgresql-simple
+    , protobuf
     --, resource-pool-catchio
     , smtp-mail               
     , snap                    

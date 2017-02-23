@@ -10,11 +10,15 @@ import           Control.Monad.Reader
 import           Control.Monad.State
 import           Control.Monad.Trans.Either
 import qualified Data.Aeson                    as A
-import           Data.Attoparsec.ByteString    (Parser, parseOnly)
+import           Data.Attoparsec.ByteString    (Parser, parseOnly,
+                                                takeByteString)
+import           Data.UUID
 
 import           Aftok
+import           Aftok.Auction                 (AuctionId (..))
 import           Aftok.Database
 import           Aftok.Database.PostgreSQL
+import           Aftok.Project                 (ProjectId (..))
 import           Aftok.Util
 
 import           Snap.Core
@@ -57,9 +61,12 @@ ok = do
   modifyResponse $ setResponseCode 200
   getResponse >>= finishWith
 
-parseParam :: MonadSnap m => ByteString -> Parser a -> m a
+parseParam :: MonadSnap m
+           => Text       -- ^ the name of the parameter to be parsed
+           -> Parser a   -- ^ parser for the value of the parameter
+           -> m a        -- ^ the parsed value
 parseParam name parser = do
-  maybeBytes <- getParam name
+  maybeBytes <- getParam (encodeUtf8 name)
   case maybeBytes of
     Nothing -> snapError 400 $ "Parameter "<> tshow name <>" is required"
     Just bytes -> either
@@ -67,9 +74,26 @@ parseParam name parser = do
       pure
       (parseOnly parser bytes)
 
+requireId :: MonadSnap m
+          => Text        -- ^ name of the parameter
+          -> (UUID -> a) -- ^ constructor for the identifier
+          -> m a
+requireId name f = do
+  maybeId <- parseParam name idParser
+  maybe (snapError 400 $ "Value of parameter \"" <> name <> "\" is not a valid UUID") pure maybeId
+  where
+    idParser = do
+      bs <- takeByteString
+      pure $ f <$> fromASCIIBytes bs
+
 readRequestJSON :: MonadSnap m => Word64 -> m A.Value
 readRequestJSON len = do
   requestBody <- A.decode <$> readRequestBody len
   maybe (snapError 400 "Could not interpret request body as a nonempty JSON value.") pure requestBody
 
+requireProjectId :: MonadSnap m => m ProjectId
+requireProjectId = requireId "projectId" ProjectId
+
+requireAuctionId :: MonadSnap m => m AuctionId
+requireAuctionId = requireId "auctionId" AuctionId
 

@@ -13,16 +13,16 @@ import           Data.Aeson.Types
 import           Data.Hourglass.Types (Seconds (..))
 import           Data.Thyme.Clock     as C
 
+import           Snap.Snaplet         as S
+
 import           Aftok                (UserId)
 import           Aftok.Auction        (Auction (..), AuctionId, Bid (..), BidId)
 import           Aftok.Database       (createAuction, createBid, findAuction)
 import           Aftok.Json
 import           Aftok.Types
 
-import           Aftok.Snaplet        as S
+import           Aftok.Snaplet
 import           Aftok.Snaplet.Auth
-
-import           Snap.Snaplet         as S
 
 data AuctionCreateRequest = CA { raiseAmount :: Word64, auctionStart :: C.UTCTime , auctionEnd :: C.UTCTime }
 

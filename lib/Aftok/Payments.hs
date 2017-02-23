@@ -45,9 +45,9 @@ data BillingConfig = BillingConfig
 makeClassy ''BillingConfig
 
 data BillingOps (m :: * -> *) = BillingOps
-  { memoGen    :: Subscription' Billable -> m (Maybe Text)           -- ^ generator user memo
-  , uriGen     :: Subscription' Billable -> m (Maybe URI)            -- ^ generator for payment response URL
-  , payloadGen :: Subscription' Billable -> m (Maybe ByteString)  -- ^ generator for merchant payload
+  { memoGen    :: Subscription' UserId Billable -> m (Maybe Text) -- ^ generator user memo
+  , uriGen     :: Subscription' UserId Billable -> m (Maybe URI)  -- ^ generator for payment response URL
+  , payloadGen :: Subscription' UserId Billable -> m (Maybe ByteString) -- ^ generator for merchant payload
   }
 
 data PaymentRequestStatus
@@ -59,7 +59,6 @@ data PaymentError
   = Overdue SubscriptionId
   | SigningError RSA.Error
 makeClassyPrisms ''PaymentError
-
 
 createPaymentRequests :: ( MonadRandom m
                          , MonadReader r m, HasBillingConfig r
@@ -104,7 +103,7 @@ createPaymentRequest ::
   -> C.UTCTime
   -> UserId
   -> SubscriptionId
-  -> Subscription' Billable
+  -> Subscription' UserId Billable
   -> T.Day
   -> m PaymentRequestId
 createPaymentRequest ops now custId sid sub bday = do
@@ -147,7 +146,7 @@ getRequestStatus :: (MonadDB m)
                  -> (PaymentRequestId, PaymentRequest) -- ^ the request for which to find a payment
                  -> m PaymentRequestStatus
 getRequestStatus now (reqid, req) =
-  let ifUnpaid = (if isExpired now (view paymentRequest req) then Expired else Unpaid) req
+  let ifUnpaid = (if isExpired now req then Expired else Unpaid) req
   in  maybe ifUnpaid Paid <$> findPayment reqid
 
 {- Create the PaymentDetails section of the payment request.
@@ -208,3 +207,14 @@ createOutputs t (TL.CreditToProject pid) amt = do
 
 outputAmount :: BT.Satoshi -> Rational -> BT.Satoshi
 outputAmount i r = BT.Satoshi . round $ toRational (i ^. satoshi) * r
+
+findPayableRequests :: (MonadDB m) => UserId -> SubscriptionId -> C.UTCTime -> m [BillDetail]
+findPayableRequests uid sid now = do
+  requests <- liftdb findOp
+  join <$> (traverse checkAccess $ filter (not . isExpired now . view _2) requests)
+  where
+    findOp = FindUnpaidRequests sid
+    checkAccess d =
+      if view (_3 . customer) d == uid
+        then pure [d]
+        else raiseOpForbidden uid (UserNotSubscriber sid) findOp

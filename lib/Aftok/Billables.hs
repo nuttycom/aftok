@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveFoldable    #-}
 {-# LANGUAGE DeriveFunctor     #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE ExplicitForAll    #-}
 {-# LANGUAGE TemplateHaskell   #-}
 
 module Aftok.Billables where
@@ -74,14 +75,15 @@ type Billable = Billable' ProjectId UserId Satoshi
 newtype SubscriptionId = SubscriptionId UUID deriving (Show, Eq)
 makePrisms ''SubscriptionId
 
-data Subscription' b = Subscription
-  { _billable  :: b
+data Subscription' u b = Subscription
+  { _customer  :: u
+  , _billable  :: b
   , _startTime :: C.UTCTime
   , _endTime   :: Maybe C.UTCTime
   } deriving (Functor, Foldable, Traversable)
 makeLenses ''Subscription'
 
-type Subscription = Subscription' BillableId
+type Subscription = Subscription' UserId BillableId
 
 nextRecurrence :: Recurrence -> T.Day -> Maybe T.Day
 nextRecurrence r = case r of
@@ -95,7 +97,7 @@ nextRecurrence r = case r of
  - should be billed, beginning with the first day of the
  - subscription.
  -}
-billingSchedule :: Subscription' Billable -> [T.Day]
+billingSchedule :: forall u. Subscription' u Billable -> [T.Day]
 billingSchedule s =
   let rec = view (billable . recurrence) s
       subEndDay = preview (endTime . _Just . C._utctDay) s

@@ -3,13 +3,10 @@ module Aftok.Snaplet.Auth where
 import           ClassyPrelude
 
 import           Control.Lens
-import           Data.Attoparsec.ByteString (parseOnly, takeByteString)
-import           Data.UUID                  (fromASCIIBytes)
+import           Data.Attoparsec.ByteString (parseOnly)
 
 import           Aftok
-import           Aftok.Auction              (AuctionId (..))
 import           Aftok.Database
-import           Aftok.Project
 import           Aftok.Snaplet
 import           Aftok.Util.Http            (authHeaderParser)
 
@@ -37,28 +34,6 @@ requireUserId = do
   case qdbUser of
     Nothing -> snapError 403 "Unable to retrieve user record for authenticated user"
     Just u -> pure (u ^. _1)
-
-requireProjectId :: MonadSnap m => m ProjectId
-requireProjectId = do
-  maybePid <- parseParam "projectId" pidParser
-  maybe (snapError 400 "Value of parameter \"projectId\" cannot be parsed as a valid UUID")
-        pure
-        maybePid
-  where
-    pidParser = do
-      bs <- takeByteString
-      pure $ ProjectId <$> fromASCIIBytes bs
-
-requireAuctionId :: MonadSnap m => m AuctionId
-requireAuctionId = do
-  maybeAid <- parseParam "auctionId" aidParser
-  maybe (snapError 400 "Value of parameter \"auctionId\" cannot be parsed as a valid UUID")
-        pure
-        maybeAid
-  where
-    aidParser = do
-      bs <- takeByteString
-      pure $ AuctionId <$> fromASCIIBytes bs
 
 throwChallenge :: MonadSnap m => m a
 throwChallenge = do

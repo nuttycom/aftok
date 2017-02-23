@@ -52,13 +52,14 @@ data DBOp a where
   CreateBillable   :: UserId -> Billable -> DBOp BillableId
   FindBillable     :: BillableId -> DBOp (Maybe Billable)
 
-  CreateSubscription :: UserId -> Subscription -> DBOp SubscriptionId
-  FindSubscription  :: SubscriptionId -> DBOp (Maybe Subscription)
-  FindSubscriptions :: UserId -> ProjectId -> DBOp [(SubscriptionId, Subscription)]
+  CreateSubscription :: UserId -> BillableId -> DBOp SubscriptionId
+  FindSubscription   :: SubscriptionId -> DBOp (Maybe Subscription)
+  FindSubscriptions  :: UserId -> ProjectId -> DBOp [(SubscriptionId, Subscription)]
 
   CreatePaymentRequest  :: UserId -> PaymentRequest -> DBOp PaymentRequestId
   FindPaymentRequest    :: PaymentRequestId -> DBOp (Maybe PaymentRequest)
   FindPaymentRequests   :: SubscriptionId -> DBOp [(PaymentRequestId, PaymentRequest)]
+  FindUnpaidRequests    :: SubscriptionId -> DBOp [BillDetail]
 
   CreatePayment  :: UserId -> Payment -> DBOp PaymentId
   FindPayments   :: PaymentRequestId -> DBOp [(PaymentId, Payment)]
@@ -67,6 +68,7 @@ data DBOp a where
 
 data OpForbiddenReason = UserNotProjectMember
                        | UserNotEventLogger
+                       | UserNotSubscriber SubscriptionId
                        | InvitationExpired
                        | InvitationAlreadyAccepted
                        | AuctionEnded
@@ -192,13 +194,18 @@ findBillable = MaybeT . liftdb . FindBillable
 findSubscriptions :: (MonadDB m) => UserId -> ProjectId -> m [(SubscriptionId, Subscription)]
 findSubscriptions uid pid = liftdb $ FindSubscriptions uid pid
 
-findSubscriptionBillable :: (MonadDB m) => SubscriptionId -> MaybeT m (Subscription' Billable)
+findSubscriptionBillable :: (MonadDB m) => SubscriptionId -> MaybeT m (Subscription' UserId Billable)
 findSubscriptionBillable sid = do
   sub <- MaybeT . liftdb $ FindSubscription sid
   traverse findBillable sub
 
 findPaymentRequests :: (MonadDB m) => SubscriptionId -> m [(PaymentRequestId, PaymentRequest)]
 findPaymentRequests = liftdb . FindPaymentRequests
+
+-- this could be implemented in terms of other operations, but it's
+-- much cleaner to just do the joins in the database
+findUnpaidRequests :: (MonadDB m) => SubscriptionId -> m [BillDetail]
+findUnpaidRequests = liftdb . FindUnpaidRequests
 
 findPayment :: (MonadDB m) => PaymentRequestId -> m (Maybe Payment)
 findPayment prid = (fmap snd . headMay) <$> liftdb (FindPayments prid)
