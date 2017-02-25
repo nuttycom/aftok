@@ -38,6 +38,7 @@ library
   build-depends:      
       base                
     , bippy               
+    , blake2
     , classy-prelude      
     , aeson              
     , attoparsec         

@@ -6,6 +6,8 @@ module Aftok.Database.PostgreSQL (QDBM(), runQDBM) where
 import           ClassyPrelude
 import           Control.Lens
 import           Control.Monad.Trans.Either
+import qualified Crypto.Hash.BLAKE2.BLAKE2b           as B2
+import           Crypto.Random.Types                  (MonadRandom, getRandomBytes)
 import           Data.Aeson                           (Value, toJSON)
 import           Data.Hourglass
 import qualified Data.List                            as L
@@ -21,7 +23,7 @@ import           Database.PostgreSQL.Simple.FromField
 import           Database.PostgreSQL.Simple.FromRow
 import           Database.PostgreSQL.Simple.Types     (Null)
 
-import           Network.Haskoin.Crypto               (addrToBase58)
+import           Network.Haskoin.Crypto               (addrToBase58, encodeBase58Check)
 
 import           Aftok
 import qualified Aftok.Auction                        as A
@@ -42,6 +44,10 @@ newtype QDBM a = QDBM (ReaderT Connection (EitherT DBError IO) a)
 
 instance MonadIO QDBM where
   liftIO = QDBM . lift . lift
+
+instance MonadRandom QDBM where
+  getRandomBytes = QDBM . lift . lift . getRandomBytes
+
 
 runQDBM :: Connection -> QDBM a -> EitherT DBError IO a
 runQDBM conn (QDBM r) = runReaderT r conn
@@ -477,23 +483,27 @@ pgEval (FindSubscriptions uid pid) =
 
 pgEval dbop @ (CreatePaymentRequest _ req) = do
   eventId <- requireEventId dbop
+  keyBytes <- getRandomBytes 64 
+  let prBytes = req ^. (paymentRequest . to (runPut . encodeMessage))
+      urlKey  = decodeUtf8 . encodeBase58Check $ B2.hash 32 keyBytes prBytes
   pinsert PaymentRequestId
     "INSERT INTO payment_requests \
-    \(subscription_id, event_id, request_data, request_time, billing_date) \
-    \VALUES (?, ?, ?, ?, ?) RETURNING id"
+    \(subscription_id, event_id, request_data, url_key, request_time, billing_date) \
+    \VALUES (?, ?, ?, ?, ?, ?) RETURNING id"
     ( req ^. (subscription . B._SubscriptionId)
     , eventId ^. _EventId
-    , req ^. (paymentRequest . to (runPut . encodeMessage))
+    , prBytes
+    , urlKey
     , req ^. (paymentRequestTime . to fromThyme)
     , req ^. (billingDate . to fromThyme)
     )
 
-pgEval (FindPaymentRequest rid) =
+pgEval (FindPaymentRequest (PaymentKey k)) =
   headMay <$> pquery paymentRequestParser
   "SELECT subscription_id, request_data, request_time, billing_date \
   \FROM payment_requests \
-  \WHERE id = ?"
-  (Only (rid ^. _PaymentRequestId))
+  \WHERE url_key = ?"
+  (Only k)
 
 pgEval (FindPaymentRequests sid) =
   pquery ((,) <$> idParser PaymentRequestId <*> paymentRequestParser)
@@ -503,13 +513,13 @@ pgEval (FindPaymentRequests sid) =
   (Only (sid ^. B._SubscriptionId))
 
 pgEval (FindUnpaidRequests sid) =
-  let rowp :: RowParser (PaymentRequestId, PaymentRequest, B.Subscription, B.Billable)
-      rowp = (,,,) <$> idParser PaymentRequestId
+  let rowp :: RowParser (PaymentKey, PaymentRequest, B.Subscription, B.Billable)
+      rowp = (,,,) <$> (PaymentKey <$> field)
                    <*> paymentRequestParser
                    <*> subscriptionParser
                    <*> billableParser
   in  pquery rowp
-      "SELECT id, \
+      "SELECT r.url_key, \
       \       r.subscription_id, r.request_data, r.request_time, r.billing_date, \
       \       s.user_id, s.billable_id, s.start_date, s.end_date, \
       \       b.project_id, e.created_by, b.name, b.description, b.recurrence_type, \

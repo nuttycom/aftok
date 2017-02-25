@@ -61,18 +61,21 @@ ok = do
   modifyResponse $ setResponseCode 200
   getResponse >>= finishWith
 
+requireParam :: MonadSnap m => Text -> m ByteString
+requireParam name = do
+  maybeBytes <- getParam (encodeUtf8 name)
+  maybe (snapError 400 $ "Parameter "<> tshow name <>" is required") pure maybeBytes
+
 parseParam :: MonadSnap m
            => Text       -- ^ the name of the parameter to be parsed
            -> Parser a   -- ^ parser for the value of the parameter
            -> m a        -- ^ the parsed value
 parseParam name parser = do
-  maybeBytes <- getParam (encodeUtf8 name)
-  case maybeBytes of
-    Nothing -> snapError 400 $ "Parameter "<> tshow name <>" is required"
-    Just bytes -> either
-      (const . snapError 400 $ "Value of parameter "<> tshow name <>" could not be parsed to a valid value.")
-      pure
-      (parseOnly parser bytes)
+  bytes <- requireParam name
+  either
+    (const . snapError 400 $ "Value of parameter "<> tshow name <>" could not be parsed to a valid value.")
+    pure
+    (parseOnly parser bytes)
 
 requireId :: MonadSnap m
           => Text        -- ^ name of the parameter

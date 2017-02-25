@@ -57,9 +57,9 @@ data DBOp a where
   FindSubscriptions  :: UserId -> ProjectId -> DBOp [(SubscriptionId, Subscription)]
 
   CreatePaymentRequest  :: UserId -> PaymentRequest -> DBOp PaymentRequestId
-  FindPaymentRequest    :: PaymentRequestId -> DBOp (Maybe PaymentRequest)
   FindPaymentRequests   :: SubscriptionId -> DBOp [(PaymentRequestId, PaymentRequest)]
   FindUnpaidRequests    :: SubscriptionId -> DBOp [BillDetail]
+  FindPaymentRequest    :: PaymentKey -> DBOp (Maybe PaymentRequest)
 
   CreatePayment  :: UserId -> Payment -> DBOp PaymentId
   FindPayments   :: PaymentRequestId -> DBOp [(PaymentId, Payment)]
@@ -201,6 +201,9 @@ findSubscriptionBillable sid = do
 
 findPaymentRequests :: (MonadDB m) => SubscriptionId -> m [(PaymentRequestId, PaymentRequest)]
 findPaymentRequests = liftdb . FindPaymentRequests
+
+findPaymentRequest :: (MonadDB m) => PaymentKey -> m (Maybe PaymentRequest)
+findPaymentRequest = liftdb . FindPaymentRequest
 
 -- this could be implemented in terms of other operations, but it's
 -- much cleaner to just do the joins in the database

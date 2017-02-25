@@ -84,7 +84,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
             , ("auctions/:auctionId/bid",      auctionBidRoute)
 
             , ("subscriptions/:subscriptionId/payment_requests", payableRequestsRoute)
-            , ("subscriptions/:subscriptionId/payment_requests/:paymentRequestId", paymentRequestRoute)
+            , ("pay/:paymentRequestKey", paymentRequestRoute)
 
             , ("events/:eventId/amend", amendEventRoute)
             ]

@@ -16,6 +16,7 @@ import           Data.UUID
 
 import qualified Network.Bippy.Proto as P
 import           Network.Bippy.Types (expiryTime, getExpires, getPaymentDetails)
+import           Network.Haskoin.Crypto (decodeBase58Check)
 
 import           Aftok.Billables     (Billable, Subscription, SubscriptionId)
 
@@ -24,6 +25,9 @@ makePrisms ''PaymentRequestId
 
 newtype PaymentId = PaymentId UUID deriving (Show, Eq)
 makePrisms ''PaymentId
+
+newtype PaymentKey = PaymentKey Text deriving (Eq)
+makePrisms ''PaymentKey
 
 data PaymentRequest' s = PaymentRequest
   { _subscription       :: s
@@ -44,7 +48,7 @@ makeLenses ''Payment'
 
 type Payment = Payment' PaymentRequestId
 
-type BillDetail = (PaymentRequestId, PaymentRequest, Subscription, Billable)
+type BillDetail = (PaymentKey, PaymentRequest, Subscription, Billable)
 
 {- Check whether the specified payment request has expired (whether wallet software
  - will still consider the payment request valid)
@@ -56,3 +60,5 @@ isExpired now req =
   -- a serialization problem
   in  either error (check . getExpires) $ getPaymentDetails (view paymentRequest req)
 
+parsePaymentKey :: ByteString -> Maybe PaymentKey
+parsePaymentKey bs = (PaymentKey . decodeUtf8) <$> decodeBase58Check bs

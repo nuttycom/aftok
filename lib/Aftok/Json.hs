@@ -232,7 +232,7 @@ billDetailsJSON r = v1 $
 billDetailJSON :: BillDetail -> Object
 billDetailJSON r =
   obj $ concat
-    [ ["payment_request_id" .= idJSON _PaymentRequestId (view _1 r)]
+    [ ["payment_request_id" .= view (_1 . _PaymentKey) r]
     , paymentRequestKV $ view _2 r
     , subscriptionKV $ view _3 r
     , billableKV $ view _4 r
