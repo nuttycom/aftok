@@ -59,7 +59,8 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
       auctionBidRoute     = serveJSON bidIdJSON $ method POST auctionBidHandler
 
       payableRequestsRoute = serveJSON billDetailsJSON $ method GET listPayableRequestsHandler
-      paymentRequestRoute  = writeLBS . runPutLazy . encodeMessage =<< method GET getPaymentRequestHandler
+      paymentRoute         = (writeLBS . runPutLazy . encodeMessage =<< method GET getPaymentRequestHandler)
+                             <|> (void $ method POST paymentResponseHandler)
 
       amendEventRoute     = serveJSON amendmentIdJSON $ method PUT amendEventHandler
 
@@ -84,7 +85,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
             , ("auctions/:auctionId/bid",      auctionBidRoute)
 
             , ("subscriptions/:subscriptionId/payment_requests", payableRequestsRoute)
-            , ("pay/:paymentRequestKey", paymentRequestRoute)
+            , ("pay/:paymentRequestKey", paymentRoute)
 
             , ("events/:eventId/amend", amendEventRoute)
             ]

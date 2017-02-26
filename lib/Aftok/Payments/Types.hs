@@ -8,17 +8,18 @@ module Aftok.Payments.Types where
 
 import           ClassyPrelude
 
-import           Control.Lens        (makeLenses, makePrisms, view)
+import           Control.Lens           (makeLenses, makePrisms, view)
 
-import           Data.Thyme.Clock    as C
-import           Data.Thyme.Time     as T
+import           Data.Thyme.Clock       as C
+import           Data.Thyme.Time        as T
 import           Data.UUID
 
-import qualified Network.Bippy.Proto as P
-import           Network.Bippy.Types (expiryTime, getExpires, getPaymentDetails)
+import qualified Network.Bippy.Proto    as P
+import           Network.Bippy.Types    (expiryTime, getExpires,
+                                         getPaymentDetails)
 import           Network.Haskoin.Crypto (decodeBase58Check)
 
-import           Aftok.Billables     (Billable, Subscription, SubscriptionId)
+import           Aftok.Billables        (Billable, Subscription, SubscriptionId)
 
 newtype PaymentRequestId = PaymentRequestId UUID deriving (Show, Eq)
 makePrisms ''PaymentRequestId
@@ -32,6 +33,7 @@ makePrisms ''PaymentKey
 data PaymentRequest' s = PaymentRequest
   { _subscription       :: s
   , _paymentRequest     :: P.PaymentRequest
+  , _paymentKey         :: PaymentKey
   , _paymentRequestTime :: C.UTCTime
   , _billingDate        :: T.Day
   } deriving (Functor, Foldable, Traversable)

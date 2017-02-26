@@ -15,7 +15,7 @@ import           Control.Lens            (makeClassy, makeClassyPrisms, review,
 import           Control.Lens.Tuple
 import           Control.Monad.Except    (MonadError, throwError)
 import qualified Crypto.PubKey.RSA.Types as RSA (Error (..), PrivateKey)
-import           Crypto.Random.Types     (MonadRandom)
+import           Crypto.Random.Types     (MonadRandom, getRandomBytes)
 
 import           Data.AffineSpace        ((.+^))
 import           Data.Map.Strict         (assocs)
@@ -25,6 +25,7 @@ import           Data.Thyme.Time         as T
 import qualified Network.Bippy           as B
 import qualified Network.Bippy.Proto     as P
 import qualified Network.Bippy.Types     as BT
+import           Network.Haskoin.Crypto  (encodeBase58Check)
 import           Network.Haskoin.Script  (ScriptOutput (..))
 import           Network.URI
 
@@ -45,9 +46,12 @@ data BillingConfig = BillingConfig
 makeClassy ''BillingConfig
 
 data BillingOps (m :: * -> *) = BillingOps
-  { memoGen    :: Subscription' UserId Billable -> m (Maybe Text) -- ^ generator user memo
-  , uriGen     :: Subscription' UserId Billable -> m (Maybe URI)  -- ^ generator for payment response URL
-  , payloadGen :: Subscription' UserId Billable -> m (Maybe ByteString) -- ^ generator for merchant payload
+  { -- | generator for user memo
+    memoGen    :: Subscription' UserId Billable -> T.Day -> C.UTCTime -> m (Maybe Text)
+    -- | generator for payment response URL
+  , uriGen     :: PaymentKey -> m (Maybe URI)
+    -- | generator for merchant payload
+  , payloadGen :: Subscription' UserId Billable -> T.Day -> C.UTCTime -> m (Maybe ByteString)
   }
 
 data PaymentRequestStatus
@@ -72,7 +76,7 @@ createPaymentRequests :: ( MonadRandom m
                       -> m [PaymentRequestId]
 createPaymentRequests ops now custId pid = do
   subscriptions <- findSubscriptions custId pid
-  join <$> traverse (createSubscriptionPaymentRequests ops now custId) subscriptions
+  join <$> traverse (createSubscriptionPaymentRequests ops now) subscriptions
 
 createSubscriptionPaymentRequests ::
      ( MonadRandom m
@@ -82,16 +86,15 @@ createSubscriptionPaymentRequests ::
      )
   => BillingOps m
   -> C.UTCTime
-  -> UserId
   -> (SubscriptionId, Subscription)
   -> m [PaymentRequestId]
-createSubscriptionPaymentRequests ops now custId (sid, sub) = do
+createSubscriptionPaymentRequests ops now (sid, sub) = do
   billableSub <- maybeT (raiseSubjectNotFound . FindBillable $ sub ^. billable) pure $
                  traverse findBillable sub
   paymentRequests <- findPaymentRequests sid
   billableDates   <- findUnbilledDates now (view billable billableSub) paymentRequests $
                      takeWhile (< view _utctDay now) $ billingSchedule billableSub
-  traverse (createPaymentRequest ops now custId sid billableSub) billableDates
+  traverse (createPaymentRequest ops now sid billableSub) billableDates
 
 createPaymentRequest ::
      ( MonadRandom m
@@ -101,20 +104,21 @@ createPaymentRequest ::
      )
   => BillingOps m
   -> C.UTCTime
-  -> UserId
   -> SubscriptionId
   -> Subscription' UserId Billable
   -> T.Day
   -> m PaymentRequestId
-createPaymentRequest ops now custId sid sub bday = do
+createPaymentRequest ops now sid sub bday = do
   cfg <- ask
-  memo    <- memoGen ops sub
-  uri     <- uriGen ops sub
-  payload <- payloadGen ops sub
+  -- TODO: maybe
+  pkey    <- PaymentKey . decodeUtf8 . encodeBase58Check <$> getRandomBytes 32
+  memo    <- memoGen ops sub bday now
+  uri     <- uriGen ops pkey
+  payload <- payloadGen ops sub bday now
   details <- createPaymentDetails bday now memo uri payload (sub ^. billable)
   reqErr  <- B.createPaymentRequest (cfg ^. signingKey) (cfg ^. pkiData) details
   req     <- either (throwError . review _SigningError) pure reqErr
-  liftdb $ CreatePaymentRequest custId (PaymentRequest sid req now bday)
+  liftdb $ CreatePaymentRequest (PaymentRequest sid req pkey now bday)
 
 {-
  - FIXME: The current implementation expects the billing day to be a suitable

@@ -6,8 +6,8 @@ module Aftok.Database.PostgreSQL (QDBM(), runQDBM) where
 import           ClassyPrelude
 import           Control.Lens
 import           Control.Monad.Trans.Either
-import qualified Crypto.Hash.BLAKE2.BLAKE2b           as B2
-import           Crypto.Random.Types                  (MonadRandom, getRandomBytes)
+import           Crypto.Random.Types                  (MonadRandom,
+                                                       getRandomBytes)
 import           Data.Aeson                           (Value, toJSON)
 import           Data.Hourglass
 import qualified Data.List                            as L
@@ -23,7 +23,7 @@ import           Database.PostgreSQL.Simple.FromField
 import           Database.PostgreSQL.Simple.FromRow
 import           Database.PostgreSQL.Simple.Types     (Null)
 
-import           Network.Haskoin.Crypto               (addrToBase58, encodeBase58Check)
+import           Network.Haskoin.Crypto               (addrToBase58)
 
 import           Aftok
 import qualified Aftok.Auction                        as A
@@ -177,10 +177,11 @@ subscriptionParser =
 
 paymentRequestParser :: RowParser PaymentRequest
 paymentRequestParser =
-  PaymentRequest <$> (B.SubscriptionId <$> field)
-                 <*> (field >>= (either fail pure . runGet decodeMessage))
-                 <*> (toThyme <$> field)
-                 <*> (toThyme <$> field)
+  PaymentRequest <$> fmap B.SubscriptionId field
+                 <*> ((either fail pure . runGet decodeMessage) =<< field)
+                 <*> fmap PaymentKey field
+                 <*> fmap toThyme field
+                 <*> fmap toThyme field
 
 paymentParser :: RowParser Payment
 paymentParser =
@@ -211,29 +212,29 @@ transactQDBM (QDBM rt) = QDBM $ do
 
 storeEvent :: DBOp a -> Maybe (QDBM EventId)
 storeEvent (CreateBillable uid b) =
-  Just $ storeEventJSON uid "create_billable" (billableJSON b)
+  Just $ storeEventJSON (Just uid) "create_billable" (billableJSON b)
 
 storeEvent (CreateSubscription uid bid) =
-  Just $ storeEventJSON uid "create_subscription" (createSubscriptionJSON uid bid)
+  Just $ storeEventJSON (Just uid) "create_subscription" (createSubscriptionJSON uid bid)
 
-storeEvent (CreatePaymentRequest uid req) =
-  Just $ storeEventJSON uid "create_payment_request" (paymentRequestJSON req)
+storeEvent (CreatePaymentRequest req) =
+  Just $ storeEventJSON Nothing "create_payment_request" (paymentRequestJSON req)
 
-storeEvent (CreatePayment uid req) =
-  Just $ storeEventJSON uid "create_payment" (paymentJSON req)
+storeEvent (CreatePayment req) =
+  Just $ storeEventJSON Nothing "create_payment" (paymentJSON req)
 
 storeEvent _ = Nothing
 
 type EventType = Text
 
-storeEventJSON :: UserId -> EventType -> Value -> QDBM EventId
+storeEventJSON :: Maybe UserId -> EventType -> Value -> QDBM EventId
 storeEventJSON uid t v = do
   timestamp <- liftIO C.getCurrentTime
   pinsert EventId
     "INSERT INTO aftok_events \
     \(event_time, created_by, event_type, event_json) \
     \VALUES (?, ?, ?, ?) RETURNING id"
-    (fromThyme timestamp, uid ^. _UserId, t, v)
+    (fromThyme timestamp, preview (_Just . _UserId) uid, t, v)
 
 pgEval :: DBOp a -> QDBM a
 pgEval (CreateEvent (P.ProjectId pid) (UserId uid) (LogEntry c e m)) =
@@ -481,33 +482,31 @@ pgEval (FindSubscriptions uid pid) =
     (uid ^. _UserId, pid ^. P._ProjectId)
 
 
-pgEval dbop @ (CreatePaymentRequest _ req) = do
+pgEval dbop @ (CreatePaymentRequest req) = do
   eventId <- requireEventId dbop
-  keyBytes <- getRandomBytes 64 
-  let prBytes = req ^. (paymentRequest . to (runPut . encodeMessage))
-      urlKey  = decodeUtf8 . encodeBase58Check $ B2.hash 32 keyBytes prBytes
   pinsert PaymentRequestId
     "INSERT INTO payment_requests \
     \(subscription_id, event_id, request_data, url_key, request_time, billing_date) \
     \VALUES (?, ?, ?, ?, ?, ?) RETURNING id"
     ( req ^. (subscription . B._SubscriptionId)
     , eventId ^. _EventId
-    , prBytes
-    , urlKey
+    , req ^. (paymentRequest . to (runPut . encodeMessage))
+    , req ^. (paymentKey . _PaymentKey)
     , req ^. (paymentRequestTime . to fromThyme)
     , req ^. (billingDate . to fromThyme)
     )
 
 pgEval (FindPaymentRequest (PaymentKey k)) =
-  headMay <$> pquery paymentRequestParser
-  "SELECT subscription_id, request_data, request_time, billing_date \
+  headMay <$> pquery ((,) <$> idParser PaymentRequestId <*> paymentRequestParser)
+  "SELECT id, subscription_id, request_data, url_key, request_time, billing_date \
   \FROM payment_requests \
-  \WHERE url_key = ?"
+  \WHERE url_key = ? \
+  \AND id NOT IN (SELECT payment_request_id FROM payments)"
   (Only k)
 
 pgEval (FindPaymentRequests sid) =
   pquery ((,) <$> idParser PaymentRequestId <*> paymentRequestParser)
-  "SELECT id, subscription_id, request_data, request_time, billing_date \
+  "SELECT id, subscription_id, request_data, url_key, request_time, billing_date \
   \FROM payment_requests \
   \WHERE subscription_id = ?"
   (Only (sid ^. B._SubscriptionId))
@@ -520,7 +519,7 @@ pgEval (FindUnpaidRequests sid) =
                    <*> billableParser
   in  pquery rowp
       "SELECT r.url_key, \
-      \       r.subscription_id, r.request_data, r.request_time, r.billing_date, \
+      \       r.subscription_id, r.request_data, r.url_key, r.request_time, r.billing_date, \
       \       s.user_id, s.billable_id, s.start_date, s.end_date, \
       \       b.project_id, e.created_by, b.name, b.description, b.recurrence_type, \
       \       b.recurrence_count, b.billing_amount, b.grace_period_days \
@@ -531,7 +530,7 @@ pgEval (FindUnpaidRequests sid) =
       \AND r.id NOT IN (SELECT payment_request_id FROM payments)"
       (Only (sid ^. B._SubscriptionId))
 
-pgEval dbop @ (CreatePayment _ p) = do
+pgEval dbop @ (CreatePayment p) = do
   eventId <- requireEventId dbop
   pinsert PaymentId
     "INSERT INTO payments \

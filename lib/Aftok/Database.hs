@@ -56,12 +56,12 @@ data DBOp a where
   FindSubscription   :: SubscriptionId -> DBOp (Maybe Subscription)
   FindSubscriptions  :: UserId -> ProjectId -> DBOp [(SubscriptionId, Subscription)]
 
-  CreatePaymentRequest  :: UserId -> PaymentRequest -> DBOp PaymentRequestId
+  CreatePaymentRequest  :: PaymentRequest -> DBOp PaymentRequestId
   FindPaymentRequests   :: SubscriptionId -> DBOp [(PaymentRequestId, PaymentRequest)]
   FindUnpaidRequests    :: SubscriptionId -> DBOp [BillDetail]
-  FindPaymentRequest    :: PaymentKey -> DBOp (Maybe PaymentRequest)
+  FindPaymentRequest    :: PaymentKey -> DBOp (Maybe (PaymentRequestId, PaymentRequest))
 
-  CreatePayment  :: UserId -> Payment -> DBOp PaymentId
+  CreatePayment  :: Payment -> DBOp PaymentId
   FindPayments   :: PaymentRequestId -> DBOp [(PaymentId, Payment)]
 
   RaiseDBError     :: forall x y. DBError -> DBOp x -> DBOp y
@@ -202,7 +202,7 @@ findSubscriptionBillable sid = do
 findPaymentRequests :: (MonadDB m) => SubscriptionId -> m [(PaymentRequestId, PaymentRequest)]
 findPaymentRequests = liftdb . FindPaymentRequests
 
-findPaymentRequest :: (MonadDB m) => PaymentKey -> m (Maybe PaymentRequest)
+findPaymentRequest :: (MonadDB m) => PaymentKey -> m (Maybe (PaymentRequestId, PaymentRequest))
 findPaymentRequest = liftdb . FindPaymentRequest
 
 -- this could be implemented in terms of other operations, but it's
