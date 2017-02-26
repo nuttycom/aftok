@@ -219,10 +219,13 @@ paymentRequestJSON = v1 . obj . paymentRequestKV
 
 paymentRequestKV :: (KeyValue kv) => PaymentRequest -> [kv]
 paymentRequestKV r =
-  [ "subscription_id" .= (r ^. (subscription . B._SubscriptionId . to tshow))
-  , "payment_request_protobuf_64" .= (r ^. (paymentRequest . to (decodeUtf8 . B64.encode . runPut . encodeMessage)))
-  , "payment_request_time" .= (r ^. paymentRequestTime)
-  , "billing_date" .= (r ^. (billingDate . to showGregorian))
+  [ "subscription_id" .=
+     view (subscription . B._SubscriptionId . to tshow) r
+  , "payment_request_protobuf_64" .=
+     view (paymentRequest . to (decodeUtf8 . B64.encode . runPut . encodeMessage)) r
+  , "url_key" .= view (paymentKey . _PaymentKey) r
+  , "payment_request_time" .= view paymentRequestTime r
+  , "billing_date" .= view (billingDate . to showGregorian) r
   ]
 
 billDetailsJSON :: [BillDetail] -> Value

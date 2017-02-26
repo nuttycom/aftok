@@ -60,9 +60,7 @@ Server
       We don't really use sessions at the moment, but this will be useful once there's a UI. 
       Alternately, need to look into JWT (http://jwt.io/) to figure out whether this approach
       is relevant for us.
-  * Payouts
-    * Use the BIP-70 Bitcoin Payment Protocol to create payment requests.
-    * Record requested payments
+  * Migrate to servant-snap? https://github.com/haskell-servant/servant-snap
 
 Scheduled event Service
 -----------------------
@@ -74,7 +72,7 @@ Scheduled event Service
     * Record BTC/USD (and other currencies) exchange rate at time of transaction
       to aid in recordkeeping requirements of U.S. tax law. Since BTC is treated
       as property rather than currency, one must track the basis price in order
-      to correctly report capital gains, in much the same fasion as is done for
+      to correctly report capital gains, in much the same fashion as is done for
       stock.
   * Elections
     * Close voting window

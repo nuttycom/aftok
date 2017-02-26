@@ -188,6 +188,7 @@ paymentParser =
   Payment <$> (PaymentRequestId <$> field)
           <*> (field >>= (either fail pure . runGet decodeMessage))
           <*> (toThyme <$> field)
+          <*> field
 
 pexec :: (ToRow d) => Query -> d -> QDBM Int64
 pexec q d = QDBM $ do
@@ -534,12 +535,13 @@ pgEval dbop @ (CreatePayment p) = do
   eventId <- requireEventId dbop
   pinsert PaymentId
     "INSERT INTO payments \
-    \(payment_request_id, event_id, payment_data, payment_date) \
+    \(payment_request_id, event_id, payment_data, payment_date, exchange_rates) \
     \VALUES (?, ?, ?, ?) RETURNING id"
     ( p ^. (request . _PaymentRequestId)
     , eventId ^. _EventId
     , p ^. (payment . to (runPut . encodeMessage))
     , p ^. (paymentDate . to fromThyme)
+    , p ^. exchangeRates
     )
 
 pgEval (FindPayments rid) =

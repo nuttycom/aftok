@@ -39,9 +39,10 @@ data SmtpConfig = SmtpConfig
   }
 
 data BillingConfig = BillingConfig
-  { network        :: BT.Network
-  , signingKeyFile :: System.IO.FilePath
-  , certsFile      :: System.IO.FilePath
+  { network                :: BT.Network
+  , signingKeyFile         :: System.IO.FilePath
+  , certsFile              :: System.IO.FilePath
+  , exchangeRateServiceURI :: String
   }
 
 loadQConfig :: System.IO.FilePath -> IO QConfig
@@ -74,6 +75,7 @@ readBillingConfig cfg =
   BillingConfig <$> (parseNetwork <$> C.require cfg "network")
                 <*> C.require cfg "signingKeyFile"
                 <*> C.require cfg "certsFile"
+                <*> C.require cfg "exchangeRateServiceURI"
   where parseNetwork :: String -> BT.Network
         parseNetwork "main" = BT.MainNet
         parseNetwork _      = BT.TestNet

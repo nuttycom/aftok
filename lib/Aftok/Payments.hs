@@ -110,7 +110,7 @@ createPaymentRequest ::
   -> m PaymentRequestId
 createPaymentRequest ops now sid sub bday = do
   cfg <- ask
-  -- TODO: maybe
+  -- TODO: maybe make pkey a function of subscription, billable, bday
   pkey    <- PaymentKey . decodeUtf8 . encodeBase58Check <$> getRandomBytes 32
   memo    <- memoGen ops sub bday now
   uri     <- uriGen ops pkey

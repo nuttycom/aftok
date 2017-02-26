@@ -23,7 +23,6 @@ library
   exposed-modules:    Aftok
                       Aftok.Auction
                       Aftok.Billables
-                      Aftok.Client
                       Aftok.Database
                       Aftok.Database.PostgreSQL
                       Aftok.Interval
@@ -59,6 +58,7 @@ library
     , hourglass  
     , kan-extensions
     , lens     
+    , lens-aeson
     , mtl
     , network-uri
     , old-locale        
@@ -74,7 +74,6 @@ library
     , uuid         
     , unordered-containers
     , vector-space
-    , wreq        
 
 Test-Suite spec
   default-language:   Haskell2010
@@ -153,16 +152,16 @@ Executable aftok-server
     , hourglass
     , HStringTemplate          
     , iso8601-time
-    --, HsOpenSSL           
+    , HsOpenSSL
+    , http-client
+    , http-client-openssl
     , lens
     , mime-mail
     , mtl                     
-    --, MonadCatchIO-transformers
     , network                   
     , optparse-applicative      
     , postgresql-simple
     , protobuf
-    --, resource-pool-catchio
     , smtp-mail               
     , snap                    
     , snap-core              
@@ -172,5 +171,6 @@ Executable aftok-server
     , thyme
     , transformers
     , uuid                
+    , wreq        
     , x509
     , x509-store

@@ -10,6 +10,7 @@ import           ClassyPrelude
 
 import           Control.Lens           (makeLenses, makePrisms, view)
 
+import           Data.Aeson             (Value)
 import           Data.Thyme.Clock       as C
 import           Data.Thyme.Time        as T
 import           Data.UUID
@@ -42,9 +43,10 @@ makeLenses ''PaymentRequest'
 type PaymentRequest = PaymentRequest' SubscriptionId
 
 data Payment' r = Payment
-  { _request     :: r
-  , _payment     :: P.Payment
-  , _paymentDate :: C.UTCTime
+  { _request       :: r
+  , _payment       :: P.Payment
+  , _paymentDate   :: C.UTCTime
+  , _exchangeRates :: Maybe Value
   } deriving (Functor, Foldable, Traversable)
 makeLenses ''Payment'
 

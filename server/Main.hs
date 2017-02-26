@@ -60,7 +60,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
 
       payableRequestsRoute = serveJSON billDetailsJSON $ method GET listPayableRequestsHandler
       paymentRoute         = (writeLBS . runPutLazy . encodeMessage =<< method GET getPaymentRequestHandler)
-                             <|> (void $ method POST paymentResponseHandler)
+                             <|> (void . method POST . paymentResponseHandler $ billingConfig cfg)
 
       amendEventRoute     = serveJSON amendmentIdJSON $ method PUT amendEventHandler
 

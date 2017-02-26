@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Aftok.Snaplet.Payments
   ( listPayableRequestsHandler
   , getPaymentRequestHandler
@@ -6,19 +8,24 @@ module Aftok.Snaplet.Payments
 
 import           ClassyPrelude
 
-import           Control.Lens         (view, _1, _2)
+import           Control.Lens         (view, _1, _2, _Right, _Left, preview, (&), (.~))
 import           Data.ProtocolBuffers (decodeMessage)
 import           Data.Serialize.Get   (runGetLazy)
 import           Data.Thyme.Clock     as C
 import qualified Network.Bippy.Proto  as P
+import           Network.HTTP.Client.OpenSSL
+import           Network.HTTP.Client (defaultManagerSettings, managerResponseTimeout, HttpException)
+import           Network.Wreq         (asValue, responseBody, defaults, manager, getWith)
+import           OpenSSL.Session (context)
 
-import           Snap.Core            (readRequestBody)
+import           Snap.Core            (readRequestBody, logError)
 import           Snap.Snaplet         as S
 
 import           Aftok.Billables
 import           Aftok.Database
 import           Aftok.Payments
 
+import           Aftok.QConfig        as QC
 import           Aftok.Snaplet
 import           Aftok.Snaplet.Auth
 
@@ -33,8 +40,8 @@ getPaymentRequestHandler :: S.Handler App App P.PaymentRequest
 getPaymentRequestHandler =
   view (_2 . paymentRequest) <$> getPaymentRequestHandler'
 
-paymentResponseHandler :: S.Handler App App PaymentId
-paymentResponseHandler = do
+paymentResponseHandler :: QC.BillingConfig -> S.Handler App App PaymentId
+paymentResponseHandler cfg = do
   requestBody <- readRequestBody 4096
   preq <- getPaymentRequestHandler'
   pmnt <- either
@@ -42,7 +49,14 @@ paymentResponseHandler = do
           pure
           (runGetLazy decodeMessage requestBody)
   now  <- liftIO $ C.getCurrentTime
-  snapEval . liftdb . CreatePayment $ Payment (view _1 preq) pmnt now
+
+  let opts = defaults & manager .~ Left (opensslManagerSettings context)
+                      & manager .~ Left (defaultManagerSettings { managerResponseTimeout = Just 10000 } )
+
+  exchResp  <- liftIO . try $ asValue =<< (withOpenSSL $ getWith opts (exchangeRateServiceURI cfg))
+  _ <- traverse (logError . encodeUtf8 . tshow @ HttpException) (preview _Left exchResp)
+  let newPayment = Payment (view _1 preq) pmnt now (preview (_Right . responseBody) exchResp)
+  snapEval . liftdb $ CreatePayment newPayment
 
 getPaymentRequestHandler' :: S.Handler App App (PaymentRequestId, PaymentRequest)
 getPaymentRequestHandler' = do
