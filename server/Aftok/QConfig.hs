@@ -60,7 +60,7 @@ readQConfig cfg pc =
           <*> C.lookup cfg "cookieTimeout"
           <*> maybe (mkPGSConfig $ C.subconfig "db" cfg) pure pc
           <*> readSmtpConfig cfg
-          <*> readBillingConfig cfg
+          <*> (readBillingConfig $ C.subconfig "billing" cfg)
           <*> C.lookupDefault "/opt/aftok/server/templates/" cfg "templatePath"
 
 readSmtpConfig :: CT.Config -> IO SmtpConfig

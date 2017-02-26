@@ -27,4 +27,11 @@ smtpPort = 587
 smtpUser = "whoareyou"
 smtpPass = "iami"
 
+billing {
+  network = "test"
+  signingKeyFile = "/etc/aftok/aftok.bip70.key.pem"
+  certsFile = "/etc/aftok/aftok.bip70-chain.cert.pem"
+  exchangeRateServiceURI = "https://blockchain.info/ticker"
+}
+
 # templatePath = "/opt/aftok/server/templates"
