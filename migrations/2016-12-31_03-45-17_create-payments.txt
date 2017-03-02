@@ -55,14 +55,19 @@ Apply: |
     id uuid primary key default uuid_generate_v4(),
     subscription_id uuid not null references subscriptions(id),
     event_id uuid not null references aftok_events(id),
-    request_data bytea not null
+    request_data bytea not null,
+    url_key text not null,
+    request_time timestamp with time zone not null,
+    billing_date date not null
   );
 
   create table if not exists payments (
     id uuid primary key default uuid_generate_v4(),
     payment_request_id uuid not null references payment_requests(id),
     event_id uuid not null references aftok_events(id),
-    payment_data bytea not null
+    payment_data bytea not null,
+    payment_date timestamp with time zone not null,
+    exchange_rates json
   );
 
 Revert: |
@@ -70,6 +75,9 @@ Revert: |
   drop table payment_requests;
   drop table subscriptions;
   drop table billables;
+  drop type recurrence_t;
   drop table aftok_events;
+  drop type aftok_event_t;
+
 
 

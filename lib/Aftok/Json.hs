@@ -6,7 +6,7 @@
 
 module Aftok.Json where
 
-import           ClassyPrelude
+import           ClassyPrelude                    hiding (Day)
 
 import           Control.Lens                     hiding ((.=))
 import           Data.Aeson
@@ -23,6 +23,7 @@ import           Data.Serialize.Put               (runPut)
 import qualified Data.Text                        as T
 import           Data.Thyme.Calendar              (showGregorian)
 import           Data.Thyme.Clock                 as C
+import           Data.Thyme.Time                  (Day)
 import           Data.UUID                        as U
 
 import           Aftok
@@ -101,18 +102,20 @@ obj = O.fromList
 -- Serializers --
 -----------------
 
-idJSON :: forall a. Lens' a UUID -> a -> Value
-idJSON l a = toJSON . tshow $ view l a
+idValue :: forall a. Lens' a UUID -> a -> Value
+idValue l a = toJSON . tshow $ view l a
+
+idJSON :: forall a. Text -> Lens' a UUID -> a -> Value
+idJSON t l a  = v1 $ obj [ t .=  idValue l a ]
 
 qdbProjectJSON :: (ProjectId, Project) -> Value
 qdbProjectJSON (pid, project) = v1 $
-  obj [ "projectId" .=  tshow (pid ^. _ProjectId)
+  obj [ "projectId" .=  idValue _ProjectId pid
       , "project" .= projectJSON project
       ]
 
 projectIdJSON :: ProjectId -> Value
-projectIdJSON pid = v1 $
-  obj [ "projectId" .= tshow (pid ^. _ProjectId) ]
+projectIdJSON = idJSON "projectId" _ProjectId
 
 projectJSON :: Project -> Value
 projectJSON p = v1 $
@@ -122,13 +125,12 @@ projectJSON p = v1 $
       ]
 
 auctionIdJSON :: AuctionId -> Value
-auctionIdJSON pid = v1 $
-  obj [ "auctionId" .= tshow (pid ^. _AuctionId) ]
+auctionIdJSON = idJSON "auctionId" _AuctionId
 
 auctionJSON :: Auction -> Value
 auctionJSON x = v1 $
-  obj [ "projectId"    .= tshow (x ^. (A.projectId._ProjectId))
-      , "initiator"    .= tshow (x ^. (A.initiator._UserId))
+  obj [ "projectId"    .= idValue (A.projectId._ProjectId) x
+      , "initiator"    .= idValue (A.initiator._UserId) x
       , "raiseAmount"  .= (x ^. (raiseAmount . satoshi))
       ]
 
@@ -138,7 +140,7 @@ bidIdJSON pid = v1 $
 
 creditToJSON :: CreditTo -> Value
 creditToJSON (CreditToAddress addr) = v2 $ obj [ "creditToAddress" .= (addr ^. _BtcAddr) ]
-creditToJSON (CreditToUser uid)     = v2 $ obj [ "creditToUser"    .= tshow (uid ^. _UserId) ]
+creditToJSON (CreditToUser uid)     = v2 $ obj [ "creditToUser"    .= idValue _UserId uid ]
 creditToJSON (CreditToProject pid)  = v2 $ obj [ "creditToProject" .= projectIdJSON pid ]
 
 payoutsJSON :: Payouts -> Value
@@ -158,9 +160,7 @@ workIndexJSON (WorkIndex widx) = v2 $
   in  obj $ [ "workIndex" .= fmap widxRec (MS.assocs widx) ]
 
 eventIdJSON :: EventId -> Value
-eventIdJSON (EventId eid) = v1 $
-  obj [ "eventId" .= tshow eid ]
-
+eventIdJSON = idJSON "eventId" _EventId
 
 logEventJSON' :: LogEvent -> Value
 logEventJSON' ev = object [ eventName ev .= object [ "eventTime" .= (ev ^. eventTime) ] ]
@@ -173,15 +173,14 @@ logEntryJSON (LogEntry c ev m) = v2 $
       ]
 
 amendmentIdJSON :: AmendmentId -> Value
-amendmentIdJSON (AmendmentId aid) = v1 $
-  obj [ "amendmentId" .= tshow aid ]
+amendmentIdJSON = idJSON "amendmentId" _AmendmentId
 
 billableJSON :: B.Billable -> Value
 billableJSON = v1 . obj . billableKV
 
 billableKV :: (KeyValue kv) => B.Billable -> [kv]
 billableKV b =
-  [ "projectId"   .= (b ^. (B.project . _ProjectId . to tshow))
+  [ "projectId"   .= idValue (B.project . _ProjectId) b
   , "name"        .= (b ^. B.name)
   , "description" .= (b ^. B.description)
   , "recurrence"  .= recurrenceJSON' (b ^. B.recurrence)
@@ -197,10 +196,11 @@ recurrenceJSON' (B.Monthly i) = object [ "monthly " .= object [ "months" .= i ] 
 recurrenceJSON' (B.Weekly i)  = object [ "weekly " .= object [ "weeks" .= i ] ]
 recurrenceJSON' B.OneTime     = object [ "onetime" .= Null ]
 
-createSubscriptionJSON :: UserId -> B.BillableId -> Value
-createSubscriptionJSON uid bid = v1 $
-  obj [ "user_id"     .= idJSON _UserId uid
-      , "billable_id" .= idJSON B._BillableId bid
+createSubscriptionJSON :: UserId -> B.BillableId -> Day -> Value
+createSubscriptionJSON uid bid d = v1 $
+  obj [ "user_id"     .= idValue _UserId uid
+      , "billable_id" .= idValue B._BillableId bid
+      , "start_date"  .= showGregorian d
       ]
 
 subscriptionJSON :: B.Subscription -> Value
@@ -208,8 +208,8 @@ subscriptionJSON = v1 . obj . subscriptionKV
 
 subscriptionKV :: (KeyValue kv) => B.Subscription -> [kv]
 subscriptionKV sub =
-  [ "user_id"     .= idJSON (B.customer . _UserId) sub
-  , "billable_id" .= idJSON (B.billable . B._BillableId) sub
+  [ "user_id"     .= idValue (B.customer . _UserId) sub
+  , "billable_id" .= idValue (B.billable . B._BillableId) sub
   , "start_time"  .= view B.startTime sub
   , "end_time"    .= view B.endTime sub
   ]
@@ -219,14 +219,14 @@ paymentRequestJSON = v1 . obj . paymentRequestKV
 
 paymentRequestKV :: (KeyValue kv) => PaymentRequest -> [kv]
 paymentRequestKV r =
-  [ "subscription_id" .=
-     view (subscription . B._SubscriptionId . to tshow) r
-  , "payment_request_protobuf_64" .=
-     view (paymentRequest . to (decodeUtf8 . B64.encode . runPut . encodeMessage)) r
+  [ "subscription_id" .= idValue (subscription . B._SubscriptionId) r
+  , "payment_request_protobuf_64" .= view prBytes r
   , "url_key" .= view (paymentKey . _PaymentKey) r
   , "payment_request_time" .= view paymentRequestTime r
   , "billing_date" .= view (billingDate . to showGregorian) r
   ]
+  where 
+    prBytes = (paymentRequest . to (decodeUtf8 . B64.encode . runPut . encodeMessage))
 
 billDetailsJSON :: [BillDetail] -> Value
 billDetailsJSON r = v1 $
@@ -243,10 +243,12 @@ billDetailJSON r =
 
 paymentJSON :: Payment -> Value
 paymentJSON r = v1 $
-  obj [ "payment_request_id"  .= (r ^. (request . _PaymentRequestId . to tshow))
-      , "payment_protobuf_64" .= (r ^. (payment . to (decodeUtf8 . B64.encode . runPut . encodeMessage)))
+  obj [ "payment_request_id"  .= idValue (request . _PaymentRequestId) r
+      , "payment_protobuf_64" .= view paymentBytes r
       , "payment_date" .= (r ^. paymentDate)
       ]
+  where 
+    paymentBytes = payment . to (decodeUtf8 . B64.encode . runPut . encodeMessage)
 
 -------------
 -- Parsers --
@@ -332,4 +334,11 @@ parseLogEntry f = unversion "LogEntry" p where
     pure $ \t -> LogEntry creditTo' (f t) eventMeta'
 
   p v o = badVersion "LogEntry" v o
+
+parseBillable :: Value -> Parser B.Billable
+parseBillable = unversion "Billable" p where
+  --p (Version 1 0) o = 
+
+  p v o = badVersion "Billable" v o
+
 

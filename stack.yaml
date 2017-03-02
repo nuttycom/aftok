@@ -2,7 +2,7 @@ flags: {}
 packages:
 - '.'
 - location:
-    git: git@github.com:aftok/bippy.git
+    git: https://github.com/aftok/bippy.git
     commit: 97fda0368ae660239d1b9398d44530cd5b05eec3
   extra-dep: true
 allow-newer: true
@@ -12,3 +12,4 @@ extra-deps:
 - snap-1.0.0.1
 - snaplet-postgresql-simple-1.0.1.0
 resolver: lts-7.16
+local-bin-path: ./bin

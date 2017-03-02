@@ -215,8 +215,8 @@ storeEvent :: DBOp a -> Maybe (QDBM EventId)
 storeEvent (CreateBillable uid b) =
   Just $ storeEventJSON (Just uid) "create_billable" (billableJSON b)
 
-storeEvent (CreateSubscription uid bid) =
-  Just $ storeEventJSON (Just uid) "create_subscription" (createSubscriptionJSON uid bid)
+storeEvent (CreateSubscription uid bid t) =
+  Just $ storeEventJSON (Just uid) "create_subscription" (createSubscriptionJSON uid bid t)
 
 storeEvent (CreatePaymentRequest req) =
   Just $ storeEventJSON Nothing "create_payment_request" (paymentRequestJSON req)
@@ -435,7 +435,9 @@ pgEval dbop @ (CreateBillable _ b) = do
   eventId <- requireEventId dbop
   pinsert B.BillableId
     "INSERT INTO billables \
-    \(project_id, event_id, name, description, recurrence_type, recurrence_count, billing_amount, grace_period_days) \
+    \( project_id, event_id, name, description \
+    \, recurrence_type, recurrence_count \
+    \, billing_amount, grace_period_days) \
     \VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id"
     ( b ^. (B.project . P._ProjectId)
     , eventId ^. _EventId
@@ -455,15 +457,16 @@ pgEval (FindBillable bid) =
     \WHERE b.id = ?"
     (Only (bid ^. B._BillableId))
 
-pgEval dbop @ (CreateSubscription uid bid) = do
+pgEval dbop @ (CreateSubscription uid bid start_date) = do
   eventId <- requireEventId dbop
   pinsert B.SubscriptionId
     "INSERT INTO subscriptions \
     \(user_id, billable_id, event_id) \
-    \VALUES (?, ?, ?) RETURNING id"
+    \VALUES (?, ?, ?, ?) RETURNING id"
     ( view _UserId uid
     , view B._BillableId bid
     , view _EventId eventId
+    , fromThyme start_date
     )
 
 pgEval (FindSubscription sid) =

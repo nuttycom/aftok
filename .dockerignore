@@ -1,1 +1,12 @@
+.git
+.gitignore
+.stack-work
 
+local
+migrations
+work
+
+Makefile
+Dockerfile
+./*.md
+./*.cfg

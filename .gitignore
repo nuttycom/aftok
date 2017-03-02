@@ -16,6 +16,7 @@ dist
 snaplets
 work
 local
+bin
 
 docker-conf
 client/.pulp-cache

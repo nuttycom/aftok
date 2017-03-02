@@ -11,6 +11,7 @@ import           Control.Lens              (view, (^.))
 import           Control.Monad.Trans.Maybe (MaybeT (..))
 import           Data.AffineSpace
 import           Data.Thyme.Clock          as C
+import           Data.Thyme.Time           as T (Day)
 
 import           Aftok
 import           Aftok.Auction             as A
@@ -52,7 +53,7 @@ data DBOp a where
   CreateBillable   :: UserId -> Billable -> DBOp BillableId
   FindBillable     :: BillableId -> DBOp (Maybe Billable)
 
-  CreateSubscription :: UserId -> BillableId -> DBOp SubscriptionId
+  CreateSubscription :: UserId -> BillableId -> T.Day -> DBOp SubscriptionId
   FindSubscription   :: SubscriptionId -> DBOp (Maybe Subscription)
   FindSubscriptions  :: UserId -> ProjectId -> DBOp [(SubscriptionId, Subscription)]
 

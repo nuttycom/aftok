@@ -11,12 +11,14 @@ RUN echo 'deb http://download.fpcomplete.com/ubuntu xenial main' > /etc/apt/sour
 
 # Install libpq-dev to enable postgresql-simple build
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends libpq-dev stack
+    apt-get install -y --no-install-recommends \
+    build-essential autotools-dev autoconf dh-autoreconf \
+    libpq-dev libsqlite3-dev \
+    git stack
 
-# Set up /etc/aftok volume for configuration information
+# Set up /etc/aftok volume for mounting configuration from the host system
 RUN mkdir /etc/aftok
 VOLUME ["/etc/aftok"]
-ADD ./conf/aftok.cfg.example /etc/aftok/aftok.cfg
 ENV AFTOK_CFG /etc/aftok/aftok.cfg
 
 # This is the main shell script that starts the aftok server
@@ -26,20 +28,22 @@ ADD ./docker/aftok-server.sh /etc/service/aftok/run
 # Install and build aftok-server dependencies
 RUN mkdir -p /opt/aftok/bin
 WORKDIR /opt/aftok
+
+# Install ghc globally so that we don't have to reinstall it
+# whenever we change stack.yaml or aftok.cabal
+RUN stack --resolver lts-7.16 setup
+
 ADD ./aftok.cabal /opt/aftok/aftok.cabal
-ADD ./docker/stack.yaml  /opt/aftok/stack.yaml
+ADD ./stack.yaml  /opt/aftok/stack.yaml
+
 
 RUN stack setup
 RUN stack install cpphs 
 RUN stack build --only-dependencies
 
-RUN apt-get install -y libsqlite3-dev
-RUN stack install dbmigrations
-
 ADD ./lib         /opt/aftok/lib
 ADD ./server      /opt/aftok/server
 ADD ./test        /opt/aftok/test
-ADD ./migrations  /opt/aftok/migrations
 
 # build and install and aftok-server sources
 RUN stack install
