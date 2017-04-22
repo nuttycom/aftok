@@ -1,6 +1,6 @@
 module Aftok.Login where
 
-import Prelude (type (~>), Void, bind, pure, ($), ($>), (<$>), const)
+import Prelude (type (~>), bind, pure, ($), ($>), (<$>), const)
 
 
 import Control.Monad.Aff (Aff())
@@ -19,10 +19,19 @@ import Network.HTTP.Affjax (AJAX(), affjax)
 import Data.HTTP.Method (Method(..))
 import Network.HTTP.StatusCode (StatusCode(..))
 
-type LoginState = { username :: String, password :: String }
+data LoginResponse 
+  = OK 
+  | Forbidden 
+  | Error { status :: StatusCode, message :: String }
+
+type LoginState = 
+  { username :: String
+  , password :: String 
+  , loginResponse :: Maybe LoginResponse
+  }
 
 initialState :: LoginState
-initialState = { username: "", password: "" }
+initialState = { username: "", password: "", loginResponse: Nothing }
 
 -- | The component query algebra.
 data LoginAction a
@@ -33,8 +42,10 @@ data LoginAction a
 -- | The effects used in the login component.
 type LoginEffects eff = HalogenEffects (ajax :: AJAX | eff)
 
+data LoginComplete = LoginComplete
+
 -- | The definition for the app's main UI component.
-ui :: forall eff. H.Component HH.HTML LoginAction LoginState Void (Aff (LoginEffects eff))
+ui :: forall eff. H.Component HH.HTML LoginAction LoginState LoginComplete (Aff (LoginEffects eff))
 ui = H.component 
   { initialState: const initialState
   , render 
@@ -78,17 +89,15 @@ ui = H.component
         ]
       ]
 
-  eval :: LoginAction ~> H.ComponentDSL LoginState LoginAction Void (Aff (LoginEffects eff))
+  eval :: LoginAction ~> H.ComponentDSL LoginState LoginAction LoginComplete (Aff (LoginEffects eff))
   eval (SetUsername user next) = H.modify (_ { username = user }) $> next
   eval (SetPassword pass next) = H.modify (_ { password = pass }) $> next
   eval (Login user pass next) = do
-    result <- H.liftAff (login user pass)
+    response <- H.liftAff (login user pass)
+    case response of
+      OK -> H.raise LoginComplete
+      _  -> H.put { username: "", password: "", loginResponse: Just response }
     pure next
-
-data LoginResponse 
-  = OK 
-  | Forbidden 
-  | Error { status :: StatusCode, message :: String }
 
 -- | Post credentials to the login service and interpret the response
 login :: forall eff. String -> String -> Aff (ajax :: AJAX | eff) LoginResponse

@@ -16,6 +16,8 @@
     "purescript-halogen-css": "^5.0.0",
     "purescript-dom": "^3.7.0",
     "purescript-affjax": "^3.0.2",
-    "purescript-now": "^2.0.0"
+    "purescript-now": "^2.0.0",
+    "purescript-routing": "^4.0.0",
+    "purescript-uuid": "^3.0.0"
   }
 }
