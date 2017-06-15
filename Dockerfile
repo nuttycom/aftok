@@ -22,7 +22,7 @@ RUN apt-get update && \
 # Install npm, then use it to get purescript, pulp and bower
 RUN apt-get install -y --no-install-recommends nodejs
 RUN apt-get install -y --no-install-recommends npm
-RUN npm install -g npm 
+RUN npm install -g npm bower pulp
 # Fix executable name used by the purescript npm installer
 RUN ln -s /usr/bin/nodejs /usr/local/bin/node
 
@@ -59,13 +59,15 @@ ADD ./test        /opt/aftok/test
 RUN stack install
 
 # Build the client application and install it where snap can serve it
-ADD ./client /opt/aftok/client
-WORKDIR /opt/aftok/client
-RUN npm install
-RUN bower install
-RUN pulp build
-RUN pulp browserify --optimise --to dist/aftok.js
-ADD ./dist /opt/aftok/server/static
+#ADD ./client /opt/aftok/client
+#WORKDIR /opt/aftok/client
+#RUN npm install
+#ENV PATH=./node_modules/.bin:${PATH}
+#
+#RUN bower --allow-root install
+#RUN pulp build
+#RUN pulp browserify --optimise --to dist/aftok.js
+#ADD ./dist /opt/aftok/server/static
 
 # Use baseimage-docker's init system.
 CMD ["/sbin/my_init"]
