@@ -326,10 +326,10 @@ parseUUID v = do
   str <- parseJSON v
   maybe (fail $ "Value " <> str <> "Could not be parsed as a valid UUID.") pure $ U.fromString str
 
-parseLogEntry :: (C.UTCTime -> LogEvent) -> Value -> Parser (C.UTCTime -> LogEntry)
-parseLogEntry f = unversion "LogEntry" p where
+parseLogEntry :: UserId -> (C.UTCTime -> LogEvent) -> Value -> Parser (C.UTCTime -> LogEntry)
+parseLogEntry uid f = unversion "LogEntry" p where
   p (Version 2 0) o = do
-    creditTo'  <- o .: "creditTo" >>= parseCreditToV2
+    creditTo'  <- o .:? "creditTo" >>= maybe (pure $ CreditToUser uid) parseCreditToV2
     eventMeta' <- o .:? "eventMeta"
     pure $ \t -> LogEntry creditTo' (f t) eventMeta'
 

@@ -28,7 +28,7 @@ logWorkHandler evCtr = do
   pid <- requireProjectId
   requestBody <- readRequestBody 4096
   timestamp <- liftIO C.getCurrentTime
-  case A.eitherDecode requestBody >>= parseEither (parseLogEntry evCtr) of
+  case A.eitherDecode requestBody >>= parseEither (parseLogEntry uid evCtr) of
     Left err -> snapError 400 $ "Unable to parse log entry " <> (tshow requestBody) <> ": " <> tshow err
     Right entry -> snapEval $ createEvent pid uid (entry timestamp)
 

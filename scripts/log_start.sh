@@ -2,7 +2,9 @@
 
 read -p "Username: " USER
 echo
-read -p "Project ID: " PID
-read -p "User ID: " UID
+read -p "Project UUID: " PID
 
-curl -v -k -u $USER -X POST -d "{\"schemaVersion\": \"2.0\", \"creditTo\": {\"creditToUser\": \"$UID\"}}" "https://aftok.com/projects/$PID/logStart"
+curl --verbose --insecure --user $USER \
+  --request POST \
+  --data '{"schemaVersion": "2.0"}' \
+  "https://aftok.com/projects/$PID/logStart"
