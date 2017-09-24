@@ -8,6 +8,8 @@ module Aftok.Snaplet.Auctions
 
 import           ClassyPrelude
 
+import           Control.Monad.Trans.Maybe (mapMaybeT)
+
 import           Data.Aeson
 import           Data.Aeson.Types
 import           Data.Hourglass.Types (Seconds (..))
@@ -20,6 +22,7 @@ import           Aftok.Auction        (Auction (..), AuctionId, Bid (..), BidId)
 import           Aftok.Database       (createAuction, createBid, findAuction)
 import           Aftok.Json
 import           Aftok.Types
+import           Aftok.Util (fromMaybeT)
 
 import           Aftok.Snaplet
 import           Aftok.Snaplet.Auth
@@ -52,8 +55,9 @@ auctionGetHandler :: S.Handler App App Auction
 auctionGetHandler = do
   uid <- requireUserId
   aid <- requireAuctionId
-  maybeAuc <- snapEval $ findAuction aid uid -- this will verify auction access
-  maybe (snapError 404 $ "Auction not found for id " <> tshow aid) pure maybeAuc
+  fromMaybeT
+    (snapError 404 $ "Auction not found for id " <> tshow aid)
+    (mapMaybeT snapEval $ findAuction aid uid) -- this will verify auction access
 
 auctionBidHandler :: S.Handler App App BidId
 auctionBidHandler = do

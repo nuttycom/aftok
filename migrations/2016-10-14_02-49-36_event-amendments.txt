@@ -39,7 +39,7 @@ Revert: |
 
   alter table work_events drop column credit_to_project_id;
   alter table work_events drop column credit_to_user_id;
-  alter table work_events rename column credit_to_btc_addr to btc_addr;
+  alter table work_events rename column credit_to_address to btc_addr;
   alter table work_events alter column btc_addr set not null;
   alter table work_events drop column credit_to_type;
 

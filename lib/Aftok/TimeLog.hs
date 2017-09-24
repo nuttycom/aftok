@@ -35,8 +35,8 @@ import           Aftok
 import           Aftok.Interval
 import           Aftok.Project      (ProjectId)
 
-data LogEvent = StartWork { _eventTime :: C.UTCTime }
-              | StopWork  { _eventTime :: C.UTCTime }
+data LogEvent = StartWork { _eventTime :: !C.UTCTime }
+              | StopWork  { _eventTime :: !C.UTCTime }
               deriving (Show, Eq)
 makeLenses ''LogEvent
 
@@ -57,11 +57,11 @@ nameEvent _       = mzero
 
 data CreditTo
   -- payouts are made directly to this address, or to an address replacing this one
-  = CreditToAddress BtcAddr
+  = CreditToAddress !BtcAddr
   -- payouts are distributed as requested by the specified contributor
-  | CreditToUser UserId
+  | CreditToUser !UserId
   -- payouts are distributed to this project's contributors
-  | CreditToProject ProjectId
+  | CreditToProject !ProjectId
   deriving (Show, Eq, Ord)
 makePrisms ''CreditTo
 
@@ -71,9 +71,9 @@ creditToName (CreditToUser _)    = "credit_to_user"
 creditToName (CreditToProject _) = "credit_to_project"
 
 data LogEntry = LogEntry
-  { _creditTo  :: CreditTo
-  , _event     :: LogEvent
-  , _eventMeta :: Maybe A.Value
+  { _creditTo  :: !CreditTo
+  , _event     :: !LogEvent
+  , _eventMeta :: !(Maybe A.Value)
   } deriving (Show, Eq)
 makeLenses ''LogEntry
 
@@ -88,9 +88,9 @@ makePrisms ''EventId
 newtype ModTime = ModTime C.UTCTime
 makePrisms ''ModTime
 
-data EventAmendment = TimeChange ModTime C.UTCTime
-                    | CreditToChange ModTime CreditTo
-                    | MetadataChange ModTime A.Value
+data EventAmendment = TimeChange !ModTime !C.UTCTime
+                    | CreditToChange !ModTime !CreditTo
+                    | MetadataChange !ModTime !A.Value
 
 newtype AmendmentId = AmendmentId UUID deriving (Show, Eq)
 makePrisms ''AmendmentId

@@ -108,10 +108,10 @@ idValue l a = toJSON . tshow $ view l a
 idJSON :: forall a. Text -> Lens' a UUID -> a -> Value
 idJSON t l a  = v1 $ obj [ t .=  idValue l a ]
 
-qdbProjectJSON :: (ProjectId, Project) -> Value
-qdbProjectJSON (pid, project) = v1 $
-  obj [ "projectId" .=  idValue _ProjectId pid
-      , "project" .= projectJSON project
+qdbJSON :: Text -> (Lens' a UUID) -> (b -> Value) -> (a, b) -> Value
+qdbJSON name l f (xid, x) = v1 $
+  obj [ (name <> "Id") .= idValue l xid
+      , name .= f x
       ]
 
 projectIdJSON :: ProjectId -> Value
@@ -123,6 +123,9 @@ projectJSON p = v1 $
       , "inceptionDate"  .= (p ^. inceptionDate)
       , "initiator"      .= tshow (p ^. (P.initiator._UserId))
       ]
+
+qdbProjectJSON :: (ProjectId, Project) -> Value
+qdbProjectJSON = qdbJSON "project" _ProjectId projectJSON
 
 auctionIdJSON :: AuctionId -> Value
 auctionIdJSON = idJSON "auctionId" _AuctionId
@@ -175,6 +178,9 @@ logEntryJSON (LogEntry c ev m) = v2 $
 amendmentIdJSON :: AmendmentId -> Value
 amendmentIdJSON = idJSON "amendmentId" _AmendmentId
 
+billableIdJSON :: B.BillableId -> Value
+billableIdJSON = idJSON "billableId" B._BillableId
+
 billableJSON :: B.Billable -> Value
 billableJSON = v1 . obj . billableKV
 
@@ -188,6 +194,9 @@ billableKV b =
   , "gracePeriod" .= (b ^. B.gracePeriod)
   , "requestExpiryPeriod" .= (C.toSeconds' <$> (b ^. B.requestExpiryPeriod))
   ]
+
+qdbBillableJSON :: (B.BillableId, B.Billable) -> Value
+qdbBillableJSON = qdbJSON "billable" B._BillableId billableJSON
 
 recurrenceJSON' :: B.Recurrence -> Value
 recurrenceJSON' B.Annually    = object [ "annually" .= Null ]
@@ -213,6 +222,9 @@ subscriptionKV sub =
   , "start_time"  .= view B.startTime sub
   , "end_time"    .= view B.endTime sub
   ]
+
+subscriptionIdJSON :: B.SubscriptionId -> Value
+subscriptionIdJSON = idJSON "subscriptionId" B._SubscriptionId
 
 paymentRequestJSON :: PaymentRequest -> Value
 paymentRequestJSON = v1 . obj . paymentRequestKV
@@ -241,6 +253,9 @@ billDetailJSON r =
     , billableKV $ view _4 r
     ]
 
+paymentIdJSON :: PaymentId -> Value
+paymentIdJSON = idJSON "paymentId" _PaymentId
+
 paymentJSON :: Payment -> Value
 paymentJSON r = v1 $
   obj [ "payment_request_id"  .= idValue (request . _PaymentRequestId) r
@@ -253,6 +268,13 @@ paymentJSON r = v1 $
 -------------
 -- Parsers --
 -------------
+parseUUID :: Value -> Parser U.UUID
+parseUUID v = do
+  str <- parseJSON v
+  maybe (fail $ "Value " <> str <> "Could not be parsed as a valid UUID.") pure $ U.fromString str
+
+parseId :: forall a. Prism' a UUID -> Value -> Parser a
+parseId p = fmap (review p) . parseUUID 
 
 parseCreditTo :: Value -> Parser CreditTo
 parseCreditTo = unversion "CreditTo" $ p where
@@ -269,10 +291,10 @@ parseCreditToV2 o =
         fmap CreditToAddress . parseJSON <$> O.lookup "creditToAddress" o'
 
       parseCreditToUser o' =
-        fmap (CreditToUser . UserId) . parseUUID <$> O.lookup "creditToUser" o'
+        fmap CreditToUser . parseId _UserId <$> O.lookup "creditToUser" o'
 
       parseCreditToProject o' =
-        fmap (CreditToProject . ProjectId) . parseUUID <$> O.lookup "creditToProject" o'
+        fmap CreditToProject . parseId _ProjectId <$> O.lookup "creditToProject" o'
 
       notFound = fail $ "Value " <> show o <> " does not represent a CreditTo value."
       parseV v = (parseCreditToAddr v <|> parseCreditToUser v <|> parseCreditToProject v)
@@ -321,11 +343,6 @@ parseEventAmendmentV2 t o =
       parseA tid = fail . show $ "Amendment type " <> tid <> " not recognized."
   in  o .: "amendment" >>= parseA
 
-parseUUID :: Value -> Parser U.UUID
-parseUUID v = do
-  str <- parseJSON v
-  maybe (fail $ "Value " <> str <> "Could not be parsed as a valid UUID.") pure $ U.fromString str
-
 parseLogEntry :: UserId -> (C.UTCTime -> LogEvent) -> Value -> Parser (C.UTCTime -> LogEntry)
 parseLogEntry uid f = unversion "LogEntry" p where
   p (Version 2 0) o = do
@@ -335,10 +352,17 @@ parseLogEntry uid f = unversion "LogEntry" p where
 
   p v o = badVersion "LogEntry" v o
 
-parseBillable :: Value -> Parser B.Billable
-parseBillable = unversion "Billable" p where
-  --p (Version 1 0) o = 
+parseRecurrence :: Object -> Parser B.Recurrence
+parseRecurrence o = 
+  let parseAnnually o' = const (pure B.Annually)    <$> O.lookup "annually" o'
+      parseMonthly  o' = fmap B.Monthly . parseJSON <$> O.lookup "monthly" o'
+      parseWeekly  o'  = fmap B.Weekly  . parseJSON <$> O.lookup "weekly" o'
+      parseOneTime o'  = const (pure B.OneTime)     <$> O.lookup "one-time" o'
 
-  p v o = badVersion "Billable" v o
+      notFound = fail $ "Value " <> show o <> " does not represent a Recurrence value."
+      parseV v = parseAnnually v <|> parseMonthly v <|> parseWeekly v <|> parseOneTime v
+  in  fromMaybe notFound $ parseV o
 
-
+parseRecurrence' :: Value -> Parser B.Recurrence
+parseRecurrence' (Object o) = parseRecurrence o
+parseRecurrence' v = fail $ "Value " <> show v <> " is not a JSON object."

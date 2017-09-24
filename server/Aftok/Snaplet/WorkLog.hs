@@ -3,6 +3,8 @@ module Aftok.Snaplet.WorkLog where
 import           ClassyPrelude
 
 import           Control.Lens
+import           Control.Monad.Trans.Maybe (mapMaybeT)
+
 import qualified Data.Aeson         as A
 import           Data.Aeson.Types
 import           Data.Thyme.Clock   as C
@@ -14,6 +16,7 @@ import           Aftok.Interval
 import           Aftok.Json
 import           Aftok.Project
 import           Aftok.TimeLog
+import           Aftok.Util (fromMaybeT)
 
 import           Aftok.Snaplet
 import           Aftok.Snaplet.Auth
@@ -68,8 +71,9 @@ payoutsHandler :: S.Handler App App Payouts
 payoutsHandler = do
   uid <- requireUserId
   pid <- requireProjectId
-  projectMay <- snapEval $ findProject pid uid
-  project <- maybe (snapError 400 $ "Project not found for id " <> tshow pid) pure projectMay
+  project <- fromMaybeT
+    (snapError 400 $ "Project not found for id " <> tshow pid)
+    (mapMaybeT snapEval $ findUserProject uid pid)
   widx <- snapEval $ readWorkIndex pid uid
   ptime <- liftIO $ C.getCurrentTime
   pure $ payouts (toDepF $ project ^. depf) ptime widx

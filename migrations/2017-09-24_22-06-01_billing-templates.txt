@@ -1,0 +1,11 @@
+Description: (Describe migration here.)
+Created: 2017-09-24 22:06:53.509947 UTC
+Depends: 2016-12-31_03-45-17_create-payments
+Apply: |
+  alter table billables add column payment_request_email_template text null; 
+  alter table billables add column payment_request_memo_template text null; 
+
+Revert: |
+  alter table billables drop column payment_request_email_template;
+  alter table billables drop column payment_request_memo_template;
+

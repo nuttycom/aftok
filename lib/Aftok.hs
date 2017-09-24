@@ -41,9 +41,9 @@ newtype Email = Email Text deriving (Show, Eq)
 makePrisms ''Email
 
 data User = User
-  { _username    :: UserName
-  , _userAddress :: Maybe BtcAddr
-  , _userEmail   :: Email
+  { _username    :: !UserName
+  , _userAddress :: !(Maybe BtcAddr)
+  , _userEmail   :: !Email
   }
 makeLenses ''User
 

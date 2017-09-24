@@ -3,6 +3,8 @@ module Aftok.Snaplet.Auth where
 import           ClassyPrelude
 
 import           Control.Lens
+import           Control.Error.Util (maybeT)
+import           Control.Monad.Trans.Maybe (mapMaybeT)
 import           Data.Attoparsec.ByteString (parseOnly)
 
 import           Aftok
@@ -29,11 +31,11 @@ requireUser = do
 
 requireUserId :: S.Handler App App UserId
 requireUserId = do
-  currentUser <- UserName . AU.userLogin <$> requireLogin
-  qdbUser <- snapEval $ findUserByName currentUser
-  case qdbUser of
-    Nothing -> snapError 403 "Unable to retrieve user record for authenticated user"
-    Just u -> pure (u ^. _1)
+  currentUser <- UserName . AU.userLogin <$> requireUser
+  maybeT
+    (snapError 403 "Unable to retrieve user record for authenticated user")
+    (pure . (^. _1))
+    (mapMaybeT snapEval $ findUserByName currentUser)
 
 throwChallenge :: MonadSnap m => m a
 throwChallenge = do

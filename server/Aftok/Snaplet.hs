@@ -8,7 +8,7 @@ import           ClassyPrelude
 import           Control.Lens
 import           Control.Monad.Reader
 import           Control.Monad.State
-import           Control.Monad.Trans.Either
+import           Control.Monad.Trans.Except    (runExceptT)
 import qualified Data.Aeson                    as A
 import           Data.Attoparsec.ByteString    (Parser, parseOnly,
                                                 takeByteString)
@@ -47,7 +47,7 @@ snapEval p = do
       handleDBError (EventStorageFailed) =
         snapError 500 "The event submitted could not be saved to the log."
 
-  e <- liftPG $ \conn -> liftIO $ runEitherT (runQDBM conn $ interpret liftdb p)
+  e <- liftPG $ \conn -> liftIO $ runExceptT (runQDBM conn $ interpret liftdb p)
   either handleDBError pure e
 
 snapError :: MonadSnap m => Int -> Text -> m a

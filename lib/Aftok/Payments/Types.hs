@@ -17,7 +17,7 @@ import           Data.UUID
 
 import qualified Network.Bippy.Proto    as P
 import           Network.Bippy.Types    (expiryTime, getExpires,
-                                         getPaymentDetails)
+                                         getPaymentDetails, Satoshi(..))
 import           Network.Haskoin.Crypto (decodeBase58Check)
 
 import           Aftok.Billables        (Billable, Subscription, SubscriptionId)
@@ -28,6 +28,8 @@ makePrisms ''PaymentRequestId
 newtype PaymentId = PaymentId UUID deriving (Show, Eq)
 makePrisms ''PaymentId
 
+-- A unique identifier for the payment request, suitable
+-- for URL embedding.
 newtype PaymentKey = PaymentKey Text deriving (Eq)
 makePrisms ''PaymentKey
 
@@ -66,3 +68,6 @@ isExpired now req =
 
 parsePaymentKey :: ByteString -> Maybe PaymentKey
 parsePaymentKey bs = (PaymentKey . decodeUtf8) <$> decodeBase58Check bs
+
+paymentRequestTotal :: P.PaymentRequest -> Satoshi
+paymentRequestTotal _ = error "Not yet implemented"

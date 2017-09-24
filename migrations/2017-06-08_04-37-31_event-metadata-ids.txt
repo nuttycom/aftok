@@ -1,0 +1,12 @@
+Description: Add missing identifiers to event metadata tables
+Created: 2017-06-08 04:38:05.341636 UTC
+Depends: 2016-10-14_02-49-36_event-amendments
+Apply: |
+  alter table event_metadata_amendments 
+  add column id uuid primary key default uuid_generate_v4();
+
+  alter table event_credit_to_amendments 
+  add column id uuid primary key default uuid_generate_v4();
+
+  alter table event_time_amendments
+  add column id uuid primary key default uuid_generate_v4();

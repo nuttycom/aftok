@@ -8,23 +8,26 @@ module Aftok.Snaplet.Projects
   , projectInviteHandler
   ) where
 
-import           ClassyPrelude
+import           ClassyPrelude hiding (FilePath)
 
 import           Control.Lens
+import           Control.Monad.Trans.Maybe (mapMaybeT, runMaybeT)
 import           Data.Aeson                 as A
 import           Data.Attoparsec.ByteString (takeByteString)
 import           Data.Thyme.Clock           as C
+import           Filesystem.Path.CurrentOS (FilePath, encodeString)
 import           Network.Mail.Mime
 import           Network.Mail.SMTP          as SMTP
-import           System.IO                  (FilePath)
 import           Text.StringTemplate
 
 import           Aftok
+import           Aftok.Config
 import           Aftok.Database
 import           Aftok.Project
-import           Aftok.QConfig
+import           Aftok.QConfig as QC
 import           Aftok.Snaplet
 import           Aftok.Snaplet.Auth
+import           Aftok.Util (fromMaybeT)
 
 import           Snap.Core
 import           Snap.Snaplet               as S
@@ -52,8 +55,9 @@ projectGetHandler :: S.Handler App App Project
 projectGetHandler = do
   uid <- requireUserId
   pid <- requireProjectId
-  mp <- snapEval $ findProject pid uid
-  maybe (snapError 404 $ "Project not found for id " <> tshow pid) pure mp
+  fromMaybeT
+    (snapError 404 $ "Project not found for id " <> tshow pid)
+    (mapMaybeT snapEval $ findUserProject uid pid)
 
 projectInviteHandler :: QConfig -> S.Handler App App ()
 projectInviteHandler cfg = do
@@ -62,8 +66,8 @@ projectInviteHandler cfg = do
   toEmail <- parseParam "email" (fmap (Email . decodeUtf8) takeByteString)
   t <- liftIO C.getCurrentTime
   (Just u, Just p, invCode) <- snapEval $
-    (,,) <$> findUser uid
-         <*> findProject pid uid
+    (,,) <$> (runMaybeT $ findUser uid)
+         <*> (runMaybeT $ findUserProject uid pid)
          <*> createInvitation pid uid toEmail t
   liftIO $ sendProjectInviteEmail cfg (p ^. projectName) (u ^. userEmail) toEmail invCode
 
@@ -75,20 +79,20 @@ sendProjectInviteEmail :: QConfig
                        -> InvitationCode
                        -> IO ()
 sendProjectInviteEmail cfg pn fromEmail toEmail invCode =
-  let SmtpConfig{..} = smtpConfig cfg
-      mailer = maybe (sendMailWithLogin smtpHost) (sendMailWithLogin' smtpHost) smtpPort
+  let SmtpConfig{..} = QC.smtpConfig cfg
+      mailer = maybe (sendMailWithLogin _smtpHost) (sendMailWithLogin' _smtpHost) _smtpPort
   in  buildProjectInviteEmail (templatePath cfg) pn fromEmail toEmail invCode >>=
-      (mailer smtpUser smtpPass)
+      (mailer _smtpUser _smtpPass)
 
 
-buildProjectInviteEmail :: System.IO.FilePath
+buildProjectInviteEmail :: FilePath
                         -> ProjectName
                         -> Email       -- Inviting user's email address
                         -> Email       -- Invitee's email address
                         -> InvitationCode
                         -> IO Mail
 buildProjectInviteEmail templatePath pn fromEmail toEmail invCode = do
-  templates <- directoryGroup templatePath
+  templates <- directoryGroup $ encodeString templatePath
   case getStringTemplate "invitation_email" templates of
     Nothing -> fail "Could not find template for invitation email"
     Just template ->

@@ -67,6 +67,8 @@ data Billable' p u c = Billable
   , _amount              :: c
   , _gracePeriod         :: Days
   , _requestExpiryPeriod :: Maybe C.NominalDiffTime
+  , _paymentRequestEmailTemplate :: Maybe Text
+  , _paymentRequestMemoTemplate :: Maybe Text
   }
 makeLenses ''Billable'
 
@@ -80,7 +82,7 @@ data Subscription' u b = Subscription
   , _billable  :: b
   , _startTime :: C.UTCTime
   , _endTime   :: Maybe C.UTCTime
-  } deriving (Functor, Foldable, Traversable)
+  } 
 makeLenses ''Subscription'
 
 type Subscription = Subscription' UserId BillableId

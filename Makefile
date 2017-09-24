@@ -9,4 +9,3 @@ deploy-image: build-image
 
 run-local-docker: build-container
 	docker run --net=host -it -v /home/nuttycom/projects/aftok/local/conf/:/etc/aftok aftok/aftok:latest
-

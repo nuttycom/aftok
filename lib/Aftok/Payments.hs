@@ -11,9 +11,10 @@ import           ClassyPrelude
 
 import           Control.Error.Util      (maybeT)
 import           Control.Lens            (makeClassy, makeClassyPrisms, review,
-                                          view, (%~), (^.))
+                                          view, (%~), (^.), traverseOf)
 import           Control.Lens.Tuple
 import           Control.Monad.Except    (MonadError, throwError)
+import           Control.Monad.Trans.Maybe    (MaybeT(..), runMaybeT)
 import qualified Crypto.PubKey.RSA.Types as RSA (Error (..), PrivateKey)
 import           Crypto.Random.Types     (MonadRandom, getRandomBytes)
 
@@ -38,34 +39,46 @@ import           Aftok.Project           (ProjectId, depf)
 import qualified Aftok.TimeLog           as TL
 import           Aftok.Types             (satoshi)
 
-data BillingConfig = BillingConfig
-  { _network    :: BT.Network
-  , _signingKey :: RSA.PrivateKey
-  , _pkiData    :: BT.PKIData
+data PaymentsConfig = PaymentsConfig
+  { _network    :: !BT.Network
+  , _signingKey :: !RSA.PrivateKey
+  , _pkiData    :: !BT.PKIData
   }
-makeClassy ''BillingConfig
+makeClassy ''PaymentsConfig
 
 data BillingOps (m :: * -> *) = BillingOps
   { -- | generator for user memo
-    memoGen    :: Subscription' UserId Billable -> T.Day -> C.UTCTime -> m (Maybe Text)
+    memoGen    :: Subscription' UserId Billable -- ^ subscription being billed
+               -> T.Day                         -- ^ billing date
+               -> C.UTCTime                     -- ^ payment request generation time
+               -> m (Maybe Text)
     -- | generator for payment response URL
-  , uriGen     :: PaymentKey -> m (Maybe URI)
+  , uriGen     :: PaymentKey                    -- ^ payment key to be included in the URL 
+               -> m (Maybe URI)
     -- | generator for merchant payload
-  , payloadGen :: Subscription' UserId Billable -> T.Day -> C.UTCTime -> m (Maybe ByteString)
+  , payloadGen :: Subscription' UserId Billable -- ^ subscription being billed
+               -> T.Day                         -- ^ billing date
+               -> C.UTCTime                     -- ^ payment request generation time
+               -> m (Maybe ByteString) 
   }
 
 data PaymentRequestStatus
-  = Paid Payment           -- ^ the request was paid with the specified payment
-  | Unpaid PaymentRequest  -- ^ the request has not been paid, but has not yet expired
-  | Expired PaymentRequest -- ^ the request was not paid prior to the expiration date
+  = Paid !Payment           -- ^ the request was paid with the specified payment
+  | Unpaid !PaymentRequest  -- ^ the request has not been paid, but has not yet expired
+  | Expired !PaymentRequest -- ^ the request was not paid prior to the expiration date
 
 data PaymentError
-  = Overdue SubscriptionId
-  | SigningError RSA.Error
+  = Overdue !SubscriptionId
+  | SigningError !RSA.Error
 makeClassyPrisms ''PaymentError
 
+{--
+ - Find all the subscriptions for the specified customer, and
+ - determine which if any are up for renewal. Create a payment
+ - request for each such subscription.
+ --}
 createPaymentRequests :: ( MonadRandom m
-                         , MonadReader r m, HasBillingConfig r
+                         , MonadReader r m, HasPaymentsConfig r
                          , MonadError e m,  AsPaymentError e
                          , MonadDB m
                          )
@@ -80,7 +93,7 @@ createPaymentRequests ops now custId pid = do
 
 createSubscriptionPaymentRequests ::
      ( MonadRandom m
-     , MonadReader r m, HasBillingConfig r
+     , MonadReader r m, HasPaymentsConfig r
      , MonadError e m, AsPaymentError e
      , MonadDB m
      )
@@ -90,7 +103,7 @@ createSubscriptionPaymentRequests ::
   -> m [PaymentRequestId]
 createSubscriptionPaymentRequests ops now (sid, sub) = do
   billableSub <- maybeT (raiseSubjectNotFound . FindBillable $ sub ^. billable) pure $
-                 traverse findBillable sub
+                 traverseOf billable findBillable sub
   paymentRequests <- findPaymentRequests sid
   billableDates   <- findUnbilledDates now (view billable billableSub) paymentRequests $
                      takeWhile (< view _utctDay now) $ billingSchedule billableSub
@@ -98,7 +111,7 @@ createSubscriptionPaymentRequests ops now (sid, sub) = do
 
 createPaymentRequest ::
      ( MonadRandom m
-     , MonadReader r m, HasBillingConfig r
+     , MonadReader r m, HasPaymentsConfig r
      , MonadError e m, AsPaymentError e
      , MonadDB m
      )
@@ -151,11 +164,11 @@ getRequestStatus :: (MonadDB m)
                  -> m PaymentRequestStatus
 getRequestStatus now (reqid, req) =
   let ifUnpaid = (if isExpired now req then Expired else Unpaid) req
-  in  maybe ifUnpaid Paid <$> findPayment reqid
+  in  maybe ifUnpaid Paid <$> runMaybeT (findPayment reqid)
 
 {- Create the PaymentDetails section of the payment request.
  -}
-createPaymentDetails :: (MonadRandom m, MonadReader r m, HasBillingConfig r, MonadDB m)
+createPaymentDetails :: (MonadRandom m, MonadReader r m, HasPaymentsConfig r, MonadDB m)
                      => T.Day              -- ^ payout date (billing date)
                      -> C.UTCTime          -- ^ timestamp of payment request creation
                      -> Maybe Text         -- ^ user memo
@@ -199,10 +212,10 @@ createOutputs :: (MonadDB m) => C.UTCTime -> TL.CreditTo -> BT.Satoshi -> m [BT.
 createOutputs _ (TL.CreditToAddress (BtcAddr addr)) amt =
   pure $ [BT.Output amt (PayPKHash addr)]
 
-createOutputs _ (TL.CreditToUser uid) amt = do
-  addrMay <- (>>= view userAddress) <$> findUser uid
-  let createOutput addr = BT.Output amt (PayPKHash (addr ^. _BtcAddr))
-  pure . maybeToList $ createOutput <$> addrMay
+createOutputs _ (TL.CreditToUser uid) amt = (fmap maybeToList) . runMaybeT $ do
+  user <- findUser uid
+  addr <- MaybeT . pure $ user ^. userAddress
+  pure $ BT.Output amt (PayPKHash (addr ^. _BtcAddr))
 
 createOutputs t (TL.CreditToProject pid) amt = do
   payouts <- getProjectPayouts t pid

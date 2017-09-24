@@ -3,11 +3,12 @@
 {-# LANGUAGE FlexibleInstances  #-}
 {-# LANGUAGE GADTs              #-}
 {-# LANGUAGE TupleSections      #-}
+{-# LANGUAGE TemplateHaskell    #-}
 
 module Aftok.Database where
 
 import           ClassyPrelude
-import           Control.Lens              (view, (^.))
+import           Control.Lens              (view, (^.), makeClassyPrisms, traverseOf)
 import           Control.Monad.Trans.Maybe (MaybeT (..))
 import           Data.AffineSpace
 import           Data.Thyme.Clock          as C
@@ -33,6 +34,8 @@ data DBOp a where
 
   CreateProject    :: Project -> DBOp ProjectId
   FindProject      :: ProjectId -> DBOp (Maybe Project)
+  ListProjects     :: DBOp [ProjectId]
+  FindSubscribers  :: ProjectId -> DBOp [UserId]
   FindUserProjects :: UserId -> DBOp [(ProjectId, Project)]
   AddUserToProject :: ProjectId -> InvitingUID -> InvitedUID -> DBOp ()
   CreateInvitation :: ProjectId -> InvitingUID -> Email -> C.UTCTime -> DBOp InvitationCode
@@ -52,6 +55,7 @@ data DBOp a where
 
   CreateBillable   :: UserId -> Billable -> DBOp BillableId
   FindBillable     :: BillableId -> DBOp (Maybe Billable)
+  FindBillables    :: ProjectId  -> DBOp [(BillableId, Billable)]
 
   CreateSubscription :: UserId -> BillableId -> T.Day -> DBOp SubscriptionId
   FindSubscription   :: SubscriptionId -> DBOp (Maybe Subscription)
@@ -61,6 +65,7 @@ data DBOp a where
   FindPaymentRequests   :: SubscriptionId -> DBOp [(PaymentRequestId, PaymentRequest)]
   FindUnpaidRequests    :: SubscriptionId -> DBOp [BillDetail]
   FindPaymentRequest    :: PaymentKey -> DBOp (Maybe (PaymentRequestId, PaymentRequest))
+  FindPaymentRequestId  :: PaymentRequestId -> DBOp (Maybe PaymentRequest)
 
   CreatePayment  :: Payment -> DBOp PaymentId
   FindPayments   :: PaymentRequestId -> DBOp [(PaymentId, Payment)]
@@ -79,6 +84,7 @@ data DBError = OpForbidden UserId OpForbiddenReason
              | SubjectNotFound
              | EventStorageFailed
              deriving (Eq, Show, Typeable)
+makeClassyPrisms ''DBError
 
 instance Exception DBError
 
@@ -99,11 +105,11 @@ raiseSubjectNotFound op = liftdb $ RaiseDBError SubjectNotFound op
 createUser :: (MonadDB m) => User -> m UserId
 createUser = liftdb . CreateUser
 
-findUser :: (MonadDB m) => UserId -> m (Maybe User)
-findUser = liftdb . FindUser
+findUser :: (MonadDB m) => UserId -> MaybeT m User
+findUser = MaybeT . liftdb . FindUser
 
-findUserByName :: (MonadDB m) => UserName -> m (Maybe (UserId, User))
-findUserByName = liftdb . FindUserByName
+findUserByName :: (MonadDB m) => UserName -> MaybeT m (UserId, User)
+findUserByName = MaybeT . liftdb . FindUserByName
 
 -- Project ops
 
@@ -113,10 +119,24 @@ createProject p = do
   addUserToProject pid (p ^. P.initiator) (p ^. P.initiator)
   return pid
 
-findProject :: (MonadDB m) => ProjectId -> UserId -> m (Maybe Project)
-findProject pid uid = do
-  kps <- findUserProjects uid
-  pure $ fmap snd (find (\(pid', _) -> pid' == pid) kps)
+listProjects :: (MonadDB m) => m [ProjectId]
+listProjects = liftdb ListProjects
+
+findSubscribers :: (MonadDB m) => ProjectId -> m [UserId]
+findSubscribers = liftdb . FindSubscribers
+
+findProject :: (MonadDB m) => ProjectId -> MaybeT m Project
+findProject = MaybeT . liftdb . FindProject
+
+findProjectOrError :: (MonadDB m) => ProjectId -> m Project
+findProjectOrError pid = fromMaybeT
+  (raiseSubjectNotFound $ FindProject pid)
+  (findProject pid)
+
+findUserProject :: (MonadDB m) => UserId -> ProjectId -> MaybeT m Project
+findUserProject uid pid = do
+  kps <- lift $ findUserProjects uid
+  MaybeT . pure $ fmap snd (find (\(pid', _) -> pid' == pid) kps)
 
 findUserProjects :: (MonadDB m) => UserId -> m [(ProjectId, Project)]
 findUserProjects = liftdb . FindUserProjects
@@ -198,21 +218,24 @@ findSubscriptions uid pid = liftdb $ FindSubscriptions uid pid
 findSubscriptionBillable :: (MonadDB m) => SubscriptionId -> MaybeT m (Subscription' UserId Billable)
 findSubscriptionBillable sid = do
   sub <- MaybeT . liftdb $ FindSubscription sid
-  traverse findBillable sub
+  traverseOf B.billable findBillable sub
 
 findPaymentRequests :: (MonadDB m) => SubscriptionId -> m [(PaymentRequestId, PaymentRequest)]
 findPaymentRequests = liftdb . FindPaymentRequests
 
-findPaymentRequest :: (MonadDB m) => PaymentKey -> m (Maybe (PaymentRequestId, PaymentRequest))
-findPaymentRequest = liftdb . FindPaymentRequest
+findPaymentRequest :: (MonadDB m) => PaymentKey -> MaybeT m (PaymentRequestId, PaymentRequest)
+findPaymentRequest = MaybeT . liftdb . FindPaymentRequest
+
+findPaymentRequestId :: (MonadDB m) => PaymentRequestId -> MaybeT m PaymentRequest
+findPaymentRequestId = MaybeT . liftdb . FindPaymentRequestId
 
 -- this could be implemented in terms of other operations, but it's
 -- much cleaner to just do the joins in the database
 findUnpaidRequests :: (MonadDB m) => SubscriptionId -> m [BillDetail]
 findUnpaidRequests = liftdb . FindUnpaidRequests
 
-findPayment :: (MonadDB m) => PaymentRequestId -> m (Maybe Payment)
-findPayment prid = (fmap snd . headMay) <$> liftdb (FindPayments prid)
+findPayment :: (MonadDB m) => PaymentRequestId -> MaybeT m Payment
+findPayment prid = MaybeT $ (fmap snd . headMay) <$> liftdb (FindPayments prid)
 
 -- Auction ops
 
@@ -220,13 +243,13 @@ createAuction :: (MonadDB m) => Auction -> m AuctionId
 createAuction a = do
   withProjectAuth (a ^. A.projectId) (a ^. A.initiator) $ CreateAuction a
 
-findAuction :: (MonadDB m) => AuctionId -> UserId -> m (Maybe Auction)
+findAuction :: (MonadDB m) => AuctionId -> UserId -> MaybeT m Auction
 findAuction aid uid =
   let findOp = FindAuction aid
   in  do
-    maybeAuc <- liftdb findOp
-    _ <- traverse (\auc -> checkProjectAuth (auc ^. A.projectId) uid findOp) maybeAuc
-    pure maybeAuc
+    auc <- MaybeT $ liftdb findOp
+    _ <- lift $ checkProjectAuth (auc ^. A.projectId) uid findOp 
+    pure auc
 
 findAuction' :: (MonadDB m) => AuctionId -> UserId -> m Auction
 findAuction' aid uid =

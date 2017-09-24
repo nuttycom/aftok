@@ -52,6 +52,7 @@ RUN stack install cpphs
 RUN stack build --only-dependencies
 
 ADD ./lib         /opt/aftok/lib
+ADD ./daemon      /opt/aftok/daemon
 ADD ./server      /opt/aftok/server
 ADD ./test        /opt/aftok/test
 

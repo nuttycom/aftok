@@ -23,6 +23,7 @@ library
   exposed-modules:    Aftok
                       Aftok.Auction
                       Aftok.Billables
+                      Aftok.Config
                       Aftok.Database
                       Aftok.Database.PostgreSQL
                       Aftok.Interval
@@ -60,6 +61,7 @@ library
     , lens     
     , lens-aeson
     , mtl
+    , network                   
     , network-uri
     , old-locale        
     , postgresql-simple
@@ -67,6 +69,8 @@ library
     , safe            
     , semigroups
     , semigroupoids
+    , smtp-mail               
+    , system-filepath
     , template-haskell
     , text           
     , thyme         
@@ -74,6 +78,8 @@ library
     , uuid         
     , unordered-containers
     , vector-space
+    , x509
+    , x509-store
 
 Test-Suite spec
   default-language:   Haskell2010
@@ -129,6 +135,7 @@ Executable aftok-server
                , Aftok.Snaplet
                , Aftok.Snaplet.Auctions
                , Aftok.Snaplet.Auth
+               , Aftok.Snaplet.Billing
                , Aftok.Snaplet.Payments
                , Aftok.Snaplet.Projects
                , Aftok.Snaplet.Users
@@ -167,6 +174,59 @@ Executable aftok-server
     , snap-core              
     , snap-server           
     , snaplet-postgresql-simple
+    , system-filepath
+    , text
+    , thyme
+    , transformers
+    , uuid                
+    , wreq        
+    , x509
+    , x509-store
+
+Executable aftok-daemon
+  default-language:   Haskell2010
+  ghc-options:        -Wall -Werror
+  hs-source-dirs:     daemon
+  default-extensions: NoImplicitPrelude
+                    , OverloadedStrings
+                    , RecordWildCards
+                    , ScopedTypeVariables
+                    , KindSignatures
+
+  main-is:            Main.hs
+  other-modules:      AftokD
+                    , AftokD.AftokM
+  build-depends:      
+      aftok
+    , base
+    , aeson
+    , attoparsec
+    , base64-bytestring
+    , bytestring
+    , bippy
+    , cereal
+    , classy-prelude            
+    , containers
+    , configurator              
+    , cryptonite
+    , either
+    , errors
+    , hourglass
+    , HStringTemplate          
+    , iso8601-time
+    , HsOpenSSL
+    , http-client
+    , http-client-openssl
+    , lens
+    , mime-mail
+    , mtl                     
+    , network                   
+    , network-uri
+    , optparse-applicative      
+    , postgresql-simple
+    , protobuf
+    , smtp-mail               
+    , system-filepath
     , text
     , thyme
     , transformers
