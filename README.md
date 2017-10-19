@@ -1,5 +1,5 @@
-What is an Aftok?
-=================
+Aftok - A New Kind of Company
+=============================
 
 Let's talk about an idealized model of commerce: Make something that you think
 other people will value. The difference between the cost of making that thing
@@ -17,7 +17,7 @@ for our skills as a proxy for this value, but this proxy is subject to a great
 deal of distortion. In the standard model, it is in the interest of every
 corporation to pay less (on average) for its employees' work than the
 value that they generate, so that the remaining profits may accrue to the
-corporate body itself. 
+corporate body itself, and its principle officers. 
 
 An aftok is a new, experimental company structure that proposes a different approach.
 
@@ -88,8 +88,8 @@ ago, in the present day their contributions have been rendered irrelevant by
 progress. 
 
 At this point it's important to point out that, even though a collaborator may
-cease contributing to a project (or may have forked the project, or been exiled
-from the project by the other collaborators, a process that will be described
+cease contributing to a project (or may have forked the project, or been forked
+away from by the other collaborators, a process that will be described
 later), the compensation for their contribution up to that point does not
 immediately go to zero, as it would be the case when someone stops getting paid
 when they leave a traditional corporation; instead, their logged time is paid
@@ -115,7 +115,7 @@ The voting system provided uses a range-voting model where the ratings chosen
 by an individual for the options provided are weighted by their revenue
 distribution percentage at the ending moment of the voting period. Only those
 contributors who are currently permitted to record time to the company's logs
-are allowed to vote; while 'exiled' contributors are entitled to compensation
+are allowed to vote; while former contributors are entitled to compensation
 to the value that they created, they do not have the right to influence the
 company's future.
 
@@ -201,9 +201,8 @@ depreciation process will finally reduce their interest in received revenue
 to nothing.
 
 A group may, of course, choose to fork away from a single contributor; this is
-analogous to firing someone from a traditional corporation. An individual who
-has been forked away from in this fashion is said to have been exiled; they do, 
-however, always have the option to form a full fork on their own and become
+analogous to firing someone from a traditional corporation. Such a person 
+however, always has the option to form a full fork on their own and become
 a competing company.
 
 Aftok Philosophy
@@ -235,7 +234,7 @@ contributor to an open-source project. The aftok is designed as minimal
 structure that is needed for a group of individuals to collaborate on a project
 for which they hope to be paid. 
 
-More importantly, however, the Quixotic company structure is designed to
+More importantly, however, the aftok company structure is designed to
 maximize individual freedom within the context of performing paid,
 collaborative work. 
 
