@@ -19,5 +19,5 @@ echo
 
 curl --verbose --insecure --user $USER \
   --request POST \
-  --data '' \
-  "https://aftok.com/projects/$PROJECT/invite?email=$EMAIL"
+  --data '{}' \
+  "https://aftok.com/projects/$PID/invite?email=$EMAIL"
