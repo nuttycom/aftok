@@ -1,8 +1,18 @@
 #!/bin/bash
 
-read -p "Username: " USER
-echo
-read -p "Project UUID: " PROJECT
+if [ -f ".env" ]; then
+  source .env
+fi
+
+if [ -z "${USER}" ]; then 
+  read -p "Username: " USER
+  echo
+fi
+
+if [ -z "${PID}" ]; then
+  read -p "Project UUID: " PID
+  echo
+fi
 
 curl --verbose --insecure --user $USER \
   --request GET \

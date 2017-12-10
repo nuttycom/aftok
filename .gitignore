@@ -3,7 +3,6 @@ cabal.sandbox.config
 .cabal-sandbox
 .stack-work
 Setup
-.stack-work
 
 *.swp
 tags
@@ -23,3 +22,4 @@ docker-conf
 client/.pulp-cache
 moo.cfg
 site_key.txt
+.env

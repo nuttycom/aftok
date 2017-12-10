@@ -1,6 +1,13 @@
 #!/bin/bash
 
-read -p "Username: " USER
+if [ -f ".env" ]; then
+  source .env
+fi
+
+if [ -z "${USER}" ]; then 
+  read -p "Username: " USER
+  echo
+fi
 
 curl --verbose --insecure --user $USER \
   --request GET \
