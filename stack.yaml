@@ -7,9 +7,10 @@ packages:
   extra-dep: true
 allow-newer: true
 extra-deps:
-- heist-1.0.1.0
-- map-syntax-0.2.0.1
-- snap-1.0.0.1
-- snaplet-postgresql-simple-1.0.1.0
+  - snap-1.0.0.2
+  - snaplet-postgresql-simple-1.0.2.0
+  - haskoin-core-0.4.2
+  - heist-1.0.1.0
+  - map-syntax-0.2.0.2
 resolver: lts-7.16
 local-bin-path: ./bin
