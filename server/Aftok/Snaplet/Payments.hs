@@ -16,7 +16,7 @@ import           Data.Serialize.Get   (runGetLazy)
 import           Data.Thyme.Clock     as C
 import qualified Network.Bippy.Proto  as P
 import           Network.HTTP.Client.OpenSSL
-import           Network.HTTP.Client (defaultManagerSettings, managerResponseTimeout, HttpException)
+import           Network.HTTP.Client (defaultManagerSettings, managerResponseTimeout, responseTimeoutMicro, HttpException)
 import           Network.Wreq         (asValue, responseBody, defaults, manager, getWith)
 import           OpenSSL.Session (context)
 
@@ -54,7 +54,7 @@ paymentResponseHandler cfg = do
   now  <- liftIO $ C.getCurrentTime
 
   let opts = defaults & manager .~ Left (opensslManagerSettings context)
-                      & manager .~ Left (defaultManagerSettings { managerResponseTimeout = Just 10000 } )
+                      & manager .~ Left (defaultManagerSettings { managerResponseTimeout = responseTimeoutMicro 10000 } )
 
   exchResp  <- liftIO . try $ asValue =<< (withOpenSSL $ getWith opts (cfg ^. exchangeRateServiceURI))
   _ <- traverse (logError . encodeUtf8 . tshow @ HttpException) (preview _Left exchResp)

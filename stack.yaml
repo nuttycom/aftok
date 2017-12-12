@@ -12,5 +12,8 @@ extra-deps:
   - haskoin-core-0.4.2
   - heist-1.0.1.0
   - map-syntax-0.2.0.2
-resolver: lts-7.16
+  - murmur3-1.0.3
+  - pbkdf-1.1.1.1
+  - secp256k1-0.4.8
+resolver: lts-8.5
 local-bin-path: ./bin
