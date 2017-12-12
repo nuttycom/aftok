@@ -55,6 +55,7 @@ ADD ./lib         /opt/aftok/lib
 ADD ./daemon      /opt/aftok/daemon
 ADD ./server      /opt/aftok/server
 ADD ./test        /opt/aftok/test
+ADD ./migrations  /opt/aftok/migrations
 
 # build and install and aftok-server sources
 RUN stack install
@@ -69,6 +70,9 @@ RUN stack install
 #RUN pulp build
 #RUN pulp browserify --optimise --to dist/aftok.js
 #ADD ./dist /opt/aftok/server/static
+
+WORKDIR /opt
+RUN stack install dbmigrations
 
 # Use baseimage-docker's init system.
 CMD ["/sbin/my_init"]
