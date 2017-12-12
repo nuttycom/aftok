@@ -46,7 +46,7 @@ RUN stack --resolver lts-7.16 setup
 ADD ./aftok.cabal /opt/aftok/aftok.cabal
 ADD ./stack.yaml  /opt/aftok/stack.yaml
 
-
+# Build dependencies
 RUN stack setup
 RUN stack install cpphs 
 RUN stack build --only-dependencies
@@ -55,7 +55,6 @@ ADD ./lib         /opt/aftok/lib
 ADD ./daemon      /opt/aftok/daemon
 ADD ./server      /opt/aftok/server
 ADD ./test        /opt/aftok/test
-ADD ./migrations  /opt/aftok/migrations
 
 # build and install and aftok-server sources
 RUN stack install
@@ -71,8 +70,11 @@ RUN stack install
 #RUN pulp browserify --optimise --to dist/aftok.js
 #ADD ./dist /opt/aftok/server/static
 
+# Set up database migrations
 WORKDIR /opt
+ADD ./docker/global-stack.yaml /root/.stack/global-project/stack.yaml
 RUN stack install dbmigrations
+ADD ./migrations /opt/aftok/migrations
 
 # Use baseimage-docker's init system.
 CMD ["/sbin/my_init"]

@@ -1,0 +1,4 @@
+DBM_DATABASE_TYPE="postgresql"
+DBM_DATABASE="host=127.0.0.1 user=aftok password=empty dbname=aftok"
+DBM_MIGRATION_STORE="/opt/aftok/migrations"
+DBM_TIMESTAMP_FILENAMES=on

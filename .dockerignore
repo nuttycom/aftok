@@ -3,7 +3,6 @@
 .stack-work
 
 local
-migrations
 work
 
 Makefile
