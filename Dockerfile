@@ -20,28 +20,29 @@ RUN apt-get update && \
 #    wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
 
 # Install npm, then use it to get purescript, pulp and bower
-RUN apt-get install -y --no-install-recommends nodejs
-RUN apt-get install -y --no-install-recommends npm
-RUN npm install -g npm bower pulp
+# RUN apt-get install -y --no-install-recommends nodejs
+# RUN apt-get install -y --no-install-recommends npm
+# RUN npm install -g npm bower pulp
+
 # Fix executable name used by the purescript npm installer
-RUN ln -s /usr/bin/nodejs /usr/local/bin/node
+# RUN ln -s /usr/bin/nodejs /usr/local/bin/node
+
+# Install ghc globally so that we don't have to reinstall it
+# whenever we change stack.yaml or aftok.cabal
+ADD ./docker/global-stack.yaml /root/.stack/global-project/stack.yaml
+RUN stack --resolver lts-7.16 setup
+
+# Globally install database migrations tool
+RUN stack install dbmigrations
 
 # Set up /etc/aftok volume for mounting configuration from the host system
 RUN mkdir /etc/aftok
 VOLUME ["/etc/aftok"]
 ENV AFTOK_CFG /etc/aftok/aftok.cfg
 
-# This is the main shell script that starts the aftok server
-RUN mkdir /etc/service/aftok
-ADD ./docker/aftok-server.sh /etc/service/aftok/run
-
 # Install and build aftok-server dependencies
-RUN mkdir -p /opt/aftok/bin
+RUN mkdir -p /opt/aftok
 WORKDIR /opt/aftok
-
-# Install ghc globally so that we don't have to reinstall it
-# whenever we change stack.yaml or aftok.cabal
-RUN stack --resolver lts-7.16 setup
 
 ADD ./aftok.cabal /opt/aftok/aftok.cabal
 ADD ./stack.yaml  /opt/aftok/stack.yaml
@@ -55,8 +56,10 @@ ADD ./lib         /opt/aftok/lib
 ADD ./daemon      /opt/aftok/daemon
 ADD ./server      /opt/aftok/server
 ADD ./test        /opt/aftok/test
+ADD ./migrations  /opt/aftok/migrations
 
 # build and install and aftok-server sources
+RUN mkdir /opt/aftok/bin
 RUN stack install
 
 # Build the client application and install it where snap can serve it
@@ -70,11 +73,9 @@ RUN stack install
 #RUN pulp browserify --optimise --to dist/aftok.js
 #ADD ./dist /opt/aftok/server/static
 
-# Set up database migrations
-WORKDIR /opt
-ADD ./docker/global-stack.yaml /root/.stack/global-project/stack.yaml
-RUN stack install dbmigrations
-ADD ./migrations /opt/aftok/migrations
+# Add the main shell script that starts the aftok server
+RUN mkdir /etc/service/aftok
+ADD ./docker/aftok-server.sh /etc/service/aftok/run
 
 # Use baseimage-docker's init system.
 CMD ["/sbin/my_init"]
