@@ -34,6 +34,7 @@ RUN stack --resolver lts-7.16 setup
 
 # Globally install database migrations tool
 RUN stack install dbmigrations
+RUN stack install dbmigrations-postgresql
 
 # Set up /etc/aftok volume for mounting configuration from the host system
 RUN mkdir /etc/aftok
@@ -59,7 +60,6 @@ ADD ./test        /opt/aftok/test
 ADD ./migrations  /opt/aftok/migrations
 
 # build and install and aftok-server sources
-RUN mkdir /opt/aftok/bin
 RUN stack install
 
 # Build the client application and install it where snap can serve it

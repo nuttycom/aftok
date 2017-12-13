@@ -13,3 +13,5 @@ resolver: lts-7.16
 extra-deps:
   - yaml-light-0.1.4
   - HsSyck-0.53
+  - HDBC-postgresql-2.3.2.5
+  - dbmigrations-2.0.0
