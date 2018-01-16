@@ -17,7 +17,7 @@ for our skills as a proxy for this value, but this proxy is subject to a great
 deal of distortion. In the standard model, it is in the interest of every
 corporation to pay less (on average) for its employees' work than the
 value that they generate, so that the remaining profits may accrue to the
-corporate body itself, and its principle officers. 
+corporate body itself, and its principal officers.
 
 An aftok is a new, experimental company structure that proposes a different approach.
 
@@ -34,7 +34,7 @@ You'll note that nowhere in this description is there any entity equivalent to
 a corporation; there is no fictional entity that owns resources or employs the
 contributors. [http://aftok.com](http://aftok.com) is a service that allows
 customers to compensate the creators of a product or service directly without
-the need for a corporate middleman. As such, it is *revenue*, not profit, is
+the need for a corporate middleman. As such, it is *revenue*, not profit, that is
 divided among the collaborators. That distribution is performed by a simple
 algorithm which ensures that all contributors are treated fairly.
 
@@ -103,7 +103,7 @@ section.
 Making Decisions
 ----------------
 
-Just as the depreciated amount of time that one has devoted to the company
+Just as the depreciated amount of time that a person has devoted to the company
 (relative to that devoted by the rest of the collaborators) determines what
 proportion of the revenue of the company they are awarded, it also determines
 the amount of influence that person has in making decisions that affect the
