@@ -1,14 +1,18 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE ExplicitForAll     #-}
+{-# LANGUAGE LambdaCase         #-}
 {-# LANGUAGE RankNTypes         #-}
 {-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE TupleSections      #-}
 {-# LANGUAGE TypeApplications   #-}
 
 module Aftok.Json where
 
-import           ClassyPrelude                    hiding (Day)
+import           ClassyPrelude                    hiding (Day, fail, fromEitherM, UTCTime)
 
+import           Control.FromSum                  (fromMaybeM, fromEitherM)
 import           Control.Lens                     hiding ((.=))
+import           Control.Monad.Fail               (MonadFail(..))
 import           Data.Aeson
 import           Data.Aeson.Types
 import qualified Data.Attoparsec.ByteString.Char8 as PC
@@ -22,11 +26,13 @@ import           Data.ProtocolBuffers             (encodeMessage)
 import           Data.Serialize.Put               (runPut)
 import qualified Data.Text                        as T
 import           Data.Thyme.Calendar              (showGregorian)
-import           Data.Thyme.Clock                 as C
+import           Data.Thyme.Clock                 as Clock
 import           Data.Thyme.Time                  (Day)
 import           Data.UUID                        as U
 
-import           Aftok
+import           Network.Haskoin.Address          (Address, addrToJSON, addrFromJSON, stringToAddr)
+
+import           Aftok.Currency.Bitcoin
 import           Aftok.Auction                    as A
 import qualified Aftok.Billables                  as B
 import           Aftok.Interval
@@ -44,27 +50,33 @@ data Version = Version { majorVersion :: Word8
                        , minorVersion :: Word8
                        } deriving (Typeable, Data)
 
-instance Show Version where
-  show Version{..} = intercalate "." $ fmap show [majorVersion, minorVersion]
+failT :: Text -> Parser a
+failT = fail . T.unpack
+
+printVersion :: Version -> Text
+printVersion Version{..} = T.intercalate "." $ fmap (pack . show) [majorVersion, minorVersion]
 
 versionParser :: PC.Parser Version
 versionParser = Version <$> PC.decimal <*> (PC.char '.' >> PC.decimal)
 
-version :: QuasiQuoter
-version = QuasiQuoter { quoteExp = quoteVersionExp
-                      , quotePat = error "Pattern quasiquotation of versions not supported."
-                      , quoteType = error "Type quasiquotation of versions not supported."
-                      , quoteDec = error "Dec quasiquotation of versions not supported."
-                      }
+version :: MonadFail m => ByteString -> m Version
+version = fromEitherM fail . PC.parseOnly versionParser
+
+v :: QuasiQuoter
+v = QuasiQuoter { quoteExp = quoteVersionExp
+                , quotePat = error "Pattern quasiquotation of versions not supported."
+                , quoteType = error "Type quasiquotation of versions not supported."
+                , quoteDec = error "Dec quasiquotation of versions not supported."
+                }
 
 -- TODO: Include source location information, and implement quote patterns.
 quoteVersionExp :: String -> TH.Q TH.Exp
 quoteVersionExp s = do
-  v <- either (fail . show) pure $ PC.parseOnly versionParser (C.pack s)
-  dataToExpQ (const Nothing) v
+  ver <- version $ C.pack s
+  dataToExpQ (const Nothing) ver
 
 versioned :: Version -> Object -> Value
-versioned ver o = Object $ uncurry O.insert ("schemaVersion" .= tshow ver) o
+versioned ver o = Object $ uncurry O.insert ("schemaVersion" .= printVersion ver) o
 
 {-|
  - Convenience function to allow dispatch of different serialized
@@ -73,7 +85,7 @@ versioned ver o = Object $ uncurry O.insert ("schemaVersion" .= tshow ver) o
 unversion :: String -> (Version -> Object -> Parser a) -> Value -> Parser a
 unversion name f o = do
   verstr <- withObject name (.: "schemaVersion") o
-  vers   <- either fail pure $ PC.parseOnly versionParser (encodeUtf8 verstr)
+  vers   <- fromEitherM fail $ PC.parseOnly versionParser (encodeUtf8 verstr)
   withObject name (f vers) o
 
 --------------
@@ -92,7 +104,8 @@ unv1 name f = unversion name $ p where
   p ver           = badVersion name ver
 
 badVersion :: forall v a. String -> Version -> v -> Parser a
-badVersion name ver = const . fail $ "Unrecognized " <> name <> " schema version: " <> show ver
+badVersion name ver =
+  const . fail $ "Unrecognized " <> name <> " schema version: " <> unpack (printVersion ver)
 
 -- convenience function to produce Object rather than Value
 obj :: [Pair] -> Object
@@ -103,7 +116,7 @@ obj = O.fromList
 -----------------
 
 idValue :: forall a. Lens' a UUID -> a -> Value
-idValue l a = toJSON . tshow $ view l a
+idValue l a = toJSON . U.toText $ view l a
 
 idJSON :: forall a. Text -> Lens' a UUID -> a -> Value
 idJSON t l a  = v1 $ obj [ t .=  idValue l a ]
@@ -141,23 +154,98 @@ bidIdJSON :: BidId -> Value
 bidIdJSON pid = v1 $
   obj [ "bidId" .= tshow (pid ^. _BidId) ]
 
-creditToJSON :: CreditTo -> Value
-creditToJSON (CreditToAddress addr) = v2 $ obj [ "creditToAddress" .= (addr ^. _BtcAddr) ]
-creditToJSON (CreditToUser uid)     = v2 $ obj [ "creditToUser"    .= idValue _UserId uid ]
-creditToJSON (CreditToProject pid)  = v2 $ obj [ "creditToProject" .= projectIdJSON pid ]
+--
+-- CreditTo
+--
 
-payoutsJSON :: Payouts -> Value
-payoutsJSON (Payouts m) = v2 $
-  let payoutsRec :: (CreditTo, Rational) -> Value
-      payoutsRec (c, r) = object [ "creditTo" .= creditToJSON c
+creditToJSON :: NetworkMode -> CreditTo (NetworkId, Address) -> Value
+creditToJSON nmode (CreditToCurrency (netId, addr)) =
+  v2 $ obj [ "creditToAddress" .= addrToJSON (toNetwork nmode netId) addr
+           , "creditToNetwork" .= renderNetworkId netId
+           ]
+creditToJSON _ (CreditToUser uid) =
+  v2 $ obj [ "creditToUser"    .= idValue _UserId uid ]
+creditToJSON _ (CreditToProject pid) =
+  v2 $ obj [ "creditToProject" .= projectIdJSON pid ]
+
+parseCreditTo :: NetworkMode -> Value -> Parser (CreditTo (NetworkId, Address))
+parseCreditTo nmode = unversion "CreditTo" $ \case
+  (Version 1 0) -> parseCreditToV1 nmode
+  (Version 2 0) -> parseCreditToV2 nmode
+  ver           -> badVersion "EventAmendment" ver
+
+parseBtcAddr
+  :: NetworkMode
+  -> NetworkId
+  -> Text
+  -> Parser (CreditTo (NetworkId, Address))
+parseBtcAddr nmode net addrText =
+  maybe
+    (fail . unpack $ "Address " <> addrText <> " cannot be parsed as a BTC network address.")
+    (pure . CreditToCurrency . (net,))
+    (stringToAddr (toNetwork nmode net) addrText)
+
+parseCreditToV1
+  :: NetworkMode
+  -> Object
+  -> Parser (CreditTo (NetworkId, Address))
+parseCreditToV1 nmode x = do
+  parseBtcAddr nmode BTC =<< x .: "btcAddr"
+
+parseCreditToV2 :: NetworkMode -> Object -> Parser (CreditTo (NetworkId, Address))
+parseCreditToV2 nmode o =
+  let parseCreditToAddr = do
+        netName <- o .: "creditToNetwork"
+        net <- fromMaybeM
+          (fail . T.unpack $ "Currency network " <> netName <> " not recognized.")
+          (parseNetworkId netName)
+        addrValue <- o .: "creditToAddress"
+        CreditToCurrency . (net,) <$> addrFromJSON (toNetwork nmode net) addrValue
+
+      parseCreditToUser =
+        fmap CreditToUser . parseId _UserId =<< o .: "creditToUser"
+
+      parseCreditToProject =
+        fmap CreditToProject . parseId _ProjectId =<< o .: "creditToProject"
+
+      notFound = fail $ "Value " <> show o <> " does not represent a CreditTo value."
+
+  in  parseCreditToAddr <|> parseCreditToUser <|> parseCreditToProject <|> notFound
+
+--
+-- Payouts
+--
+
+payoutsJSON :: NetworkMode -> Payouts (NetworkId, Address)-> Value
+payoutsJSON nmode (Payouts m) = v2 $
+  let payoutsRec :: (CreditTo (NetworkId, Address), Rational) -> Value
+      payoutsRec (c, r) = object [ "creditTo" .= creditToJSON nmode c
                                  , "payoutRatio" .= r
                                  ]
   in  obj $ [ "payouts" .= fmap payoutsRec (MS.assocs m) ]
 
-workIndexJSON :: WorkIndex -> Value
-workIndexJSON (WorkIndex widx) = v2 $
-  let widxRec :: (CreditTo, NonEmpty Interval) -> Value
-      widxRec (c, l) = object [ "creditTo"  .= creditToJSON c
+parsePayoutsJSON :: NetworkMode -> Value -> Parser (Payouts (NetworkId, Address))
+parsePayoutsJSON nmode = unversion "Payouts" $ p where
+  p :: Version -> Object -> Parser (Payouts (NetworkId, Address))
+  p (Version 1 _) val =
+    Payouts <$> join (traverseKeys (parseBtcAddr nmode BTC) <$> parseJSON (Object val))
+
+  p (Version 2 0) val =
+    let parsePayoutRecord x = (,) <$> (parseCreditToV2 nmode =<< (x .: "creditTo"))
+                                  <*> (x .: "payoutRatio")
+    in  Payouts . MS.fromList <$> (traverse parsePayoutRecord =<< parseJSON (Object val))
+
+  p ver x =
+    badVersion "Payouts" ver x
+
+--
+-- WorkIndex
+--
+
+workIndexJSON :: NetworkMode -> WorkIndex (NetworkId, Address) -> Value
+workIndexJSON nmode (WorkIndex widx) = v2 $
+  let widxRec :: (CreditTo (NetworkId, Address), NonEmpty Interval) -> Value
+      widxRec (c, l) = object [ "creditTo"  .= creditToJSON nmode c
                               , "intervals" .= (intervalJSON <$> L.toList l)
                               ]
   in  obj $ [ "workIndex" .= fmap widxRec (MS.assocs widx) ]
@@ -168,9 +256,9 @@ eventIdJSON = idJSON "eventId" _EventId
 logEventJSON' :: LogEvent -> Value
 logEventJSON' ev = object [ eventName ev .= object [ "eventTime" .= (ev ^. eventTime) ] ]
 
-logEntryJSON :: LogEntry -> Value
-logEntryJSON (LogEntry c ev m) = v2 $
-  obj [ "creditTo"  .= creditToJSON c
+logEntryJSON :: NetworkMode -> LogEntry (NetworkId, Address) -> Value
+logEntryJSON nmode (LogEntry c ev m) = v2 $
+  obj [ "creditTo"  .= creditToJSON nmode c
       , "event" .= logEventJSON' ev
       , "eventMeta" .= m
       ]
@@ -192,7 +280,7 @@ billableKV b =
   , "recurrence"  .= recurrenceJSON' (b ^. B.recurrence)
   , "amount"      .= (b ^. (B.amount . satoshi))
   , "gracePeriod" .= (b ^. B.gracePeriod)
-  , "requestExpiryPeriod" .= (C.toSeconds' <$> (b ^. B.requestExpiryPeriod))
+  , "requestExpiryPeriod" .= (Clock.toSeconds' <$> (b ^. B.requestExpiryPeriod))
   ]
 
 qdbBillableJSON :: (B.BillableId, B.Billable) -> Value
@@ -237,7 +325,7 @@ paymentRequestKV r =
   , "payment_request_time" .= view paymentRequestTime r
   , "billing_date" .= view (billingDate . to showGregorian) r
   ]
-  where 
+  where
     prBytes = (paymentRequest . to (decodeUtf8 . B64.encode . runPut . encodeMessage))
 
 billDetailsJSON :: [BillDetail] -> Value
@@ -262,107 +350,84 @@ paymentJSON r = v1 $
       , "payment_protobuf_64" .= view paymentBytes r
       , "payment_date" .= (r ^. paymentDate)
       ]
-  where 
+  where
     paymentBytes = payment . to (decodeUtf8 . B64.encode . runPut . encodeMessage)
 
 -------------
 -- Parsers --
 -------------
 parseUUID :: Value -> Parser U.UUID
-parseUUID v = do
-  str <- parseJSON v
+parseUUID val = do
+  str <- parseJSON val
   maybe (fail $ "Value " <> str <> "Could not be parsed as a valid UUID.") pure $ U.fromString str
 
 parseId :: forall a. Prism' a UUID -> Value -> Parser a
-parseId p = fmap (review p) . parseUUID 
+parseId p = fmap (review p) . parseUUID
 
-parseCreditTo :: Value -> Parser CreditTo
-parseCreditTo = unversion "CreditTo" $ p where
-  p (Version 1 0) = parseCreditToV1
-  p (Version 2 0) = parseCreditToV2
+parseEventAmendment
+  :: NetworkMode
+  -> ModTime
+  -> Value
+  -> Parser (EventAmendment (NetworkId, Address))
+parseEventAmendment nmode t = unversion "EventAmendment" $ p where
+  p (Version 1 _) = parseEventAmendmentV1 nmode t
+  p (Version 2 0) = parseEventAmendmentV2 nmode t
   p ver           = badVersion "EventAmendment" ver
 
-parseCreditToV1 :: Object -> Parser CreditTo
-parseCreditToV1 x = CreditToAddress <$> (parseJSON =<< (x .: "btcAddr"))
-
-parseCreditToV2 :: Object -> Parser CreditTo
-parseCreditToV2 o =
-  let parseCreditToAddr o' =
-        fmap CreditToAddress . parseJSON <$> O.lookup "creditToAddress" o'
-
-      parseCreditToUser o' =
-        fmap CreditToUser . parseId _UserId <$> O.lookup "creditToUser" o'
-
-      parseCreditToProject o' =
-        fmap CreditToProject . parseId _ProjectId <$> O.lookup "creditToProject" o'
-
-      notFound = fail $ "Value " <> show o <> " does not represent a CreditTo value."
-      parseV v = (parseCreditToAddr v <|> parseCreditToUser v <|> parseCreditToProject v)
-
-  in  fromMaybe notFound $ parseV o
-
-parsePayoutsJSON :: Value -> Parser Payouts
-parsePayoutsJSON = unversion "Payouts" $ p where
-  p :: Version -> Object -> Parser Payouts
-  p (Version 1 _) v =
-    let parseKey :: String -> Parser CreditTo
-        parseKey k = maybe
-                     (fail $ "Key " <> k <> " cannot be parsed as a valid BTC address.")
-                     (pure . CreditToAddress)
-                     (parseBtcAddr $ T.pack k)
-    in  Payouts <$> join (traverseKeys parseKey <$> parseJSON (Object v))
-
-  p (Version 2 0) v =
-    let parsePayoutRecord x = (,) <$> (parseCreditToV2 =<< (x .: "creditTo")) <*> x .: "payoutRatio"
-    in  Payouts . MS.fromList <$> (traverse parsePayoutRecord =<< parseJSON (Object v))
-
-  p ver x =
-    badVersion "Payouts" ver x
-
-parseEventAmendment :: ModTime -> Value -> Parser EventAmendment
-parseEventAmendment t = unversion "EventAmendment" $ p where
-  p (Version 1 _) = parseEventAmendmentV1 t
-  p (Version 2 0) = parseEventAmendmentV2 t
-  p ver           = badVersion "EventAmendment" ver
-
-parseEventAmendmentV1 :: ModTime -> Object -> Parser EventAmendment
-parseEventAmendmentV1 t o =
-  let parseA :: Text -> Parser EventAmendment
+parseEventAmendmentV1
+  :: NetworkMode
+  -> ModTime
+  -> Object
+  -> Parser (EventAmendment (NetworkId, Address))
+parseEventAmendmentV1 nmode t o =
+  let parseA :: Text -> Parser (EventAmendment (NetworkId, Address))
       parseA "timeChange"     = TimeChange t     <$> o .: "eventTime"
-      parseA "addrChange"     = CreditToChange t <$> parseCreditToV1 o
+      parseA "addrChange"     = CreditToChange t <$> parseCreditToV1 nmode o
       parseA "metadataChange" = MetadataChange t <$> o .: "eventMeta"
-      parseA tid = fail . show $ "Amendment type " <> tid <> " not recognized."
+      parseA tid = fail . unpack $ "Amendment type " <> tid <> " not recognized."
   in  o .: "amendment" >>= parseA
 
-parseEventAmendmentV2 :: ModTime -> Object -> Parser EventAmendment
-parseEventAmendmentV2 t o =
-  let parseA :: Text -> Parser EventAmendment
+parseEventAmendmentV2
+  :: NetworkMode
+  -> ModTime
+  -> Object
+  -> Parser (EventAmendment (NetworkId, Address))
+parseEventAmendmentV2 nmode t o =
+  let parseA :: Text -> Parser (EventAmendment (NetworkId, Address))
       parseA "timeChange"     = TimeChange t     <$> o .: "eventTime"
-      parseA "creditToChange" = CreditToChange t <$> parseCreditToV2 o
+      parseA "creditToChange" = CreditToChange t <$> parseCreditToV2 nmode o
       parseA "metadataChange" = MetadataChange t <$> o .: "eventMeta"
-      parseA tid = fail . show $ "Amendment type " <> tid <> " not recognized."
+      parseA tid = fail . unpack  $ "Amendment type " <> tid <> " not recognized."
   in  o .: "amendment" >>= parseA
 
-parseLogEntry :: UserId -> (C.UTCTime -> LogEvent) -> Value -> Parser (C.UTCTime -> LogEntry)
-parseLogEntry uid f = unversion "LogEntry" p where
+parseLogEntry
+  :: NetworkMode
+  -> UserId
+  -> (UTCTime -> LogEvent)
+  -> Value
+  -> Parser (UTCTime -> (LogEntry (NetworkId, Address)))
+parseLogEntry nmode uid f = unversion "LogEntry" p where
   p (Version 2 0) o = do
-    creditTo'  <- o .:? "creditTo" >>= maybe (pure $ CreditToUser uid) parseCreditToV2
+    creditTo'  <- o .:? "creditTo" >>= maybe (pure $ CreditToUser uid) (parseCreditToV2 nmode)
     eventMeta' <- o .:? "eventMeta"
     pure $ \t -> LogEntry creditTo' (f t) eventMeta'
 
-  p v o = badVersion "LogEntry" v o
+  p ver o = badVersion "LogEntry" ver o
 
 parseRecurrence :: Object -> Parser B.Recurrence
-parseRecurrence o = 
+parseRecurrence o =
   let parseAnnually o' = const (pure B.Annually)    <$> O.lookup "annually" o'
       parseMonthly  o' = fmap B.Monthly . parseJSON <$> O.lookup "monthly" o'
       parseWeekly  o'  = fmap B.Weekly  . parseJSON <$> O.lookup "weekly" o'
       parseOneTime o'  = const (pure B.OneTime)     <$> O.lookup "one-time" o'
 
       notFound = fail $ "Value " <> show o <> " does not represent a Recurrence value."
-      parseV v = parseAnnually v <|> parseMonthly v <|> parseWeekly v <|> parseOneTime v
+      parseV val = parseAnnually val
+               <|> parseMonthly val
+               <|> parseWeekly val
+               <|> parseOneTime val
   in  fromMaybe notFound $ parseV o
 
 parseRecurrence' :: Value -> Parser B.Recurrence
 parseRecurrence' (Object o) = parseRecurrence o
-parseRecurrence' v = fail $ "Value " <> show v <> " is not a JSON object."
+parseRecurrence' val = fail $ "Value " <> show val <> " is not a JSON object."

@@ -1,5 +1,8 @@
 VERSION=$(shell git describe)
 
+format:
+	find lib test server daemon -name \*.hs -exec brittany --write-mode=inplace {} \;
+
 build-image:
 	docker build -t nuttycom/aftok:latest .
 

@@ -9,12 +9,8 @@ import           Crypto.Random.Types        (MonadRandom, getRandomBytes)
 
 import           Data.ByteString.Base64.URL as B64
 import           Data.Thyme.Clock           as C
-import           Data.UUID
 
-import           Aftok
-
-newtype ProjectId = ProjectId UUID deriving (Show, Eq, Ord)
-makePrisms ''ProjectId
+import           Aftok.Types
 
 type ProjectName = Text
 

@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections   #-}
 
 module Aftok.Snaplet.Users
   ( registerHandler
@@ -12,7 +13,10 @@ import           Data.Aeson         as A
 import           Data.Text          as T
 import           Data.Thyme.Clock   as C
 
-import           Aftok
+import           Network.Haskoin.Address (stringToAddr)
+
+import           Aftok.Types
+import           Aftok.Currency.Bitcoin (NetworkId(..), toNetwork)
 import           Aftok.Database
 import           Aftok.Project
 import           Aftok.Snaplet
@@ -23,7 +27,7 @@ import           Snap.Snaplet       as S
 import qualified Snap.Snaplet.Auth  as AU
 
 data CUser = CU
-  { _cuser           :: User
+  { _cuser           :: User Text
   , _password        :: ByteString
   , _invitationCodes :: [InvitationCode]
   }
@@ -32,7 +36,7 @@ makeLenses ''CUser
 instance FromJSON CUser where
   parseJSON (Object v) =
     let parseUser = User <$> (UserName      <$> v .: "username")
-                         <*> (parseBtcAddr  <$> v .: "btcAddr")
+                         <*> (v .: "btcAddr")
                          <*> (Email         <$> v .: "email")
 
         parseInvitationCodes c = either
@@ -52,9 +56,11 @@ registerHandler = do
   -- allow any number of 'invitationCode' query parameters
   userData <- maybe (snapError 400 "Could not parse user data") pure $ A.decode requestBody
   t <- liftIO C.getCurrentTime
+  nmode <- getNetworkMode
+  let addr = stringToAddr (toNetwork nmode BTC) =<< (userData ^. cuser . userAddress)
   let createSUser = AU.createUser (userData ^. (cuser.username._UserName)) (userData ^. password)
       createQUser = snapEval $ do
-        userId <- createUser $ userData ^. cuser
+        userId <- createUser ((userData ^. cuser) & userAddress .~ ((BTC,) <$> addr))
         void $ traverse (acceptInvitation userId t) (userData ^. invitationCodes)
         return userId
   authUser <- with auth createSUser

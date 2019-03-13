@@ -7,7 +7,7 @@ import           Control.Error.Util (maybeT)
 import           Control.Monad.Trans.Maybe (mapMaybeT)
 import           Data.Attoparsec.ByteString (parseOnly)
 
-import           Aftok
+import           Aftok.Types
 import           Aftok.Database
 import           Aftok.Snaplet
 import           Aftok.Util.Http            (authHeaderParser)

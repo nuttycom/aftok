@@ -12,7 +12,7 @@ import           System.Environment
 import           Aftok.Json
 import           Aftok.TimeLog
 
-import           Aftok.QConfig
+import           Aftok.QConfig as Q
 import           Aftok.Snaplet
 import           Aftok.Snaplet.Auctions
 import           Aftok.Snaplet.Billing
@@ -43,8 +43,10 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
   pgs   <- nestSnaplet "db" db $ pgsInit' (pgsConfig cfg)
   auths <- nestSnaplet "auth" auth $ initPostgresAuth sess pgs
 
-  let loginRoute          = method GET requireLogin >> redirect "/home"
-      xhrLoginRoute      =  void $ method POST requireLogin
+  let nmode = Q.networkMode cfg
+
+      loginRoute          = method GET requireLogin >> redirect "/home"
+      xhrLoginRoute       = void $ method POST requireLogin
       registerRoute       = void $ method POST registerHandler
 
       inviteRoute         = void $ method POST (projectInviteHandler cfg)
@@ -54,10 +56,10 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
       projectListRoute    = serveJSON (fmap qdbProjectJSON) $ method GET projectListHandler
 
       projectRoute        = serveJSON projectJSON $ method GET projectGetHandler
-      logEntriesRoute     = serveJSON (fmap logEntryJSON) $ method GET logEntriesHandler
-      logIntervalsRoute   = serveJSON workIndexJSON $ method GET loggedIntervalsHandler
+      logEntriesRoute     = serveJSON (fmap $ logEntryJSON nmode) $ method GET logEntriesHandler
+      logIntervalsRoute   = serveJSON (workIndexJSON nmode) $ method GET loggedIntervalsHandler
 
-      payoutsRoute        = serveJSON payoutsJSON $ method GET payoutsHandler
+      payoutsRoute        = serveJSON (payoutsJSON nmode) $ method GET payoutsHandler
 
       logWorkRoute f      = serveJSON eventIdJSON $ method POST (logWorkHandler f)
       logWorkBTCRoute f   = serveJSON eventIdJSON $ method POST (logWorkBTCHandler f)
@@ -65,7 +67,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
 
       auctionCreateRoute  = serveJSON auctionIdJSON $ method POST auctionCreateHandler
       auctionRoute        = serveJSON auctionJSON   $ method GET auctionGetHandler
-      auctionBidRoute     = serveJSON bidIdJSON     $ method POST auctionBidHandler 
+      auctionBidRoute     = serveJSON bidIdJSON     $ method POST auctionBidHandler
 
       billableCreateRoute = serveJSON billableIdJSON $ method POST billableCreateHandler
       billableListRoute   = serveJSON (fmap qdbBillableJSON) $ method GET billableListHandler
@@ -77,8 +79,8 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
 
   addRoutes [ ("static", serveDirectory . encodeString $ staticAssetPath cfg)
 
-            , ("login",             loginRoute)   
-            , ("login",             xhrLoginRoute)   
+            , ("login",             loginRoute)
+            , ("login",             xhrLoginRoute)
             , ("register",          registerRoute)
             , ("accept_invitation", acceptInviteRoute)
 
@@ -104,7 +106,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
 
             , ("events/:eventId/amend", amendEventRoute)
             ]
-  return $ App sesss pgs auths
+  return $ App nmode sesss pgs auths
 
 serveJSON :: (MonadSnap m, A.ToJSON a) => (b -> a) -> m b -> m ()
 serveJSON f ma = do

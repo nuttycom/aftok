@@ -14,11 +14,11 @@ import           Data.Attoparsec.ByteString    (Parser, parseOnly,
                                                 takeByteString)
 import           Data.UUID
 
-import           Aftok
 import           Aftok.Auction                 (AuctionId (..))
+import           Aftok.Currency.Bitcoin        (NetworkMode(..))
 import           Aftok.Database
 import           Aftok.Database.PostgreSQL
-import           Aftok.Project                 (ProjectId (..))
+import           Aftok.Types                   (UserId(..), ProjectId(..))
 import           Aftok.Util
 
 import           Snap.Core
@@ -28,7 +28,8 @@ import           Snap.Snaplet.PostgresqlSimple
 import           Snap.Snaplet.Session
 
 data App = App
-  { _sess :: Snaplet SessionManager
+  { _networkMode :: NetworkMode
+  , _sess :: Snaplet SessionManager
   , _db   :: Snaplet Postgres
   , _auth :: Snaplet (AU.AuthManager App)
   }
@@ -38,7 +39,16 @@ instance HasPostgres (S.Handler b App) where
   getPostgresState = with db get
   setLocalPostgresState s = local (set (db . snapletValue) s)
 
-snapEval :: (MonadSnap m, HasPostgres m) => Program DBOp a -> m a
+class HasNetworkMode m where
+  getNetworkMode :: m NetworkMode
+
+instance HasNetworkMode (S.Handler b App) where
+  getNetworkMode = _networkMode <$> get
+
+snapEval
+  :: (MonadSnap m, HasPostgres m, HasNetworkMode m)
+  => Program DBOp a
+  -> m a
 snapEval p = do
   let handleDBError (OpForbidden (UserId uid) reason) =
         snapError 403 $ tshow reason <> " (User " <> tshow uid <> ")"
@@ -47,7 +57,8 @@ snapEval p = do
       handleDBError (EventStorageFailed) =
         snapError 500 "The event submitted could not be saved to the log."
 
-  e <- liftPG $ \conn -> liftIO $ runExceptT (runQDBM conn $ interpret liftdb p)
+  nmode <- getNetworkMode
+  e <- liftPG $ \conn -> liftIO $ runExceptT (runQDBM nmode conn $ interpret liftdb p)
   either handleDBError pure e
 
 snapError :: MonadSnap m => Int -> Text -> m a

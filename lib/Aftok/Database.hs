@@ -14,23 +14,29 @@ import           Data.AffineSpace
 import           Data.Thyme.Clock          as C
 import           Data.Thyme.Time           as T (Day)
 
-import           Aftok
+import           Aftok.Types
 import           Aftok.Auction             as A
 import           Aftok.Billables           as B
+import           Aftok.Currency.Bitcoin    (NetworkId)
 import           Aftok.Interval
 import           Aftok.Payments.Types
 import           Aftok.Project             as P
 import           Aftok.TimeLog
 import           Aftok.Util
 
-type KeyedLogEntry = (ProjectId, UserId, LogEntry)
-type InvitingUID   = UserId
-type InvitedUID    = UserId
+import           Network.Haskoin.Address   (Address)
+
+type KeyedLogEntry a = (ProjectId, UserId, LogEntry a)
+type InvitingUID     = UserId
+type InvitedUID      = UserId
+
+type BTCNet = (NetworkId, Address)
+type BTCUser = User BTCNet
 
 data DBOp a where
-  CreateUser       :: User -> DBOp UserId
-  FindUser         :: UserId -> DBOp (Maybe User)
-  FindUserByName   :: UserName -> DBOp (Maybe (UserId, User))
+  CreateUser       :: BTCUser -> DBOp UserId
+  FindUser         :: UserId -> DBOp (Maybe BTCUser)
+  FindUserByName   :: UserName -> DBOp (Maybe (UserId, BTCUser))
 
   CreateProject    :: Project -> DBOp ProjectId
   FindProject      :: ProjectId -> DBOp (Maybe Project)
@@ -42,11 +48,11 @@ data DBOp a where
   FindInvitation   :: InvitationCode -> DBOp (Maybe Invitation)
   AcceptInvitation :: UserId -> InvitationCode -> C.UTCTime -> DBOp ()
 
-  CreateEvent      :: ProjectId -> UserId -> LogEntry -> DBOp EventId
-  AmendEvent       :: EventId -> EventAmendment -> DBOp AmendmentId
-  FindEvent        :: EventId -> DBOp (Maybe KeyedLogEntry)
-  FindEvents       :: ProjectId -> UserId -> Interval' -> DBOp [LogEntry]
-  ReadWorkIndex    :: ProjectId -> DBOp WorkIndex
+  CreateEvent      :: ProjectId -> UserId -> LogEntry BTCNet -> DBOp EventId
+  AmendEvent       :: EventId -> EventAmendment BTCNet -> DBOp AmendmentId
+  FindEvent        :: EventId -> DBOp (Maybe (KeyedLogEntry BTCNet))
+  FindEvents       :: ProjectId -> UserId -> Interval' -> DBOp [LogEntry BTCNet]
+  ReadWorkIndex    :: ProjectId -> DBOp (WorkIndex BTCNet)
 
   CreateAuction    :: Auction -> DBOp AuctionId
   FindAuction      :: AuctionId -> DBOp (Maybe Auction)
@@ -102,13 +108,13 @@ raiseSubjectNotFound op = liftdb $ RaiseDBError SubjectNotFound op
 
 -- User ops
 
-createUser :: (MonadDB m) => User -> m UserId
+createUser :: (MonadDB m) => BTCUser -> m UserId
 createUser = liftdb . CreateUser
 
-findUser :: (MonadDB m) => UserId -> MaybeT m User
+findUser :: (MonadDB m) => UserId -> MaybeT m BTCUser
 findUser = MaybeT . liftdb . FindUser
 
-findUserByName :: (MonadDB m) => UserName -> MaybeT m (UserId, User)
+findUserByName :: (MonadDB m) => UserName -> MaybeT m (UserId, BTCUser)
 findUserByName = MaybeT . liftdb . FindUserByName
 
 -- Project ops
@@ -183,10 +189,10 @@ acceptInvitation uid t ic = do
 -- Log ops
 
 -- TODO: ignore "duplicate" events within some small time limit?
-createEvent :: (MonadDB m) => ProjectId -> UserId -> LogEntry -> m EventId
+createEvent :: (MonadDB m) => ProjectId -> UserId -> LogEntry BTCNet -> m EventId
 createEvent p u l = withProjectAuth p u $ CreateEvent p u l
 
-amendEvent :: (MonadDB m) => UserId -> EventId -> EventAmendment -> m AmendmentId
+amendEvent :: (MonadDB m) => UserId -> EventId -> EventAmendment BTCNet -> m AmendmentId
 amendEvent uid eid a = do
   ev <- findEvent eid
   let act = AmendEvent eid a
@@ -194,13 +200,13 @@ amendEvent uid eid a = do
       missing   = raiseSubjectNotFound act
   maybe missing (\(_, uid', _) -> if uid' == uid then liftdb act else forbidden) ev
 
-findEvent :: (MonadDB m) => EventId -> m (Maybe KeyedLogEntry)
+findEvent :: (MonadDB m) => EventId -> m (Maybe (KeyedLogEntry BTCNet))
 findEvent = liftdb . FindEvent
 
-findEvents :: (MonadDB m) => ProjectId -> UserId -> Interval' -> m [LogEntry]
+findEvents :: (MonadDB m) => ProjectId -> UserId -> Interval' -> m [LogEntry BTCNet]
 findEvents p u i = liftdb $ FindEvents p u i
 
-readWorkIndex :: (MonadDB m) => ProjectId -> UserId -> m WorkIndex
+readWorkIndex :: (MonadDB m) => ProjectId -> UserId -> m (WorkIndex BTCNet)
 readWorkIndex pid uid = withProjectAuth pid uid $ ReadWorkIndex pid
 
 -- Billing ops
@@ -248,7 +254,7 @@ findAuction aid uid =
   let findOp = FindAuction aid
   in  do
     auc <- MaybeT $ liftdb findOp
-    _ <- lift $ checkProjectAuth (auc ^. A.projectId) uid findOp 
+    _ <- lift $ checkProjectAuth (auc ^. A.projectId) uid findOp
     pure auc
 
 findAuction' :: (MonadDB m) => AuctionId -> UserId -> m Auction
