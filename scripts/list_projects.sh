@@ -11,4 +11,4 @@ fi
 
 curl --verbose --insecure --user $USER \
   --request GET \
-  "https://aftok.com/projects"
+  "https://aftok.com/api/projects"

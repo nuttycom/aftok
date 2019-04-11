@@ -15,11 +15,11 @@ if [ -z "${PID}" ]; then
 fi
 
 if [ $(uname) == 'Darwin' ]; then
-  after=$(date -v-1m +"%Y-%m-%dT%H:%M:%S%z")
+  after=$(date -v-4y +"%Y-%m-%dT%H:%M:%S%z")
 else
   after=$(date -Iseconds --date='1 month ago')
 fi
 
 curl --verbose --insecure --user $USER \
   --request GET \
-  "https://aftok.com/projects/$PID/logEntries?after=${after}"
+  "https://aftok.com/api/projects/$PID/logEntries?after=${after}"

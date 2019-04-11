@@ -20,4 +20,4 @@ echo
 curl --verbose --insecure --user $USER \
   --request POST \
   --data '{}' \
-  "https://aftok.com/projects/$PID/invite?email=$EMAIL"
+  "https://aftok.com/api/projects/$PID/invite?email=$EMAIL"

@@ -17,4 +17,4 @@ fi
 curl --verbose --insecure --user $USER \
   --request POST \
   --data '{"schemaVersion": "2.0"}' \
-  "https://aftok.com/projects/$PID/logStart"
+  "https://aftok.com/api/projects/$PID/logStart"

@@ -31,5 +31,5 @@ END_BODY
 curl --verbose --insecure --user $USER \
   --request POST --header "Content-Type: application/json" \
   --data "$BODY" \
-  'https://aftok.com/projects'
+  'https://aftok.com/api/projects'
 
