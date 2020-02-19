@@ -1,9 +1,10 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveFunctor      #-}
+{-# LANGUAGE NoImplicitPrelude  #-}
 {-# LANGUAGE TemplateHaskell    #-}
 
 module Aftok.TimeLog
   ( LogEntry(..), creditTo, event, eventMeta
-  , CreditTo(..), _CreditToAddress, _CreditToUser, _CreditToProject, creditToName
+  , CreditTo(..), _CreditToCurrency, _CreditToUser, _CreditToProject, creditToName
   , LogEvent(..), eventName, nameEvent, eventTime
   , WorkIndex(WorkIndex), _WorkIndex, workIndex
   , DepF, toDepF
@@ -16,24 +17,40 @@ module Aftok.TimeLog
   , linearDepreciation
   ) where
 
-import           ClassyPrelude
-
+import           Control.Arrow      ((&&&))
 import           Control.Lens
 import           Data.AdditiveGroup
 import           Data.Aeson         as A
 import           Data.AffineSpace
+import           Data.Eq            (Eq, (==))
+import           Data.Either        (Either(..), rights)
 import           Data.Foldable      as F
+import           Data.Function      (($), (.), id)
+import           Data.Functor       (fmap)
 import           Data.Heap          as H
 import           Data.List.NonEmpty as L
+import           Data.Maybe         (Maybe(..))
 import           Data.Map.Strict    as MS
-import           Data.Ratio         ()
+import           Data.Ord           (Ord(..), Ordering(..))
+import           Data.Ratio         (Rational)
+import           Data.Text          (Text)
 import           Data.Thyme.Clock   as C
 import           Data.UUID
 import           Data.VectorSpace
+import           Prelude            ((/), (*))
+import           Text.Show          (Show)
 
-import           Aftok
 import           Aftok.Interval
-import           Aftok.Project      (ProjectId)
+import           Aftok.Types
+
+type NDT = C.NominalDiffTime
+
+{-|
+ - The depreciation function should return a value between 0 and 1;
+ - this result is multiplied by the length of an interval of work to determine
+ - the depreciated value of the work.
+ -}
+type DepF = C.UTCTime -> Interval -> NDT
 
 data LogEvent = StartWork { _eventTime :: !C.UTCTime }
               | StopWork  { _eventTime :: !C.UTCTime }
@@ -50,34 +67,19 @@ eventName :: LogEvent -> Text
 eventName (StartWork _) = "start"
 eventName (StopWork  _) = "stop"
 
-nameEvent :: MonadPlus m => Text -> m (C.UTCTime -> LogEvent)
-nameEvent "start" = pure StartWork
-nameEvent "stop"  = pure StopWork
-nameEvent _       = mzero
+nameEvent :: Text -> Maybe (C.UTCTime -> LogEvent)
+nameEvent "start" = Just StartWork
+nameEvent "stop"  = Just StopWork
+nameEvent _       = Nothing
 
-data CreditTo
-  -- payouts are made directly to this address, or to an address replacing this one
-  = CreditToAddress !BtcAddr
-  -- payouts are distributed as requested by the specified contributor
-  | CreditToUser !UserId
-  -- payouts are distributed to this project's contributors
-  | CreditToProject !ProjectId
-  deriving (Show, Eq, Ord)
-makePrisms ''CreditTo
-
-creditToName :: CreditTo -> Text
-creditToName (CreditToAddress _) = "credit_to_address"
-creditToName (CreditToUser _)    = "credit_to_user"
-creditToName (CreditToProject _) = "credit_to_project"
-
-data LogEntry = LogEntry
-  { _creditTo  :: !CreditTo
+data LogEntry a = LogEntry
+  { _creditTo  :: !(CreditTo a)
   , _event     :: !LogEvent
   , _eventMeta :: !(Maybe A.Value)
   } deriving (Show, Eq)
 makeLenses ''LogEntry
 
-instance Ord LogEntry where
+instance Ord a => Ord (LogEntry a) where
   compare a b =
     let ordElems e = (e ^. event, e ^. creditTo)
     in  ordElems a `compare` ordElems b
@@ -88,27 +90,19 @@ makePrisms ''EventId
 newtype ModTime = ModTime C.UTCTime
 makePrisms ''ModTime
 
-data EventAmendment = TimeChange !ModTime !C.UTCTime
-                    | CreditToChange !ModTime !CreditTo
-                    | MetadataChange !ModTime !A.Value
+data EventAmendment a
+  = TimeChange !ModTime !C.UTCTime
+  | CreditToChange !ModTime !(CreditTo a)
+  | MetadataChange !ModTime !A.Value
 
 newtype AmendmentId = AmendmentId UUID deriving (Show, Eq)
 makePrisms ''AmendmentId
 
-newtype Payouts = Payouts (Map CreditTo Rational)
+newtype Payouts a = Payouts (Map (CreditTo a) Rational)
 makePrisms ''Payouts
 
-newtype WorkIndex = WorkIndex (Map CreditTo (NonEmpty Interval)) deriving (Show, Eq)
+newtype WorkIndex a = WorkIndex (Map (CreditTo a) (NonEmpty Interval)) deriving (Show, Eq)
 makePrisms ''WorkIndex
-
-type NDT = C.NominalDiffTime
-
-{-|
- - The depreciation function should return a value between 0 and 1;
- - this result is multiplied by the length of an interval of work to determine
- - the depreciated value of the work.
- -}
-type DepF = C.UTCTime -> Interval -> NDT
 
 toDepF :: DepreciationFunction -> DepF
 toDepF (LinearDepreciation undepLength depLength)  = linearDepreciation undepLength depLength
@@ -125,7 +119,7 @@ workCredit df ptime ivals = getSum $ F.foldMap (Sum . df ptime) ivals
  - each work interval. This function computes the percentage of the total
  - work allocated to each address.
  -}
-payouts :: DepF -> C.UTCTime -> WorkIndex -> Payouts
+payouts :: Ord a => DepF -> C.UTCTime -> WorkIndex a -> Payouts a
 payouts dep ptime (WorkIndex widx) =
   let addIntervalDiff :: (Foldable f) => NDT -> f Interval -> (NDT, NDT)
       addIntervalDiff total ivals = (^+^ total) &&& id $ workCredit dep ptime ivals
@@ -134,7 +128,7 @@ payouts dep ptime (WorkIndex widx) =
 
   in  Payouts $ fmap ((/ toSeconds totalTime) . toSeconds) keyTimes
 
-workIndex :: Foldable f => f LogEntry -> WorkIndex
+workIndex :: (Ord a, Foldable f) => f (LogEntry a) -> (WorkIndex a)
 workIndex logEntries =
   let sortedEntries = F.foldr H.insert H.empty logEntries
       rawIndex = F.foldl' appendLogEntry MS.empty sortedEntries
@@ -150,9 +144,9 @@ workIndex logEntries =
  - extended if a new start is encountered at the same instant as the end of the
  - interval) or start events awaiting completion.
  -}
-type RawIndex = Map CreditTo [Either LogEvent Interval]
+type RawIndex a = Map (CreditTo a) [Either LogEvent Interval]
 
-appendLogEntry :: RawIndex -> LogEntry -> RawIndex
+appendLogEntry :: (Ord a) => RawIndex a -> LogEntry a -> RawIndex a
 appendLogEntry idx (LogEntry k ev _) =
   let combine (StartWork t) (StopWork t') | t' > t = Right $ Interval t t'
       combine (e1 @ (StartWork _)) (e2 @ (StartWork _)) = Left $ min e1 e2 -- ignore redundant starts

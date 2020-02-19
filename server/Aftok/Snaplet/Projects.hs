@@ -20,13 +20,14 @@ import           Network.Mail.Mime
 import           Network.Mail.SMTP          as SMTP
 import           Text.StringTemplate
 
-import           Aftok
+import           Aftok.Types
 import           Aftok.Config
 import           Aftok.Database
 import           Aftok.Project
 import           Aftok.QConfig as QC
 import           Aftok.Snaplet
 import           Aftok.Snaplet.Auth
+import           Aftok.TimeLog.Serialization (depfFromJSON)
 import           Aftok.Util (fromMaybeT)
 
 import           Snap.Core
@@ -35,8 +36,10 @@ import           Snap.Snaplet               as S
 data ProjectCreateRequest = CP { cpn :: Text, cpdepf :: DepreciationFunction }
 
 instance FromJSON ProjectCreateRequest where
-  parseJSON (Object v) = CP <$> v .: "projectName" <*> v .: "depf"
-  parseJSON _          = mzero
+  parseJSON (Object v) =
+    CP <$> v .: "projectName"
+       <*> (depfFromJSON =<< v .: "depf")
+  parseJSON _ = mzero
 
 projectCreateHandler :: S.Handler App App ProjectId
 projectCreateHandler = do

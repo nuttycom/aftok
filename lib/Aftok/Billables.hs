@@ -14,9 +14,8 @@ import           Data.Thyme.Clock as C
 import           Data.Thyme.Time  as T
 import           Data.UUID
 
-import           Aftok            (UserId)
-import           Aftok.Project    (ProjectId)
-import           Aftok.Types      (Satoshi)
+import           Aftok.Types      (UserId, ProjectId)
+import           Network.Bippy.Types (Satoshi)
 
 newtype BillableId = BillableId UUID deriving (Show, Eq)
 makePrisms ''BillableId
@@ -82,7 +81,7 @@ data Subscription' u b = Subscription
   , _billable  :: b
   , _startTime :: C.UTCTime
   , _endTime   :: Maybe C.UTCTime
-  } 
+  }
 makeLenses ''Subscription'
 
 type Subscription = Subscription' UserId BillableId

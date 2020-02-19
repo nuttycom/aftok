@@ -18,7 +18,7 @@ import           Data.UUID
 import qualified Network.Bippy.Proto    as P
 import           Network.Bippy.Types    (expiryTime, getExpires,
                                          getPaymentDetails, Satoshi(..))
-import           Network.Haskoin.Crypto (decodeBase58Check)
+import           Network.Haskoin.Address.Base58 (decodeBase58Check)
 
 import           Aftok.Billables        (Billable, Subscription, SubscriptionId)
 
@@ -67,7 +67,7 @@ isExpired now req =
   in  either error (check . getExpires) $ getPaymentDetails (view paymentRequest req)
 
 parsePaymentKey :: ByteString -> Maybe PaymentKey
-parsePaymentKey bs = (PaymentKey . decodeUtf8) <$> decodeBase58Check bs
+parsePaymentKey bs = (PaymentKey . decodeUtf8) <$> decodeBase58Check (decodeUtf8 bs)
 
 paymentRequestTotal :: P.PaymentRequest -> Satoshi
 paymentRequestTotal _ = error "Not yet implemented"

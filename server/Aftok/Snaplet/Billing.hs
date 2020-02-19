@@ -16,11 +16,11 @@ import           Data.Thyme.Time.Core (toThyme)
 
 import           Snap.Snaplet         as S
 
-import           Aftok                (UserId)
-import           Aftok.Billables      
+import           Aftok.Types          (UserId)
+import           Aftok.Billables
+import           Network.Bippy.Types (Satoshi(..))
 import           Aftok.Json
 import           Aftok.Types
-import           Aftok.Project
 import           Aftok.Database       (createBillable, withProjectAuth, liftdb, DBOp(..))
 
 import           Aftok.Snaplet
@@ -28,7 +28,7 @@ import           Aftok.Snaplet.Auth
 
 parseCreateBillable :: UserId -> ProjectId -> Value -> Parser Billable
 parseCreateBillable uid pid = unversion "Billable" p where
-  p (Version 1 0) o = 
+  p (Version 1 0) o =
     Billable <$> pure pid
              <*> pure uid
              <*> o .: "name"
@@ -40,7 +40,7 @@ parseCreateBillable uid pid = unversion "Billable" p where
              <*> o .:? "paymentRequestEmailTemplate"
              <*> o .:? "paymentRequestMemoTemplate"
 
-  p v o = badVersion "Billable" v o
+  p ver o = badVersion "Billable" ver o
 
 billableCreateHandler :: S.Handler App App BillableId
 billableCreateHandler = do
@@ -62,4 +62,4 @@ subscribeHandler = do
   bid <- requireId "billableId" BillableId
   t <- liftIO C.getCurrentTime
   snapEval . liftdb $ CreateSubscription uid bid (t ^. C._utctDay)
-  
+

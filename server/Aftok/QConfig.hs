@@ -14,6 +14,7 @@ import qualified Snap.Http.Server.Config       as SC
 import           Snap.Snaplet.PostgresqlSimple
 
 import           Aftok.Config
+import           Aftok.Currency.Bitcoin (NetworkMode)
 
 data QConfig = QConfig
   { hostname      :: ByteString
@@ -25,6 +26,7 @@ data QConfig = QConfig
   , billingConfig :: BillingConfig
   , templatePath  :: FilePath
   , staticAssetPath :: FilePath
+  , networkMode :: NetworkMode
   }
 
 loadQConfig :: FilePath -> IO QConfig
@@ -45,6 +47,7 @@ readQConfig cfg pc =
           <*> (readBillingConfig $ C.subconfig "billing" cfg)
           <*> (fromText <$> C.lookupDefault "/opt/aftok/server/templates/" cfg "templatePath")
           <*> (fromText <$> C.lookupDefault "/opt/aftok/server/static/" cfg "staticAssetPath")
+          <*> C.require cfg "networkMode"
 
 baseSnapConfig :: QConfig -> SC.Config m a -> SC.Config m a
 baseSnapConfig qc =

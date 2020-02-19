@@ -4,7 +4,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module AftokD.AftokM where
 
-import ClassyPrelude 
+import ClassyPrelude
 
 import Control.Error.Util (maybeT)
 import Control.Lens ((^.), makeLenses, makeClassyPrisms, traverseOf, to)
@@ -19,23 +19,24 @@ import           Crypto.Random.Types     (MonadRandom(..))
 import Database.PostgreSQL.Simple        (Connection, connect)
 import           Data.Thyme.Clock     as C
 import Data.Thyme.Time  as T
-import           Network.Mail.Mime
-import           Network.Mail.SMTP          as SMTP
+import qualified Network.Mail.Mime          as Mime
+import qualified Network.Mail.SMTP          as SMTP
 import Network.URI (URI, parseURI)
-import           Text.StringTemplate
+import Network.Haskoin.Address (Address)
+import Text.StringTemplate (directoryGroup, newSTMP, getStringTemplate, setManyAttrib, render)
 import Filesystem.Path.CurrentOS (encodeString)
 
 import Network.Bippy.Types (Satoshi)
 
-import Aftok            (User, UserId, userEmail, _Email)
-import Aftok.Types (satoshi)
+import Aftok.Types            (User, UserId, ProjectId(..), userEmail, _Email)
+import Aftok.Currency.Bitcoin (NetworkId, satoshi)
 import qualified Aftok.Config as AC
 import Aftok.Billables  (Billable, Billable', Subscription', customer, name, billable, project, paymentRequestEmailTemplate, paymentRequestMemoTemplate)
 import qualified Aftok.Database as DB
 import           Aftok.Database.PostgreSQL (QDBM(..))
 import qualified Aftok.Payments as P
 import           Aftok.Payments.Types (PaymentKey(..), subscription, paymentRequestTotal, paymentKey)
-import           Aftok.Project (Project, ProjectId(..), projectName)
+import           Aftok.Project (Project, projectName)
 import qualified AftokD as D
 
 data AftokDErr
@@ -49,7 +50,7 @@ instance P.AsPaymentError AftokDErr where
   _Overdue = _PaymentErr . P._Overdue
   _SigningError = _PaymentErr . P._SigningError
 
-data AftokMEnv = AftokMEnv 
+data AftokMEnv = AftokMEnv
   { _dcfg :: !D.Config
   , _conn :: !Connection
   , _pcfg :: !P.PaymentsConfig
@@ -57,7 +58,7 @@ data AftokMEnv = AftokMEnv
 makeLenses ''AftokMEnv
 
 instance P.HasPaymentsConfig AftokMEnv where
-  network = pcfg . P.network
+  networkMode = pcfg . P.networkMode
   signingKey = pcfg . P.signingKey
   pkiData = pcfg . P.pkiData
   paymentsConfig = pcfg
@@ -72,8 +73,9 @@ instance DB.MonadDB AftokM where
   liftdb = liftQDBM . DB.liftdb
 
 liftQDBM :: QDBM a -> AftokM a
-liftQDBM (QDBM r) = 
-  AftokM . mapReaderT (withExceptT DBErr) . withReaderT _conn $ r
+liftQDBM (QDBM r) = do
+  let f a = (a ^. dcfg . D.billingConfig . AC.networkMode, a ^. conn)
+  AftokM . mapReaderT (withExceptT DBErr) . withReaderT f $ r
 
 createAllPaymentRequests :: D.Config -> IO ()
 createAllPaymentRequests cfg = do
@@ -108,46 +110,46 @@ sendPaymentRequestEmail reqId = do
   req <- maybeT (throwError $ DBErr DB.SubjectNotFound) pure reqMay
   bip70URL <- paymentURL (req ^. paymentKey)
   mail <- buildPaymentRequestEmail preqCfg req bip70URL
-  let mailer = maybe (sendMailWithLogin _smtpHost) (sendMailWithLogin' _smtpHost) _smtpPort
+  let mailer = maybe (SMTP.sendMailWithLogin _smtpHost) (SMTP.sendMailWithLogin' _smtpHost) _smtpPort
   liftIO $ mailer _smtpUser _smtpPass mail
-  
+
 buildPaymentRequestEmail :: (MonadIO m, MonadError AftokDErr m)
                          => D.PaymentRequestConfig
-                         -> P.PaymentRequest' (Subscription' User (Billable' Project UserId Satoshi))
+                         -> P.PaymentRequest' (Subscription' (User (NetworkId, Address)) (Billable' Project UserId Satoshi))
                          -> URI
-                         -> m Mail
+                         -> m Mime.Mail
 buildPaymentRequestEmail cfg req paymentUrl = do
   templates <- liftIO . directoryGroup $ encodeString (cfg ^. D.templatePath)
   let billTemplate = (newSTMP . unpack) <$> req ^. (subscription . billable . paymentRequestEmailTemplate)
       defaultTemplate = getStringTemplate "payment_request" templates
   case billTemplate <|> defaultTemplate of
     Nothing -> throwError $ ConfigError "Could not find template for invitation email"
-    Just template -> 
+    Just template ->
       let fromEmail = cfg ^. D.billingFromEmail
           toEmail = req ^. (subscription . customer . userEmail)
           pname = req ^. (subscription . billable . project . projectName)
           total = req ^. (P.paymentRequest . to paymentRequestTotal)
-          setAttrs = setManyAttrib 
+          setAttrs = setManyAttrib
             [ ("from_email", fromEmail ^. _Email)
             , ("project_name", pname)
             , ("to_email", toEmail ^. _Email)
             , ("amount_due", tshow $ total ^. satoshi)
             , ("payment_url", tshow paymentUrl)
             ]
-          fromAddr = Address Nothing ("billing@aftok.com")
-          toAddr   = Address Nothing (toEmail ^. _Email)
+          fromAddr = Mime.Address Nothing ("billing@aftok.com")
+          toAddr   = Mime.Address Nothing (toEmail ^. _Email)
           subject  = "Payment is due for your "<>pname<>" subscription!"
-          body     = plainTextPart . render $ setAttrs template
+          body     = SMTP.plainTextPart . render $ setAttrs template
       in  pure $ SMTP.simpleMail fromAddr [toAddr] [] [] subject [body]
 
-memoGen :: Subscription' UserId Billable 
-        -> T.Day 
-        -> C.UTCTime 
+memoGen :: Subscription' UserId Billable
+        -> T.Day
+        -> C.UTCTime
         -> AftokM (Maybe Text)
 memoGen sub billingDate requestTime = do
   req <- traverseOf (billable . project) DB.findProjectOrError sub
   let template = (newSTMP . unpack) <$> (sub ^. (billable . paymentRequestMemoTemplate))
-      setAttrs = setManyAttrib 
+      setAttrs = setManyAttrib
         [ ("project_name", req ^. (billable . project . projectName))
         , ("subscription", req ^. (billable . name))
         , ("billing_date", tshow billingDate)

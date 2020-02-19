@@ -9,7 +9,7 @@ Maintainer:    kris@aftok.com
 Stability:     Experimental
 Category:      Web
 Build-type:    Simple
-Cabal-version: >= 1.22
+Cabal-version: >= 2.0
 
 library
   default-language:   Haskell2010
@@ -20,18 +20,21 @@ library
                     , RecordWildCards
                     , ScopedTypeVariables
                     , KindSignatures
-  exposed-modules:    Aftok
-                      Aftok.Auction
+  exposed-modules:    Aftok.Auction
                       Aftok.Billables
                       Aftok.Config
+                      Aftok.Currency
+                      Aftok.Currency.Bitcoin
                       Aftok.Database
                       Aftok.Database.PostgreSQL
+                      Aftok.Database.PostgreSQL.Types
                       Aftok.Interval
                       Aftok.Json
                       Aftok.Payments
                       Aftok.Payments.Types
                       Aftok.Project
                       Aftok.TimeLog
+                      Aftok.TimeLog.Serialization
                       Aftok.Types
                       Aftok.Util
                       Aftok.Util.Http
@@ -53,6 +56,7 @@ library
     , either          
     , errors         
     , free
+    , from-sum
     , groups        
     , haskoin-core 
     , heaps       
@@ -159,6 +163,7 @@ Executable aftok-server
     , hourglass
     , HStringTemplate          
     , iso8601-time
+    , haskoin-core 
     , HsOpenSSL
     , http-client
     , http-client-openssl
@@ -211,6 +216,7 @@ Executable aftok-daemon
     , cryptonite
     , either
     , errors
+    , haskoin-core 
     , hourglass
     , HStringTemplate          
     , iso8601-time

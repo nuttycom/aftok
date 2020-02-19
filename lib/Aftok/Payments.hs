@@ -26,23 +26,23 @@ import           Data.Thyme.Time         as T
 import qualified Network.Bippy           as B
 import qualified Network.Bippy.Proto     as P
 import qualified Network.Bippy.Types     as BT
-import           Network.Haskoin.Crypto  (encodeBase58Check)
+import           Network.Haskoin.Address (Address(..))
+import           Network.Haskoin.Address.Base58 (encodeBase58Check)
 import           Network.Haskoin.Script  (ScriptOutput (..))
 import           Network.URI
 
-import           Aftok                   (BtcAddr (..), UserId, userAddress,
-                                          _BtcAddr)
+import           Aftok.Types             (UserId, ProjectId, userAddress)
 import           Aftok.Billables
+import           Aftok.Currency.Bitcoin  (NetworkId(..), NetworkMode, satoshi, toNetwork)
 import           Aftok.Database
 import           Aftok.Payments.Types
-import           Aftok.Project           (ProjectId, depf)
+import           Aftok.Project           (depf)
 import qualified Aftok.TimeLog           as TL
-import           Aftok.Types             (satoshi)
 
 data PaymentsConfig = PaymentsConfig
-  { _network    :: !BT.Network
-  , _signingKey :: !RSA.PrivateKey
-  , _pkiData    :: !BT.PKIData
+  { _networkMode  :: !NetworkMode
+  , _signingKey   :: !RSA.PrivateKey
+  , _pkiData      :: !BT.PKIData
   }
 makeClassy ''PaymentsConfig
 
@@ -53,13 +53,13 @@ data BillingOps (m :: * -> *) = BillingOps
                -> C.UTCTime                     -- ^ payment request generation time
                -> m (Maybe Text)
     -- | generator for payment response URL
-  , uriGen     :: PaymentKey                    -- ^ payment key to be included in the URL 
+  , uriGen     :: PaymentKey                    -- ^ payment key to be included in the URL
                -> m (Maybe URI)
     -- | generator for merchant payload
   , payloadGen :: Subscription' UserId Billable -- ^ subscription being billed
                -> T.Day                         -- ^ billing date
                -> C.UTCTime                     -- ^ payment request generation time
-               -> m (Maybe ByteString) 
+               -> m (Maybe ByteString)
   }
 
 data PaymentRequestStatus
@@ -70,6 +70,7 @@ data PaymentRequestStatus
 data PaymentError
   = Overdue !SubscriptionId
   | SigningError !RSA.Error
+  | IllegalAddress !Address
 makeClassyPrisms ''PaymentError
 
 {--
@@ -124,7 +125,7 @@ createPaymentRequest ::
 createPaymentRequest ops now sid sub bday = do
   cfg <- ask
   -- TODO: maybe make pkey a function of subscription, billable, bday
-  pkey    <- PaymentKey . decodeUtf8 . encodeBase58Check <$> getRandomBytes 32
+  pkey    <- PaymentKey . encodeBase58Check <$> getRandomBytes 32
   memo    <- memoGen ops sub bday now
   uri     <- uriGen ops pkey
   payload <- payloadGen ops sub bday now
@@ -168,21 +169,26 @@ getRequestStatus now (reqid, req) =
 
 {- Create the PaymentDetails section of the payment request.
  -}
-createPaymentDetails :: (MonadRandom m, MonadReader r m, HasPaymentsConfig r, MonadDB m)
-                     => T.Day              -- ^ payout date (billing date)
-                     -> C.UTCTime          -- ^ timestamp of payment request creation
-                     -> Maybe Text         -- ^ user memo
-                     -> Maybe URI          -- ^ payment response URL
-                     -> Maybe ByteString   -- ^ merchant payload
-                     -> Billable           -- ^ billing information
-                     -> m P.PaymentDetails
+createPaymentDetails
+  :: ( MonadRandom m
+     , MonadReader r m , HasPaymentsConfig r
+     , MonadError e m, AsPaymentError e
+     , MonadDB m
+     )
+  => T.Day              -- ^ payout date (billing date)
+  -> C.UTCTime          -- ^ timestamp of payment request creation
+  -> Maybe Text         -- ^ user memo
+  -> Maybe URI          -- ^ payment response URL
+  -> Maybe ByteString   -- ^ merchant payload
+  -> Billable           -- ^ billing information
+  -> m P.PaymentDetails
 createPaymentDetails payoutDate billingTime memo uri payload b = do
   payouts <- getProjectPayouts payoutTime (b ^. project)
   outputs <- createPayoutsOutputs payoutTime (b ^. amount) payouts
   let expiry = (BT.Expiry . T.fromThyme . (billingTime .+^)) <$> (b ^. requestExpiryPeriod)
   cfg <- ask
   pure $ B.createPaymentDetails
-    (cfg ^. network)
+    (toNetwork (cfg ^. networkMode) BTC)
     outputs
     (T.fromThyme billingTime)
     expiry memo uri payload
@@ -190,7 +196,11 @@ createPaymentDetails payoutDate billingTime memo uri payload b = do
     payoutTime = T.mkUTCTime payoutDate (fromInteger 0)
 
 
-getProjectPayouts :: (MonadDB m) => C.UTCTime -> ProjectId -> m TL.Payouts
+getProjectPayouts
+  :: (MonadDB m, MonadError e m, AsPaymentError e)
+  => C.UTCTime
+  -> ProjectId
+  -> m (TL.Payouts (NetworkId, Address))
 getProjectPayouts ptime pid = do
   project' <-
     let projectOp = FindProject pid
@@ -200,22 +210,37 @@ getProjectPayouts ptime pid = do
   pure $ TL.payouts (TL.toDepF $ project' ^. depf) ptime widx
 
 
-createPayoutsOutputs :: (MonadDB m) => C.UTCTime -> BT.Satoshi -> TL.Payouts -> m [BT.Output]
+createPayoutsOutputs
+  :: (MonadDB m, MonadError e m, AsPaymentError e)
+  => C.UTCTime
+  -> BT.Satoshi
+  -> TL.Payouts (NetworkId, Address)
+  -> m [BT.Output]
 createPayoutsOutputs t amt p =
-  let payoutFractions :: [(TL.CreditTo, BT.Satoshi)]
+  let payoutFractions :: [(TL.CreditTo (NetworkId, Address), BT.Satoshi)]
       payoutFractions = (_2 %~ outputAmount amt) <$> assocs (p ^. TL._Payouts)
 
   in  join <$> traverse (uncurry (createOutputs t)) payoutFractions
 
 
-createOutputs :: (MonadDB m) => C.UTCTime -> TL.CreditTo -> BT.Satoshi -> m [BT.Output]
-createOutputs _ (TL.CreditToAddress (BtcAddr addr)) amt =
+createOutputs
+  :: (MonadDB m, MonadError e m, AsPaymentError e)
+  => C.UTCTime
+  -> TL.CreditTo (NetworkId, Address)
+  -> BT.Satoshi
+  -> m [BT.Output]
+createOutputs _ (TL.CreditToCurrency (BTC, (PubKeyAddress addr))) amt =
   pure $ [BT.Output amt (PayPKHash addr)]
+
+createOutputs _ (TL.CreditToCurrency (_, other)) _ =
+  throwError $ review _IllegalAddress other
 
 createOutputs _ (TL.CreditToUser uid) amt = (fmap maybeToList) . runMaybeT $ do
   user <- findUser uid
-  addr <- MaybeT . pure $ user ^. userAddress
-  pure $ BT.Output amt (PayPKHash (addr ^. _BtcAddr))
+  addr <- MaybeT . pure . fmap snd $ user ^. userAddress
+  case addr of
+    PubKeyAddress a -> pure $ BT.Output amt (PayPKHash a)
+    other -> throwError $ review _IllegalAddress other
 
 createOutputs t (TL.CreditToProject pid) amt = do
   payouts <- getProjectPayouts t pid
