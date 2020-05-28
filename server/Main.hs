@@ -2,6 +2,7 @@ module Main where
 
 import           ClassyPrelude hiding (FilePath)
 
+import Control.Lens ((^.), to)
 import qualified Data.Aeson                                  as A
 import Data.Either.Combinators (fromRight)
 import           Data.ProtocolBuffers                        (encodeMessage)
@@ -12,6 +13,7 @@ import           System.Environment
 import           Aftok.Json
 import           Aftok.TimeLog
 
+import qualified Aftok.Config as C
 import           Aftok.QConfig as Q
 import           Aftok.Snaplet
 import           Aftok.Snaplet.Auctions
@@ -39,11 +41,14 @@ main = do
 appInit :: QConfig -> SnapletInit App App
 appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
   sesss <- nestSnaplet "sessions" sess $
-           initCookieSessionManager (encodeString $ authSiteKey cfg) "quookie" (Just "aftok.com") (cookieTimeout cfg)
-  pgs   <- nestSnaplet "db" db $ pgsInit' (pgsConfig cfg)
+           initCookieSessionManager (cfg ^. authSiteKey . to encodeString)
+                                    "quookie"
+                                    (Just "aftok.com")
+                                    (cfg ^. cookieTimeout)
+  pgs   <- nestSnaplet "db" db $ pgsInit' (cfg ^. pgsConfig)
   auths <- nestSnaplet "auth" auth $ initPostgresAuth sess pgs
 
-  let nmode = Q.networkMode cfg
+  let nmode = cfg ^. billingConfig . C.networkMode
 
       loginRoute          = method GET requireLogin >> redirect "/home"
       xhrLoginRoute       = void $ method POST requireLogin
@@ -75,9 +80,9 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
 
       payableRequestsRoute = serveJSON billDetailsJSON $ method GET listPayableRequestsHandler
       getPaymentRequestRoute = writeLBS . runPutLazy . encodeMessage =<< method GET getPaymentRequestHandler
-      submitPaymentRoute     = serveJSON paymentIdJSON $ method POST (paymentResponseHandler $ billingConfig cfg)
+      submitPaymentRoute     = serveJSON paymentIdJSON $ method POST (paymentResponseHandler $ cfg ^. billingConfig)
 
-  addRoutes [ ("static", serveDirectory . encodeString $ staticAssetPath cfg)
+  addRoutes [ ("static", serveDirectory . encodeString $ cfg ^. staticAssetPath)
 
             , ("login",             loginRoute)
             , ("login",             xhrLoginRoute)

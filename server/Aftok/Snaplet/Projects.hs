@@ -82,9 +82,9 @@ sendProjectInviteEmail :: QConfig
                        -> InvitationCode
                        -> IO ()
 sendProjectInviteEmail cfg pn fromEmail toEmail invCode =
-  let SmtpConfig{..} = QC.smtpConfig cfg
+  let SmtpConfig{..} = cfg ^. QC.smtpConfig
       mailer = maybe (sendMailWithLogin _smtpHost) (sendMailWithLogin' _smtpHost) _smtpPort
-  in  buildProjectInviteEmail (templatePath cfg) pn fromEmail toEmail invCode >>=
+  in  buildProjectInviteEmail (cfg ^. templatePath) pn fromEmail toEmail invCode >>=
       (mailer _smtpUser _smtpPass)
 
 
@@ -94,8 +94,8 @@ buildProjectInviteEmail :: FilePath
                         -> Email       -- Invitee's email address
                         -> InvitationCode
                         -> IO Mail
-buildProjectInviteEmail templatePath pn fromEmail toEmail invCode = do
-  templates <- directoryGroup $ encodeString templatePath
+buildProjectInviteEmail tpath pn fromEmail toEmail invCode = do
+  templates <- directoryGroup $ encodeString tpath
   case getStringTemplate "invitation_email" templates of
     Nothing -> fail "Could not find template for invitation email"
     Just template ->

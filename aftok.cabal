@@ -158,6 +158,7 @@ Executable aftok-server
     , classy-prelude            
     , containers
     , configurator              
+    , directory
     , either
     , errors
     , hourglass

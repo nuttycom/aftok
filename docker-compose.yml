@@ -1,0 +1,56 @@
+version: "3.7"
+
+services:
+  aftok:
+    image: aftok/aftok-server:latest
+    container_name: aftok-server
+    expose:
+      - "8000"
+    depends_on:
+      - aftokdb
+    volumes:
+      - type: bind
+        source: ${PWD}/local/conf/server
+        target: /etc/aftok
+    networks:
+      - front-tier
+      - back-tier
+    init: true
+
+  nginx:
+    image: nginx:latest
+    container_name: aftok-nginx
+    ports:
+      - "8080:80"
+      - "8443:443"
+    depends_on:
+      - aftok
+    volumes:
+      - type: bind
+        source: ${PWD}/deploy/nginx/
+        target: /etc/nginx
+      - type: bind
+        source: ${PWD}/local/conf/nginx-certs
+        target: /opt/nginx
+    networks:
+      - front-tier
+
+  aftokdb:
+    image: postgres:9.4
+    container_name: aftok-db
+    environment:
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+    volumes:
+      - type: volume
+        source: aftok-data
+        target: /var/lib/postgresql/data
+    networks:
+      - back-tier
+
+volumes:
+  aftok-data:
+
+networks:
+  front-tier:
+  back-tier:

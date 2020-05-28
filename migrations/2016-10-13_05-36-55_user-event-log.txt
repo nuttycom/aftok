@@ -2,7 +2,7 @@ Description: (Describe migration here.)
 Created: 2016-10-13 05:36:59.592247 UTC
 Depends: 
 Apply: |
-  --create extension if not exists "uuid-ossp";
+  -- create extension if not exists "uuid-ossp";
     
   create table if not exists users (
     id uuid primary key default uuid_generate_v4(),
