@@ -6,13 +6,14 @@
 
 module Aftok.Payments.Types where
 
-import           ClassyPrelude
+
 
 import           Control.Lens           (makeLenses, makePrisms, view)
 
 import           Data.Aeson             (Value)
 import           Data.Thyme.Clock       as C
-import           Data.Thyme.Time        as T
+import           Data.Thyme.Time        as C
+import qualified Data.Text              as T
 import           Data.UUID
 
 import qualified Network.Bippy.Proto    as P
@@ -38,7 +39,7 @@ data PaymentRequest' s = PaymentRequest
   , _paymentRequest     :: P.PaymentRequest
   , _paymentKey         :: PaymentKey
   , _paymentRequestTime :: C.UTCTime
-  , _billingDate        :: T.Day
+  , _billingDate        :: C.Day
   } deriving (Functor, Foldable, Traversable)
 makeLenses ''PaymentRequest'
 
@@ -61,10 +62,10 @@ type BillDetail = (PaymentKey, PaymentRequest, Subscription, Billable)
  -}
 isExpired :: forall s. C.UTCTime -> PaymentRequest' s -> Bool
 isExpired now req =
-  let check = any ((now >) . T.toThyme . expiryTime)
+  let check = any ((now >) . C.toThyme . expiryTime)
   -- using error here is reasonable since it would indicate
   -- a serialization problem
-  in  either error (check . getExpires) $ getPaymentDetails (view paymentRequest req)
+  in  either (error . T.pack) (check . getExpires) $ getPaymentDetails (view paymentRequest req)
 
 parsePaymentKey :: ByteString -> Maybe PaymentKey
 parsePaymentKey bs = (PaymentKey . decodeUtf8) <$> decodeBase58Check (decodeUtf8 bs)

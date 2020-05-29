@@ -7,7 +7,7 @@ module Aftok.Interval
   , containsInclusive
   ) where
 
-import           ClassyPrelude
+
 
 import           Control.Lens            (makeLenses, (^.))
 import           Data.Aeson

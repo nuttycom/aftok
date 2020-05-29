@@ -7,7 +7,7 @@ module Aftok.Payments
   , module Aftok.Payments.Types
   ) where
 
-import           ClassyPrelude
+
 
 import           Control.Error.Util      (maybeT)
 import           Control.Lens            (makeClassy, makeClassyPrisms, review,

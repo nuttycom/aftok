@@ -6,10 +6,11 @@ module Aftok.Snaplet.Users
   , acceptInvitationHandler
   ) where
 
-import           ClassyPrelude
+
 
 import           Control.Lens
 import           Data.Aeson         as A
+import qualified Data.Map.Strict    as M
 import           Data.Text          as T
 import           Data.Thyme.Clock   as C
 
@@ -74,7 +75,7 @@ acceptInvitationHandler = do
   invCodes <- maybe
     (snapError 400 "invCode parameter is required")
     (pure . traverse (parseInvCode . decodeUtf8))
-    (lookup "invCode" params)
+    (M.lookup "invCode" params)
   either
     (\e -> snapError 400 $ "Invitation code was rejected as invalid: " <> T.pack e)
     (\cx -> void . snapEval $ traverse (acceptInvitation uid t) cx)

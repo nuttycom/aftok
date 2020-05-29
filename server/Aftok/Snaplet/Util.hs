@@ -1,8 +1,7 @@
 module Aftok.Snaplet.Util where
 
-import           ClassyPrelude
 
-import           Control.Monad.Trans.Maybe
+
 import           Data.ByteString.Char8     as B
 import           Data.Thyme.Clock          as C
 import           Data.Thyme.Time

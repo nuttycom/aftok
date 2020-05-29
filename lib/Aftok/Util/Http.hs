@@ -1,6 +1,6 @@
 module Aftok.Util.Http where
 
-import           ClassyPrelude
+
 
 import           Data.Attoparsec.ByteString
 import           Data.ByteString            (split)

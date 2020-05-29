@@ -1,6 +1,5 @@
 module Aftok.Database.PostgreSQL.Types where
 
-import           ClassyPrelude                        hiding (null)
 import           Data.Aeson (FromJSON(..), ToJSON(..))
 import           Aftok.TimeLog.Serialization (depfFromJSON, depfToJSON)
 import           Aftok.Types (DepreciationFunction)

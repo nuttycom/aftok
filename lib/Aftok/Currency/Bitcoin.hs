@@ -4,7 +4,7 @@
 
 module Aftok.Currency.Bitcoin where
 
-import           ClassyPrelude
+
 import qualified Data.Configurator.Types as C
 import           Control.Lens
 import           Network.Bippy.Types (Satoshi (..))

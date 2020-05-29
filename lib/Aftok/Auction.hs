@@ -2,9 +2,7 @@
 
 module Aftok.Auction where
 
-import           ClassyPrelude hiding (rem)
 import           Control.Lens
-import           Control.Monad.State
 import           Data.Hourglass (Seconds(..))
 import           Data.Ratio ((%))
 import           Data.Traversable (for)
@@ -77,9 +75,9 @@ runAuction' raiseAmount' bids =
 
         -- if the last bid will exceed the raise amount, reduce it to fit
         | total < raiseAmount' =
-          let winFraction rem = rem % (bid ^. bidAmount . satoshi)
-              remainderSeconds (Satoshi rem) = Seconds . round $ winFraction rem * fromIntegral (bid ^. bidSeconds)
-              adjustBid rem = bid & bidSeconds .~ remainderSeconds rem & bidAmount .~ rem
+          let winFraction r = r % (bid ^. bidAmount . satoshi)
+              remainderSeconds (Satoshi r) = Seconds . round $ winFraction r * fromIntegral (bid ^. bidSeconds)
+              adjustBid r = bid & bidSeconds .~ remainderSeconds r & bidAmount .~ r
           in  toList $ adjustBid <$> raiseAmount' `ssub` total
         | otherwise = []
 
@@ -102,8 +100,8 @@ bidCommitment raiseAmount' bid = do
 
     -- if the last bid will exceed the raise amount, reduce it to fit
     x | x < raiseAmount' ->
-      let winFraction rem = rem % (bid ^. bidAmount . satoshi)
-          remainderSeconds (Satoshi rem) = Seconds . round $ winFraction rem * fromIntegral (bid ^. bidSeconds)
+      let winFraction r = r % (bid ^. bidAmount . satoshi)
+          remainderSeconds (Satoshi r) = Seconds . round $ winFraction r * fromIntegral (bid ^. bidSeconds)
       in  for (raiseAmount' `ssub` x) $ \remainder ->
             put (x <> remainder) *>
             (pure $ Commitment bid (remainderSeconds remainder) remainder)

@@ -2,15 +2,15 @@
 
 module Aftok.Config where
 
-import           ClassyPrelude hiding (FilePath)
-
 import Control.Lens (makeClassy, (^.))
 import qualified Data.Configurator             as C
 import qualified Data.Configurator.Types       as C
 import           Data.X509
 import           Data.X509.File                (readKeyFile, readSignedObject)
 import           Database.PostgreSQL.Simple              (ConnectInfo(..))
-import           Filesystem.Path.CurrentOS (FilePath, fromText, encodeString)
+import           Filesystem.Path.CurrentOS (fromText, encodeString)
+import qualified Filesystem.Path.CurrentOS as P
+import           Safe (headMay)
 
 import qualified Network.Bippy.Types           as BT
 import qualified Network.Mail.SMTP             as SMTP
@@ -29,8 +29,8 @@ makeClassy ''SmtpConfig
 
 data BillingConfig = BillingConfig
   { _networkMode            :: NetworkMode
-  , _signingKeyFile         :: FilePath
-  , _certsFile              :: FilePath
+  , _signingKeyFile         :: P.FilePath
+  , _certsFile              :: P.FilePath
   , _exchangeRateServiceURI :: String
   }
 makeClassy ''BillingConfig

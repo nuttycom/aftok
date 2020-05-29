@@ -3,11 +3,9 @@
 
 module Aftok.Snaplet where
 
-import           ClassyPrelude
+
 
 import           Control.Lens
-import           Control.Monad.Reader
-import           Control.Monad.State
 import           Control.Monad.Trans.Except    (runExceptT)
 import qualified Data.Aeson                    as A
 import           Data.Attoparsec.ByteString    (Parser, parseOnly,
@@ -51,7 +49,7 @@ snapEval
   -> m a
 snapEval p = do
   let handleDBError (OpForbidden (UserId uid) reason) =
-        snapError 403 $ tshow reason <> " (User " <> tshow uid <> ")"
+        snapError 403 $ show reason <> " (User " <> show uid <> ")"
       handleDBError (SubjectNotFound) =
         snapError 404 "The subject of the requested operation could not be found."
       handleDBError (EventStorageFailed) =
@@ -64,7 +62,7 @@ snapEval p = do
 snapError :: MonadSnap m => Int -> Text -> m a
 snapError c t = do
   modifyResponse $ setResponseStatus c $ encodeUtf8 t
-  writeText $ ((tshow c) <> " - " <> t)
+  writeText $ ((show c) <> " - " <> t)
   getResponse >>= finishWith
 
 ok :: MonadSnap m => m a
@@ -75,7 +73,7 @@ ok = do
 requireParam :: MonadSnap m => Text -> m ByteString
 requireParam name = do
   maybeBytes <- getParam (encodeUtf8 name)
-  maybe (snapError 400 $ "Parameter "<> tshow name <>" is required") pure maybeBytes
+  maybe (snapError 400 $ "Parameter "<> show name <>" is required") pure maybeBytes
 
 parseParam :: MonadSnap m
            => Text       -- ^ the name of the parameter to be parsed
@@ -84,7 +82,7 @@ parseParam :: MonadSnap m
 parseParam name parser = do
   bytes <- requireParam name
   either
-    (const . snapError 400 $ "Value of parameter "<> tshow name <>" could not be parsed to a valid value.")
+    (const . snapError 400 $ "Value of parameter "<> show name <>" could not be parsed to a valid value.")
     pure
     (parseOnly parser bytes)
 

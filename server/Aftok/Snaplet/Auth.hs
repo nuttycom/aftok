@@ -1,6 +1,6 @@
 module Aftok.Snaplet.Auth where
 
-import           ClassyPrelude
+
 
 import           Control.Lens
 import           Control.Error.Util (maybeT)
@@ -46,6 +46,6 @@ throwChallenge = do
 throwDenied :: MonadSnap m => AU.AuthFailure -> m a
 throwDenied failure = do
     modifyResponse $ setResponseStatus 403 "Access Denied"
-    writeText $ "Access Denied: " <> tshow failure
+    writeText $ "Access Denied: " <> show failure
     getResponse >>= finishWith
 

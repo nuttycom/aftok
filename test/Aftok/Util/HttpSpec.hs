@@ -1,10 +1,9 @@
-{-# LANGUAGE NoImplicitPrelude   #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Aftok.Util.HttpSpec where
 
-import           ClassyPrelude
+
 
 import           Aftok.Util.Http
 import           Data.Attoparsec.ByteString

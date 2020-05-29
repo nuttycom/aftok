@@ -8,7 +8,6 @@
 
 module Aftok.Json where
 
-import           ClassyPrelude                    hiding (Day, fail, fromEitherM, UTCTime)
 
 import           Control.FromSum                  (fromMaybeM, fromEitherM)
 import           Control.Lens                     hiding ((.=))
@@ -25,6 +24,7 @@ import           Data.Map.Strict                  as MS
 import           Data.ProtocolBuffers             (encodeMessage)
 import           Data.Serialize.Put               (runPut)
 import qualified Data.Text                        as T
+import qualified Data.Text.Encoding               as T
 import           Data.Thyme.Calendar              (showGregorian)
 import           Data.Thyme.Clock                 as Clock
 import           Data.Thyme.Time                  (Day)
@@ -54,7 +54,7 @@ failT :: Text -> Parser a
 failT = fail . T.unpack
 
 printVersion :: Version -> Text
-printVersion Version{..} = T.intercalate "." $ fmap (pack . show) [majorVersion, minorVersion]
+printVersion Version{..} = T.intercalate "." $ fmap (T.pack . show) [majorVersion, minorVersion]
 
 versionParser :: PC.Parser Version
 versionParser = Version <$> PC.decimal <*> (PC.char '.' >> PC.decimal)
@@ -85,7 +85,7 @@ versioned ver o = Object $ uncurry O.insert ("schemaVersion" .= printVersion ver
 unversion :: String -> (Version -> Object -> Parser a) -> Value -> Parser a
 unversion name f o = do
   verstr <- withObject name (.: "schemaVersion") o
-  vers   <- fromEitherM fail $ PC.parseOnly versionParser (encodeUtf8 verstr)
+  vers   <- fromEitherM fail $ PC.parseOnly versionParser (T.encodeUtf8 verstr)
   withObject name (f vers) o
 
 --------------
@@ -105,7 +105,7 @@ unv1 name f = unversion name $ p where
 
 badVersion :: forall v a. String -> Version -> v -> Parser a
 badVersion name ver =
-  const . fail $ "Unrecognized " <> name <> " schema version: " <> unpack (printVersion ver)
+  const . fail $ "Unrecognized " <> name <> " schema version: " <> T.unpack (printVersion ver)
 
 -- convenience function to produce Object rather than Value
 obj :: [Pair] -> Object
@@ -134,7 +134,7 @@ projectJSON :: Project -> Value
 projectJSON p = v1 $
   obj [ "projectName"    .= (p ^. projectName)
       , "inceptionDate"  .= (p ^. inceptionDate)
-      , "initiator"      .= tshow (p ^. (P.initiator._UserId))
+      , "initiator"      .= (p ^. P.initiator . _UserId)
       ]
 
 qdbProjectJSON :: (ProjectId, Project) -> Value
@@ -152,7 +152,7 @@ auctionJSON x = v1 $
 
 bidIdJSON :: BidId -> Value
 bidIdJSON pid = v1 $
-  obj [ "bidId" .= tshow (pid ^. _BidId) ]
+  obj [ "bidId" .= (pid ^. _BidId) ]
 
 --
 -- CreditTo
@@ -181,7 +181,7 @@ parseBtcAddr
   -> Parser (CreditTo (NetworkId, Address))
 parseBtcAddr nmode net addrText =
   maybe
-    (fail . unpack $ "Address " <> addrText <> " cannot be parsed as a BTC network address.")
+    (fail . T.unpack $ "Address " <> addrText <> " cannot be parsed as a BTC network address.")
     (pure . CreditToCurrency . (net,))
     (stringToAddr (toNetwork nmode net) addrText)
 
@@ -326,7 +326,7 @@ paymentRequestKV r =
   , "billing_date" .= view (billingDate . to showGregorian) r
   ]
   where
-    prBytes = (paymentRequest . to (decodeUtf8 . B64.encode . runPut . encodeMessage))
+    prBytes = paymentRequest . to (T.decodeUtf8 . B64.encode . runPut . encodeMessage)
 
 billDetailsJSON :: [BillDetail] -> Value
 billDetailsJSON r = v1 $
@@ -351,7 +351,7 @@ paymentJSON r = v1 $
       , "payment_date" .= (r ^. paymentDate)
       ]
   where
-    paymentBytes = payment . to (decodeUtf8 . B64.encode . runPut . encodeMessage)
+    paymentBytes = payment . to (T.decodeUtf8 . B64.encode . runPut . encodeMessage)
 
 -------------
 -- Parsers --
@@ -384,7 +384,7 @@ parseEventAmendmentV1 nmode t o =
       parseA "timeChange"     = TimeChange t     <$> o .: "eventTime"
       parseA "addrChange"     = CreditToChange t <$> parseCreditToV1 nmode o
       parseA "metadataChange" = MetadataChange t <$> o .: "eventMeta"
-      parseA tid = fail . unpack $ "Amendment type " <> tid <> " not recognized."
+      parseA tid = fail . T.unpack $ "Amendment type " <> tid <> " not recognized."
   in  o .: "amendment" >>= parseA
 
 parseEventAmendmentV2
@@ -397,7 +397,7 @@ parseEventAmendmentV2 nmode t o =
       parseA "timeChange"     = TimeChange t     <$> o .: "eventTime"
       parseA "creditToChange" = CreditToChange t <$> parseCreditToV2 nmode o
       parseA "metadataChange" = MetadataChange t <$> o .: "eventMeta"
-      parseA tid = fail . unpack  $ "Amendment type " <> tid <> " not recognized."
+      parseA tid = fail . T.unpack  $ "Amendment type " <> tid <> " not recognized."
   in  o .: "amendment" >>= parseA
 
 parseLogEntry

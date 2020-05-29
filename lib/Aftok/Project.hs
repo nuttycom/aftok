@@ -2,11 +2,12 @@
 
 module Aftok.Project where
 
-import           ClassyPrelude
+
 
 import           Control.Lens               (makeLenses, makePrisms)
 import           Crypto.Random.Types        (MonadRandom, getRandomBytes)
 
+import qualified Data.ByteString            as BS
 import           Data.ByteString.Base64.URL as B64
 import           Data.Thyme.Clock           as C
 
@@ -31,7 +32,7 @@ randomInvCode = InvitationCode <$> getRandomBytes 32
 parseInvCode :: Text -> Either String InvitationCode
 parseInvCode t = do
   code <- B64.decode . encodeUtf8 $ t
-  if length code == 32
+  if BS.length code == 32
     then Right $ InvitationCode code
     else Left "Invitation code appears to be invalid."
 

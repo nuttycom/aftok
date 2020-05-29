@@ -3,7 +3,7 @@
 
 module Aftok.Util where
 
-import           ClassyPrelude
+
 
 import           Control.Error.Util (maybeT)
 import           Control.Monad.Free.Church

@@ -8,14 +8,14 @@ module Aftok.Snaplet.Projects
   , projectInviteHandler
   ) where
 
-import           ClassyPrelude hiding (FilePath)
 
 import           Control.Lens
 import           Control.Monad.Trans.Maybe (mapMaybeT, runMaybeT)
 import           Data.Aeson                 as A
 import           Data.Attoparsec.ByteString (takeByteString)
 import           Data.Thyme.Clock           as C
-import           Filesystem.Path.CurrentOS (FilePath, encodeString)
+import           Filesystem.Path.CurrentOS  (encodeString)
+import qualified Filesystem.Path.CurrentOS  as F
 import           Network.Mail.Mime
 import           Network.Mail.SMTP          as SMTP
 import           Text.StringTemplate
@@ -45,7 +45,7 @@ projectCreateHandler :: S.Handler App App ProjectId
 projectCreateHandler = do
   uid <- requireUserId
   requestBody <- readRequestBody 4096
-  cp <- either (snapError 400 . tshow) pure $ A.eitherDecode requestBody
+  cp <- either (snapError 400 . show) pure $ A.eitherDecode requestBody
   t <- liftIO C.getCurrentTime
   snapEval . createProject $ Project (cpn cp) t uid (cpdepf cp)
 
@@ -59,7 +59,7 @@ projectGetHandler = do
   uid <- requireUserId
   pid <- requireProjectId
   fromMaybeT
-    (snapError 404 $ "Project not found for id " <> tshow pid)
+    (snapError 404 $ "Project not found for id " <> show pid)
     (mapMaybeT snapEval $ findUserProject uid pid)
 
 projectInviteHandler :: QConfig -> S.Handler App App ()
@@ -88,7 +88,7 @@ sendProjectInviteEmail cfg pn fromEmail toEmail invCode =
       (mailer _smtpUser _smtpPass)
 
 
-buildProjectInviteEmail :: FilePath
+buildProjectInviteEmail :: F.FilePath
                         -> ProjectName
                         -> Email       -- Inviting user's email address
                         -> Email       -- Invitee's email address

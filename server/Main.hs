@@ -1,14 +1,15 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Main where
 
-import           ClassyPrelude hiding (FilePath)
-
 import Control.Lens ((^.), to)
+import Control.Exception (try)
 import qualified Data.Aeson                                  as A
-import Data.Either.Combinators (fromRight)
 import           Data.ProtocolBuffers                        (encodeMessage)
 import           Data.Serialize.Put                          (runPutLazy)
 import Filesystem.Path.CurrentOS (decodeString, encodeString)
 import           System.Environment
+import           System.IO.Error (IOError)
 
 import           Aftok.Json
 import           Aftok.TimeLog
@@ -33,7 +34,7 @@ import Snap.Util.FileServe (serveDirectory)
 
 main :: IO ()
 main = do
-  cfgPath <- try $ getEnv "AFTOK_CFG" :: IO (Either IOError String)
+  cfgPath <- try @IOError $ getEnv "AFTOK_CFG"
   cfg <- loadQConfig . decodeString $ fromRight "conf/aftok.cfg" cfgPath
   sconf <- snapConfig cfg
   serveSnaplet sconf $ appInit cfg

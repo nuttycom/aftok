@@ -1,12 +1,13 @@
 module Aftok.Snaplet.WorkLog where
 
-import           ClassyPrelude
+
 
 import           Control.Lens
 import           Control.Monad.Trans.Maybe (mapMaybeT)
 
 import qualified Data.Aeson         as A
 import           Data.Aeson.Types
+import qualified Data.Text          as T
 import           Data.Thyme.Clock   as C
 import           Data.UUID          as U
 import           Network.Haskoin.Address (Address, stringToAddr)
@@ -36,7 +37,7 @@ logWorkHandler evCtr = do
   timestamp <- liftIO C.getCurrentTime
   case A.eitherDecode requestBody >>= parseEither (parseLogEntry nmode uid evCtr) of
     Left err ->
-      snapError 400 $ "Unable to parse log entry " <> (tshow requestBody) <> ": " <> tshow err
+      snapError 400 $ "Unable to parse log entry " <> (show requestBody) <> ": " <> show err
     Right entry ->
       snapEval $ createEvent pid uid (entry timestamp)
 
@@ -51,7 +52,7 @@ logWorkBTCHandler evCtr = do
   timestamp <- liftIO C.getCurrentTime
   case fmap decodeUtf8 addrBytes >>= stringToAddr network of
     Nothing ->
-      snapError 400 $ "Unable to parse bitcoin address from " <> (tshow addrBytes)
+      snapError 400 $ "Unable to parse bitcoin address from " <> (show addrBytes)
     Just addr ->
       snapEval . createEvent pid uid $
         LogEntry (CreditToCurrency (BTC, addr))
@@ -81,7 +82,7 @@ payoutsHandler = do
   uid <- requireUserId
   pid <- requireProjectId
   project <- fromMaybeT
-    (snapError 400 $ "Project not found for id " <> tshow pid)
+    (snapError 400 $ "Project not found for id " <> show pid)
     (mapMaybeT snapEval $ findUserProject uid pid)
   widx <- snapEval $ readWorkIndex pid uid
   ptime <- liftIO $ C.getCurrentTime
@@ -99,6 +100,6 @@ amendEventHandler = do
   modTime <- ModTime <$> liftIO C.getCurrentTime
   requestJSON <- readRequestJSON 4096
   either
-    (snapError 400 . pack)
+    (snapError 400 . T.pack)
     (snapEval . amendEvent uid eventId)
     (parseEither (parseEventAmendment nmode modTime) requestJSON)

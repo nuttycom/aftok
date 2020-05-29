@@ -1,10 +1,11 @@
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE QuasiQuotes                #-}
 
 module Aftok.Database.PostgreSQL (QDBM(..), runQDBM) where
 
-import           ClassyPrelude                        hiding (null)
+import           Prelude                              hiding (null)
 import           Control.Lens
 import           Control.Monad.Trans.Except           (ExceptT(..), throwE, runExceptT)
 import           Crypto.Random.Types                  (MonadRandom,
@@ -24,6 +25,7 @@ import           Database.PostgreSQL.Simple.FromField
 import           Database.PostgreSQL.Simple.FromRow
 import           Database.PostgreSQL.Simple.SqlQQ     (sql)
 import           Database.PostgreSQL.Simple.Types     (Null)
+import           Safe                                 (headMay)
 
 import qualified Aftok.Auction                        as A
 import qualified Aftok.Billables                      as B
@@ -191,12 +193,13 @@ billableParser =
 recurrenceParser :: RowParser B.Recurrence
 recurrenceParser =
   let prec :: Text -> RowParser B.Recurrence
-      prec "annually" = nullField *> pure B.Annually
-      prec "monthly"  = B.Monthly <$> field
-      --prec "semimonthly" = nullField *> pure B.SemiMonthly
-      prec "weekly"   = B.Weekly <$> field
-      prec "onetime"  = nullField *> pure B.OneTime
-      prec s          = fail $ "Unrecognized recurrence type: " ++ show s
+      prec = \case
+        "annually" -> nullField *> pure B.Annually
+        "monthly"  -> B.Monthly <$> field
+        --"semimonthly" = nullField *> pure B.SemiMonthly
+        "weekly"   -> B.Weekly <$> field
+        "onetime"  -> nullField *> pure B.OneTime
+        _          -> empty
   in  field >>= prec
 
 subscriptionParser :: RowParser B.Subscription
@@ -209,7 +212,7 @@ subscriptionParser =
 paymentRequestParser :: RowParser PaymentRequest
 paymentRequestParser =
   PaymentRequest <$> fmap B.SubscriptionId field
-                 <*> ((either fail pure . runGet decodeMessage) =<< field)
+                 <*> ((either (const empty) pure . runGet decodeMessage) =<< field)
                  <*> fmap PaymentKey field
                  <*> fmap toThyme field
                  <*> fmap toThyme field
@@ -217,7 +220,7 @@ paymentRequestParser =
 paymentParser :: RowParser Payment
 paymentParser =
   Payment <$> (PaymentRequestId <$> field)
-          <*> (field >>= (either fail pure . runGet decodeMessage))
+          <*> (field >>= (either (const empty) pure . runGet decodeMessage))
           <*> (toThyme <$> field)
           <*> field
 

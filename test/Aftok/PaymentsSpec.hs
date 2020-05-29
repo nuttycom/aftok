@@ -2,7 +2,7 @@
 
 module Aftok.PaymentsSpec (main, spec) where
 
-import           ClassyPrelude
+
 import           Test.Hspec
 
 spec :: Spec

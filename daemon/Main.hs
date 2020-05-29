@@ -1,16 +1,19 @@
 {-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TypeApplications      #-}
 module Main (main) where
 
-import ClassyPrelude
 
+
+import Control.Exception (try)
 import System.Environment            (getEnv)
+import System.IO.Error            (IOError)
 import Filesystem.Path.CurrentOS (decodeString)
 
 import qualified AftokD as D
 import AftokD.AftokM (createAllPaymentRequests)
 
-main :: IO () 
+main :: IO ()
 main = do
-  cfgPath <- try $ getEnv "AFTOK_CFG" :: IO (Either IOError String)
+  cfgPath <- try @IOError $ getEnv "AFTOK_CFG"
   cfg <- D.loadConfig . decodeString $ either (const "conf/aftok.cfg") id cfgPath
   createAllPaymentRequests cfg

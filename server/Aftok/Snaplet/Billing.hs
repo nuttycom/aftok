@@ -6,7 +6,7 @@ module Aftok.Snaplet.Billing
   , subscribeHandler
   ) where
 
-import           ClassyPrelude
+
 
 import           Control.Lens ((^.))
 import           Data.Aeson
@@ -47,7 +47,7 @@ billableCreateHandler = do
   uid <- requireUserId
   pid <- requireProjectId
   requestBody <- readRequestJSON 4096
-  b <- either (snapError 400 . tshow) pure $ parseEither (parseCreateBillable uid pid) requestBody
+  b <- either (snapError 400 . show) pure $ parseEither (parseCreateBillable uid pid) requestBody
   snapEval $ createBillable uid b
 
 billableListHandler :: S.Handler App App [(BillableId, Billable)]

@@ -1,6 +1,6 @@
 module Aftok.AuctionSpec (main, spec) where
 
-import           ClassyPrelude
+
 
 import           Control.Lens
 import           Data.Hourglass

@@ -6,7 +6,7 @@
 
 module Aftok.Billables where
 
-import           ClassyPrelude
+
 
 import           Control.Lens     (makeLenses, makePrisms, preview, view, _Just)
 import           Data.List        (unfoldr)

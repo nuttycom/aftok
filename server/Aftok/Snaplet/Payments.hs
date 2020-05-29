@@ -6,14 +6,16 @@ module Aftok.Snaplet.Payments
   , paymentResponseHandler
   ) where
 
-import           ClassyPrelude 
+
 
 import           Control.Lens         (view, _1, _2, _Right, _Left, preview, (&), (.~), (^.))
 import           Control.Monad.Trans.Maybe (mapMaybeT)
+import           Control.Exception    (try)
 
 import           Data.ProtocolBuffers (decodeMessage)
 import           Data.Serialize.Get   (runGetLazy)
 import           Data.Thyme.Clock     as C
+import qualified Data.Text.Encoding   as T
 import qualified Network.Bippy.Proto  as P
 import           Network.HTTP.Client.OpenSSL
 import           Network.HTTP.Client (defaultManagerSettings, managerResponseTimeout, responseTimeoutMicro, HttpException)
@@ -26,7 +28,7 @@ import           Snap.Snaplet         as S
 import           Aftok.Config         as AC
 import           Aftok.Billables
 import           Aftok.Database
-import           Aftok.Payments       
+import           Aftok.Payments
 import           Aftok.Util (fromMaybeT)
 
 import           Aftok.Snaplet
@@ -48,7 +50,7 @@ paymentResponseHandler cfg = do
   requestBody <- readRequestBody 4096
   preq <- getPaymentRequestHandler'
   pmnt <- either
-          (\msg -> snapError 400 $ "Could not decode payment response: " <> tshow msg)
+          (\msg -> snapError 400 $ "Could not decode payment response: " <> show msg)
           pure
           (runGetLazy decodeMessage requestBody)
   now  <- liftIO $ C.getCurrentTime
@@ -56,8 +58,8 @@ paymentResponseHandler cfg = do
   let opts = defaults & manager .~ Left (opensslManagerSettings context)
                       & manager .~ Left (defaultManagerSettings { managerResponseTimeout = responseTimeoutMicro 10000 } )
 
-  exchResp  <- liftIO . try $ asValue =<< (withOpenSSL $ getWith opts (cfg ^. exchangeRateServiceURI))
-  _ <- traverse (logError . encodeUtf8 . tshow @ HttpException) (preview _Left exchResp)
+  exchResp  <- liftIO . try @HttpException $ asValue =<< (withOpenSSL $ getWith opts (cfg ^. exchangeRateServiceURI))
+  _ <- traverse (logError . T.encodeUtf8 . show) (preview _Left exchResp)
   let newPayment = Payment (view _1 preq) pmnt now (preview (_Right . responseBody) exchResp)
   snapEval . liftdb $ CreatePayment newPayment
 

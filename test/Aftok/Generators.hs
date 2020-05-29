@@ -1,6 +1,6 @@
 module Aftok.Generators where
 
-import           ClassyPrelude
+
 
 import           Data.UUID
 

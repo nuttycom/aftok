@@ -1,11 +1,10 @@
-{-# LANGUAGE NoImplicitPrelude   #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wwarn -fno-warn-orphans #-}
 
 module Aftok.TimeLogSpec (main, spec) where
 
-import           ClassyPrelude
+
 
 import           Control.Lens       ((^.))
 import           Data.AffineSpace

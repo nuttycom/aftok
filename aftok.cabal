@@ -1,25 +1,32 @@
+cabal-version: 2.4
 Name:          aftok
 Version:       0.1
 Synopsis:      The Aftok Collaboration Platform
 Description:   A time logging and payment distribution service to enable groups of trusted contributors 
                to collaboratively develop commercial applications.
-License:       AllRightsReserved
+License:       NONE
 Author:        Kris Nuttycombe
 Maintainer:    kris@aftok.com
 Stability:     Experimental
 Category:      Web
 Build-type:    Simple
-Cabal-version: >= 2.0
 
-library
+common buildenv
   default-language:   Haskell2010
   ghc-options:        -Wall -Werror
-  hs-source-dirs:     lib
-  default-extensions: NoImplicitPrelude
+  default-extensions: KindSignatures
+                    , LambdaCase
                     , OverloadedStrings
-                    , RecordWildCards
                     , ScopedTypeVariables
-                    , KindSignatures
+  build-depends:      
+      base                
+    , relude
+  mixins: base hiding (Prelude)
+        , relude (Relude as Prelude)
+
+library
+  import:             buildenv
+  hs-source-dirs:     lib
   exposed-modules:    Aftok.Auction
                       Aftok.Billables
                       Aftok.Config
@@ -39,10 +46,8 @@ library
                       Aftok.Util
                       Aftok.Util.Http
   build-depends:      
-      base                
     , bippy               
     , blake2
-    , classy-prelude      
     , aeson              
     , attoparsec         
     , base64-bytestring 
@@ -70,6 +75,7 @@ library
     , old-locale        
     , postgresql-simple
     , protobuf
+    , relude
     , safe            
     , semigroups
     , semigroupoids
@@ -86,16 +92,10 @@ library
     , x509-store
 
 Test-Suite spec
-  default-language:   Haskell2010
+  import:             buildenv
   type:               exitcode-stdio-1.0
-  ghc-options:        -Wall -Werror
   hs-source-dirs:     test
   main-is:            Spec.hs
-  default-extensions: NoImplicitPrelude
-                    , OverloadedStrings
-                    , RecordWildCards
-                    , ScopedTypeVariables
-                    , KindSignatures
   other-modules: Aftok.AuctionSpec
                , Aftok.Generators
                , Aftok.PaymentsSpec
@@ -104,8 +104,6 @@ Test-Suite spec
 
   build-depends:    
       aftok
-    , base
-    , classy-prelude
     , aeson
     , attoparsec
     , bifunctors
@@ -124,14 +122,9 @@ Test-Suite spec
     , vector-space
 
 Executable aftok-server
-  default-language:   Haskell2010
+  import:             buildenv
   ghc-options:        -Wall -Werror
   hs-source-dirs:     server
-  default-extensions: NoImplicitPrelude
-                    , OverloadedStrings
-                    , RecordWildCards
-                    , ScopedTypeVariables
-                    , KindSignatures
 
   main-is:            Main.hs
 
@@ -148,14 +141,12 @@ Executable aftok-server
 
   build-depends:      
       aftok
-    , base
     , aeson
     , attoparsec
     , base64-bytestring
     , bytestring
     , bippy
     , cereal
-    , classy-prelude            
     , containers
     , configurator              
     , directory
@@ -190,28 +181,20 @@ Executable aftok-server
     , x509-store
 
 Executable aftok-daemon
-  default-language:   Haskell2010
-  ghc-options:        -Wall -Werror
+  import:             buildenv
   hs-source-dirs:     daemon
-  default-extensions: NoImplicitPrelude
-                    , OverloadedStrings
-                    , RecordWildCards
-                    , ScopedTypeVariables
-                    , KindSignatures
 
   main-is:            Main.hs
   other-modules:      AftokD
                     , AftokD.AftokM
   build-depends:      
       aftok
-    , base
     , aeson
     , attoparsec
     , base64-bytestring
     , bytestring
     , bippy
     , cereal
-    , classy-prelude            
     , containers
     , configurator              
     , cryptonite

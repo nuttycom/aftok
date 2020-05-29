@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveFunctor      #-}
-{-# LANGUAGE NoImplicitPrelude  #-}
 {-# LANGUAGE TemplateHaskell    #-}
 
 module Aftok.Types where

@@ -7,12 +7,13 @@
 
 module Aftok.Database where
 
-import           ClassyPrelude
+
 import           Control.Lens              (view, (^.), makeClassyPrisms, traverseOf)
 import           Control.Monad.Trans.Maybe (MaybeT (..))
 import           Data.AffineSpace
 import           Data.Thyme.Clock          as C
 import           Data.Thyme.Time           as T (Day)
+import           Safe (headMay)
 
 import           Aftok.Types
 import           Aftok.Auction             as A

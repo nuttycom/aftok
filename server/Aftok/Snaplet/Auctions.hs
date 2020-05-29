@@ -6,7 +6,7 @@ module Aftok.Snaplet.Auctions
   , auctionBidHandler
   ) where
 
-import           ClassyPrelude
+
 
 import           Control.Monad.Trans.Maybe (mapMaybeT)
 
@@ -46,7 +46,7 @@ auctionCreateHandler = do
   uid <- requireUserId
   pid <- requireProjectId
   requestBody <- readRequestJSON 4096
-  req <- either (snapError 400 . tshow) pure $ parseEither auctionCreateParser requestBody
+  req <- either (snapError 400 . show) pure $ parseEither auctionCreateParser requestBody
   t <- liftIO C.getCurrentTime
   snapEval . createAuction $
     Auction pid uid t (Satoshi . raiseAmount $ req) (auctionStart req) (auctionEnd req)
@@ -56,7 +56,7 @@ auctionGetHandler = do
   uid <- requireUserId
   aid <- requireAuctionId
   fromMaybeT
-    (snapError 404 $ "Auction not found for id " <> tshow aid)
+    (snapError 404 $ "Auction not found for id " <> show aid)
     (mapMaybeT snapEval $ findAuction aid uid) -- this will verify auction access
 
 auctionBidHandler :: S.Handler App App BidId
@@ -65,5 +65,5 @@ auctionBidHandler = do
   aid <- requireAuctionId
   timestamp <- liftIO C.getCurrentTime
   requestBody <- readRequestJSON 4096
-  bid <- either (snapError 400 . tshow) pure $ parseEither (bidCreateParser uid timestamp) requestBody
+  bid <- either (snapError 400 . show) pure $ parseEither (bidCreateParser uid timestamp) requestBody
   snapEval $ createBid aid uid bid

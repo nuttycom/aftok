@@ -4,7 +4,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module AftokD.AftokM where
 
-import ClassyPrelude
+
 
 import Control.Error.Util (maybeT)
 import Control.Lens ((^.), makeLenses, makeClassyPrisms, traverseOf, to)
@@ -18,7 +18,8 @@ import           Crypto.Random.Types     (MonadRandom(..))
 
 import Database.PostgreSQL.Simple        (Connection, connect)
 import           Data.Thyme.Clock     as C
-import Data.Thyme.Time  as T
+import Data.Thyme.Time  as C
+import qualified Data.Text as T
 import qualified Network.Mail.Mime          as Mime
 import qualified Network.Mail.SMTP          as SMTP
 import Network.URI (URI, parseURI)
@@ -120,7 +121,7 @@ buildPaymentRequestEmail :: (MonadIO m, MonadError AftokDErr m)
                          -> m Mime.Mail
 buildPaymentRequestEmail cfg req paymentUrl = do
   templates <- liftIO . directoryGroup $ encodeString (cfg ^. D.templatePath)
-  let billTemplate = (newSTMP . unpack) <$> req ^. (subscription . billable . paymentRequestEmailTemplate)
+  let billTemplate = (newSTMP . T.unpack) <$> req ^. (subscription . billable . paymentRequestEmailTemplate)
       defaultTemplate = getStringTemplate "payment_request" templates
   case billTemplate <|> defaultTemplate of
     Nothing -> throwError $ ConfigError "Could not find template for invitation email"
@@ -133,8 +134,8 @@ buildPaymentRequestEmail cfg req paymentUrl = do
             [ ("from_email", fromEmail ^. _Email)
             , ("project_name", pname)
             , ("to_email", toEmail ^. _Email)
-            , ("amount_due", tshow $ total ^. satoshi)
-            , ("payment_url", tshow paymentUrl)
+            , ("amount_due", show $ total ^. satoshi)
+            , ("payment_url", show paymentUrl)
             ]
           fromAddr = Mime.Address Nothing ("billing@aftok.com")
           toAddr   = Mime.Address Nothing (toEmail ^. _Email)
@@ -143,17 +144,17 @@ buildPaymentRequestEmail cfg req paymentUrl = do
       in  pure $ SMTP.simpleMail fromAddr [toAddr] [] [] subject [body]
 
 memoGen :: Subscription' UserId Billable
-        -> T.Day
+        -> C.Day
         -> C.UTCTime
         -> AftokM (Maybe Text)
 memoGen sub billingDate requestTime = do
   req <- traverseOf (billable . project) DB.findProjectOrError sub
-  let template = (newSTMP . unpack) <$> (sub ^. (billable . paymentRequestMemoTemplate))
+  let template = (newSTMP . T.unpack) <$> (sub ^. (billable . paymentRequestMemoTemplate))
       setAttrs = setManyAttrib
         [ ("project_name", req ^. (billable . project . projectName))
         , ("subscription", req ^. (billable . name))
-        , ("billing_date", tshow billingDate)
-        , ("issue_time", tshow requestTime)
+        , ("billing_date", show billingDate)
+        , ("issue_time", show requestTime)
         ]
   pure $ fmap (render . setAttrs) template
 
@@ -169,5 +170,5 @@ paymentURL (PaymentKey k) = do
     pure
     (parseURI $ show paymentRequestPath)
 
-payloadGen :: Monad m => Subscription' UserId Billable -> T.Day -> C.UTCTime -> m (Maybe ByteString)
+payloadGen :: Monad m => Subscription' UserId Billable -> C.Day -> C.UTCTime -> m (Maybe ByteString)
 payloadGen _ _ _ = pure Nothing

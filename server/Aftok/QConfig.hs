@@ -3,15 +3,15 @@
 
 module Aftok.QConfig where
 
-import           ClassyPrelude hiding (FilePath)
 
-import Control.Lens (makeLenses, (^.))
+import           Control.Lens (makeLenses, (^.))
 import qualified Data.ByteString.Char8         as C8
 import qualified Data.Configurator             as C
 import qualified Data.Configurator.Types       as CT
-import           System.Directory              (doesFileExist, doesPathExist, listDirectory)
+import qualified Data.List                     as L
 import           System.Environment            (getEnvironment)
-import Filesystem.Path.CurrentOS (FilePath, fromText, encodeString, parent)
+import           Filesystem.Path.CurrentOS (fromText, encodeString)
+import qualified Filesystem.Path.CurrentOS as P
 
 import           Snap.Core
 import qualified Snap.Http.Server.Config       as SC
@@ -20,35 +20,24 @@ import           Snap.Snaplet.PostgresqlSimple
 import           Aftok.Config
 
 data QConfig = QConfig
-  { _hostname      :: ByteString
+  { _hostname      :: C8.ByteString
   , _port          :: Int
-  , _authSiteKey   :: FilePath
+  , _authSiteKey   :: P.FilePath
   , _cookieTimeout :: Maybe Int
   , _pgsConfig     :: PGSConfig
   , _smtpConfig    :: SmtpConfig
   , _billingConfig :: BillingConfig
-  , _templatePath  :: FilePath
-  , _staticAssetPath :: FilePath
+  , _templatePath  :: P.FilePath
+  , _staticAssetPath :: P.FilePath
   }
 makeLenses ''QConfig
 
-loadQConfig :: FilePath -> IO QConfig
+loadQConfig :: P.FilePath -> IO QConfig
 loadQConfig cfgFile = do
   env <- getEnvironment
-  cfgExists <- doesFileExist $ encodeString cfgFile
-  pathExists <- doesPathExist $ encodeString cfgFile
-  files <- listDirectory (encodeString $ parent cfgFile)
-  putStrLn $ "Loading config from: " <> (pack . encodeString $ cfgFile)
-          <> "; file exists = " <> (pack . show $ cfgExists)
-          <> "; path exists = " <> (pack . show $ pathExists)
-          <> "; parent dir = " <> (pack . encodeString $ parent cfgFile)
-          <> "; dir contents = " <> (pack . show $ files)
-
   cfg <- C.load [C.Required $ encodeString cfgFile]
-  let dbEnvCfg = pgsDefaultConfig . C8.pack <$> lookup "DATABASE_URL" env
-  conf <- readQConfig cfg dbEnvCfg
-  putStrLn $ "Config loaded successfully."
-  pure conf
+  let dbEnvCfg = pgsDefaultConfig . C8.pack <$> L.lookup "DATABASE_URL" env
+  readQConfig cfg dbEnvCfg
 
 readQConfig :: CT.Config -> Maybe PGSConfig -> IO QConfig
 readQConfig cfg pc =
