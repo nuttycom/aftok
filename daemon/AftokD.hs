@@ -2,16 +2,18 @@
 
 module AftokD where
 
-import Control.Lens
+import           Control.Lens
 
 import qualified Data.Configurator             as C
 import qualified Data.Configurator.Types       as CT
-import Database.PostgreSQL.Simple    (ConnectInfo)
-import Filesystem.Path.CurrentOS (fromText, encodeString)
-import qualified Filesystem.Path.CurrentOS as P
+import           Database.PostgreSQL.Simple     ( ConnectInfo )
+import           Filesystem.Path.CurrentOS      ( fromText
+                                                , encodeString
+                                                )
+import qualified Filesystem.Path.CurrentOS     as P
 
-import Aftok.Types (Email(..))
-import qualified Aftok.Config as AC
+import           Aftok.Types                    ( Email(..) )
+import qualified Aftok.Config                  as AC
 
 data PaymentRequestConfig = PaymentRequestConfig
   { _aftokHost :: Text
@@ -29,18 +31,19 @@ data Config = Config
 makeLenses ''Config
 
 loadConfig :: P.FilePath -> IO Config
-loadConfig cfgFile =
-  readConfig =<< C.load [C.Required $ encodeString cfgFile]
+loadConfig cfgFile = readConfig =<< C.load [C.Required $ encodeString cfgFile]
 
 readConfig :: CT.Config -> IO Config
-readConfig cfg = Config
-  <$> (AC.readSmtpConfig $ C.subconfig "smtp" cfg)
-  <*> (AC.readBillingConfig $ C.subconfig "billing" cfg)
-  <*> (AC.readConnectInfo $ C.subconfig "db" cfg)
-  <*> (readPaymentRequestConfig $ C.subconfig "payment_requests" cfg)
+readConfig cfg =
+  Config
+    <$> (AC.readSmtpConfig $ C.subconfig "smtp" cfg)
+    <*> (AC.readBillingConfig $ C.subconfig "billing" cfg)
+    <*> (AC.readConnectInfo $ C.subconfig "db" cfg)
+    <*> (readPaymentRequestConfig $ C.subconfig "payment_requests" cfg)
 
 readPaymentRequestConfig :: CT.Config -> IO PaymentRequestConfig
-readPaymentRequestConfig cfg = PaymentRequestConfig
-  <$> C.require cfg "aftok_host"
-  <*> (fromText <$> C.require cfg "template_path")
-  <*> (Email <$> C.require cfg "payment_from_email")
+readPaymentRequestConfig cfg =
+  PaymentRequestConfig
+    <$> C.require cfg "aftok_host"
+    <*> (fromText <$> C.require cfg "template_path")
+    <*> (Email <$> C.require cfg "payment_from_email")

@@ -2,22 +2,28 @@
 
 module Aftok.Config where
 
-import Control.Lens (makeClassy, (^.))
+import           Control.Lens                   ( makeClassy
+                                                , (^.)
+                                                )
 import qualified Data.Configurator             as C
 import qualified Data.Configurator.Types       as C
 import           Data.X509
-import           Data.X509.File                (readKeyFile, readSignedObject)
-import           Database.PostgreSQL.Simple              (ConnectInfo(..))
-import           Filesystem.Path.CurrentOS (fromText, encodeString)
-import qualified Filesystem.Path.CurrentOS as P
-import           Safe (headMay)
+import           Data.X509.File                 ( readKeyFile
+                                                , readSignedObject
+                                                )
+import           Database.PostgreSQL.Simple     ( ConnectInfo(..) )
+import           Filesystem.Path.CurrentOS      ( fromText
+                                                , encodeString
+                                                )
+import qualified Filesystem.Path.CurrentOS     as P
+import           Safe                           ( headMay )
 
 import qualified Network.Bippy.Types           as BT
 import qualified Network.Mail.SMTP             as SMTP
 import qualified Network.Socket                as NS
 
-import Aftok.Currency.Bitcoin (NetworkMode)
-import Aftok.Payments (PaymentsConfig(..))
+import           Aftok.Currency.Bitcoin         ( NetworkMode )
+import           Aftok.Payments                 ( PaymentsConfig(..) )
 
 data SmtpConfig = SmtpConfig
   { _smtpHost :: NS.HostName
@@ -37,33 +43,39 @@ makeClassy ''BillingConfig
 
 readSmtpConfig :: C.Config -> IO SmtpConfig
 readSmtpConfig cfg =
-  SmtpConfig <$> C.require cfg "smtpHost"
-             <*> ((fmap . fmap) fromInteger $ C.lookup cfg "smtpPort")
-             <*> C.require cfg "smtpUser"
-             <*> C.require cfg "smtpKey"
+  SmtpConfig
+    <$> C.require cfg "smtpHost"
+    <*> ((fmap . fmap) fromInteger $ C.lookup cfg "smtpPort")
+    <*> C.require cfg "smtpUser"
+    <*> C.require cfg "smtpKey"
 
 readBillingConfig :: C.Config -> IO BillingConfig
 readBillingConfig cfg =
-  BillingConfig <$> C.require cfg "networkMode"
-                <*> (fromText <$> C.require cfg "signingKeyFile")
-                <*> (fromText <$> C.require cfg "certsFile")
-                <*> C.require cfg "exchangeRateServiceURI"
+  BillingConfig
+    <$> C.require cfg "networkMode"
+    <*> (fromText <$> C.require cfg "signingKeyFile")
+    <*> (fromText <$> C.require cfg "certsFile")
+    <*> C.require cfg "exchangeRateServiceURI"
 
 readConnectInfo :: C.Config -> IO ConnectInfo
 readConnectInfo cfg =
-  ConnectInfo <$> C.require cfg "host"
-              <*> C.require cfg "port"
-              <*> C.require cfg "user"
-              <*> C.require cfg "password"
-              <*> C.require cfg "database"
+  ConnectInfo
+    <$> C.require cfg "host"
+    <*> C.require cfg "port"
+    <*> C.require cfg "user"
+    <*> C.require cfg "password"
+    <*> C.require cfg "database"
 
 toPaymentsConfig :: BillingConfig -> IO PaymentsConfig
 toPaymentsConfig c = do
   privKeys   <- readKeyFile . encodeString $ c ^. signingKeyFile
   pkiEntries <- readSignedObject . encodeString $ c ^. certsFile
-  privKey <- case headMay privKeys of
+  privKey    <- case headMay privKeys of
     Just (PrivKeyRSA k) -> pure k
-    Just _       -> fail $ "Only RSA keys are currently supported for payment request signing."
-    Nothing      -> fail $ "No keys found in private key file " <> encodeString (c ^. signingKeyFile)
+    Just _ ->
+      fail
+        $ "Only RSA keys are currently supported for payment request signing."
+    Nothing -> fail $ "No keys found in private key file " <> encodeString
+      (c ^. signingKeyFile)
   let pkiData = BT.X509SHA256 . CertificateChain $ pkiEntries
   pure $ PaymentsConfig (c ^. networkMode) privKey pkiData

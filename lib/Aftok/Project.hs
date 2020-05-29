@@ -4,12 +4,16 @@ module Aftok.Project where
 
 
 
-import           Control.Lens               (makeLenses, makePrisms)
-import           Crypto.Random.Types        (MonadRandom, getRandomBytes)
+import           Control.Lens                   ( makeLenses
+                                                , makePrisms
+                                                )
+import           Crypto.Random.Types            ( MonadRandom
+                                                , getRandomBytes
+                                                )
 
-import qualified Data.ByteString            as BS
-import           Data.ByteString.Base64.URL as B64
-import           Data.Thyme.Clock           as C
+import qualified Data.ByteString               as BS
+import           Data.ByteString.Base64.URL    as B64
+import           Data.Thyme.Clock              as C
 
 import           Aftok.Types
 

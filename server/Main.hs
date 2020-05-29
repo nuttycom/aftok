@@ -2,20 +2,24 @@
 
 module Main where
 
-import Control.Lens ((^.), to)
-import Control.Exception (try)
-import qualified Data.Aeson                                  as A
-import           Data.ProtocolBuffers                        (encodeMessage)
-import           Data.Serialize.Put                          (runPutLazy)
-import Filesystem.Path.CurrentOS (decodeString, encodeString)
+import           Control.Lens                   ( (^.)
+                                                , to
+                                                )
+import           Control.Exception              ( try )
+import qualified Data.Aeson                    as A
+import           Data.ProtocolBuffers           ( encodeMessage )
+import           Data.Serialize.Put             ( runPutLazy )
+import           Filesystem.Path.CurrentOS      ( decodeString
+                                                , encodeString
+                                                )
 import           System.Environment
-import           System.IO.Error (IOError)
+import           System.IO.Error                ( IOError )
 
 import           Aftok.Json
 import           Aftok.TimeLog
 
-import qualified Aftok.Config as C
-import           Aftok.QConfig as Q
+import qualified Aftok.Config                  as C
+import           Aftok.QConfig                 as Q
 import           Aftok.Snaplet
 import           Aftok.Snaplet.Auctions
 import           Aftok.Snaplet.Billing
@@ -30,88 +34,104 @@ import           Snap.Snaplet
 import           Snap.Snaplet.PostgresqlSimple
 import           Snap.Snaplet.Auth.Backends.PostgresqlSimple
 import           Snap.Snaplet.Session.Backends.CookieSession
-import Snap.Util.FileServe (serveDirectory)
+import           Snap.Util.FileServe            ( serveDirectory )
 
 main :: IO ()
 main = do
   cfgPath <- try @IOError $ getEnv "AFTOK_CFG"
-  cfg <- loadQConfig . decodeString $ fromRight "conf/aftok.cfg" cfgPath
-  sconf <- snapConfig cfg
+  cfg     <- loadQConfig . decodeString $ fromRight "conf/aftok.cfg" cfgPath
+  sconf   <- snapConfig cfg
   serveSnaplet sconf $ appInit cfg
 
 appInit :: QConfig -> SnapletInit App App
 appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
-  sesss <- nestSnaplet "sessions" sess $
-           initCookieSessionManager (cfg ^. authSiteKey . to encodeString)
-                                    "quookie"
-                                    (Just "aftok.com")
-                                    (cfg ^. cookieTimeout)
+  sesss <- nestSnaplet "sessions" sess $ initCookieSessionManager
+    (cfg ^. authSiteKey . to encodeString)
+    "quookie"
+    (Just "aftok.com")
+    (cfg ^. cookieTimeout)
   pgs   <- nestSnaplet "db" db $ pgsInit' (cfg ^. pgsConfig)
   auths <- nestSnaplet "auth" auth $ initPostgresAuth sess pgs
 
-  let nmode = cfg ^. billingConfig . C.networkMode
+  let
+    nmode             = cfg ^. billingConfig . C.networkMode
 
-      loginRoute          = method GET requireLogin >> redirect "/home"
-      xhrLoginRoute       = void $ method POST requireLogin
-      registerRoute       = void $ method POST registerHandler
+    loginRoute        = method GET requireLogin >> redirect "/home"
+    xhrLoginRoute     = void $ method POST requireLogin
+    registerRoute     = void $ method POST registerHandler
 
-      inviteRoute         = void $ method POST (projectInviteHandler cfg)
-      acceptInviteRoute   = void $ method POST acceptInvitationHandler
+    inviteRoute       = void $ method POST (projectInviteHandler cfg)
+    acceptInviteRoute = void $ method POST acceptInvitationHandler
 
-      projectCreateRoute  = serveJSON projectIdJSON $ method POST projectCreateHandler
-      projectListRoute    = serveJSON (fmap qdbProjectJSON) $ method GET projectListHandler
+    projectCreateRoute =
+      serveJSON projectIdJSON $ method POST projectCreateHandler
+    projectListRoute =
+      serveJSON (fmap qdbProjectJSON) $ method GET projectListHandler
 
-      projectRoute        = serveJSON projectJSON $ method GET projectGetHandler
-      logEntriesRoute     = serveJSON (fmap $ logEntryJSON nmode) $ method GET logEntriesHandler
-      logIntervalsRoute   = serveJSON (workIndexJSON nmode) $ method GET loggedIntervalsHandler
+    projectRoute = serveJSON projectJSON $ method GET projectGetHandler
+    logEntriesRoute =
+      serveJSON (fmap $ logEntryJSON nmode) $ method GET logEntriesHandler
+    logIntervalsRoute =
+      serveJSON (workIndexJSON nmode) $ method GET loggedIntervalsHandler
 
-      payoutsRoute        = serveJSON (payoutsJSON nmode) $ method GET payoutsHandler
+    payoutsRoute = serveJSON (payoutsJSON nmode) $ method GET payoutsHandler
 
-      logWorkRoute f      = serveJSON eventIdJSON $ method POST (logWorkHandler f)
-      logWorkBTCRoute f   = serveJSON eventIdJSON $ method POST (logWorkBTCHandler f)
-      amendEventRoute     = serveJSON amendmentIdJSON $ method PUT amendEventHandler
+    logWorkRoute f = serveJSON eventIdJSON $ method POST (logWorkHandler f)
+    logWorkBTCRoute f =
+      serveJSON eventIdJSON $ method POST (logWorkBTCHandler f)
+    amendEventRoute = serveJSON amendmentIdJSON $ method PUT amendEventHandler
 
-      auctionCreateRoute  = serveJSON auctionIdJSON $ method POST auctionCreateHandler
-      auctionRoute        = serveJSON auctionJSON   $ method GET auctionGetHandler
-      auctionBidRoute     = serveJSON bidIdJSON     $ method POST auctionBidHandler
+    auctionCreateRoute =
+      serveJSON auctionIdJSON $ method POST auctionCreateHandler
+    auctionRoute    = serveJSON auctionJSON $ method GET auctionGetHandler
+    auctionBidRoute = serveJSON bidIdJSON $ method POST auctionBidHandler
 
-      billableCreateRoute = serveJSON billableIdJSON $ method POST billableCreateHandler
-      billableListRoute   = serveJSON (fmap qdbBillableJSON) $ method GET billableListHandler
-      subscribeRoute      = serveJSON subscriptionIdJSON $ method POST subscribeHandler
+    billableCreateRoute =
+      serveJSON billableIdJSON $ method POST billableCreateHandler
+    billableListRoute =
+      serveJSON (fmap qdbBillableJSON) $ method GET billableListHandler
+    subscribeRoute =
+      serveJSON subscriptionIdJSON $ method POST subscribeHandler
 
-      payableRequestsRoute = serveJSON billDetailsJSON $ method GET listPayableRequestsHandler
-      getPaymentRequestRoute = writeLBS . runPutLazy . encodeMessage =<< method GET getPaymentRequestHandler
-      submitPaymentRoute     = serveJSON paymentIdJSON $ method POST (paymentResponseHandler $ cfg ^. billingConfig)
+    payableRequestsRoute =
+      serveJSON billDetailsJSON $ method GET listPayableRequestsHandler
+    getPaymentRequestRoute =
+      writeLBS
+        .   runPutLazy
+        .   encodeMessage
+        =<< method GET getPaymentRequestHandler
+    submitPaymentRoute = serveJSON paymentIdJSON
+      $ method POST (paymentResponseHandler $ cfg ^. billingConfig)
 
-  addRoutes [ ("static", serveDirectory . encodeString $ cfg ^. staticAssetPath)
-
-            , ("login",             loginRoute)
-            , ("login",             xhrLoginRoute)
-            , ("register",          registerRoute)
-            , ("accept_invitation", acceptInviteRoute)
-
-            , ("projects/:projectId/logStart/:btcAddr", logWorkBTCRoute StartWork)
-            , ("projects/:projectId/logEnd/:btcAddr",   logWorkBTCRoute StopWork)
-            , ("projects/:projectId/logStart",          logWorkRoute StartWork)
-            , ("projects/:projectId/logEnd",            logWorkRoute StopWork)
-            , ("projects/:projectId/logEntries",        logEntriesRoute)
-            , ("projects/:projectId/intervals",         logIntervalsRoute)
-            , ("projects/:projectId/auctions",          auctionCreateRoute) -- <|> auctionListRoute
-            , ("projects/:projectId/billables",         billableCreateRoute <|> billableListRoute)
-            , ("projects/:projectId/payouts",           payoutsRoute)
-            , ("projects/:projectId/invite",            inviteRoute)
-            , ("projects/:projectId",                   projectRoute)
-            , ("projects",                              projectCreateRoute <|> projectListRoute)
-
-            , ("auctions/:auctionId",          auctionRoute)
-            , ("auctions/:auctionId/bid",      auctionBidRoute)
-
-            , ("subscribe/:billableId",        subscribeRoute)
-            , ("subscriptions/:subscriptionId/payment_requests", payableRequestsRoute)
-            , ("pay/:paymentRequestKey", getPaymentRequestRoute <|> submitPaymentRoute)
-
-            , ("events/:eventId/amend", amendEventRoute)
-            ]
+  addRoutes
+    [ ("static", serveDirectory . encodeString $ cfg ^. staticAssetPath)
+    , ("login"                              , loginRoute)
+    , ("login"                              , xhrLoginRoute)
+    , ("register"                           , registerRoute)
+    , ("accept_invitation"                  , acceptInviteRoute)
+    , ("projects/:projectId/logStart/:btcAddr", logWorkBTCRoute StartWork)
+    , ("projects/:projectId/logEnd/:btcAddr", logWorkBTCRoute StopWork)
+    , ("projects/:projectId/logStart"       , logWorkRoute StartWork)
+    , ("projects/:projectId/logEnd"         , logWorkRoute StopWork)
+    , ("projects/:projectId/logEntries"     , logEntriesRoute)
+    , ("projects/:projectId/intervals"      , logIntervalsRoute)
+    , ( "projects/:projectId/auctions"
+      , auctionCreateRoute
+      ) -- <|> auctionListRoute
+    , ( "projects/:projectId/billables"
+      , billableCreateRoute <|> billableListRoute
+      )
+    , ("projects/:projectId/payouts", payoutsRoute)
+    , ("projects/:projectId/invite" , inviteRoute)
+    , ("projects/:projectId"        , projectRoute)
+    , ("projects"                   , projectCreateRoute <|> projectListRoute)
+    , ("auctions/:auctionId"        , auctionRoute)
+    , ("auctions/:auctionId/bid"    , auctionBidRoute)
+    , ("subscribe/:billableId"      , subscribeRoute)
+    , ("subscriptions/:subscriptionId/payment_requests", payableRequestsRoute)
+    , ("pay/:paymentRequestKey", getPaymentRequestRoute <|> submitPaymentRoute)
+    , ("events/:eventId/amend"      , amendEventRoute)
+    ]
   return $ App nmode sesss pgs auths
 
 serveJSON :: (MonadSnap m, A.ToJSON a) => (b -> a) -> m b -> m ()

@@ -8,74 +8,79 @@
 module Aftok.Database where
 
 
-import           Control.Lens              (view, (^.), makeClassyPrisms, traverseOf)
-import           Control.Monad.Trans.Maybe (MaybeT (..))
+import           Control.Lens                   ( view
+                                                , (^.)
+                                                , makeClassyPrisms
+                                                , traverseOf
+                                                )
+import           Control.Monad.Trans.Maybe      ( MaybeT(..) )
 import           Data.AffineSpace
-import           Data.Thyme.Clock          as C
-import           Data.Thyme.Time           as T (Day)
-import           Safe (headMay)
+import           Data.Thyme.Clock              as C
+import           Data.Thyme.Time               as T
+                                                ( Day )
+import           Safe                           ( headMay )
 
 import           Aftok.Types
-import           Aftok.Auction             as A
-import           Aftok.Billables           as B
-import           Aftok.Currency.Bitcoin    (NetworkId)
+import           Aftok.Auction                 as A
+import           Aftok.Billables               as B
+import           Aftok.Currency.Bitcoin         ( NetworkId )
 import           Aftok.Interval
 import           Aftok.Payments.Types
-import           Aftok.Project             as P
+import           Aftok.Project                 as P
 import           Aftok.TimeLog
 import           Aftok.Util
 
-import           Network.Haskoin.Address   (Address)
+import           Network.Haskoin.Address        ( Address )
 
 type KeyedLogEntry a = (ProjectId, UserId, LogEntry a)
-type InvitingUID     = UserId
-type InvitedUID      = UserId
+type InvitingUID = UserId
+type InvitedUID = UserId
 
 type BTCNet = (NetworkId, Address)
 type BTCUser = User BTCNet
 
 data DBOp a where
-  CreateUser       :: BTCUser -> DBOp UserId
-  FindUser         :: UserId -> DBOp (Maybe BTCUser)
-  FindUserByName   :: UserName -> DBOp (Maybe (UserId, BTCUser))
+  CreateUser       ::BTCUser -> DBOp UserId
+  FindUser         ::UserId -> DBOp (Maybe BTCUser)
+  FindUserByName   ::UserName -> DBOp (Maybe (UserId, BTCUser))
 
-  CreateProject    :: Project -> DBOp ProjectId
-  FindProject      :: ProjectId -> DBOp (Maybe Project)
-  ListProjects     :: DBOp [ProjectId]
-  FindSubscribers  :: ProjectId -> DBOp [UserId]
-  FindUserProjects :: UserId -> DBOp [(ProjectId, Project)]
-  AddUserToProject :: ProjectId -> InvitingUID -> InvitedUID -> DBOp ()
-  CreateInvitation :: ProjectId -> InvitingUID -> Email -> C.UTCTime -> DBOp InvitationCode
-  FindInvitation   :: InvitationCode -> DBOp (Maybe Invitation)
-  AcceptInvitation :: UserId -> InvitationCode -> C.UTCTime -> DBOp ()
+  CreateProject    ::Project -> DBOp ProjectId
+  FindProject      ::ProjectId -> DBOp (Maybe Project)
+  ListProjects     ::DBOp [ProjectId]
+  FindSubscribers  ::ProjectId -> DBOp [UserId]
+  FindUserProjects ::UserId -> DBOp [(ProjectId, Project)]
+  AddUserToProject ::ProjectId -> InvitingUID -> InvitedUID -> DBOp ()
+  CreateInvitation ::ProjectId -> InvitingUID -> Email -> C.UTCTime -> DBOp InvitationCode
+  FindInvitation   ::InvitationCode -> DBOp (Maybe Invitation)
+  AcceptInvitation ::UserId -> InvitationCode -> C.UTCTime -> DBOp ()
 
-  CreateEvent      :: ProjectId -> UserId -> LogEntry BTCNet -> DBOp EventId
-  AmendEvent       :: EventId -> EventAmendment BTCNet -> DBOp AmendmentId
-  FindEvent        :: EventId -> DBOp (Maybe (KeyedLogEntry BTCNet))
-  FindEvents       :: ProjectId -> UserId -> Interval' -> DBOp [LogEntry BTCNet]
-  ReadWorkIndex    :: ProjectId -> DBOp (WorkIndex BTCNet)
+  CreateEvent      ::ProjectId -> UserId -> LogEntry BTCNet -> DBOp EventId
+  AmendEvent       ::EventId -> EventAmendment BTCNet -> DBOp AmendmentId
+  FindEvent        ::EventId -> DBOp (Maybe (KeyedLogEntry BTCNet))
+  FindEvents       ::ProjectId -> UserId -> Interval' -> DBOp [LogEntry BTCNet]
+  ReadWorkIndex    ::ProjectId -> DBOp (WorkIndex BTCNet)
 
-  CreateAuction    :: Auction -> DBOp AuctionId
-  FindAuction      :: AuctionId -> DBOp (Maybe Auction)
-  CreateBid        :: AuctionId -> Bid -> DBOp BidId
-  FindBids         :: AuctionId -> DBOp [(BidId, Bid)]
+  CreateAuction    ::Auction -> DBOp AuctionId
+  FindAuction      ::AuctionId -> DBOp (Maybe Auction)
+  CreateBid        ::AuctionId -> Bid -> DBOp BidId
+  FindBids         ::AuctionId -> DBOp [(BidId, Bid)]
 
-  CreateBillable   :: UserId -> Billable -> DBOp BillableId
-  FindBillable     :: BillableId -> DBOp (Maybe Billable)
-  FindBillables    :: ProjectId  -> DBOp [(BillableId, Billable)]
+  CreateBillable   ::UserId -> Billable -> DBOp BillableId
+  FindBillable     ::BillableId -> DBOp (Maybe Billable)
+  FindBillables    ::ProjectId  -> DBOp [(BillableId, Billable)]
 
-  CreateSubscription :: UserId -> BillableId -> T.Day -> DBOp SubscriptionId
-  FindSubscription   :: SubscriptionId -> DBOp (Maybe Subscription)
-  FindSubscriptions  :: UserId -> ProjectId -> DBOp [(SubscriptionId, Subscription)]
+  CreateSubscription ::UserId -> BillableId -> T.Day -> DBOp SubscriptionId
+  FindSubscription   ::SubscriptionId -> DBOp (Maybe Subscription)
+  FindSubscriptions  ::UserId -> ProjectId -> DBOp [(SubscriptionId, Subscription)]
 
-  CreatePaymentRequest  :: PaymentRequest -> DBOp PaymentRequestId
-  FindPaymentRequests   :: SubscriptionId -> DBOp [(PaymentRequestId, PaymentRequest)]
-  FindUnpaidRequests    :: SubscriptionId -> DBOp [BillDetail]
-  FindPaymentRequest    :: PaymentKey -> DBOp (Maybe (PaymentRequestId, PaymentRequest))
-  FindPaymentRequestId  :: PaymentRequestId -> DBOp (Maybe PaymentRequest)
+  CreatePaymentRequest  ::PaymentRequest -> DBOp PaymentRequestId
+  FindPaymentRequests   ::SubscriptionId -> DBOp [(PaymentRequestId, PaymentRequest)]
+  FindUnpaidRequests    ::SubscriptionId -> DBOp [BillDetail]
+  FindPaymentRequest    ::PaymentKey -> DBOp (Maybe (PaymentRequestId, PaymentRequest))
+  FindPaymentRequestId  ::PaymentRequestId -> DBOp (Maybe PaymentRequest)
 
-  CreatePayment  :: Payment -> DBOp PaymentId
-  FindPayments   :: PaymentRequestId -> DBOp [(PaymentId, Payment)]
+  CreatePayment  ::Payment -> DBOp PaymentId
+  FindPayments   ::PaymentRequestId -> DBOp [(PaymentId, Payment)]
 
   RaiseDBError     :: forall x y. DBError -> DBOp x -> DBOp y
 
@@ -136,9 +141,8 @@ findProject :: (MonadDB m) => ProjectId -> MaybeT m Project
 findProject = MaybeT . liftdb . FindProject
 
 findProjectOrError :: (MonadDB m) => ProjectId -> m Project
-findProjectOrError pid = fromMaybeT
-  (raiseSubjectNotFound $ FindProject pid)
-  (findProject pid)
+findProjectOrError pid =
+  fromMaybeT (raiseSubjectNotFound $ FindProject pid) (findProject pid)
 
 findUserProject :: (MonadDB m) => UserId -> ProjectId -> MaybeT m Project
 findUserProject uid pid = do
@@ -162,49 +166,59 @@ checkProjectAuth pid uid act = do
     then pure ()
     else void $ raiseOpForbidden uid UserNotProjectMember act
 
-addUserToProject :: (MonadDB m) => ProjectId -> InvitingUID -> InvitedUID -> m ()
+addUserToProject
+  :: (MonadDB m) => ProjectId -> InvitingUID -> InvitedUID -> m ()
 addUserToProject pid current new =
   withProjectAuth pid current $ AddUserToProject pid current new
 
-createInvitation :: (MonadDB m) => ProjectId -> InvitingUID -> Email -> C.UTCTime -> m InvitationCode
+createInvitation
+  :: (MonadDB m)
+  => ProjectId
+  -> InvitingUID
+  -> Email
+  -> C.UTCTime
+  -> m InvitationCode
 createInvitation pid current email t =
   withProjectAuth pid current $ CreateInvitation pid current email t
 
 findInvitation :: (MonadDB m) => InvitationCode -> m (Maybe Invitation)
 findInvitation ic = liftdb $ FindInvitation ic
 
-acceptInvitation :: (MonadDB m) => UserId -> C.UTCTime -> InvitationCode-> m ()
+acceptInvitation :: (MonadDB m) => UserId -> C.UTCTime -> InvitationCode -> m ()
 acceptInvitation uid t ic = do
   inv <- findInvitation ic
   let act = AcceptInvitation uid ic t
   case inv of
-    Nothing ->
-      raiseSubjectNotFound act
+    Nothing -> raiseSubjectNotFound act
     Just i | t .-. (i ^. invitationTime) > fromSeconds (60 * 60 * 72 :: Int) ->
       raiseOpForbidden uid InvitationExpired act
     Just i | isJust (i ^. acceptanceTime) ->
       raiseOpForbidden uid InvitationAlreadyAccepted act
-    Just i ->
-      withProjectAuth (i ^. P.projectId) (i ^. P.invitingUser) act
+    Just i -> withProjectAuth (i ^. P.projectId) (i ^. P.invitingUser) act
 
 -- Log ops
 
 -- TODO: ignore "duplicate" events within some small time limit?
-createEvent :: (MonadDB m) => ProjectId -> UserId -> LogEntry BTCNet -> m EventId
+createEvent
+  :: (MonadDB m) => ProjectId -> UserId -> LogEntry BTCNet -> m EventId
 createEvent p u l = withProjectAuth p u $ CreateEvent p u l
 
-amendEvent :: (MonadDB m) => UserId -> EventId -> EventAmendment BTCNet -> m AmendmentId
+amendEvent
+  :: (MonadDB m) => UserId -> EventId -> EventAmendment BTCNet -> m AmendmentId
 amendEvent uid eid a = do
   ev <- findEvent eid
-  let act = AmendEvent eid a
+  let act       = AmendEvent eid a
       forbidden = raiseOpForbidden uid UserNotEventLogger act
       missing   = raiseSubjectNotFound act
-  maybe missing (\(_, uid', _) -> if uid' == uid then liftdb act else forbidden) ev
+  maybe missing
+        (\(_, uid', _) -> if uid' == uid then liftdb act else forbidden)
+        ev
 
 findEvent :: (MonadDB m) => EventId -> m (Maybe (KeyedLogEntry BTCNet))
 findEvent = liftdb . FindEvent
 
-findEvents :: (MonadDB m) => ProjectId -> UserId -> Interval' -> m [LogEntry BTCNet]
+findEvents
+  :: (MonadDB m) => ProjectId -> UserId -> Interval' -> m [LogEntry BTCNet]
 findEvents p u i = liftdb $ FindEvents p u i
 
 readWorkIndex :: (MonadDB m) => ProjectId -> UserId -> m (WorkIndex BTCNet)
@@ -219,21 +233,26 @@ createBillable uid b =
 findBillable :: (MonadDB m) => BillableId -> MaybeT m Billable
 findBillable = MaybeT . liftdb . FindBillable
 
-findSubscriptions :: (MonadDB m) => UserId -> ProjectId -> m [(SubscriptionId, Subscription)]
+findSubscriptions
+  :: (MonadDB m) => UserId -> ProjectId -> m [(SubscriptionId, Subscription)]
 findSubscriptions uid pid = liftdb $ FindSubscriptions uid pid
 
-findSubscriptionBillable :: (MonadDB m) => SubscriptionId -> MaybeT m (Subscription' UserId Billable)
+findSubscriptionBillable
+  :: (MonadDB m) => SubscriptionId -> MaybeT m (Subscription' UserId Billable)
 findSubscriptionBillable sid = do
   sub <- MaybeT . liftdb $ FindSubscription sid
   traverseOf B.billable findBillable sub
 
-findPaymentRequests :: (MonadDB m) => SubscriptionId -> m [(PaymentRequestId, PaymentRequest)]
+findPaymentRequests
+  :: (MonadDB m) => SubscriptionId -> m [(PaymentRequestId, PaymentRequest)]
 findPaymentRequests = liftdb . FindPaymentRequests
 
-findPaymentRequest :: (MonadDB m) => PaymentKey -> MaybeT m (PaymentRequestId, PaymentRequest)
+findPaymentRequest
+  :: (MonadDB m) => PaymentKey -> MaybeT m (PaymentRequestId, PaymentRequest)
 findPaymentRequest = MaybeT . liftdb . FindPaymentRequest
 
-findPaymentRequestId :: (MonadDB m) => PaymentRequestId -> MaybeT m PaymentRequest
+findPaymentRequestId
+  :: (MonadDB m) => PaymentRequestId -> MaybeT m PaymentRequest
 findPaymentRequestId = MaybeT . liftdb . FindPaymentRequestId
 
 -- this could be implemented in terms of other operations, but it's
@@ -254,23 +273,25 @@ findAuction :: (MonadDB m) => AuctionId -> UserId -> MaybeT m Auction
 findAuction aid uid =
   let findOp = FindAuction aid
   in  do
-    auc <- MaybeT $ liftdb findOp
-    _ <- lift $ checkProjectAuth (auc ^. A.projectId) uid findOp
-    pure auc
+        auc <- MaybeT $ liftdb findOp
+        _   <- lift $ checkProjectAuth (auc ^. A.projectId) uid findOp
+        pure auc
 
 findAuction' :: (MonadDB m) => AuctionId -> UserId -> m Auction
 findAuction' aid uid =
   let findOp = FindAuction aid
   in  do
-    maybeAuc <- liftdb findOp
-    _ <- traverse (\auc -> checkProjectAuth (auc ^. A.projectId) uid findOp) maybeAuc
-    maybe (raiseSubjectNotFound findOp) pure maybeAuc
+        maybeAuc <- liftdb findOp
+        _        <- traverse
+          (\auc -> checkProjectAuth (auc ^. A.projectId) uid findOp)
+          maybeAuc
+        maybe (raiseSubjectNotFound findOp) pure maybeAuc
 
 createBid :: (MonadDB m) => AuctionId -> UserId -> Bid -> m BidId
 createBid aid uid bid =
   let createOp = CreateBid aid bid
   in  do
-    auc <- findAuction' aid uid
-    if view bidTime bid > view auctionEnd auc
-      then raiseOpForbidden uid AuctionEnded createOp
-      else liftdb createOp
+        auc <- findAuction' aid uid
+        if view bidTime bid > view auctionEnd auc
+          then raiseOpForbidden uid AuctionEnded createOp
+          else liftdb createOp

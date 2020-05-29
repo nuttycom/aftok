@@ -3,15 +3,17 @@
 
 module Aftok.Types where
 
-import           Control.Lens           (makeLenses, makePrisms)
-import           Data.Maybe             (Maybe)
-import           Data.Eq                (Eq)
-import           Data.Functor           (Functor)
-import           Data.Ord               (Ord)
-import           Data.Text              (Text)
-import           Data.UUID              (UUID)
-import           Prelude                (Integer)
-import           Text.Show              (Show)
+import           Control.Lens                   ( makeLenses
+                                                , makePrisms
+                                                )
+import           Data.Maybe                     ( Maybe )
+import           Data.Eq                        ( Eq )
+import           Data.Functor                   ( Functor )
+import           Data.Ord                       ( Ord )
+import           Data.Text                      ( Text )
+import           Data.UUID                      ( UUID )
+import           Prelude                        ( Integer )
+import           Text.Show                      ( Show )
 
 
 newtype UserId = UserId UUID deriving (Show, Eq, Ord)
@@ -45,8 +47,8 @@ makePrisms ''CreditTo
 
 creditToName :: CreditTo a -> Text
 creditToName (CreditToCurrency _) = "credit_via_net"
-creditToName (CreditToUser _)    = "credit_to_user"
-creditToName (CreditToProject _) = "credit_to_project"
+creditToName (CreditToUser     _) = "credit_to_user"
+creditToName (CreditToProject  _) = "credit_to_project"
 
 data DepreciationFunction = LinearDepreciation Months Months
   deriving (Eq, Show)

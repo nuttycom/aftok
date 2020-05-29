@@ -1,21 +1,32 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Aftok.Interval
-  ( Interval(..), interval, start, end, ilen
-  , Interval'(..), interval', start', end'
-  , intervalJSON, parseIntervalJSON
+  ( Interval(..)
+  , interval
+  , start
+  , end
+  , ilen
+  , Interval'(..)
+  , interval'
+  , start'
+  , end'
+  , intervalJSON
+  , parseIntervalJSON
   , containsInclusive
-  ) where
+  )
+where
 
 
 
-import           Control.Lens            (makeLenses, (^.))
+import           Control.Lens                   ( makeLenses
+                                                , (^.)
+                                                )
 import           Data.Aeson
 import           Data.Aeson.Types
 import           Data.AffineSpace
-import           Data.Thyme.Clock        as C
-import           Data.Thyme.Format.Aeson ()
-import           Data.Thyme.LocalTime    ()
+import           Data.Thyme.Clock              as C
+import           Data.Thyme.Format.Aeson        ( )
+import           Data.Thyme.LocalTime           ( )
 
 data Interval = Interval { _start :: C.UTCTime
                          , _end   :: C.UTCTime

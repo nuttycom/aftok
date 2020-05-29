@@ -4,14 +4,18 @@
 module Aftok.QConfig where
 
 
-import           Control.Lens (makeLenses, (^.))
+import           Control.Lens                   ( makeLenses
+                                                , (^.)
+                                                )
 import qualified Data.ByteString.Char8         as C8
 import qualified Data.Configurator             as C
 import qualified Data.Configurator.Types       as CT
 import qualified Data.List                     as L
-import           System.Environment            (getEnvironment)
-import           Filesystem.Path.CurrentOS (fromText, encodeString)
-import qualified Filesystem.Path.CurrentOS as P
+import           System.Environment             ( getEnvironment )
+import           Filesystem.Path.CurrentOS      ( fromText
+                                                , encodeString
+                                                )
+import qualified Filesystem.Path.CurrentOS     as P
 
 import           Snap.Core
 import qualified Snap.Http.Server.Config       as SC
@@ -41,20 +45,25 @@ loadQConfig cfgFile = do
 
 readQConfig :: CT.Config -> Maybe PGSConfig -> IO QConfig
 readQConfig cfg pc =
-  QConfig <$> C.lookupDefault "localhost" cfg "hostname"
-          <*> C.lookupDefault 8000 cfg "port"
-          <*> (fromText <$> C.require cfg "siteKey")
-          <*> C.lookup cfg "cookieTimeout"
-          <*> maybe (mkPGSConfig $ C.subconfig "db" cfg) pure pc
-          <*> readSmtpConfig cfg
-          <*> (readBillingConfig $ C.subconfig "billing" cfg)
-          <*> (fromText <$> C.lookupDefault "/opt/aftok/server/templates/" cfg "templatePath")
-          <*> (fromText <$> C.lookupDefault "/opt/aftok/server/static/" cfg "staticAssetPath")
+  QConfig
+    <$> C.lookupDefault "localhost" cfg "hostname"
+    <*> C.lookupDefault 8000 cfg "port"
+    <*> (fromText <$> C.require cfg "siteKey")
+    <*> C.lookup cfg "cookieTimeout"
+    <*> maybe (mkPGSConfig $ C.subconfig "db" cfg) pure pc
+    <*> readSmtpConfig cfg
+    <*> (readBillingConfig $ C.subconfig "billing" cfg)
+    <*> (fromText <$> C.lookupDefault "/opt/aftok/server/templates/"
+                                      cfg
+                                      "templatePath"
+        )
+    <*> (fromText <$> C.lookupDefault "/opt/aftok/server/static/"
+                                      cfg
+                                      "staticAssetPath"
+        )
 
 baseSnapConfig :: QConfig -> SC.Config m a -> SC.Config m a
-baseSnapConfig qc =
-  SC.setHostname (qc ^. hostname) .
-  SC.setPort (qc ^. port)
+baseSnapConfig qc = SC.setHostname (qc ^. hostname) . SC.setPort (qc ^. port)
 
 -- configuration specific to Snap, commandLineConfig arguments override
 -- config file.

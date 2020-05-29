@@ -3,25 +3,26 @@ module Aftok.Snaplet.Auth where
 
 
 import           Control.Lens
-import           Control.Error.Util (maybeT)
-import           Control.Monad.Trans.Maybe (mapMaybeT)
-import           Data.Attoparsec.ByteString (parseOnly)
+import           Control.Error.Util             ( maybeT )
+import           Control.Monad.Trans.Maybe      ( mapMaybeT )
+import           Data.Attoparsec.ByteString     ( parseOnly )
 
 import           Aftok.Types
 import           Aftok.Database
 import           Aftok.Snaplet
-import           Aftok.Util.Http            (authHeaderParser)
+import           Aftok.Util.Http                ( authHeaderParser )
 
 import           Snap.Core
-import           Snap.Snaplet               as S
-import qualified Snap.Snaplet.Auth          as AU
+import           Snap.Snaplet                  as S
+import qualified Snap.Snaplet.Auth             as AU
 
 requireLogin :: S.Handler App App AU.AuthUser
 requireLogin = do
-  req <- getRequest
+  req          <- getRequest
   rawHeader    <- maybe throwChallenge pure $ getHeader "Authorization" req
-  (uname, pwd) <- either (throwDenied . AU.AuthError) pure $ parseOnly authHeaderParser rawHeader
-  authResult   <- with auth $ AU.loginByUsername uname (AU.ClearText pwd) False
+  (uname, pwd) <- either (throwDenied . AU.AuthError) pure
+    $ parseOnly authHeaderParser rawHeader
+  authResult <- with auth $ AU.loginByUsername uname (AU.ClearText pwd) False
   either throwDenied pure authResult
 
 requireUser :: S.Handler App App AU.AuthUser
@@ -39,13 +40,14 @@ requireUserId = do
 
 throwChallenge :: MonadSnap m => m a
 throwChallenge = do
-    modifyResponse $ (setResponseStatus 401 "Unauthorized") .
-                     (setHeader "WWW-Authenticate" "Basic realm=aftok")
-    getResponse >>= finishWith
+  modifyResponse
+    $ (setResponseStatus 401 "Unauthorized")
+    . (setHeader "WWW-Authenticate" "Basic realm=aftok")
+  getResponse >>= finishWith
 
 throwDenied :: MonadSnap m => AU.AuthFailure -> m a
 throwDenied failure = do
-    modifyResponse $ setResponseStatus 403 "Access Denied"
-    writeText $ "Access Denied: " <> show failure
-    getResponse >>= finishWith
+  modifyResponse $ setResponseStatus 403 "Access Denied"
+  writeText $ "Access Denied: " <> show failure
+  getResponse >>= finishWith
 
