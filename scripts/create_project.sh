@@ -4,6 +4,10 @@ if [ -f ".env" ]; then
   source .env
 fi
 
+if [ -z "${AFTOK_HOST}" ]; then 
+  AFTOK_HOST="aftok.com"
+fi
+
 if [ -z "${USER}" ]; then 
   read -p "Username: " USER
   echo
@@ -31,5 +35,5 @@ END_BODY
 curl --verbose --insecure --user $USER \
   --request POST --header "Content-Type: application/json" \
   --data "$BODY" \
-  'https://aftok.com/api/projects'
+  "https://$AFTOK_HOST/api/projects"
 
