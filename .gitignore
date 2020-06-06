@@ -3,6 +3,7 @@ cabal.sandbox.config
 .cabal-sandbox
 .stack-work
 Setup
+dist-newstyle
 
 *.swp
 tags
@@ -19,6 +20,7 @@ local
 bin
 
 docker-conf
+docker/fix-attrs.d
 client/.pulp-cache
 moo.cfg
 site_key.txt

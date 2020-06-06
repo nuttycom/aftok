@@ -28,6 +28,7 @@ import           Data.ProtocolBuffers           ( decodeMessage
                                                 )
 import           Data.Serialize.Get             ( runGet )
 import           Data.Serialize.Put             ( runPut )
+import qualified Data.Text                     as T
 import           Data.Thyme.Clock              as C
 import           Data.Thyme.Time
 import           Data.UUID                      ( UUID )
@@ -104,10 +105,11 @@ addressParser mode = do
 
 addrFieldParser :: Network -> FieldParser Address
 addrFieldParser n f v = do
-  addrMay <- stringToAddr n <$> fromField f v
+  fieldValue <- fromField f v
+  let addrMay = stringToAddr n fieldValue
   let err = returnError ConversionFailed
                         f
-                        "could not deserialize value to a valid BTC address"
+                        ("could not deserialize value " <> T.unpack fieldValue <> " to a valid BTC address")
   maybe err pure addrMay
 
 btcParser :: RowParser Satoshi
@@ -369,7 +371,8 @@ pgEval (FindEvent (EventId eid)) = do
   headMay <$> pquery
     (qdbLogEntryParser mode)
     [sql| SELECT project_id, user_id,
-                 credit_to_type, credit_to_address, credit_to_user_id, credit_to_project_id,
+                 credit_to_type,
+                 credit_to_network, credit_to_address, credit_to_user_id, credit_to_project_id,
                  event_type, event_time, event_metadata FROM work_events
           WHERE id = ? |]
     (Only eid)
@@ -379,7 +382,8 @@ pgEval (FindEvents (ProjectId pid) (UserId uid) ival) = do
   let
     q (Before e) = pquery
       (logEntryParser mode)
-      [sql| SELECT credit_to_type, credit_to_address, credit_to_user_id, credit_to_project_id,
+      [sql| SELECT credit_to_type,
+                     credit_to_network, credit_to_address, credit_to_user_id, credit_to_project_id,
                      event_type, event_time,
                      event_metadata
               FROM work_events
@@ -387,7 +391,8 @@ pgEval (FindEvents (ProjectId pid) (UserId uid) ival) = do
       (pid, uid, fromThyme e)
     q (During s e) = pquery
       (logEntryParser mode)
-      [sql| SELECT credit_to_type, credit_to_address, credit_to_user_id, credit_to_project_id,
+      [sql| SELECT credit_to_type,
+                     credit_to_network, credit_to_address, credit_to_user_id, credit_to_project_id,
                      event_type, event_time, event_metadata
               FROM work_events
               WHERE project_id = ? AND user_id = ?
@@ -395,7 +400,8 @@ pgEval (FindEvents (ProjectId pid) (UserId uid) ival) = do
       (pid, uid, fromThyme s, fromThyme e)
     q (After s) = pquery
       (logEntryParser mode)
-      [sql| SELECT credit_to_type, credit_to_address, credit_to_user_id, credit_to_project_id,
+      [sql| SELECT credit_to_type,
+                     credit_to_network, credit_to_address, credit_to_user_id, credit_to_project_id,
                      event_type, event_time, event_metadata
               FROM work_events
               WHERE project_id = ? AND user_id = ? AND event_time >= ? |]
@@ -450,7 +456,8 @@ pgEval (ReadWorkIndex (ProjectId pid)) = do
   mode       <- askNetworkMode
   logEntries <- pquery
     (logEntryParser mode)
-    [sql| SELECT credit_to_type, credit_to_address, credit_to_user_id, credit_to_project_id,
+    [sql| SELECT credit_to_type,
+                 credit_to_network, credit_to_address, credit_to_user_id, credit_to_project_id,
                  event_type, event_time, event_metadata
           FROM work_events
           WHERE project_id = ? |]
@@ -501,7 +508,7 @@ pgEval (CreateUser user') = do
         pure $ addrToString network address
   pinsert
     UserId
-    [sql| INSERT INTO users (handle, network, addr, email)
+    [sql| INSERT INTO users (handle, default_payment_network, default_payment_addr, email)
           VALUES (?, ?, ?, ?) RETURNING id |]
     ( user' ^. (username . _UserName)
     , renderNetworkId <$> nidMay
@@ -513,14 +520,14 @@ pgEval (FindUser (UserId uid)) = do
   mode <- askNetworkMode
   headMay <$> pquery
     (userParser mode)
-    [sql| SELECT handle, btc_addr, email FROM users WHERE id = ? |]
+    [sql| SELECT handle, default_payment_network, default_payment_addr, email FROM users WHERE id = ? |]
     (Only uid)
 
 pgEval (FindUserByName (UserName h)) = do
   mode <- askNetworkMode
   headMay <$> pquery
     ((,) <$> idParser UserId <*> userParser mode)
-    [sql| SELECT id, handle, btc_addr, email FROM users WHERE handle = ? |]
+    [sql| SELECT id, handle, default_payment_network, default_payment_addr, email FROM users WHERE handle = ? |]
     (Only h)
 
 pgEval (CreateInvitation (ProjectId pid) (UserId uid) (Email e) t) = do

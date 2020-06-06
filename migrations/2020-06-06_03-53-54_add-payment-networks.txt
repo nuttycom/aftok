@@ -1,0 +1,19 @@
+Description: (Describe migration here.)
+Created: 2020-06-06 03:54:56.188542 UTC
+Depends: 2016-10-13_05-36-55_user-event-log
+Apply: |
+  ALTER TABLE users ADD COLUMN default_payment_network text NOT NULL DEFAULT 'btc';
+  ALTER TABLE users RENAME COLUMN btc_addr TO default_payment_addr;
+
+  ALTER TABLE work_events ADD COLUMN credit_to_network text;
+
+  UPDATE work_events SET credit_to_network = 'btc' 
+  WHERE credit_to_address IS NOT NULL;
+
+Revert: |
+  ALTER TABLE work_events DROP COLUMN credit_to_network;
+
+  ALTER TABLE users RENAME COLUMN default_payment_addr TO btc_addr;
+  ALTER TABLE users DROP COLUMN default_payment_network;
+
+

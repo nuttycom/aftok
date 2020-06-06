@@ -5,11 +5,11 @@ format:
 	find lib test server daemon -name \*.hs -exec brittany --write-mode=inplace {} \;
 
 build-image:
-	docker build -t aftok/aftok:latest .
+	docker build -t aftok/aftok-server:latest .
 
 deploy-image: build-image
-	docker tag aftok/aftok:latest aftok/aftok:$(VERSION)
-	docker push docker.io/aftok/aftok:$(VERSION)
+	docker tag aftok/aftok-server:latest aftok/aftok-server:$(VERSION)
+	docker push docker.io/aftok/aftok-server:$(VERSION)
 
 run-local-docker: build-image
-	docker run --net=host -it -v $(PWD)/local/conf/:/etc/aftok aftok/aftok:latest
+	docker run --net=host -it -v $(PWD)/local/conf/:/etc/aftok aftok/aftok-server:latest
