@@ -322,13 +322,14 @@ pgEval (CreateEvent (ProjectId pid) (UserId uid) (LogEntry c e m)) = case c of
     pinsert
       EventId
       [sql| INSERT INTO work_events
-              ( project_id, user_id, credit_to_type, credit_to_address
+              ( project_id, user_id, credit_to_type, credit_to_network, credit_to_address
               , event_type, event_time, event_metadata )
               VALUES (?, ?, ?, ?, ?, ?, ?)
               RETURNING id |]
       ( pid
       , uid
       , creditToName c
+      , renderNetworkId nid
       , addrToString network addr
       , eventName e
       , fromThyme $ e ^. eventTime
@@ -423,11 +424,12 @@ pgEval (AmendEvent (EventId eid) (CreditToChange mt c)) = do
       pinsert
         AmendmentId
         [sql| INSERT INTO event_credit_to_amendments
-              (event_id, amended_at, credit_to_type, credit_to_btc_addr)
+              (event_id, amended_at, credit_to_type, credit_to_network, credit_to_address)
               VALUES (?, ?, ?, ?) RETURNING id |]
         ( eid
         , fromThyme $ mt ^. _ModTime
         , creditToName c
+        , renderNetworkId nid
         , addrToString network addr
         )
 

@@ -8,9 +8,18 @@ Apply: |
   ALTER TABLE work_events ADD COLUMN credit_to_network text;
 
   UPDATE work_events SET credit_to_network = 'btc' 
-  WHERE credit_to_address IS NOT NULL;
+    WHERE credit_to_address IS NOT NULL;
+
+  ALTER TABLE event_credit_to_amendments RENAME COLUMN credit_to_btc_addr TO credit_to_address;
+  ALTER TABLE event_credit_to_amendments ADD COLUMN credit_to_network text;
+
+  UPDATE event_credit_to_amendments SET credit_to_network = 'btc' 
+    WHERE credit_to_address IS NOT NULL;
 
 Revert: |
+  ALTER TABLE event_credit_to_amendments RENAME COLUMN credit_to_address TO credit_to_btc_addr;
+  ALTER TABLE event_credit_to_amendments DROP COLUMN credit_to_network;
+
   ALTER TABLE work_events DROP COLUMN credit_to_network;
 
   ALTER TABLE users RENAME COLUMN default_payment_addr TO btc_addr;
