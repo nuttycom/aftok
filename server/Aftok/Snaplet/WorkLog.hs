@@ -6,7 +6,7 @@ import           Control.Lens
 import           Control.Monad.Trans.Maybe      ( mapMaybeT )
 
 import qualified Data.Aeson                    as A
-import           Data.Aeson.Types
+import qualified Data.Aeson.Types              as A
 import qualified Data.Text                     as T
 import           Data.Thyme.Clock              as C
 import           Data.UUID                     as U
@@ -40,7 +40,7 @@ logWorkHandler evCtr = do
   requestBody <- readRequestBody 4096
   timestamp   <- liftIO C.getCurrentTime
   case
-      A.eitherDecode requestBody >>= parseEither (parseLogEntry nmode uid evCtr)
+      A.eitherDecode requestBody >>= A.parseEither (parseLogEntry nmode uid evCtr)
     of
       Left err ->
         snapError 400
@@ -112,4 +112,4 @@ amendEventHandler = do
   requestJSON <- readRequestJSON 4096
   either (snapError 400 . T.pack)
          (snapEval . amendEvent uid eventId)
-         (parseEither (parseEventAmendment nmode modTime) requestJSON)
+         (A.parseEither (parseEventAmendment nmode modTime) requestJSON)

@@ -4,13 +4,15 @@ MAINTAINER Kris Nuttycombe <kris@aftok.com>
 
 ## ensure locale is set during build
 ENV LANG            C.UTF-8
+ENV TZ              America/Denver
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # Install build tools & library dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential autotools-dev autoconf dh-autoreconf \
     g++ gcc libc6-dev libffi-dev libgmp-dev make xz-utils zlib1g-dev git gnupg curl \
-    libpq-dev libsqlite3-dev \
+    libpq-dev libsqlite3-dev libssl-dev \
     libsecp256k1-dev
 
 RUN apt-get install -y --no-install-recommends ca-certificates
@@ -45,7 +47,6 @@ ADD ./stack.yaml  /opt/aftok/stack.yaml
 # Build dependencies
 RUN /root/.local/bin/stack setup
 RUN /root/.local/bin/stack install cpphs 
-RUN apt-get update && apt-get install -y --no-install-recommends libssl-dev
 RUN /root/.local/bin/stack build --only-dependencies -j1
 
 ADD ./lib         /opt/aftok/lib

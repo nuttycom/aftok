@@ -1,16 +1,26 @@
-Client Project Setup
-====================
+# Aftok Client Webapp
 
-This is the very minimal set of steps that is necessary to build the
-JavaScript artifact for the client site:
+### Initial Setup
 
+To install the toolchain locally (reads `devDependencies` from `package.json`):
+
+```sh
+npm install
+```
+### Building
+
+You can now build the PureScript source code with:
+
+```sh
+spago build
 ```
 
-sudo npm install -g purescript pulp bower
-npm install virtual-dom
-pulp dep install
-pulp browserify --optimise --to dist/aftok.js
+### Development Cycle
 
+To create a minified bundle for deployment, run: 
+
+```sh
+npm run build-prod
 ```
 
-
+Parcel output appears in the `./dist/` directory.

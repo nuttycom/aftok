@@ -1,9 +1,14 @@
 {
+  "private": true,
   "devDependencies": {
-    "pulp": "^10.0.0",
-    "purescript": "^0.10.7",
-    "purescript-psa": "^0.4.0",
-    "rimraf": "^2.5.4",
-    "uuid-validate": "0.0.2"
+    "parcel": "^1.12.4",
+    "purescript": "^0.13.8",
+    "spago": "^0.15.3"
+  },
+  "scripts": {
+    "build": "spago build",
+    "copy-assets": "ln -sf ../dev/assets ./dist/",
+    "serve": "npm run copy-assets && parcel dev/index.html --open",
+    "build-prod": "mkdir -p prod && cp dev/index.html prod/ && rm -rf dist && spago bundle-app --to prod/index.js && parcel build prod/index.html --public-url /app/"
   }
 }

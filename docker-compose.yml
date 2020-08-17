@@ -10,7 +10,7 @@ services:
       - aftokdb
     volumes:
       - type: bind
-        source: ${PWD}/local/conf/server
+        source: ./local/conf/server
         target: /etc/aftok
     networks:
       - front-tier
@@ -27,20 +27,29 @@ services:
       - aftok
     volumes:
       - type: bind
-        source: ${PWD}/deploy/nginx/
+        source: ./deploy/nginx/
         target: /etc/nginx
       - type: bind
-        source: ${PWD}/local/conf/nginx-certs
+        source: ./local/conf/nginx-certs
         target: /opt/nginx
+      - type: bind
+        source: ./aftok.com/dist/
+        target: /opt/static/site
+      - type: bind
+        source: ./client/dist/
+        target: /opt/static/app
     networks:
       - front-tier
 
   aftokdb:
     image: postgres:9.4
     container_name: aftok-db
+    expose:
+      - "5432"
     ports:
       - "5432:5432"
     environment:
+      POSTGRES_DB: "postgres"
       POSTGRES_USER: "postgres"
       POSTGRES_PASSWORD: "postgres"
     volumes:
@@ -48,7 +57,7 @@ services:
         source: aftok-data
         target: /var/lib/postgresql/data
       - type: bind
-        source: ${PWD}/local/db-dumps
+        source: ./local/db-dumps
         target: /opt/
     networks:
       - back-tier

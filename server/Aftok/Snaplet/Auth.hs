@@ -1,10 +1,11 @@
 module Aftok.Snaplet.Auth where
 
-
-
 import           Control.Lens
 import           Control.Error.Util             ( maybeT )
 import           Control.Monad.Trans.Maybe      ( mapMaybeT )
+import           Data.Aeson                     ((.:))
+import qualified Data.Aeson                     as A
+import qualified Data.Aeson.Types               as A
 import           Data.Attoparsec.ByteString     ( parseOnly )
 
 import           Aftok.Types
@@ -16,6 +17,15 @@ import           Snap.Core
 import           Snap.Snaplet                  as S
 import qualified Snap.Snaplet.Auth             as AU
 
+data LoginRequest = LoginRequest
+  { loginUser :: Text
+  , loginPass :: Text
+  }
+
+parseLoginRequest :: A.Value -> A.Parser LoginRequest
+parseLoginRequest (A.Object o) = LoginRequest <$> o .: "username" <*> o .: "password"
+parseLoginRequest val = fail $ "Value " <> show val <> " is not a JSON object."
+
 requireLogin :: S.Handler App App AU.AuthUser
 requireLogin = do
   req          <- getRequest
@@ -23,6 +33,17 @@ requireLogin = do
   (uname, pwd) <- either (throwDenied . AU.AuthError) pure
     $ parseOnly authHeaderParser rawHeader
   authResult <- with auth $ AU.loginByUsername uname (AU.ClearText pwd) False
+  either throwDenied pure authResult
+
+requireLoginXHR :: S.Handler App App AU.AuthUser
+requireLoginXHR = do
+  requestBody <- readRequestBody 4096
+  credentials <- case
+      A.eitherDecode requestBody >>= A.parseEither parseLoginRequest
+    of
+      Left _ -> snapError 400 $ "Unable to parse login credentials object."
+      Right creds -> pure creds
+  authResult <- with auth $ AU.loginByUsername (loginUser credentials) (AU.ClearText (encodeUtf8 $ loginPass credentials)) False
   either throwDenied pure authResult
 
 requireUser :: S.Handler App App AU.AuthUser

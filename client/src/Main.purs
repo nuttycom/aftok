@@ -1,39 +1,69 @@
 module Main where
 
-import Prelude (Unit, bind, ($), (<$), (<$>), (*>), (<<<))
+import Prelude
 
-import Control.Alt ((<|>))
-import Control.Monad.Eff (Eff())
-import Control.Monad.Eff.Console (CONSOLE())
+import Data.Int (toNumber)
+import Data.Maybe (Maybe(..))
+import Data.Symbol (SProxy(..))
 
-import Data.Maybe (maybe)
-import Data.UUID (UUID, parseUUID)
+import Effect (Effect)
+import Effect.Aff (Aff)
 
-import Routing.Match (Match)
-import Routing.Match.Class (lit, str)
-
-import Halogen.Aff (HalogenEffects)
-import Halogen.VDom.Driver (runUI)
+import Halogen as H
 import Halogen.Aff as HA
+import Halogen.HTML as HH
+import Halogen.VDom.Driver (runUI)
 
-import Network.HTTP.Affjax (AJAX())
+import Aftok.Login as Login
+import Aftok.Timeline as Timeline
+import Aftok.Timeline (TimelineState)
+-- import Effect.Class.Console (info)
 
-import Aftok.Login as L
-
-type AppEffects eff = HalogenEffects (console :: CONSOLE, ajax :: AJAX | eff)
-
-main :: Eff (AppEffects ()) Unit
-main = HA.runHalogenAff $ do
+main :: Effect Unit
+main = HA.runHalogenAff do
   body <- HA.awaitBody
-  runUI L.ui L.initialState body
+  let c = component Login.mockCapability
+  runUI c unit body
 
-data ARoute 
-  = Home
-  | Login
-  | Project UUID
-  | NotFound
+type LoggedInState = 
+  { timelineState :: TimelineState
+  }
 
-routing :: Match ARoute
-routing = Home <$ lit ""
-      <|> Login <$ (lit "" *> lit "login")
-      <|> (maybe NotFound Project <<< parseUUID) <$> (lit "" *> lit "project" *> str)
+data MainState 
+  = LoggedIn 
+  | LoggedOut
+
+data MainAction
+  = LoginComplete Login.LoginComplete
+
+type Slots = 
+  ( login :: Login.Slot Unit
+  , timeline :: Timeline.Slot Unit
+  )
+
+_login = SProxy :: SProxy "login"
+_timeline = SProxy :: SProxy "timeline"
+
+component 
+  :: forall query input output
+  .  Login.Capability Aff
+  -> H.Component HH.HTML query input output Aff
+component loginCap = H.mkComponent 
+  { initialState
+  , render 
+  , eval: H.mkEval $ H.defaultEval { handleAction = eval }
+  } where
+
+    initialState :: input -> MainState
+    initialState _ = LoggedOut
+
+    render :: MainState -> H.ComponentHTML MainAction Slots Aff
+    render s = case s of
+      LoggedOut -> 
+        HH.div_ [ HH.slot _login unit (Login.component loginCap) unit (Just <<< LoginComplete) ]
+      LoggedIn -> 
+        HH.div_ [ HH.slot _timeline unit (Timeline.component { width: toNumber 600 }) unit absurd ]
+
+    eval :: MainAction -> H.HalogenM MainState MainAction Slots output Aff Unit
+    eval = case _ of
+      LoginComplete _ -> H.put LoggedIn

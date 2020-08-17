@@ -57,7 +57,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
     nmode             = cfg ^. billingConfig . C.networkMode
 
     loginRoute        = method GET requireLogin >> redirect "/home"
-    xhrLoginRoute     = void $ method POST requireLogin
+    xhrLoginRoute     = void $ method POST requireLoginXHR
     registerRoute     = void $ method POST registerHandler
 
     inviteRoute       = void $ method POST (projectInviteHandler cfg)

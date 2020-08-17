@@ -24,4 +24,4 @@ docker/fix-attrs.d
 client/.pulp-cache
 moo.cfg
 site_key.txt
-.env
+.env*

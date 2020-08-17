@@ -2,34 +2,41 @@ module Aftok.Timeline where
 
 import Prelude
 
-import Control.Monad.Eff (Eff())
-import Control.Monad.Eff.Class (liftEff)
-import Control.Monad.Eff.Now (NOW, nowDateTime, now)
-import Control.Monad.Aff (Aff())
 import Control.Alt ((<|>))
+import Control.Monad.Rec.Class (forever)
 
 import Data.Array (cons)
---import Data.Bounded (bottom)
---import Data.Date (Date(..), day, month, year)
-import Data.DateTime (DateTime(..), date, adjust)
+import Data.DateTime (DateTime(..), adjust)
 import Data.DateTime.Instant (Instant, unInstant, fromDateTime)
-import Data.DateTime.Locale (LocalValue(..))
 import Data.Int (toNumber)
-import Data.Time.Duration (Milliseconds(..), Days(..))
 import Data.Maybe (Maybe(..), maybe)
+import Data.Time.Duration (Milliseconds(..), Days(..))
 
 import Math (abs)
 
-import CSS.Display (position, absolute)
-import CSS.Geometry (left) --, width, top, height)
-import CSS.Size (px)
+import Effect.Aff as Aff
+import Effect.Aff (Aff)
+import Effect.Class (liftEffect)
+import Effect.Exception (error)
+import Effect.Now (now, nowDateTime)
 
 import Halogen as H
-import Halogen.Aff (HalogenEffects)
-import Halogen.HTML.CSS as CSS
+import Halogen.Query.EventSource (EventSource)
+import Halogen.Query.EventSource as EventSource
+
+import Halogen.HTML.Core (ClassName(..))
 import Halogen.HTML as HH
--- import Halogen.HTML.Events as E
+import Halogen.HTML.CSS as CSS
 import Halogen.HTML.Properties as P
+
+import CSS (backgroundColor, border, rgb, solid, borderRadius, marginLeft)
+import CSS.Display (position, absolute)
+import CSS.Geometry (width, height)
+import CSS.Size (px, pct)
+
+type TimelineConfig = 
+  { width :: Number
+  }
 
 type Interval = 
   { start :: Instant
@@ -37,126 +44,159 @@ type Interval =
   }
 
 type TimelineLimits = 
-  { start :: Instant
+  { start   :: Instant
   , current :: Instant
-  , end :: Instant
-  }
-
-type TimelineConfig = 
-  { width :: Number
+  , end     :: Instant
   }
 
 type TimelineState = 
-  { limits :: TimelineLimits
+  { limits  :: TimelineLimits
   , history :: Array Interval
-  , active :: Maybe Interval
+  , active  :: Maybe Interval
   }
 
-data TimelineAction a
-  = Start a
-  | Stop a
-  | Refresh a
-  -- | Open a
-  -- | Close a
+data TimelineAction
+  = Initialize
+  | Start
+  | Stop
+  | Refresh
 
-type TimelineEffects eff = HalogenEffects (now :: NOW | eff)
+type Slot id = forall query. H.Slot query Void id
 
-initialState :: forall eff. Eff (now :: NOW | eff) TimelineState
-initialState = do
-  LocalValue l t <- nowDateTime
-  let startOfDay = DateTime (date t) bottom
-      endOfDay = adjust (Days (toNumber 1)) startOfDay
-      startInstant = fromDateTime startOfDay
-      limits = 
-        { start: startInstant
-        , current: fromDateTime t
-        , end: maybe startInstant fromDateTime endOfDay
-        }
-  pure $ { limits : limits
-         , history : []
-         , active : Nothing
-         }
-
-ui :: forall eff. TimelineConfig -> TimelineState -> H.Component HH.HTML TimelineAction TimelineState Void (Aff (TimelineEffects eff))
-ui conf s = H.component 
-  { initialState: const s
+component :: forall query input output. TimelineConfig -> H.Component HH.HTML query input output Aff
+component conf = H.mkComponent 
+  { initialState
   , render 
-  , eval
-  , receiver: const Nothing
+  , eval: H.mkEval $ H.defaultEval 
+      { handleAction = eval
+      , initialize = Just Initialize 
+      }
   } where
+    initialState :: input -> TimelineState
+    initialState _ = 
+      let limits = { start: bottom, current: bottom, end: bottom }
+          history = []
+          active = Nothing
+       in { limits, history, active }
 
-  intervalHtml :: forall f. TimelineLimits -> Interval -> H.ComponentHTML f
-  intervalHtml limits i = 
-    let offset = ((ilen limits.start i.start) / (ilen limits.start limits.end)) * conf.width
-    in  HH.div
-      [ CSS.style do  
-          position absolute
-          left (px offset)
-      ]
-      [ HH.div
-        [ P.classes (H.ClassName <$> ["center"]) ]
-        []
-      ]
+    render :: forall action slots m. TimelineState -> H.ComponentHTML action slots m
+    render st = 
+      HH.section 
+        [P.classes (ClassName <$> ["section-border", "border-primary"])]
+        [HH.div
+          [P.classes (ClassName <$> ["container", "pt-6"])]
+          [HH.h1 
+            [P.classes (ClassName <$> ["mb-0", "font-weight-bold", "text-center"])]
+            [HH.text "Time Tracker"]
+          ,HH.p
+            [P.classes (ClassName <$> ["col-md-5", "text-muted", "text-center", "mx-auto"])]
+            [HH.text "Today's project timeline"]
+          ,lineHtml (intervalHtml conf st.limits <$> st.history)
+          ,HH.div_
+            [HH.button
+              [P.classes (ClassName <$> ["btn", "btn-primary", "float-left"])]
+              [HH.text "Start Work"]
+            ,HH.button
+              [P.classes (ClassName <$> ["btn", "btn-primary", "float-right"])]
+              [HH.text "Stop Work"]
+            ]
+          ]
+        ]
 
-      -- <div style="position: absolute; left: 582.268px; width: 92.4619px; top: 6px; height: 33px;" class="TimelineElement Element ui-resizable ui-draggable" data-original-title=""><div class="center" style="background-color: rgb(255, 0, 0);"></div><div class="ui-resizable-w ui-resizable-handle"></div><div class="ui-draggable-pad"></div><div class="ui-resizable-e ui-resizable-handle"></div></div>
+    eval :: TimelineAction -> H.HalogenM TimelineState TimelineAction () output Aff Unit
+    eval = case _ of
+      Initialize -> do
+        dt@(DateTime date t) <- liftEffect nowDateTime
+        let startOfDay = DateTime date bottom
+            endOfDay = adjust (Days (toNumber 1)) startOfDay
+            startInstant = fromDateTime startOfDay
+            limits = 
+              { start: startInstant
+              , current: fromDateTime dt
+              , end: maybe startInstant fromDateTime endOfDay
+              }
+        H.put $ { limits : limits
+                , history : []
+                , active : Nothing
+                }
 
-  render :: TimelineState -> H.ComponentHTML TimelineAction
-  render st = 
-    HH.div
-      [ P.classes (H.ClassName <$> ["container"]) ]
-      [ HH.div
-        [ P.classes (H.ClassName <$> ["tl-wrapper"]) ]
-        (intervalHtml st.limits <$> st.history)
-      ] 
+      Start   -> do
+        t <- liftEffect now
+        H.modify_ (start t)
 
-  eval :: TimelineAction ~> H.ComponentDSL TimelineState TimelineAction Void (Aff (TimelineEffects eff))
-  -- The user has requested to start the clock.
-  eval (Start next) = do 
-    t <- liftEff now
-    H.modify (start t) 
-    pure next
-  -- The user has requested to stop the clock
-  eval (Stop next) = do
-    t <- liftEff now 
-    H.modify (stop t) 
-    pure next
-  -- The runtime system renders a clock tick
-  eval (Refresh next) = do
-    t <- liftEff now 
-    H.modify (refresh t) 
-    pure next
-  -- The user has requested to open a new interval beginning at a
-  -- specific point on the timeline (mouse down)
+      Stop    -> do
+        t <- liftEffect now
+        H.modify_ (stop t)
 
-  -- The user has requested to close the currently open interval
-  -- at a specific point on the timeline (mouse up)
-  -- 
+      Refresh -> do
+        t <- liftEffect now
+        H.modify_ (refresh t)
 
+lineHtml 
+  :: forall action slots m
+  .  Array (H.ComponentHTML action slots m)
+  -> H.ComponentHTML action slots m
+lineHtml contents =
+  let px5 = px (toNumber 5)
+   in HH.div
+    [ CSS.style do
+        border solid (px $ toNumber 3) (rgb 0x00 0xFF 0x00)
+        height (px $ toNumber 50)
+        borderRadius px5 px5 px5 px5
+    , P.classes (ClassName <$> ["my-2"])
+    ]
+    contents
+
+intervalHtml 
+  :: forall action slots m
+  .  TimelineConfig 
+  -> TimelineLimits 
+  -> Interval 
+  -> H.ComponentHTML action slots m
+intervalHtml conf limits i = 
+  let widthRatio = conf.width / ilen limits.start limits.end
+      ileft = ilen limits.start i.start * widthRatio
+      iwidth = ilen i.start i.end * widthRatio
+      px5 = px (toNumber 5)
+   in HH.div
+    [ CSS.style do  
+        position absolute
+        backgroundColor (rgb 0xf0 0x98 0x18)
+        height (px $ toNumber 40)
+        marginLeft (pct ileft)
+        width (pct iwidth)
+        borderRadius px5 px5 px5 px5
+    ]
+    []
+
+timer :: EventSource Aff TimelineAction
+timer = EventSource.affEventSource \emitter -> do
+  fiber <- Aff.forkAff $ forever do
+    Aff.delay $ Aff.Milliseconds 1000.0
+    EventSource.emit emitter Refresh
+
+  pure $ EventSource.Finalizer do
+    Aff.killFiber (error "Event source finalized") fiber
 
 
 start :: Instant -> TimelineState -> TimelineState
 start t s = 
-  { limits: s.limits
-  , history: s.history
-  , active: s.active <|> Just { start: t, end: t }
-  }
+  s { active = s.active <|> Just { start: t, end: t }
+    }
 
 stop :: Instant -> TimelineState -> TimelineState
 stop t s = 
-  { limits: s.limits
-  , history: maybe s.history (\st -> cons { start: st.start, end: t } s.history) s.active
-  , active: Nothing
-  }
+  s { history = maybe s.history (\st -> cons { start: st.start, end: t } s.history) s.active
+    , active = Nothing
+    }
 
 refresh :: Instant -> TimelineState -> TimelineState
 refresh t s = 
-  { limits: s.limits
-  , history: s.history
-  , active: map (\a -> { start: a.start, end: t }) s.active
-  }
+  s { active = map (\a -> { start: a.start, end: t }) s.active 
+    }
 
 ilen :: Instant -> Instant -> Number
-ilen d d' = 
+ilen _start _end = 
   let n (Milliseconds x) = x
-  in  abs $ n (unInstant d) - n (unInstant d')
+  in  abs $ n (unInstant _end) - n (unInstant _start)
 
