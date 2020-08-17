@@ -21,8 +21,10 @@ import Aftok.Timeline as Timeline
 main :: Effect Unit
 main = HA.runHalogenAff do
   body <- HA.awaitBody
-  --let c = component Login.mockCapability
-  let c = component Login.apiCapability
+  let --login = Login.mockCapability
+      login = Login.apiCapability
+      timeline = Timeline.mockCapability
+  let c = component login timeline
   runUI c unit body
 
 data MainState 
@@ -33,8 +35,8 @@ data MainAction
   = LoginComplete Login.LoginComplete
 
 type Slots = 
-  ( login :: Login.Slot Int
-  , timeline :: Timeline.Slot Int
+  ( login :: Login.Slot Unit
+  , timeline :: Timeline.Slot Unit
   )
 
 _login = SProxy :: SProxy "login"
@@ -43,8 +45,9 @@ _timeline = SProxy :: SProxy "timeline"
 component 
   :: forall query input output
   .  Login.Capability Aff
+  -> Timeline.Capability Aff
   -> H.Component HH.HTML query input output Aff
-component loginCap = H.mkComponent 
+component loginCap tlCap = H.mkComponent 
   { initialState
   , render 
   , eval: H.mkEval $ H.defaultEval { handleAction = eval }
@@ -56,9 +59,9 @@ component loginCap = H.mkComponent
     render :: MainState -> H.ComponentHTML MainAction Slots Aff
     render s = case s of
       LoggedOut -> 
-        HH.div_ [ HH.slot _login 0 (Login.component loginCap) unit (Just <<< LoginComplete) ]
+        HH.div_ [ HH.slot _login unit (Login.component loginCap) unit (Just <<< LoginComplete) ]
       LoggedIn -> 
-        HH.div_ [ HH.slot _timeline 1 (Timeline.component { width: toNumber 600 }) unit absurd ]
+        HH.div_ [ HH.slot _timeline unit (Timeline.component tlCap { width: toNumber 600 }) unit absurd ]
 
     eval :: MainAction -> H.HalogenM MainState MainAction Slots output Aff Unit
     eval = case _ of

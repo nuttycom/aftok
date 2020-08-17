@@ -4,12 +4,14 @@ import Prelude
 
 import Control.Alt ((<|>))
 import Control.Monad.Rec.Class (forever)
+import Control.Monad.Trans.Class (lift)
 
 import Data.Array (cons)
 import Data.DateTime (DateTime(..), adjust)
 import Data.DateTime.Instant (Instant, unInstant, fromDateTime)
 import Data.Int (toNumber)
 import Data.Maybe (Maybe(..), maybe)
+import Data.Unfoldable (fromMaybe)
 import Data.Time.Duration (Milliseconds(..), Days(..))
 
 import Math (abs)
@@ -27,9 +29,10 @@ import Halogen.Query.EventSource as EventSource
 import Halogen.HTML.Core (ClassName(..))
 import Halogen.HTML as HH
 import Halogen.HTML.CSS as CSS
+import Halogen.HTML.Events as E
 import Halogen.HTML.Properties as P
 
-import CSS (backgroundColor, border, rgb, solid, borderRadius, marginLeft)
+import CSS (backgroundColor, border, rgb, solid, borderRadius, left)
 import CSS.Display (position, absolute)
 import CSS.Geometry (width, height)
 import CSS.Size (px, pct)
@@ -63,8 +66,13 @@ data TimelineAction
 
 type Slot id = forall query. H.Slot query Void id
 
-component :: forall query input output. TimelineConfig -> H.Component HH.HTML query input output Aff
-component conf = H.mkComponent 
+type Capability m =
+  { logStart :: m Instant
+  , logEnd :: m Instant
+  }
+
+component :: forall query input output. Capability Aff -> TimelineConfig -> H.Component HH.HTML query input output Aff
+component caps conf = H.mkComponent 
   { initialState
   , render 
   , eval: H.mkEval $ H.defaultEval 
@@ -79,7 +87,7 @@ component conf = H.mkComponent
           active = Nothing
        in { limits, history, active }
 
-    render :: forall action slots m. TimelineState -> H.ComponentHTML action slots m
+    render :: forall slots m. TimelineState -> H.ComponentHTML TimelineAction slots m
     render st = 
       HH.section 
         [P.classes (ClassName <$> ["section-border", "border-primary"])]
@@ -91,13 +99,17 @@ component conf = H.mkComponent
           ,HH.p
             [P.classes (ClassName <$> ["col-md-5", "text-muted", "text-center", "mx-auto"])]
             [HH.text "Today's project timeline"]
-          ,lineHtml (intervalHtml conf st.limits <$> st.history)
+          ,lineHtml (intervalHtml conf st.limits <$> st.history <> fromMaybe st.active)
           ,HH.div_
             [HH.button
-              [P.classes (ClassName <$> ["btn", "btn-primary", "float-left"])]
+              [P.classes (ClassName <$> ["btn", "btn-primary", "float-left"])
+              ,E.onClick \_ -> Just Start
+              ]
               [HH.text "Start Work"]
             ,HH.button
-              [P.classes (ClassName <$> ["btn", "btn-primary", "float-right"])]
+              [P.classes (ClassName <$> ["btn", "btn-primary", "float-right"])
+              ,E.onClick \_ -> Just Stop
+              ]
               [HH.text "Stop Work"]
             ]
           ]
@@ -115,17 +127,21 @@ component conf = H.mkComponent
               , current: fromDateTime dt
               , end: maybe startInstant fromDateTime endOfDay
               }
+            llen = ilen limits.start limits.end
+            clen = ilen limits.start limits.current
         H.put $ { limits : limits
                 , history : []
                 , active : Nothing
                 }
+        _ <- H.subscribe timer
+        pure unit
 
       Start   -> do
-        t <- liftEffect now
+        t <- lift caps.logStart 
         H.modify_ (start t)
 
       Stop    -> do
-        t <- liftEffect now
+        t <- lift caps.logEnd
         H.modify_ (stop t)
 
       Refresh -> do
@@ -154,17 +170,18 @@ intervalHtml
   -> Interval 
   -> H.ComponentHTML action slots m
 intervalHtml conf limits i = 
-  let widthRatio = conf.width / ilen limits.start limits.end
-      ileft = ilen limits.start i.start * widthRatio
-      iwidth = ilen i.start i.end * widthRatio
+  let maxWidth = ilen limits.start limits.end
+      ileft = ilen limits.start i.start 
+      iwidth = ilen i.start i.end 
       px5 = px (toNumber 5)
+      toPct n = pct (toNumber 100 * n / maxWidth)
    in HH.div
     [ CSS.style do  
         position absolute
         backgroundColor (rgb 0xf0 0x98 0x18)
-        height (px $ toNumber 40)
-        marginLeft (pct ileft)
-        width (pct iwidth)
+        height (px $ toNumber 44)
+        left (toPct ileft)
+        width (toPct iwidth)
         borderRadius px5 px5 px5 px5
     ]
     []
@@ -192,7 +209,8 @@ stop t s =
 
 refresh :: Instant -> TimelineState -> TimelineState
 refresh t s = 
-  s { active = map (\a -> { start: a.start, end: t }) s.active 
+  s { limits = s.limits { current = t }
+    , active = map (_ { end = t }) s.active 
     }
 
 ilen :: Instant -> Instant -> Number
@@ -200,3 +218,8 @@ ilen _start _end =
   let n (Milliseconds x) = x
   in  abs $ n (unInstant _end) - n (unInstant _start)
 
+mockCapability :: Capability Aff
+mockCapability = 
+  { logStart: liftEffect now
+  , logEnd: liftEffect now
+  }
