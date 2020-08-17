@@ -22,12 +22,9 @@ import Aftok.Timeline (TimelineState)
 main :: Effect Unit
 main = HA.runHalogenAff do
   body <- HA.awaitBody
-  let c = component Login.mockCapability
+  --let c = component Login.mockCapability
+  let c = component Login.apiCapability
   runUI c unit body
-
-type LoggedInState = 
-  { timelineState :: TimelineState
-  }
 
 data MainState 
   = LoggedIn 

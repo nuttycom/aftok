@@ -25,6 +25,8 @@ import CSS (backgroundImage, url)
 
 import Landkit.Card as Card
 
+import Effect.Class.Console (log)
+
 type LoginRequest = { username :: String, password :: String }
 
 data LoginResponse
@@ -66,7 +68,7 @@ component caps = H.mkComponent
     initialState _ = { username: "", password: "", loginResponse: Nothing }
 
 
-    render :: forall slots m. LoginState -> H.ComponentHTML LoginAction slots m
+    render :: forall slots. LoginState -> H.ComponentHTML LoginAction slots m
     render st =
       Card.component $
         HH.div
@@ -168,11 +170,15 @@ component caps = H.mkComponent
 -- | Post credentials to the login service and interpret the response
 login :: String -> String -> Aff LoginResponse
 login user pass = do
+  log "Sending login request to /api/login ..."
   result <- request $ 
     defaultRequest { method = Left POST
                    , url = "/api/login"
                    , content = Just <<< RB.Json <<< encodeJson $ { username: user, password : pass }
                    }
+  case result of
+       Left err -> log (printError err)
+       Right r -> log ("Got status: " <> show r.status)
   pure $ case result of
     Left err -> Error { status: Nothing, message: printError err }
     Right r -> case r.status of
@@ -183,5 +189,5 @@ login user pass = do
 apiCapability :: Capability Aff
 apiCapability = { login }
 
-mockCapability :: Capability Aff
+mockCapability :: forall m. Applicative m => Capability m
 mockCapability = { login: \_ _ -> pure OK }

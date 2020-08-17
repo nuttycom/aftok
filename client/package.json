@@ -9,6 +9,7 @@
     "build": "spago build",
     "copy-assets": "ln -sf ../dev/assets ./dist/",
     "serve": "npm run copy-assets && parcel dev/index.html --open",
+    "build-dev": "mkdir -p prod && cp dev/index.html prod/ && spago bundle-app --to prod/index.js && parcel build prod/index.html --public-url /app/",
     "build-prod": "mkdir -p prod && cp dev/index.html prod/ && rm -rf dist && spago bundle-app --to prod/index.js && parcel build prod/index.html --public-url /app/"
   }
 }
