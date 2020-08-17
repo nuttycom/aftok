@@ -16,7 +16,6 @@ import Halogen.VDom.Driver (runUI)
 
 import Aftok.Login as Login
 import Aftok.Timeline as Timeline
-import Aftok.Timeline (TimelineState)
 -- import Effect.Class.Console (info)
 
 main :: Effect Unit
@@ -34,8 +33,8 @@ data MainAction
   = LoginComplete Login.LoginComplete
 
 type Slots = 
-  ( login :: Login.Slot Unit
-  , timeline :: Timeline.Slot Unit
+  ( login :: Login.Slot Int
+  , timeline :: Timeline.Slot Int
   )
 
 _login = SProxy :: SProxy "login"
@@ -57,9 +56,9 @@ component loginCap = H.mkComponent
     render :: MainState -> H.ComponentHTML MainAction Slots Aff
     render s = case s of
       LoggedOut -> 
-        HH.div_ [ HH.slot _login unit (Login.component loginCap) unit (Just <<< LoginComplete) ]
+        HH.div_ [ HH.slot _login 0 (Login.component loginCap) unit (Just <<< LoginComplete) ]
       LoggedIn -> 
-        HH.div_ [ HH.slot _timeline unit (Timeline.component { width: toNumber 600 }) unit absurd ]
+        HH.div_ [ HH.slot _timeline 1 (Timeline.component { width: toNumber 600 }) unit absurd ]
 
     eval :: MainAction -> H.HalogenM MainState MainAction Slots output Aff Unit
     eval = case _ of

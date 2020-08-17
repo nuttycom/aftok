@@ -10,6 +10,7 @@ import Data.HTTP.Method (Method(POST))
 import Data.Maybe (Maybe(..))
 
 import Effect.Aff (Aff)
+import Effect.Class as EC
 import Affjax (request, defaultRequest, printError)
 import Affjax.StatusCode (StatusCode(..))
 import Affjax.RequestBody as RB
@@ -19,6 +20,7 @@ import Halogen.HTML.Core (ClassName(..))
 import Halogen.HTML as HH
 import Halogen.HTML.CSS as CSS
 import Halogen.HTML.Events as E
+import Web.Event.Event as WE
 import Halogen.HTML.Properties as P
 
 import CSS (backgroundImage, url)
@@ -43,7 +45,7 @@ type LoginState =
 data LoginAction
   = SetUsername String
   | SetPassword String
-  | Login
+  | Login WE.Event
 
 data LoginComplete = LoginComplete
 
@@ -55,7 +57,7 @@ type Capability m =
 
 component 
   :: forall query input m
-  .  Monad m 
+  .  EC.MonadEffect m 
   => Capability m 
   -> H.Component HH.HTML query input LoginComplete m
 component caps = H.mkComponent
@@ -92,7 +94,7 @@ component caps = H.mkComponent
 
               , HH.form
                 [ P.classes (ClassName <$> ["mb-6"])
-                , E.onSubmit (\_ -> Just Login)
+                , E.onSubmit (Just <<< Login)
                 ]
                 [ HH.div
                   [ P.classes (ClassName <$> ["form-group"])]
@@ -158,7 +160,8 @@ component caps = H.mkComponent
     eval = case _ of
       SetUsername user -> H.modify_ (_ { username = user })
       SetPassword pass -> H.modify_ (_ { password = pass })
-      Login -> do
+      Login ev -> do
+        EC.liftEffect $ WE.preventDefault ev
         user <- H.gets (_.username)
         pass <- H.gets (_.password)
         response <- lift (caps.login user pass)
