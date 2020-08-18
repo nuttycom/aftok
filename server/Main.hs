@@ -31,6 +31,7 @@ import           Aftok.Snaplet.WorkLog
 
 import           Snap.Core
 import           Snap.Snaplet
+import qualified Snap.Snaplet.Auth as AU
 import           Snap.Snaplet.PostgresqlSimple
 import           Snap.Snaplet.Auth.Backends.PostgresqlSimple
 import           Snap.Snaplet.Session.Backends.CookieSession
@@ -45,19 +46,18 @@ main = do
 
 appInit :: QConfig -> SnapletInit App App
 appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
-  sesss <- nestSnaplet "sessions" sess $ initCookieSessionManager
-    (cfg ^. authSiteKey . to encodeString)
-    "quookie"
-    (Just "aftok.com")
-    (cfg ^. cookieTimeout)
+  let cookieKey = cfg ^. authSiteKey . to encodeString
+  sesss <- nestSnaplet "sessions" sess $ initCookieSessionManager cookieKey "quookie" Nothing (cfg ^. cookieTimeout)
   pgs   <- nestSnaplet "db" db $ pgsInit' (cfg ^. pgsConfig)
   auths <- nestSnaplet "auth" auth $ initPostgresAuth sess pgs
 
   let
     nmode             = cfg ^. billingConfig . C.networkMode
 
-    loginRoute        = method GET requireLogin >> redirect "/home"
+    loginRoute        = method GET requireLogin >> redirect "/app"
     xhrLoginRoute     = void $ method POST requireLoginXHR
+    checkLoginRoute   = void $ method GET requireUser
+    logoutRoute       = method GET (with auth AU.logout)
     registerRoute     = void $ method POST registerHandler
 
     inviteRoute       = void $ method POST (projectInviteHandler cfg)
@@ -107,6 +107,8 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
     [ ("static", serveDirectory . encodeString $ cfg ^. staticAssetPath)
     , ("login"                              , loginRoute)
     , ("login"                              , xhrLoginRoute)
+    , ("logout"                             , logoutRoute)
+    , ("login/check"                        , checkLoginRoute)
     , ("register"                           , registerRoute)
     , ("accept_invitation"                  , acceptInviteRoute)
     , ("projects/:projectId/logStart/:btcAddr", logWorkBTCRoute StartWork)

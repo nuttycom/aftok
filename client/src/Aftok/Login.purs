@@ -6,14 +6,14 @@ import Control.Monad.Trans.Class (lift)
 
 import Data.Argonaut.Encode (encodeJson)
 import Data.Either (Either(..))
-import Data.HTTP.Method (Method(POST))
 import Data.Maybe (Maybe(..))
 
 import Effect.Aff (Aff)
 import Effect.Class as EC
-import Affjax (request, defaultRequest, printError)
+import Affjax (post, get, printError)
 import Affjax.StatusCode (StatusCode(..))
 import Affjax.RequestBody as RB
+import Affjax.ResponseFormat as RF
 
 import Halogen as H
 import Halogen.HTML.Core (ClassName(..))
@@ -53,6 +53,8 @@ type Slot id = forall query. H.Slot query LoginComplete id
 
 type Capability m = 
   { login :: String -> String -> m LoginResponse
+  , checkLogin :: m LoginResponse
+  , logout :: m Unit
   }
 
 component 
@@ -173,14 +175,10 @@ component caps = H.mkComponent
 login :: String -> String -> Aff LoginResponse
 login user pass = do
   log "Sending login request to /api/login ..."
-  result <- request $ 
-    defaultRequest { method = Left POST
-                   , url = "/api/login"
-                   , content = Just <<< RB.Json <<< encodeJson $ { username: user, password : pass }
-                   }
+  result <- post RF.ignore "/api/login" (Just <<< RB.Json <<< encodeJson $ { username: user, password : pass })
   case result of
-       Left err -> log (printError err)
-       Right r -> log ("Got status: " <> show r.status)
+       Left err -> log ("Login failed: " <> printError err)
+       Right r  -> log ("Login status: " <> show r.status)
   pure $ case result of
     Left err -> Error { status: Nothing, message: printError err }
     Right r -> case r.status of
@@ -188,8 +186,34 @@ login user pass = do
       StatusCode 200 -> OK
       other -> Error { status: Just other, message: r.statusText }
 
+checkLogin :: Aff LoginResponse
+checkLogin = do
+  log "Sending login check to /api/login/check ..."
+  result <- get RF.ignore "/api/login/check"
+  case result of
+    Left err -> do
+      log ("Login failed: " <> printError err)
+      pure $ Error { status: Nothing, message: printError err }
+    Right r -> do
+      log ("Login status: " <> show r.status)
+      pure $ case r.status of
+        StatusCode 200 -> OK
+        StatusCode _   -> Forbidden
+
+logout :: Aff Unit
+logout = do
+  log "Logging out on server with  /api/logout ..."
+  result <- get RF.ignore "/api/logout"
+  case result of
+    Left err -> log ("Logout failed: " <> printError err)
+    Right r ->  log ("Logout status: " <> show r.status)
+
 apiCapability :: Capability Aff
-apiCapability = { login }
+apiCapability = { login, checkLogin, logout }
 
 mockCapability :: forall m. Applicative m => Capability m
-mockCapability = { login: \_ _ -> pure OK }
+mockCapability = 
+  { login: \_ _ -> pure OK 
+  , checkLogin: pure OK
+  , logout: pure unit
+  }
