@@ -7,6 +7,8 @@
     , "affjax"
     , "halogen-css"
     , "argonaut-codecs" 
+    , "uuid"
+    , "js-date"
     ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]

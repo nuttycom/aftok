@@ -47,7 +47,7 @@ data LoginAction
   | SetPassword String
   | Login WE.Event
 
-data LoginComplete = LoginComplete
+newtype LoginComplete = LoginComplete { username :: String }
 
 type Slot id = forall query. H.Slot query LoginComplete id
 
@@ -68,7 +68,6 @@ component caps = H.mkComponent
 
     initialState :: input -> LoginState
     initialState _ = { username: "", password: "", loginResponse: Nothing }
-
 
     render :: forall slots. LoginState -> H.ComponentHTML LoginAction slots m
     render st =
@@ -167,7 +166,7 @@ component caps = H.mkComponent
         response <- lift (caps.login user pass)
         H.modify_ (_ { loginResponse = Just response })
         case response of
-          OK -> H.raise LoginComplete 
+          OK -> H.raise (LoginComplete { username: user })
           _  -> pure unit
 
 -- | Post credentials to the login service and interpret the response

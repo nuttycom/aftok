@@ -2,7 +2,9 @@ module Main where
 
 import Prelude
 
-import Data.Int (toNumber)
+import Control.Monad.Trans.Class (lift)
+
+import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Symbol (SProxy(..))
 
@@ -16,6 +18,7 @@ import Halogen.VDom.Driver (runUI)
 
 import Aftok.Login as Login
 import Aftok.Timeline as Timeline
+import Aftok.Project as Project
 -- import Effect.Class.Console (info)
 
 main :: Effect Unit
@@ -24,15 +27,17 @@ main = HA.runHalogenAff do
   let --login = Login.mockCapability
       login = Login.apiCapability
       timeline = Timeline.mockCapability
-  let c = component login timeline
-  runUI c unit body
+      project = Project.apiCapability
+      mainc = component login timeline project
+  runUI mainc unit body
 
 data MainState 
   = LoggedIn 
   | LoggedOut
 
 data MainAction
-  = LoginComplete Login.LoginComplete
+  = Initialize
+  | LoginComplete Login.LoginComplete
 
 type Slots = 
   ( login :: Login.Slot Unit
@@ -46,13 +51,16 @@ component
   :: forall query input output
   .  Login.Capability Aff
   -> Timeline.Capability Aff
+  -> Project.Capability Aff
   -> H.Component HH.HTML query input output Aff
-component loginCap tlCap = H.mkComponent 
+component loginCap tlCap pCap = H.mkComponent 
   { initialState
   , render 
-  , eval: H.mkEval $ H.defaultEval { handleAction = eval }
+  , eval: H.mkEval $ H.defaultEval 
+      { handleAction = eval 
+      , initialize = Just Initialize 
+      }
   } where
-
     initialState :: input -> MainState
     initialState _ = LoggedOut
 
@@ -61,8 +69,16 @@ component loginCap tlCap = H.mkComponent
       LoggedOut -> 
         HH.div_ [ HH.slot _login unit (Login.component loginCap) unit (Just <<< LoginComplete) ]
       LoggedIn -> 
-        HH.div_ [ HH.slot _timeline unit (Timeline.component tlCap { width: toNumber 600 }) unit absurd ]
+        HH.div_ [ HH.slot _timeline unit (Timeline.component tlCap { width: 600.0 }) unit absurd ]
 
     eval :: MainAction -> H.HalogenM MainState MainAction Slots output Aff Unit
     eval = case _ of
-      LoginComplete _ -> H.put LoggedIn
+      Initialize -> do
+        projects <- lift pCap.listProjects
+        case projects of 
+          Left err -> H.put LoggedOut
+          Right _ -> H.put LoggedIn
+
+      LoginComplete (Login.LoginComplete xs) -> 
+        H.put LoggedIn
+        

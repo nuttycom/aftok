@@ -9,7 +9,6 @@ import Control.Monad.Trans.Class (lift)
 import Data.Array (cons)
 import Data.DateTime (DateTime(..), adjust)
 import Data.DateTime.Instant (Instant, unInstant, fromDateTime)
-import Data.Int (toNumber)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Unfoldable (fromMaybe)
 import Data.Time.Duration (Milliseconds(..), Days(..))
@@ -120,7 +119,7 @@ component caps conf = H.mkComponent
       Initialize -> do
         dt@(DateTime date t) <- liftEffect nowDateTime
         let startOfDay = DateTime date bottom
-            endOfDay = adjust (Days (toNumber 1)) startOfDay
+            endOfDay = adjust (Days 1.0) startOfDay
             startInstant = fromDateTime startOfDay
             limits = 
               { start: startInstant
@@ -153,11 +152,11 @@ lineHtml
   .  Array (H.ComponentHTML action slots m)
   -> H.ComponentHTML action slots m
 lineHtml contents =
-  let px5 = px (toNumber 5)
+  let px5 = px 5.0
    in HH.div
     [ CSS.style do
-        border solid (px $ toNumber 3) (rgb 0x00 0xFF 0x00)
-        height (px $ toNumber 50)
+        border solid (px 3.0) (rgb 0x00 0xFF 0x00)
+        height (px 50.0)
         borderRadius px5 px5 px5 px5
     , P.classes (ClassName <$> ["my-2"])
     ]
@@ -173,13 +172,13 @@ intervalHtml conf limits i =
   let maxWidth = ilen limits.start limits.end
       ileft = ilen limits.start i.start 
       iwidth = ilen i.start i.end 
-      px5 = px (toNumber 5)
-      toPct n = pct (toNumber 100 * n / maxWidth)
+      px5 = px (5.0)
+      toPct n = pct (100.0 * n / maxWidth)
    in HH.div
     [ CSS.style do  
         position absolute
         backgroundColor (rgb 0xf0 0x98 0x18)
-        height (px $ toNumber 44)
+        height (px $ 44.0)
         left (toPct ileft)
         width (toPct iwidth)
         borderRadius px5 px5 px5 px5
@@ -189,7 +188,7 @@ intervalHtml conf limits i =
 timer :: EventSource Aff TimelineAction
 timer = EventSource.affEventSource \emitter -> do
   fiber <- Aff.forkAff $ forever do
-    Aff.delay $ Aff.Milliseconds 1000.0
+    Aff.delay $ Aff.Milliseconds 10000.0
     EventSource.emit emitter Refresh
 
   pure $ EventSource.Finalizer do
