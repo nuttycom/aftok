@@ -11,9 +11,10 @@ import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.:))
 import Data.Bifunctor (lmap)
 import Data.DateTime (DateTime)
-import Data.JSDate as JSDate
 import Data.Either (Either(..), note)
+import Data.JSDate as JSDate
 import Data.Maybe (Maybe(..))
+import Data.Newtype (class Newtype)
 import Data.Traversable (traverse, traverse_)
 import Data.UUID (UUID, parseUUID)
 
@@ -28,12 +29,15 @@ import Aftok.Types (APIError(..))
 
 import Halogen as H
 import Halogen.HTML as HH
+import Halogen.HTML.Core (ClassName(..))
 import Halogen.HTML.Events as E
 import Halogen.HTML.Properties as P
 
-import Effect.Class.Console (error)
+import Effect.Class.Console (log, error)
 
 newtype ProjectId = ProjectId UUID
+derive instance projectIdEq :: Eq ProjectId
+derive instance newtypeProjectId :: Newtype ProjectId _
 
 pidStr :: ProjectId -> String
 pidStr (ProjectId uuid) = show uuid
@@ -44,6 +48,7 @@ newtype Project' date = Project'
   , inceptionDate :: date
   , initiator :: UUID
   }
+derive instance newtypeProject :: Newtype (Project' a) _
 
 type Project = Project' DateTime
 
@@ -82,9 +87,20 @@ projectListComponent caps = H.mkComponent
     render st = 
      let renderOption (Project' p) =
            HH.option [P.value $ pidStr p.projectId] [HH.text p.projectName]
-       in HH.select
-            [E.onSelectedIndexChange (Just <<< Select)]
-            ([HH.option [P.selected true, P.disabled true] [HH.text "Select a project"]] <> map renderOption st.projects)
+      in HH.div
+           [P.classes (ClassName <$> ["form-group"])]
+           [HH.label
+             [ P.classes (ClassName <$> ["sr-only"])
+             , P.for "projectSelect"
+             ]
+             [ HH.text "Project" ]
+           ,HH.select
+             [P.classes (ClassName <$> ["form-control"])
+             ,P.id_ "projectSelect"
+             ,E.onSelectedIndexChange (Just <<< Select)
+             ]
+             ([HH.option [P.selected true, P.disabled true] [HH.text "Select a project"]] <> map renderOption st.projects)
+           ]
 
 
     eval :: ProjectAction -> H.HalogenM ProjectCState ProjectAction () Project m Unit
@@ -97,7 +113,8 @@ projectListComponent caps = H.mkComponent
 
       Select i -> do
         projects <- H.gets (_.projects)
-        traverse_ H.raise (index projects i)
+        log $ "Selected project index " <> show i
+        traverse_ H.raise (index projects (i - 1))
 
 instance decodeJsonProject :: DecodeJson (Project' String) where
   decodeJson json = do

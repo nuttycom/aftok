@@ -76,7 +76,8 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
 
     payoutsRoute = serveJSON (payoutsJSON nmode) $ method GET payoutsHandler
 
-    logWorkRoute f = serveJSON eventIdJSON $ method POST (logWorkHandler f)
+    logWorkRoute f =
+      serveJSON (keyedLogEntryJSON nmode) $ method POST (logWorkHandler f)
     logWorkBTCRoute f =
       serveJSON eventIdJSON $ method POST (logWorkBTCHandler f)
     amendEventRoute = serveJSON amendmentIdJSON $ method PUT amendEventHandler

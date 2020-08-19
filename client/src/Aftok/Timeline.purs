@@ -10,7 +10,9 @@ import Data.Array (cons)
 import Data.DateTime (DateTime(..), adjust)
 import Data.DateTime.Instant (Instant, unInstant, fromDateTime)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(..), maybe, isJust)
+import Data.Foldable (any)
+import Data.Maybe (Maybe(..), maybe, isJust, isNothing)
+import Data.Newtype (unwrap)
 import Data.Symbol (SProxy(..))
 import Data.Time.Duration (Milliseconds(..), Days(..))
 import Data.Traversable (traverse_)
@@ -53,18 +55,18 @@ import Aftok.Types (APIError(..))
 
 import Effect.Class.Console (log)
 
-type Interval = 
+type Interval =
   { start :: Instant
   , end :: Instant
   }
 
-type TimelineLimits = 
+type TimelineLimits =
   { start   :: Instant
   , current :: Instant
   , end     :: Instant
   }
 
-type TimelineState = 
+type TimelineState =
   { limits  :: TimelineLimits
   , history :: Array Interval
   , active  :: Maybe Interval
@@ -83,7 +85,7 @@ data TimelineError
 
 type Slot id = forall query. H.Slot query Void id
 
-type Slots = 
+type Slots =
   ( projectList :: Project.ProjectListSlot Unit
   )
 
@@ -94,21 +96,21 @@ type Capability m =
   , logEnd :: ProjectId -> m (Either TimelineError Instant)
   }
 
-component 
+component
   :: forall query input output
-  .  Capability Aff 
+  .  Capability Aff
   -> Project.Capability Aff
   -> H.Component HH.HTML query input output Aff
-component caps pcaps = H.mkComponent 
+component caps pcaps = H.mkComponent
   { initialState
-  , render 
-  , eval: H.mkEval $ H.defaultEval 
+  , render
+  , eval: H.mkEval $ H.defaultEval
       { handleAction = eval
-      , initialize = Just Initialize 
+      , initialize = Just Initialize
       }
   } where
     initialState :: input -> TimelineState
-    initialState _ = 
+    initialState _ =
       { limits: { start: bottom, current: bottom, end: bottom }
       , history: []
       , active: Nothing
@@ -116,36 +118,39 @@ component caps pcaps = H.mkComponent
       }
 
     render :: TimelineState -> H.ComponentHTML TimelineAction Slots Aff
-    render st = 
-      let lineForm = 
+    render st =
+      HH.section
+        [P.classes (ClassName <$> ["section-border", "border-primary"])]
+        [HH.div
+          [P.classes (ClassName <$> ["container", "pt-6"])]
+          [HH.h1
+            [P.classes (ClassName <$> ["mb-0", "font-weight-bold", "text-center"])]
+            [HH.text "Time Tracker"]
+          ,HH.p
+            [P.classes (ClassName <$> ["col-md-5", "text-muted", "text-center", "mx-auto"])]
+            [HH.text "Today's project timeline"]
+          ,HH.div_
+            [HH.slot _projectList unit (Project.projectListComponent pcaps) unit (Just <<< ProjectSelected)]
+          ]
+          ,HH.div
+            [P.classes (ClassName <$> if isNothing st.selectedProject then ["collapse"] else [])]
             [lineHtml (intervalHtml st.limits <$> st.history <> fromMaybe st.active)
             ,HH.div_
               [HH.button
                 [P.classes (ClassName <$> ["btn", "btn-primary", "float-left"])
                 ,E.onClick \_ -> Just Start
+                ,P.disabled (isJust st.active)
                 ]
                 [HH.text "Start Work"]
               ,HH.button
                 [P.classes (ClassName <$> ["btn", "btn-primary", "float-right"])
                 ,E.onClick \_ -> Just Stop
+                ,P.disabled (isNothing st.active)
                 ]
                 [HH.text "Stop Work"]
               ]
             ]
-       in HH.section 
-          [P.classes (ClassName <$> ["section-border", "border-primary"])]
-          ([HH.div
-            [P.classes (ClassName <$> ["container-fluid", "pt-6"])]
-            [HH.h1 
-              [P.classes (ClassName <$> ["mb-0", "font-weight-bold", "text-center"])]
-              [HH.text "Time Tracker"]
-            ,HH.p
-              [P.classes (ClassName <$> ["col-md-5", "text-muted", "text-center", "mx-auto"])]
-              [HH.text "Today's project timeline"]
-            ,HH.div_ 
-              [HH.slot _projectList unit (Project.projectListComponent pcaps) unit (Just <<< ProjectSelected)]
-            ]
-          ] <> (if isJust st.selectedProject then lineForm else []))
+        ]
 
     eval :: TimelineAction -> H.HalogenM TimelineState TimelineAction Slots output Aff Unit
     eval = case _ of
@@ -154,7 +159,7 @@ component caps pcaps = H.mkComponent
         let startOfDay = DateTime date bottom
             endOfDay = adjust (Days 1.0) startOfDay
             startInstant = fromDateTime startOfDay
-            limits = 
+            limits =
               { start: startInstant
               , current: fromDateTime dt
               , end: maybe startInstant fromDateTime endOfDay
@@ -169,33 +174,42 @@ component caps pcaps = H.mkComponent
         _ <- H.subscribe timer
         pure unit
 
-      ProjectSelected p -> 
+      ProjectSelected p -> do
+        active <- isJust <$> H.gets (_.active)
+        currentProject <- H.gets (_.selectedProject)
+        log $ "Active: " <> show active <> "; " <> show ((_.projectName) <<< unwrap <$> currentProject)
+        log $ "Selected: " <> show ((_.projectName) <<< unwrap $ p)
+        when (active && any (\p' -> (unwrap p').projectId /= (unwrap p).projectId) currentProject)
+             (traverse_ logEnd currentProject)
         H.modify_ (_ { selectedProject = Just p })
 
       Start   -> do
-        let withProject (Project' p) = do
-              logged <- lift $ caps.logStart p.projectId
-              case logged of 
-                Left _ -> log "Failed to start timer."
-                Right t -> H.modify_ (start t)
         project <- H.gets (_.selectedProject)
-        log $ "Project selected? " <> show (isJust project)
-        traverse_ withProject project
+        traverse_ logStart project
 
       Stop    -> do
-        let withProject (Project' p) = do
-              logged <- lift $ caps.logEnd p.projectId
-              case logged of 
-                Left _ -> log "Failed to stop timer."
-                Right t -> H.modify_ (stop t)
-        project <- H.gets (_.selectedProject)
-        traverse_ withProject project
+        currentProject <- H.gets (_.selectedProject)
+        traverse_ logEnd currentProject
 
       Refresh -> do
         t <- liftEffect now
         H.modify_ (refresh t)
 
-lineHtml 
+    logStart :: Project -> H.HalogenM TimelineState TimelineAction Slots output Aff Unit
+    logStart (Project' p) = do
+      logged <- lift $ caps.logStart p.projectId
+      case logged of
+        Left _ -> log "Failed to start timer."
+        Right t -> H.modify_ (start t)
+
+    logEnd :: Project -> H.HalogenM TimelineState TimelineAction Slots output Aff Unit
+    logEnd (Project' p) = do
+      logged <- lift $ caps.logEnd p.projectId
+      case logged of
+        Left _ -> log "Failed to stop timer."
+        Right t -> H.modify_ (stop t)
+
+lineHtml
   :: forall action slots m
   .  Array (H.ComponentHTML action slots m)
   -> H.ComponentHTML action slots m
@@ -210,19 +224,19 @@ lineHtml contents =
     ]
     contents
 
-intervalHtml 
+intervalHtml
   :: forall action slots m
-  .  TimelineLimits 
-  -> Interval 
+  .  TimelineLimits
+  -> Interval
   -> H.ComponentHTML action slots m
-intervalHtml limits i = 
+intervalHtml limits i =
   let maxWidth = ilen limits.start limits.end
-      ileft = ilen limits.start i.start 
-      iwidth = ilen i.start i.end 
+      ileft = ilen limits.start i.start
+      iwidth = ilen i.start i.end
       px5 = px (5.0)
       toPct n = pct (100.0 * n / maxWidth)
    in HH.div
-    [ CSS.style do  
+    [ CSS.style do
         position absolute
         backgroundColor (rgb 0xf0 0x98 0x18)
         height (px $ 44.0)
@@ -243,29 +257,29 @@ timer = EventSource.affEventSource \emitter -> do
 
 
 start :: Instant -> TimelineState -> TimelineState
-start t s = 
+start t s =
   s { active = s.active <|> Just { start: t, end: t }
     }
 
 stop :: Instant -> TimelineState -> TimelineState
-stop t s = 
+stop t s =
   s { history = maybe s.history (\st -> cons { start: st.start, end: t } s.history) s.active
     , active = Nothing
     }
 
 refresh :: Instant -> TimelineState -> TimelineState
-refresh t s = 
+refresh t s =
   s { limits = s.limits { current = t }
-    , active = map (_ { end = t }) s.active 
+    , active = map (_ { end = t }) s.active
     }
 
 ilen :: Instant -> Instant -> Number
-ilen _start _end = 
+ilen _start _end =
   let n (Milliseconds x) = x
   in  abs $ n (unInstant _end) - n (unInstant _start)
 
-logStart :: ProjectId -> Aff (Either TimelineError Instant)
-logStart (ProjectId pid) = do
+apiLogStart :: ProjectId -> Aff (Either TimelineError Instant)
+apiLogStart (ProjectId pid) = do
   let requestBody = Just <<< RB.Json <<< encodeJson $ { schemaVersion: "2.0" }
   result <- post RF.json ("/api/projects/" <> UUID.toString pid <> "/logStart") requestBody
   case result of
@@ -275,8 +289,8 @@ logStart (ProjectId pid) = do
       StatusCode 200 -> Right <$> liftEffect now
       other -> pure <<< Left <<< LogFailure $ Error { status: Just other, message: r.statusText }
 
-logEnd :: ProjectId -> Aff (Either TimelineError Instant)
-logEnd (ProjectId pid) = do
+apiLogEnd :: ProjectId -> Aff (Either TimelineError Instant)
+apiLogEnd (ProjectId pid) = do
   let requestBody = Just <<< RB.Json <<< encodeJson $ { schemaVersion: "2.0" }
   result <- post RF.json ("/api/projects/" <> UUID.toString pid <> "/logEnd") requestBody
   case result of
@@ -287,10 +301,10 @@ logEnd (ProjectId pid) = do
       other -> pure <<< Left <<< LogFailure $ Error { status: Just other, message: r.statusText }
 
 apiCapability :: Capability Aff
-apiCapability = { logStart, logEnd }
+apiCapability = { logStart: apiLogStart, logEnd: apiLogEnd }
 
 mockCapability :: Capability Aff
-mockCapability = 
+mockCapability =
   { logStart: \_ -> Right <$> liftEffect now
   , logEnd:  \_ -> Right <$> liftEffect now
   }

@@ -586,10 +586,11 @@ pgEval (FindProject (ProjectId pid)) = headMay <$> pquery
 
 pgEval (FindUserProjects (UserId uid)) = pquery
   ((,) <$> idParser ProjectId <*> projectParser)
-  [sql| SELECT p.id, p.project_name, p.inception_date, p.initiator_id, p.depreciation_fn
+  [sql| SELECT DISTINCT ON (p.inception_date, p.id) p.id, p.project_name, p.inception_date, p.initiator_id, p.depreciation_fn
           FROM projects p LEFT OUTER JOIN project_companions pc ON pc.project_id = p.id
           WHERE pc.user_id = ?
-          OR p.initiator_id = ? |]
+          OR p.initiator_id = ?
+          ORDER BY p.inception_date, p.id |]
   (uid, uid)
 
 pgEval (AddUserToProject pid current new) = void $ pexec

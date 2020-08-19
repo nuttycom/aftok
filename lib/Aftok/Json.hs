@@ -13,6 +13,7 @@ import           Control.FromSum                ( fromMaybeM
                                                 , fromEitherM
                                                 )
 import           Control.Lens            hiding ( (.=) )
+import qualified Control.Lens                  as L
 import           Control.Monad.Fail             ( MonadFail(..) )
 import           Data.Aeson
 import           Data.Aeson.Types
@@ -40,6 +41,7 @@ import           Network.Haskoin.Address        ( Address
                                                 )
 
 import           Aftok.Currency.Bitcoin
+import           Aftok.Database                 ( KeyedLogEntry )
 import           Aftok.Auction                 as A
 import qualified Aftok.Billables               as B
 import           Aftok.Interval
@@ -126,15 +128,18 @@ obj = O.fromList
 -- Serializers --
 -----------------
 
-idValue :: forall a . Lens' a UUID -> a -> Value
+idValue :: forall a . Getter a UUID -> a -> Value
 idValue l a = toJSON . U.toText $ view l a
 
-idJSON :: forall a . Text -> Lens' a UUID -> a -> Value
+idJSON :: forall a . Text -> Getter a UUID -> a -> Value
 idJSON t l a = v1 $ obj [t .= idValue l a]
 
-qdbJSON :: Text -> (Lens' a UUID) -> (b -> Value) -> (a, b) -> Value
-qdbJSON name l f (xid, x) =
-  v1 $ obj [(name <> "Id") .= idValue l xid, name .= f x]
+qdbJSON :: Text -> Getter a UUID -> Getter a Value -> a -> Value
+qdbJSON name _id _value x =
+  v1 $ obj
+    [(name <> "Id") .= idValue _id x
+    , name .= (x ^. _value)
+    ]
 
 projectIdJSON :: ProjectId -> Value
 projectIdJSON = idJSON "projectId" _ProjectId
@@ -147,7 +152,7 @@ projectJSON p = v1 $ obj
   ]
 
 qdbProjectJSON :: (ProjectId, Project) -> Value
-qdbProjectJSON = qdbJSON "project" _ProjectId projectJSON
+qdbProjectJSON = qdbJSON "project" (_1 . _ProjectId) (_2 . L.to projectJSON)
 
 auctionIdJSON :: AuctionId -> Value
 auctionIdJSON = idJSON "auctionId" _AuctionId
@@ -263,13 +268,13 @@ parsePayoutsJSON nmode = unversion "Payouts" $ p where
 
 workIndexJSON :: NetworkMode -> WorkIndex (NetworkId, Address) -> Value
 workIndexJSON nmode (WorkIndex widx) =
-  v2
-    $ let widxRec :: (CreditTo (NetworkId, Address), NonEmpty Interval) -> Value
-          widxRec (c, l) = object
-            [ "creditTo" .= creditToJSON nmode c
-            , "intervals" .= (intervalJSON <$> L.toList l)
-            ]
-      in  obj $ ["workIndex" .= fmap widxRec (MS.assocs widx)]
+  v2 $ obj ["workIndex" .= fmap widxRec (MS.assocs widx)]
+  where
+    widxRec :: (CreditTo (NetworkId, Address), NonEmpty Interval) -> Value
+    widxRec (c, l) = object
+      [ "creditTo" .= creditToJSON nmode c
+      , "intervals" .= (intervalJSON <$> L.toList l)
+      ]
 
 eventIdJSON :: EventId -> Value
 eventIdJSON = idJSON "eventId" _EventId
@@ -279,11 +284,17 @@ logEventJSON' ev =
   object [eventName ev .= object ["eventTime" .= (ev ^. eventTime)]]
 
 logEntryJSON :: NetworkMode -> LogEntry (NetworkId, Address) -> Value
-logEntryJSON nmode (LogEntry c ev m) = v2 $ obj
+logEntryJSON nmode le = v2 $ obj (logEntryFields nmode le)
+
+logEntryFields :: NetworkMode -> LogEntry (NetworkId, Address) -> [Pair]
+logEntryFields nmode (LogEntry c ev m) =
   [ "creditTo" .= creditToJSON nmode c
   , "event" .= logEventJSON' ev
   , "eventMeta" .= m
   ]
+
+keyedLogEntryJSON :: NetworkMode -> (EventId, KeyedLogEntry (NetworkId, Address)) -> Value
+keyedLogEntryJSON nmode le = qdbJSON "event" (_1 . _EventId) (_2 . _3 . to (logEntryJSON nmode)) le
 
 amendmentIdJSON :: AmendmentId -> Value
 amendmentIdJSON = idJSON "amendmentId" _AmendmentId
@@ -306,7 +317,7 @@ billableKV b =
   ]
 
 qdbBillableJSON :: (B.BillableId, B.Billable) -> Value
-qdbBillableJSON = qdbJSON "billable" B._BillableId billableJSON
+qdbBillableJSON = qdbJSON "billable" (_1 . B._BillableId) (_2 . to billableJSON)
 
 recurrenceJSON' :: B.Recurrence -> Value
 recurrenceJSON' B.Annually    = object ["annually" .= Null]

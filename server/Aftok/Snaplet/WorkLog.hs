@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections      #-}
 module Aftok.Snaplet.WorkLog where
 
 
@@ -32,7 +33,7 @@ import           Aftok.Snaplet.Util
 import           Snap.Core
 import           Snap.Snaplet                  as S
 
-logWorkHandler :: (C.UTCTime -> LogEvent) -> S.Handler App App EventId
+logWorkHandler :: (C.UTCTime -> LogEvent) -> S.Handler App App (EventId, KeyedLogEntry BTCNet)
 logWorkHandler evCtr = do
   uid         <- requireUserId
   pid         <- requireProjectId
@@ -48,7 +49,13 @@ logWorkHandler evCtr = do
           <> (show requestBody)
           <> ": "
           <> show err
-      Right entry -> snapEval $ createEvent pid uid (entry timestamp)
+      Right entry -> do
+        eid <- snapEval $ createEvent pid uid (entry timestamp)
+        ev  <- snapEval $ findEvent eid
+        maybe
+          (snapError 500 $ "An error occured retrieving the newly created event record.")
+          (pure . (eid,))
+          ev
 
 logWorkBTCHandler :: (C.UTCTime -> LogEvent) -> S.Handler App App EventId
 logWorkBTCHandler evCtr = do
