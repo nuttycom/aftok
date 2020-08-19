@@ -3,10 +3,11 @@ module Aftok.Snaplet.WorkLog where
 
 
 
-import           Control.Lens
+import           Control.Lens                   ((^.))
 import           Control.Monad.Trans.Maybe      ( mapMaybeT )
 
 import qualified Data.Aeson                    as A
+import           Data.Aeson                     ((.=))
 import qualified Data.Aeson.Types              as A
 import qualified Data.Text                     as T
 import           Data.Thyme.Clock              as C
@@ -16,6 +17,7 @@ import           Network.Haskoin.Address        ( Address
                                                 )
 
 import           Aftok.Currency.Bitcoin         ( NetworkId(..)
+                                                , NetworkMode
                                                 , toNetwork
                                                 )
 import           Aftok.Database
@@ -23,7 +25,7 @@ import           Aftok.Interval
 import           Aftok.Json
 import           Aftok.Project
 import           Aftok.TimeLog
-import           Aftok.Types                    ( CreditTo(..) )
+import           Aftok.Types                    ( CreditTo(..), _ProjectId, _UserId )
 import           Aftok.Util                     ( fromMaybeT )
 
 import           Aftok.Snaplet
@@ -120,3 +122,11 @@ amendEventHandler = do
   either (snapError 400 . T.pack)
          (snapEval . amendEvent uid eventId)
          (A.parseEither (parseEventAmendment nmode modTime) requestJSON)
+
+keyedLogEntryJSON :: NetworkMode -> (EventId, KeyedLogEntry (NetworkId, Address)) -> A.Value
+keyedLogEntryJSON nmode (eid, (pid, uid, ev)) = v2 . obj $
+  [ "eventId"   .= idValue _EventId eid
+  , "projectId" .= idValue _ProjectId pid
+  , "loggedBy"  .= idValue _UserId uid
+  ] <> logEntryFields nmode ev
+

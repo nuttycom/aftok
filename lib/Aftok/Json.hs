@@ -41,7 +41,6 @@ import           Network.Haskoin.Address        ( Address
                                                 )
 
 import           Aftok.Currency.Bitcoin
-import           Aftok.Database                 ( KeyedLogEntry )
 import           Aftok.Auction                 as A
 import qualified Aftok.Billables               as B
 import           Aftok.Interval
@@ -292,9 +291,6 @@ logEntryFields nmode (LogEntry c ev m) =
   , "event" .= logEventJSON' ev
   , "eventMeta" .= m
   ]
-
-keyedLogEntryJSON :: NetworkMode -> (EventId, KeyedLogEntry (NetworkId, Address)) -> Value
-keyedLogEntryJSON nmode le = qdbJSON "event" (_1 . _EventId) (_2 . _3 . to (logEntryJSON nmode)) le
 
 amendmentIdJSON :: AmendmentId -> Value
 amendmentIdJSON = idJSON "amendmentId" _AmendmentId
