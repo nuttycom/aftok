@@ -75,7 +75,7 @@ component caps = H.mkComponent
     render st =
       Card.component $
         HH.div
-          [ P.classes (ClassName <$> ["row", "no-gutters"]) ]
+          [ P.classes (ClassName <$> ["row", "no-gutters", "container"]) ]
           [ HH.div
             [ P.classes (ClassName <$> ["col-12", "col-md-6", "bg-cover", "card-img-left"])
             , CSS.style $ backgroundImage (url "/assets/img/photos/latch.jpg")

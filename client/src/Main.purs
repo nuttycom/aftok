@@ -29,7 +29,7 @@ main = HA.runHalogenAff do
   body <- HA.awaitBody
   let --login = Login.mockCapability
       login = Login.apiCapability
-      timeline = Timeline.mockCapability
+      timeline = Timeline.apiCapability
       project = Project.apiCapability
       mainComponent = component login timeline project
   runUI mainComponent unit body
@@ -80,7 +80,7 @@ component loginCap tlCap pCap = H.mkComponent
 
       LoggedIn -> 
         withNavBar $ HH.div_ 
-          [ HH.slot _timeline unit (Timeline.component tlCap { width: 600.0 }) unit absurd ]
+          [ HH.slot _timeline unit (Timeline.component tlCap pCap) unit absurd ]
 
     eval :: MainAction -> H.HalogenM MainState MainAction Slots output Aff Unit
     eval = case _ of
