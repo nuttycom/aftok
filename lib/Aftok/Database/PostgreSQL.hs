@@ -142,23 +142,18 @@ creditToParser mode = join $ fieldWith (creditToParser' mode)
 
 creditToParser'
   :: NetworkMode -> FieldParser (RowParser (CreditTo (NetworkId, Address)))
-creditToParser' mode f v =
-  let
+creditToParser' mode f v = do
+  tn <- typename f
+  if tn /= "credit_to_t"
+    then returnError Incompatible f "column was not of type credit_to_t"
+    else maybe empty (pure . parser . decodeUtf8) v
+  where
     parser :: Text -> RowParser (CreditTo (NetworkId, Address))
-    parser "credit_to_address" =
-      CreditToCurrency <$> (addressParser mode <* nullField <* nullField)
-    parser "credit_to_user" =
-      CreditToUser <$> (nullField *> nullField *> idParser UserId <* nullField)
-    parser "credit_to_project" =
-      CreditToProject
-        <$> (nullField *> nullField *> nullField *> idParser ProjectId)
-    parser _ = empty
-  in
-    do
-      tn <- typename f
-      if tn /= "credit_to_t"
-        then returnError Incompatible f "column was not of type credit_to_t"
-        else maybe empty (pure . parser . decodeUtf8) v
+    parser = \case
+      "credit_to_address" -> CreditToCurrency <$> (addressParser mode     <* nullField       <* nullField)
+      "credit_to_user"    -> CreditToUser     <$> (nullField *> nullField *> idParser UserId <* nullField)
+      "credit_to_project" -> CreditToProject  <$> (nullField *> nullField *> nullField       *> idParser ProjectId)
+      _ -> empty
 
 logEntryParser :: NetworkMode -> RowParser (LogEntry (NetworkId, Address))
 logEntryParser mode =

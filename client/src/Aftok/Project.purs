@@ -3,7 +3,7 @@ module Aftok.Project where
 import Prelude
 
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.Except.Trans (ExceptT, runExceptT, except)
+import Control.Monad.Except.Trans (ExceptT, runExceptT, except, withExceptT)
 import Control.Monad.Error.Class (throwError)
 
 import Data.Array (index)
@@ -12,7 +12,6 @@ import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.:))
 import Data.Bifunctor (lmap)
 import Data.DateTime (DateTime)
 import Data.Either (Either(..), note)
-import Data.JSDate as JSDate
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
 import Data.Traversable (traverse, traverse_)
@@ -25,7 +24,7 @@ import Affjax (get, printError)
 import Affjax.StatusCode (StatusCode(..))
 import Affjax.ResponseFormat as RF
 
-import Aftok.Types (APIError(..))
+import Aftok.Types (APIError(..), parseDate)
 
 import Halogen as H
 import Halogen.HTML as HH
@@ -147,9 +146,7 @@ listProjects = do
 parseProject :: Json -> ExceptT APIError Effect Project
 parseProject json = do
   Project' p <- except <<< lmap (ParseFailure json) $ decodeJson json
-  jsDate <- lift $ JSDate.parse p.inceptionDate
-  pdate <- except $ note (ParseFailure json "Could not parse inception date") 
-                         (JSDate.toDateTime jsDate)
+  pdate <- withExceptT (ParseFailure json) $ parseDate p.inceptionDate
   pure $ Project' (p { inceptionDate = pdate })
 
 apiCapability :: Capability Aff

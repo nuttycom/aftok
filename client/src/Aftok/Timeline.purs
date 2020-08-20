@@ -3,19 +3,22 @@ module Aftok.Timeline where
 import Prelude
 
 import Control.Alt ((<|>))
+import Control.Monad.Error.Class (throwError)
+import Control.Monad.Except.Trans (except, withExceptT, runExceptT)
 import Control.Monad.Rec.Class (forever)
 import Control.Monad.Trans.Class (lift)
 
 import Data.Array (cons)
+import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.:), (.:?))
 import Data.DateTime (DateTime(..), adjust)
 import Data.DateTime.Instant (Instant, unInstant, fromDateTime)
-import Data.Either (Either(..))
-import Data.Foldable (any)
+import Data.Either (Either(..), note)
+import Data.Foldable (class Foldable, any, foldMapDefaultR)
 import Data.Maybe (Maybe(..), maybe, isJust, isNothing)
 import Data.Newtype (unwrap)
 import Data.Symbol (SProxy(..))
 import Data.Time.Duration (Milliseconds(..), Days(..))
-import Data.Traversable (traverse_)
+import Data.Traversable (class Traversable, traverse_, traverse)
 import Data.Unfoldable (fromMaybe)
 import Data.UUID as UUID
 
@@ -51,9 +54,9 @@ import CSS.Size (px, pct)
 
 import Aftok.Project as Project
 import Aftok.Project (Project, Project'(..), ProjectId(..))
-import Aftok.Types (APIError(..))
+import Aftok.Types (APIError(..), parseDate)
 
-import Effect.Class.Console (log)
+import Effect.Class.Console as C
 
 type Interval =
   { start :: Instant
@@ -82,6 +85,10 @@ data TimelineAction
 
 data TimelineError
   = LogFailure (APIError)
+
+instance showTimelineError :: Show TimelineError where
+  show = case _ of
+    LogFailure e -> show e
 
 type Slot id = forall query. H.Slot query Void id
 
@@ -177,11 +184,9 @@ component caps pcaps = H.mkComponent
       ProjectSelected p -> do
         active <- isJust <$> H.gets (_.active)
         currentProject <- H.gets (_.selectedProject)
-        log $ "Active: " <> show active <> "; " <> show ((_.projectName) <<< unwrap <$> currentProject)
-        log $ "Selected: " <> show ((_.projectName) <<< unwrap $ p)
         when (active && any (\p' -> (unwrap p').projectId /= (unwrap p).projectId) currentProject)
              (traverse_ logEnd currentProject)
-        H.modify_ (_ { selectedProject = Just p })
+        H.modify_ (_ { selectedProject = Just p, history = [] })
 
       Start   -> do
         project <- H.gets (_.selectedProject)
@@ -199,14 +204,14 @@ component caps pcaps = H.mkComponent
     logStart (Project' p) = do
       logged <- lift $ caps.logStart p.projectId
       case logged of
-        Left _ -> log "Failed to start timer."
+        Left err -> C.log $ "Failed to start timer: " <> show err
         Right t -> H.modify_ (start t)
 
     logEnd :: Project -> H.HalogenM TimelineState TimelineAction Slots output Aff Unit
     logEnd (Project' p) = do
       logged <- lift $ caps.logEnd p.projectId
       case logged of
-        Left _ -> log "Failed to stop timer."
+        Left err -> C.log $ "Failed to stop timer: " <> show err
         Right t -> H.modify_ (stop t)
 
 lineHtml
@@ -234,14 +239,14 @@ intervalHtml limits i =
       ileft = ilen limits.start i.start
       iwidth = ilen i.start i.end
       px5 = px (5.0)
-      toPct n = pct (100.0 * n / maxWidth)
+      toPct n = 100.0 * n / maxWidth
    in HH.div
     [ CSS.style do
         position absolute
         backgroundColor (rgb 0xf0 0x98 0x18)
         height (px $ 44.0)
-        left (toPct ileft)
-        width (toPct iwidth)
+        left (pct $ toPct ileft)
+        width (pct $ max (toPct iwidth) 0.5)
         borderRadius px5 px5 px5 px5
     ]
     []
@@ -254,6 +259,35 @@ timer = EventSource.affEventSource \emitter -> do
 
   pure $ EventSource.Finalizer do
     Aff.killFiber (error "Event source finalized") fiber
+
+data Event i
+  = StartEvent i
+  | StopEvent i
+
+derive instance eventFunctor :: Functor Event
+
+instance eventFoldable :: Foldable Event where
+  foldr f b = case _ of
+    StartEvent a -> f a b
+    StopEvent a -> f a b
+  foldl f b = case _ of
+    StartEvent a -> f b a
+    StopEvent a -> f b a
+  foldMap = foldMapDefaultR
+
+instance eventTraversable :: Traversable Event where
+  traverse f = case _ of
+    StartEvent a -> StartEvent <$> f a 
+    StopEvent a -> StopEvent <$> f a 
+  sequence = traverse identity
+
+instance decodeJsonEvent :: DecodeJson (Event String) where
+  decodeJson json = do
+    obj <- decodeJson json
+    event <- obj .: "event"
+    start' <- traverse (_ .: "eventTime") =<< event .:? "start"
+    stop' <-  traverse (_ .: "eventTime") =<< event .:? "stop"
+    note "Only 'stop' and 'start' events are supported." $ (StartEvent <$> start') <|> (StopEvent <$> stop')
 
 
 start :: Instant -> TimelineState -> TimelineState
@@ -282,23 +316,39 @@ apiLogStart :: ProjectId -> Aff (Either TimelineError Instant)
 apiLogStart (ProjectId pid) = do
   let requestBody = Just <<< RB.Json <<< encodeJson $ { schemaVersion: "2.0" }
   result <- post RF.json ("/api/projects/" <> UUID.toString pid <> "/logStart") requestBody
-  case result of
-    Left err -> pure <<< Left <<< LogFailure $ Error { status: Nothing, message: printError err }
+  liftEffect <<< runExceptT $ case result of
+    Left err -> throwError <<< LogFailure $ Error { status: Nothing, message: printError err }
     Right r -> case r.status of
-      StatusCode 403 -> pure <<< Left <<< LogFailure $ Forbidden
-      StatusCode 200 -> Right <$> liftEffect now
-      other -> pure <<< Left <<< LogFailure $ Error { status: Just other, message: r.statusText }
+      StatusCode 403 -> 
+        throwError $ LogFailure Forbidden
+      StatusCode 200 -> 
+        withExceptT (LogFailure <<< ParseFailure r.body) $ do
+          event <- except $ decodeJson r.body
+          timeEvent <- traverse parseDate event
+          case timeEvent of 
+              StartEvent t -> pure $ fromDateTime t
+              StopEvent  _ -> throwError $ "Expected start event, got stop."
+      other -> 
+        throwError <<< LogFailure $ Error { status: Just other, message: r.statusText }
 
 apiLogEnd :: ProjectId -> Aff (Either TimelineError Instant)
 apiLogEnd (ProjectId pid) = do
   let requestBody = Just <<< RB.Json <<< encodeJson $ { schemaVersion: "2.0" }
   result <- post RF.json ("/api/projects/" <> UUID.toString pid <> "/logEnd") requestBody
-  case result of
-    Left err -> pure <<< Left <<< LogFailure $ Error { status: Nothing, message: printError err }
+  liftEffect <<< runExceptT $ case result of
+    Left err -> throwError <<< LogFailure $ Error { status: Nothing, message: printError err }
     Right r -> case r.status of
-      StatusCode 403 -> pure <<< Left <<< LogFailure $ Forbidden
-      StatusCode 200 -> Right <$> liftEffect now
-      other -> pure <<< Left <<< LogFailure $ Error { status: Just other, message: r.statusText }
+      StatusCode 403 -> 
+        throwError $ LogFailure Forbidden
+      StatusCode 200 -> 
+        withExceptT (LogFailure <<< ParseFailure r.body) $ do
+          event <- except $ decodeJson r.body
+          timeEvent <- traverse parseDate event
+          case timeEvent of 
+              StartEvent _ -> throwError $ "Expected stop event, got start."
+              StopEvent  t -> pure $ fromDateTime t
+      other -> 
+        throwError <<< LogFailure $ Error { status: Just other, message: r.statusText }
 
 apiCapability :: Capability Aff
 apiCapability = { logStart: apiLogStart, logEnd: apiLogEnd }
