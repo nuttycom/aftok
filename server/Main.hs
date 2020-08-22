@@ -72,8 +72,8 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
       serveJSON projectJSON $ method GET projectGetHandler
     projectWorkIndexRoute =
       serveJSON (workIndexJSON nmode) $ method GET projectWorkIndex
-
-    projectPayoutsRoute = serveJSON (payoutsJSON nmode) $ method GET payoutsHandler
+    projectPayoutsRoute =
+      serveJSON (payoutsJSON nmode) $ method GET payoutsHandler
 
     logWorkRoute f =
       serveJSON (keyedLogEntryJSON nmode) $ method POST (logWorkHandler f)
@@ -88,8 +88,10 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
 
     auctionCreateRoute =
       serveJSON auctionIdJSON $ method POST auctionCreateHandler
-    auctionRoute    = serveJSON auctionJSON $ method GET auctionGetHandler
-    auctionBidRoute = serveJSON bidIdJSON $ method POST auctionBidHandler
+    auctionRoute    =
+      serveJSON auctionJSON $ method GET auctionGetHandler
+    auctionBidRoute =
+      serveJSON bidIdJSON $ method POST auctionBidHandler
 
     billableCreateRoute =
       serveJSON billableIdJSON $ method POST billableCreateHandler

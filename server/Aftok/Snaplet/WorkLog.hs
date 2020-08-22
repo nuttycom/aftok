@@ -98,6 +98,13 @@ userLogEntries = do
       "You must specify at least one of the \"after\" or \"before\" query parameters"
   snapEval $ findEvents pid uid ival
 
+userLatestEntries :: S.Handler App App [LogEntry (NetworkId, Address)]
+userLatestEntries = do
+  uid       <- requireUserId
+  pid       <- requireProjectId
+  limit     <- fromMaybe 1 <$> decimalParam "limit"
+  snapEval $ findLatestEvents pid uid limit
+
 userWorkIndex :: S.Handler App App (WorkIndex (NetworkId, Address))
 userWorkIndex =
   workIndex <$> userLogEntries

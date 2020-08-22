@@ -58,6 +58,7 @@ data DBOp a where
   AmendEvent       ::EventId -> EventAmendment BTCNet -> DBOp AmendmentId
   FindEvent        ::EventId -> DBOp (Maybe (KeyedLogEntry BTCNet))
   FindEvents       ::ProjectId -> UserId -> Interval' -> DBOp [LogEntry BTCNet]
+  FindLatestEvents ::ProjectId -> UserId -> Int -> DBOp [LogEntry BTCNet]
   ReadWorkIndex    ::ProjectId -> DBOp (WorkIndex BTCNet)
 
   CreateAuction    ::Auction -> DBOp AuctionId
@@ -220,6 +221,9 @@ findEvent = liftdb . FindEvent
 findEvents
   :: (MonadDB m) => ProjectId -> UserId -> Interval' -> m [LogEntry BTCNet]
 findEvents p u i = liftdb $ FindEvents p u i
+
+findLatestEvents :: (MonadDB m) => ProjectId -> UserId -> Int -> m [LogEntry BTCNet]
+findLatestEvents p u i = liftdb $ FindLatestEvents p u i
 
 readWorkIndex :: (MonadDB m) => ProjectId -> UserId -> m (WorkIndex BTCNet)
 readWorkIndex pid uid = withProjectAuth pid uid $ ReadWorkIndex pid

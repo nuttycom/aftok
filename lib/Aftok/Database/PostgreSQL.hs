@@ -397,12 +397,26 @@ pgEval (FindEvents (ProjectId pid) (UserId uid) ival) = do
     q (After s) = pquery
       (logEntryParser mode)
       [sql| SELECT credit_to_type,
-                     credit_to_network, credit_to_address, credit_to_user_id, credit_to_project_id,
-                     event_type, event_time, event_metadata
-              FROM work_events
-              WHERE project_id = ? AND user_id = ? AND event_time >= ? |]
+                   credit_to_network, credit_to_address, credit_to_user_id, credit_to_project_id,
+                   event_type, event_time, event_metadata
+            FROM work_events
+            WHERE project_id = ? AND user_id = ? AND event_time >= ? |]
       (pid, uid, fromThyme s)
   q ival
+
+pgEval (FindLatestEvents (ProjectId pid) (UserId uid) i) = do
+  mode <- askNetworkMode
+  pquery
+    (logEntryParser mode)
+    [sql| SELECT credit_to_type,
+                 credit_to_network, credit_to_address, credit_to_user_id, credit_to_project_id,
+                 event_type, event_time, event_metadata
+          FROM work_events
+          WHERE project_id = ?
+          AND user_id = ?
+          ORDER BY event_time DESC
+          LIMIT ?|]
+    (pid, uid, i)
 
 pgEval (AmendEvent (EventId eid) (TimeChange mt t)) = pinsert
   AmendmentId

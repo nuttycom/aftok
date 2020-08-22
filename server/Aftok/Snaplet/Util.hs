@@ -1,6 +1,7 @@
 module Aftok.Snaplet.Util where
 
-
+import           Data.Attoparsec.ByteString     (parseOnly)
+import           Data.Attoparsec.ByteString.Char8     (decimal)
 
 import           Data.ByteString.Char8         as B
 import           Data.Thyme.Clock              as C
@@ -15,3 +16,7 @@ timeParam k = runMaybeT $ do
   t  <- MaybeT . pure . parseISO8601 $ B.unpack bs
   pure $ toThyme t
 
+decimalParam :: (Integral i, MonadSnap m) => ByteString -> m (Maybe i)
+decimalParam k = runMaybeT $ do
+  bs <- MaybeT $ getParam k
+  MaybeT . pure . either (const Nothing) Just $ parseOnly decimal bs

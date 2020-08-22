@@ -3,31 +3,25 @@ module Aftok.Timeline where
 import Prelude
 
 import Control.Alt ((<|>))
-import Control.Monad.Error.Class (throwError)
-import Control.Monad.Except.Trans (withExceptT, runExceptT)
 import Control.Monad.Rec.Class (forever)
 import Control.Monad.Trans.Class (lift)
 
 import Data.Array (reverse, filter)
-import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.:), (.:?))
 import Data.Date (Date, year, month, day)
 import Data.DateTime (DateTime(..), adjust, date)
 import Data.DateTime.Instant (Instant, unInstant, fromDateTime, toDateTime)
-import Data.Either (Either(..), note)
+import Data.Either (Either(..))
 import Data.Enum (fromEnum)
-import Data.Foldable (class Foldable, any, foldMapDefaultR, intercalate, foldr, foldl, length)
-import Data.JSDate as JD
+import Data.Foldable (any, length)
 import Data.Map as M
 import Data.Maybe (Maybe(..), maybe, isJust, isNothing)
-import Data.Newtype (class Newtype, unwrap)
+import Data.Newtype (unwrap)
 import Data.Symbol (SProxy(..))
 import Data.Time.Duration (Milliseconds(..), Days(..))
-import Data.Traversable (class Traversable, traverse_, traverse)
+import Data.Traversable (traverse_)
 import Data.Tuple (Tuple(..), fst)
 import Data.Unfoldable (fromMaybe)
-import Data.UUID as UUID
 import Math (abs)
-import Type.Proxy (Proxy(..))
 -- import Text.Format as F -- (format, zeroFill, width)
 
 import Effect.Aff as Aff
@@ -35,12 +29,6 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (error)
 import Effect.Now (now)
-
-import Affjax (get, post)
-import Affjax.RequestBody as RB
-import Affjax.ResponseFormat as RF
-
-import Data.Argonaut.Encode (encodeJson)
 
 import Halogen as H
 import Halogen.Query.EventSource (EventSource)
@@ -57,95 +45,11 @@ import CSS.Display (position, absolute)
 import CSS.Geometry (width, height)
 import CSS.Size (px, pct)
 
+import Aftok.Api.Timeline as TL
+import Aftok.Api.Timeline (TimelineError, Interval'(..), Interval, TimeSpan)
 import Aftok.Project as Project
-import Aftok.Project (Project, Project'(..), ProjectId(..), pidStr)
-import Aftok.Types (APIError, System, JsonCompose, decompose, parseDatedResponse)
-
-data Event' i
-  = StartEvent i
-  | StopEvent i
-
-type Event = Event' Instant
-
-derive instance eventFunctor :: Functor Event'
-
-instance eventFoldable :: Foldable Event' where
-  foldr f b = case _ of
-    StartEvent a -> f a b
-    StopEvent a -> f a b
-  foldl f b = case _ of
-    StartEvent a -> f b a
-    StopEvent a -> f b a
-  foldMap = foldMapDefaultR
-
-instance eventTraversable :: Traversable Event' where
-  traverse f = case _ of
-    StartEvent a -> StartEvent <$> f a 
-    StopEvent a -> StopEvent <$> f a 
-  sequence = traverse identity
-
-instance decodeJsonEvent :: DecodeJson (Event' String) where
-  decodeJson json = do
-    obj <- decodeJson json
-    event <- obj .: "event"
-    start' <- traverse (_ .: "eventTime") =<< event .:? "start"
-    stop' <-  traverse (_ .: "eventTime") =<< event .:? "stop"
-    note "Only 'stop' and 'start' events are supported." $ (StartEvent <$> start') <|> (StopEvent <$> stop')
-
-newtype Interval' i = Interval
-  { start :: i
-  , end :: i
-  }
-
-derive instance intervalEq :: (Eq i) => Eq (Interval' i)
-derive instance intervalNewtype :: Newtype (Interval' i) _
-
-type Interval = Interval' Instant
-
-derive instance intervalFunctor :: Functor Interval'
-
-instance intervalFoldable :: Foldable Interval' where
-  foldr f b (Interval i) = f i.start (f i.end b) 
-  foldl f b (Interval i) = f (f b i.start) i.end 
-  foldMap = foldMapDefaultR
-
-instance intervalTraversable :: Traversable Interval' where
-  traverse f (Interval i) = interval <$> f i.start <*> f i.end 
-  sequence = traverse identity
-
-instance decodeJsonInterval :: DecodeJson (Interval' String) where
-  decodeJson json = do
-    obj <- decodeJson json
-    interval <$> obj .: "start" <*> obj .: "end"
-
-interval :: forall i. i -> i -> Interval' i
-interval s e = Interval { start: s, end: e }
-
-data TimeSpan' t
-  = Before t
-  | During (Interval' t)
-  | After t
-
-type TimeSpan = TimeSpan' DateTime
-
-derive instance timeSpanFunctor :: Functor TimeSpan'
-instance timeSpanFoldable :: Foldable TimeSpan' where
-  foldr f b = case _ of
-    Before a -> f a b
-    During x -> foldr f b x
-    After  a -> f a b
-  foldl f b = case _ of
-    Before a -> f b a
-    During x -> foldl f b x
-    After  a -> f b a
-  foldMap = foldMapDefaultR
-
-instance timeSpanTraversable :: Traversable TimeSpan' where
-  traverse f = case _ of
-    Before a -> Before <$> f a
-    During x -> During <$> traverse f x
-    After  a -> After <$> f a
-  sequence = traverse identity
+import Aftok.Project (Project, Project'(..), ProjectId)
+import Aftok.Types (System)
 
 type TimelineLimits =
   { bounds  :: Interval
@@ -165,15 +69,6 @@ data TimelineAction
   | Start
   | Stop
   | Refresh
-
-data TimelineError
-  = LogFailure (APIError)
-  | Unexpected String
-
-instance showTimelineError :: Show TimelineError where
-  show = case _ of
-    LogFailure e -> show e
-    Unexpected t -> t
 
 type Slot id = forall query. H.Slot query Void id
 
@@ -207,7 +102,7 @@ component system caps pcaps = H.mkComponent
   } where
     initialState :: input -> TimelineState
     initialState _ =
-      { limits: { bounds: interval bottom bottom, current: bottom }
+      { limits: { bounds: TL.interval bottom bottom, current: bottom }
       , history: M.empty
       , active: Nothing
       , selectedProject: Nothing
@@ -267,7 +162,7 @@ component system caps pcaps = H.mkComponent
         currentProject <- H.gets (_.selectedProject)
         when (active && any (\p' -> (unwrap p').projectId /= (unwrap p).projectId) currentProject)
              (traverse_ logEnd currentProject)
-        timeSpan <- Before <$> lift system.nowDateTime -- FIXME, should come from a form control
+        timeSpan <- TL.Before <$> lift system.nowDateTime -- FIXME, should come from a form control
         intervals' <- lift $ caps.listIntervals (unwrap p).projectId timeSpan
         let intervals = case intervals' of
              Left err -> [] -- FIXME
@@ -305,7 +200,7 @@ dateBounds date =
   let startOfDay = DateTime date bottom
       endOfDay = adjust (Days 1.0) startOfDay
       startInstant = fromDateTime startOfDay
-   in interval startInstant (maybe startInstant fromDateTime endOfDay)
+   in TL.interval startInstant (maybe startInstant fromDateTime endOfDay)
 
 currentHistory 
   :: TimelineState
@@ -389,14 +284,14 @@ timer = EventSource.affEventSource \emitter -> do
 
 start :: Instant -> TimelineState -> TimelineState
 start t s =
-  s { active = s.active <|> Just (interval t t)
+  s { active = s.active <|> Just (TL.interval t t)
     }
 
 stop :: Instant -> TimelineState -> TimelineState
 stop t s =
   s { history = maybe 
         s.history 
-        (\i -> M.unionWith (<>) (toHistory [interval (unwrap i).start t]) s.history) 
+        (\i -> M.unionWith (<>) (toHistory [TL.interval (unwrap i).start t]) s.history) 
         s.active
     , active = Nothing
     }
@@ -404,7 +299,7 @@ stop t s =
 refresh :: Instant -> TimelineState -> TimelineState
 refresh t s =
   s { limits = s.limits { current = t }
-    , active = map (\(Interval i) -> interval i.start t) s.active
+    , active = map (\(Interval i) -> TL.interval i.start t) s.active
     }
 
 ilen :: Instant -> Instant -> Number
@@ -412,72 +307,12 @@ ilen _start _end =
   let n (Milliseconds x) = x
   in  abs $ n (unInstant _end) - n (unInstant _start)
 
-apiLogStart :: ProjectId -> Aff (Either TimelineError Instant)
-apiLogStart (ProjectId pid) = do
-  let requestBody = Just <<< RB.Json <<< encodeJson $ { schemaVersion: "2.0" }
-  response <- post RF.json ("/api/user/projects/" <> UUID.toString pid <> "/logStart") requestBody
-  liftEffect <<< runExceptT $ do
-    event <- withExceptT LogFailure $ parseDatedResponse response
-    case event of 
-      StartEvent t -> pure t
-      StopEvent  _ -> throwError <<< Unexpected $ "Expected start event, got stop."
-
-apiLogEnd :: ProjectId -> Aff (Either TimelineError Instant)
-apiLogEnd (ProjectId pid) = do
-  let requestBody = Just <<< RB.Json <<< encodeJson $ { schemaVersion: "2.0" }
-  response <- post RF.json ("/api/user/projects/" <> UUID.toString pid <> "/logEnd") requestBody
-  liftEffect <<< runExceptT $ do
-    event <- withExceptT LogFailure $ parseDatedResponse response
-    case event of
-      StartEvent _ -> throwError <<< Unexpected $ "Expected stop event, got start."
-      StopEvent  t -> pure t
-
-
-newtype ListIntervalsResponse a = ListIntervalsResponse
-  { workIndex :: Array ({ intervals :: Array a }) 
-  }
-
-derive instance listIntervalsResponseNewtype :: Newtype (ListIntervalsResponse a) _
-derive instance listIntervalsResponseFunctor :: Functor ListIntervalsResponse
-
-instance listIntervalsResponseFoldable :: Foldable ListIntervalsResponse where
-  foldr f b (ListIntervalsResponse r) = foldr f b (r.workIndex >>= _.intervals)
-  foldl f b (ListIntervalsResponse r) = foldl f b (r.workIndex >>= _.intervals)
-  foldMap = foldMapDefaultR
-
-instance listIntervalsResponseTraversable :: Traversable ListIntervalsResponse where
-  traverse f (ListIntervalsResponse r) = 
-    let traverseCreditRow r' = ({ intervals: _ }) <$> traverse f r'.intervals
-     in (ListIntervalsResponse <<< ({ workIndex: _ })) <$> traverse traverseCreditRow r.workIndex
-  sequence = traverse identity
-
-instance listIntervalsResponseDecodeJson :: DecodeJson a => DecodeJson (ListIntervalsResponse a) where
-  decodeJson = map ListIntervalsResponse <<< decodeJson
-
-_ListIntervalsResponse :: Proxy (JsonCompose ListIntervalsResponse Interval' String)
-_ListIntervalsResponse = Proxy
-
-apiListIntervals :: ProjectId -> TimeSpan -> Aff (Either TimelineError (Array Interval))
-apiListIntervals pid ts = do
-  ts' <- liftEffect $ traverse (JD.toISOString <<< JD.fromDateTime) ts
-  let queryElements = case ts' of
-        Before t -> ["before=" <> t]
-        During (Interval x) -> ["after=" <> x.start, "before=" <> x.end]
-        After  t -> ["after=" <> t]
-  response <- get RF.json ("/api/user/projects/" <> pidStr pid <> "/workIndex?" <> intercalate "&" queryElements)
-  liftEffect 
-    <<< runExceptT 
-    <<< map (\(ListIntervalsResponse r) -> r.workIndex >>= (_.intervals))
-    <<< map decompose
-    <<< withExceptT LogFailure 
-      $ parseDatedResponse response
-
 apiCapability :: Capability Aff
 apiCapability = 
   { timer: timer
-  , logStart: apiLogStart
-  , logEnd: apiLogEnd 
-  , listIntervals: apiListIntervals
+  , logStart: TL.apiLogStart
+  , logEnd: TL.apiLogEnd 
+  , listIntervals: TL.apiListIntervals
   }
 
 mockCapability :: Capability Aff
