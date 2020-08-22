@@ -19,6 +19,5 @@ if [ -z "${PID}" ]; then
 fi
 
 curl --verbose --insecure --user $USER \
-  --request POST \
-  --data '{"schemaVersion": "2.0"}' \
-  "https://$AFTOK_HOST/api/user/projects/$PID/logStart"
+  --request GET \
+  "https://$AFTOK_HOST/api/projects/$PID/intervals"

@@ -9,7 +9,7 @@ import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 
 import Effect.Aff (Aff)
-import Effect.Class as EC
+import Effect.Class.Console (log)
 import Affjax (post, get, printError)
 import Affjax.StatusCode (StatusCode(..))
 import Affjax.RequestBody as RB
@@ -27,7 +27,8 @@ import CSS (backgroundImage, url)
 
 import Landkit.Card as Card
 
-import Effect.Class.Console (log)
+import Aftok.Types (System)
+
 
 type LoginRequest = { username :: String, password :: String }
 
@@ -59,10 +60,11 @@ type Capability m =
 
 component 
   :: forall query input m
-  .  EC.MonadEffect m 
-  => Capability m 
+  .  Monad m
+  => System m
+  -> Capability m 
   -> H.Component HH.HTML query input LoginComplete m
-component caps = H.mkComponent
+component system caps = H.mkComponent
   { initialState
   , render
   , eval: H.mkEval $ H.defaultEval { handleAction = eval }
@@ -162,7 +164,7 @@ component caps = H.mkComponent
       SetUsername user -> H.modify_ (_ { username = user })
       SetPassword pass -> H.modify_ (_ { password = pass })
       Login ev -> do
-        EC.liftEffect $ WE.preventDefault ev
+        lift $ system.preventDefault ev
         user <- H.gets (_.username)
         pass <- H.gets (_.password)
         response <- lift (caps.login user pass)

@@ -78,14 +78,14 @@ logWorkBTCHandler evCtr = do
       (evCtr timestamp)
       (A.decode requestBody)
 
-loggedIntervalsHandler :: S.Handler App App (WorkIndex (NetworkId, Address))
-loggedIntervalsHandler = do
+projectWorkIndex :: S.Handler App App (WorkIndex (NetworkId, Address))
+projectWorkIndex = do
   uid <- requireUserId
   pid <- requireProjectId
   snapEval $ readWorkIndex pid uid
 
-logEntriesHandler :: S.Handler App App [LogEntry (NetworkId, Address)]
-logEntriesHandler = do
+userLogEntries :: S.Handler App App [LogEntry (NetworkId, Address)]
+userLogEntries = do
   uid       <- requireUserId
   pid       <- requireProjectId
   endpoints <- (,) <$> timeParam "after" <*> timeParam "before"
@@ -95,8 +95,12 @@ logEntriesHandler = do
     (Just s , Nothing) -> pure $ After s
     (Nothing, Nothing) -> snapError
       400
-      "You must at least one of the \"after\" or \"before\" query parameter"
+      "You must specify at least one of the \"after\" or \"before\" query parameters"
   snapEval $ findEvents pid uid ival
+
+userWorkIndex :: S.Handler App App (WorkIndex (NetworkId, Address))
+userWorkIndex =
+  workIndex <$> userLogEntries
 
 payoutsHandler :: S.Handler App App (Payouts (NetworkId, Address))
 payoutsHandler = do

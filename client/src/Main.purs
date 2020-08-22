@@ -8,7 +8,6 @@ import Data.Maybe (Maybe(..))
 import Data.Symbol (SProxy(..))
 
 import Effect (Effect)
-import Effect.Aff (Aff)
 
 import Halogen as H
 import Halogen.Aff as HA
@@ -20,6 +19,7 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as E
 import Halogen.HTML.Properties as P
 
+import Aftok.Types (System, liveSystem)
 import Aftok.Login as Login
 import Aftok.Timeline as Timeline
 import Aftok.Project as Project
@@ -31,7 +31,7 @@ main = HA.runHalogenAff do
       login = Login.apiCapability
       timeline = Timeline.apiCapability
       project = Project.apiCapability
-      mainComponent = component login timeline project
+      mainComponent = component liveSystem login timeline project
   runUI mainComponent unit body
 
 data MainState 
@@ -53,12 +53,14 @@ _login = SProxy :: SProxy "login"
 _timeline = SProxy :: SProxy "timeline"
 
 component 
-  :: forall query input output
-  .  Login.Capability Aff
-  -> Timeline.Capability Aff
-  -> Project.Capability Aff
-  -> H.Component HH.HTML query input output Aff
-component loginCap tlCap pCap = H.mkComponent 
+  :: forall query input output m
+  .  Monad m
+  => System m
+  -> Login.Capability m
+  -> Timeline.Capability m
+  -> Project.Capability m
+  -> H.Component HH.HTML query input output m
+component system loginCap tlCap pCap = H.mkComponent 
   { initialState
   , render 
   , eval: H.mkEval $ H.defaultEval 
@@ -69,20 +71,20 @@ component loginCap tlCap pCap = H.mkComponent
     initialState :: input -> MainState
     initialState _ = LoggedOut
 
-    render :: MainState -> H.ComponentHTML MainAction Slots Aff
+    render :: MainState -> H.ComponentHTML MainAction Slots m
     render s = case s of
       Loading ->
         HH.div [P.classes [ClassName "loader"]] [HH.text "Loading..."]
 
       LoggedOut -> 
         HH.div_ 
-          [ HH.slot _login unit (Login.component loginCap) unit (Just <<< LoginComplete) ]
+          [ HH.slot _login unit (Login.component system loginCap) unit (Just <<< LoginComplete) ]
 
       LoggedIn -> 
         withNavBar $ HH.div_ 
-          [ HH.slot _timeline unit (Timeline.component tlCap pCap) unit absurd ]
+          [ HH.slot _timeline unit (Timeline.component system tlCap pCap) unit absurd ]
 
-    eval :: MainAction -> H.HalogenM MainState MainAction Slots output Aff Unit
+    eval :: MainAction -> H.HalogenM MainState MainAction Slots output m Unit
     eval = case _ of
       Initialize -> do
         result <- lift loginCap.checkLogin

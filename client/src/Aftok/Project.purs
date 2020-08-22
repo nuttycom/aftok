@@ -15,7 +15,7 @@ import Data.Either (Either(..), note)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
 import Data.Traversable (traverse, traverse_)
-import Data.UUID (UUID, parseUUID)
+import Data.UUID (UUID, parseUUID, toString)
 
 import Effect (Effect)
 import Effect.Aff (Aff)
@@ -24,7 +24,7 @@ import Affjax (get, printError)
 import Affjax.StatusCode (StatusCode(..))
 import Affjax.ResponseFormat as RF
 
-import Aftok.Types (APIError(..), parseDate)
+import Aftok.Types (APIError(..), System, parseDate)
 
 import Halogen as H
 import Halogen.HTML as HH
@@ -32,14 +32,12 @@ import Halogen.HTML.Core (ClassName(..))
 import Halogen.HTML.Events as E
 import Halogen.HTML.Properties as P
 
-import Effect.Class.Console (log, error)
-
 newtype ProjectId = ProjectId UUID
 derive instance projectIdEq :: Eq ProjectId
-derive instance newtypeProjectId :: Newtype ProjectId _
+derive instance projectIdNewtype :: Newtype ProjectId _
 
 pidStr :: ProjectId -> String
-pidStr (ProjectId uuid) = show uuid
+pidStr (ProjectId uuid) = toString uuid
 
 newtype Project' date = Project'
   { projectId :: ProjectId
@@ -67,10 +65,11 @@ type Capability m =
 
 projectListComponent
   :: forall query input m
-  .  EC.MonadEffect m
-  => Capability m 
+  .  Monad m
+  => System m
+  -> Capability m 
   -> H.Component HH.HTML query input Project m
-projectListComponent caps = H.mkComponent
+projectListComponent console caps = H.mkComponent
   { initialState
   , render
   , eval: H.mkEval $ H.defaultEval 
@@ -107,12 +106,12 @@ projectListComponent caps = H.mkComponent
       Initialize -> do
         res <- lift caps.listProjects
         case res of 
-            Left _ -> error "Could not retrieve project list."
+            Left _ -> lift <<< console.error $ "Could not retrieve project list."
             Right projects -> H.modify_ (_ { projects = projects })
 
       Select i -> do
         projects <- H.gets (_.projects)
-        log $ "Selected project index " <> show i
+        lift <<< console.log $ "Selected project index " <> show i
         traverse_ H.raise (index projects (i - 1))
 
 instance decodeJsonProject :: DecodeJson (Project' String) where
