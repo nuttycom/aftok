@@ -79,6 +79,9 @@ newtype Interval' i = Interval
 derive instance intervalEq :: (Eq i) => Eq (Interval' i)
 derive instance intervalNewtype :: Newtype (Interval' i) _
 
+instance showInterval :: Show i => Show (Interval' i) where
+  show (Interval i) = "Interval {start: " <> show i.start <> ", end: " <> show i.end <> "}"
+
 type Interval = Interval' Instant
 
 derive instance intervalFunctor :: Functor Interval'
@@ -99,6 +102,12 @@ instance decodeJsonInterval :: DecodeJson (Interval' String) where
 
 interval :: forall i. i -> i -> Interval' i
 interval s e = Interval { start: s, end: e }
+
+start :: forall i. Interval' i -> i
+start (Interval i) = i.start
+
+end :: forall i. Interval' i -> i
+end (Interval i) = i.end
 
 data TimeSpan' t
   = Before t

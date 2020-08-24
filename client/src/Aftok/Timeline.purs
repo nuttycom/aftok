@@ -4,24 +4,27 @@ import Prelude
 
 import Control.Alt ((<|>))
 import Control.Monad.Rec.Class (forever)
+import Control.Monad.State (State, put, get, evalState)
 import Control.Monad.Trans.Class (lift)
+import Control.Monad.Maybe.Trans (MaybeT(..), runMaybeT)
 
-import Data.Array (reverse, filter)
+import Data.Array (reverse)
+import Data.Date as D
 import Data.Date (Date, year, month, day)
-import Data.DateTime (DateTime(..), adjust, date)
+import Data.DateTime as DT
+import Data.DateTime (DateTime(..), date)
 import Data.DateTime.Instant (Instant, unInstant, fromDateTime, toDateTime)
 import Data.Either (Either(..))
 import Data.Enum (fromEnum)
 import Data.Foldable (any, length)
 import Data.Map as M
-import Data.Maybe (Maybe(..), maybe, isJust, isNothing)
+import Data.Maybe (Maybe(..), maybe, isJust, isNothing, fromMaybe)
 import Data.Newtype (unwrap)
 import Data.Symbol (SProxy(..))
 import Data.Time.Duration (Milliseconds(..), Days(..))
-import Data.Traversable (traverse_)
-import Data.Tuple (Tuple(..), fst)
-import Data.Unfoldable (fromMaybe)
-import Math (abs)
+import Data.Traversable (traverse_, traverse)
+import Data.Tuple (Tuple(..))
+import Data.Unfoldable as U
 -- import Text.Format as F -- (format, zeroFill, width)
 
 import Effect.Aff as Aff
@@ -40,15 +43,15 @@ import Halogen.HTML.CSS as CSS
 import Halogen.HTML.Events as E
 import Halogen.HTML.Properties as P
 
-import CSS (backgroundColor, clear, clearBoth, border, rgb, solid, borderRadius, left)
-import CSS.Display (position, absolute)
+import CSS (backgroundColor, clear, clearBoth, border, rgb, solid, borderRadius, marginLeft)
+import CSS.Display (display, flex)
 import CSS.Geometry (width, height)
 import CSS.Size (px, pct)
 
 import Aftok.Api.Timeline as TL
-import Aftok.Api.Timeline (TimelineError, Interval'(..), Interval, TimeSpan)
+import Aftok.Api.Timeline (TimelineError, Interval'(..), Interval, TimeSpan, start, end, interval)
 import Aftok.Project as Project
-import Aftok.Project (Project, Project'(..), ProjectId)
+import Aftok.Project (Project, Project'(..), ProjectId, pidStr)
 import Aftok.Types (System)
 
 type TimelineLimits =
@@ -56,11 +59,18 @@ type TimelineLimits =
   , current :: Instant
   }
 
+type DayIntervals = 
+  { dayBounds :: Interval
+  , loggedIntervals :: Array Interval
+  }
+
+type History = M.Map Date DayIntervals
+
 type TimelineState =
-  { limits  :: TimelineLimits
-  , history :: M.Map Date (Array Interval)
+  { selectedProject :: Maybe Project
+  , history :: M.Map Date DayIntervals
   , active  :: Maybe Interval
-  , selectedProject :: Maybe Project
+  , activeHistory :: M.Map Date DayIntervals
   }
 
 data TimelineAction
@@ -102,10 +112,10 @@ component system caps pcaps = H.mkComponent
   } where
     initialState :: input -> TimelineState
     initialState _ =
-      { limits: { bounds: TL.interval bottom bottom, current: bottom }
+      { selectedProject: Nothing
       , history: M.empty
       , active: Nothing
-      , selectedProject: Nothing
+      , activeHistory: M.empty
       }
 
     render :: TimelineState -> H.ComponentHTML TimelineAction Slots m
@@ -138,135 +148,125 @@ component system caps pcaps = H.mkComponent
                 ]
                 [HH.text "Stop Work"]
               ]
-            , lineHtml $ intervalHtml st.limits.bounds <$> currentHistory st
-            ] <> ((\(Tuple d xs) -> dateLine st d xs) <$> priorHistory st))
+             ] <> (historyLine <$> reverse (M.toUnfoldable $ unionHistories st.history st.activeHistory))
+            )
           ]
         ]
 
     eval :: TimelineAction -> H.HalogenM TimelineState TimelineAction Slots output m Unit
-    eval = case _ of
-      Initialize -> do
-        dt@(DateTime today t) <- lift system.nowDateTime
-        H.put $ { limits : { bounds: dateBounds today
-                           , current: fromDateTime dt
-                           }
-                , history : M.empty 
-                , active : Nothing
-                , selectedProject: Nothing
-                }
-        _ <- H.subscribe caps.timer
-        pure unit
+    eval action = do
+      case action of
+        Initialize -> do
+          void $ H.subscribe caps.timer
 
-      ProjectSelected p -> do
-        active <- isJust <$> H.gets (_.active)
-        currentProject <- H.gets (_.selectedProject)
-        when (active && any (\p' -> (unwrap p').projectId /= (unwrap p).projectId) currentProject)
-             (traverse_ logEnd currentProject)
-        timeSpan <- TL.Before <$> lift system.nowDateTime -- FIXME, should come from a form control
-        intervals' <- lift $ caps.listIntervals (unwrap p).projectId timeSpan
-        let intervals = case intervals' of
-             Left err -> [] -- FIXME
-             Right ivals -> ivals
-        H.modify_ (_ { selectedProject = Just p, history = toHistory intervals })
+        ProjectSelected p -> do
+          active <- isJust <$> H.gets (_.active)
+          currentProject <- H.gets (_.selectedProject)
+          when (active && any (\p' -> (unwrap p').projectId /= (unwrap p).projectId) currentProject)
+               (traverse_ logEnd currentProject)
+          timeSpan <- TL.Before <$> lift system.nowDateTime -- FIXME, should come from a form control
+          intervals' <- lift $ caps.listIntervals (unwrap p).projectId timeSpan
+          intervals <- lift $ case intervals' of
+                Left err -> 
+                  (system.log $ "Error occurred listing intervals") *>
+                  pure [] 
+                Right ivals -> 
+                  (system.log $ "Got " <> show (length ivals :: Int) <> " intervals for project " <> pidStr (unwrap p).projectId) *>
+                  pure ivals
+          history' <- lift <<< runMaybeT $ toHistory system intervals
+          hist <- case history' of
+              Nothing -> lift $ system.log "Project history was empty." *> pure M.empty
+              Just h -> pure h
+          H.modify_ (_ { selectedProject = Just p, history = hist })
 
-      Start   -> do
-        project <- H.gets (_.selectedProject)
-        traverse_ logStart project
+        Start   -> do
+          project <- H.gets (_.selectedProject)
+          traverse_ logStart project
 
-      Stop    -> do
-        currentProject <- H.gets (_.selectedProject)
-        traverse_ logEnd currentProject
+        Stop    -> do
+          currentProject <- H.gets (_.selectedProject)
+          traverse_ logEnd currentProject
 
-      Refresh -> do
-        t <- lift $ system.now
-        H.modify_ (refresh t)
+        Refresh -> do
+          t <- lift $ system.now
+          H.modify_ (refresh t)
+
+      -- common updates, irrespective of action
+      active <- H.gets (_.active)
+      activeHistory <- lift <<< map (fromMaybe M.empty) <<< runMaybeT $ toHistory system (U.fromMaybe active)
+      H.modify_ (_ { activeHistory = activeHistory })
 
     logStart :: Project -> H.HalogenM TimelineState TimelineAction Slots output m Unit
     logStart (Project' p) = do
       logged <- lift $ caps.logStart p.projectId
       case logged of
         Left err -> lift <<< system.log $ "Failed to start timer: " <> show err
-        Right t -> H.modify_ (start t)
+        Right t -> H.modify_ (updateStart t)
 
     logEnd :: Project -> H.HalogenM TimelineState TimelineAction Slots output m Unit
     logEnd (Project' p) = do
       logged <- lift $ caps.logEnd p.projectId
       case logged of
         Left err -> lift <<< system.log $ "Failed to stop timer: " <> show err
-        Right t -> H.modify_ (stop t)
+        Right t -> do
+          currentState <- H.get
+          updatedState <- lift $ updateStop system t currentState
+          H.put updatedState
 
-dateBounds :: Date -> Interval
-dateBounds date =
-  let startOfDay = DateTime date bottom
-      endOfDay = adjust (Days 1.0) startOfDay
-      startInstant = fromDateTime startOfDay
-   in TL.interval startInstant (maybe startInstant fromDateTime endOfDay)
+historyLine 
+  :: forall w i
+  .  Tuple Date DayIntervals
+  -> HH.HTML w i
+historyLine (Tuple d xs) = 
+  datedLine d xs.dayBounds xs.loggedIntervals
 
-currentHistory 
-  :: TimelineState
+datedLine 
+  :: forall w i
+  .  Date
+  -> Interval 
   -> Array Interval
-currentHistory st =
-  let currentDate = date $ toDateTime st.limits.current
-   in maybe [] identity (M.lookup currentDate st.history) <> fromMaybe st.active
-
-priorHistory 
-  :: TimelineState
-  -> Array (Tuple Date (Array Interval))
-priorHistory st = 
-  let currentDate = date $ toDateTime st.limits.current
-   in reverse <<< filter (not <<< (currentDate == _) <<< fst) $ M.toUnfoldable st.history
-
-dateLine 
-  :: forall action slots m
-  .  TimelineState
-  -> Date
-  -> Array Interval
-  -> H.ComponentHTML action slots m
-dateLine st d xs =
+  -> HH.HTML w i
+datedLine d dateBounds xs =
   HH.div
-    []
-    [ HH.text $ dateStr d <> ": " <> show (length xs :: Int)
-    , lineHtml (intervalHtml (dateBounds d) <$> xs)
+    [ CSS.style do
+        clear clearBoth 
     ]
+    [ HH.text $ dateStr d <> ": " <> show (length xs :: Int)
+    , HH.div
+      [ CSS.style do
+          border solid (px 3.0) (rgb 0x00 0xFF 0x00)
+          borderRadius px5 px5 px5 px5
+          height (px $ 44.0)
+          display flex
+      , P.classes (ClassName <$> ["my-2"])
+      ]
+      (evalState (traverse (intervalHtml dateBounds) xs) 0.0)
+    ]
+  where 
+    px5 = px 5.0
 
 dateStr :: Date -> String
 dateStr d = (show <<< fromEnum $ year d) <> "-" 
          <> (show <<< fromEnum $ month d) <> "-" 
          <> (show <<< fromEnum $ day d)
 
-lineHtml
-  :: forall action slots m
-  .  Array (H.ComponentHTML action slots m)
-  -> H.ComponentHTML action slots m
-lineHtml contents =
-  let px5 = px 5.0
-   in HH.div
-    [ CSS.style do
-        clear clearBoth
-        border solid (px 3.0) (rgb 0x00 0xFF 0x00)
-        height (px 50.0)
-        borderRadius px5 px5 px5 px5
-    , P.classes (ClassName <$> ["my-2"])
-    ]
-    contents
-
 intervalHtml
-  :: forall action slots m
+  :: forall w i 
   .  Interval
   -> Interval
-  -> H.ComponentHTML action slots m
-intervalHtml (Interval limits) (Interval i) =
+  -> State Number (HH.HTML w i)
+intervalHtml (Interval limits) (Interval i) = do
+  offset <- get
   let maxWidth = ilen limits.start limits.end
-      ileft = ilen limits.start i.start
+      ileft = ilen limits.start i.start 
       iwidth = ilen i.start i.end
       px5 = px (5.0)
       toPct n = 100.0 * n / maxWidth
-   in HH.div
+  put $ toPct (ilen limits.start i.end)
+  pure $ HH.div
     [ CSS.style do
-        position absolute
         backgroundColor (rgb 0xf0 0x98 0x18)
-        height (px $ 44.0)
-        left (pct $ toPct ileft)
+        marginLeft (pct $ toPct ileft - offset)
         width (pct $ max (toPct iwidth) 0.5)
         borderRadius px5 px5 px5 px5
     ]
@@ -282,30 +282,34 @@ timer = EventSource.affEventSource \emitter -> do
     Aff.killFiber (error "Event source finalized") fiber
 
 
-start :: Instant -> TimelineState -> TimelineState
-start t s =
-  s { active = s.active <|> Just (TL.interval t t)
-    }
+updateStart :: Instant -> TimelineState -> TimelineState
+updateStart t s = 
+  s { active = s.active <|> Just (TL.interval t t) }
 
-stop :: Instant -> TimelineState -> TimelineState
-stop t s =
-  s { history = maybe 
-        s.history 
-        (\i -> M.unionWith (<>) (toHistory [TL.interval (unwrap i).start t]) s.history) 
-        s.active
-    , active = Nothing
-    }
+updateStop 
+  :: forall m
+  .  Monad m
+  => System m 
+  -> Instant 
+  -> TimelineState 
+  -> m TimelineState
+updateStop system t st = do
+  newHistory <- join <$> traverse (\i -> runMaybeT $ toHistory system [TL.interval (start i) t]) st.active
+  pure { selectedProject: st.selectedProject
+       , history: maybe st.history (unionHistories st.history) newHistory 
+       , active: Nothing
+       , activeHistory: M.empty
+       }
 
 refresh :: Instant -> TimelineState -> TimelineState
 refresh t s =
-  s { limits = s.limits { current = t }
-    , active = map (\(Interval i) -> TL.interval i.start t) s.active
+  s { active = map (\(Interval i) -> TL.interval i.start t) s.active
     }
 
 ilen :: Instant -> Instant -> Number
 ilen _start _end =
   let n (Milliseconds x) = x
-  in  abs $ n (unInstant _end) - n (unInstant _start)
+  in  n (unInstant _end) - n (unInstant _start)
 
 apiCapability :: Capability Aff
 apiCapability = 
@@ -323,9 +327,66 @@ mockCapability =
   , listIntervals: \_ _ -> Right <$> pure []
   }
 
-intervalDate :: Interval -> Date
-intervalDate = date <<< toDateTime <<< (_.end) <<< unwrap
+utcDayBounds :: Instant -> Interval
+utcDayBounds i =
+  let startOfDay = DateTime (date $ toDateTime i)  bottom
+      endOfDay = DT.adjust (Days 1.0) startOfDay
+      startInstant = fromDateTime startOfDay
+   in TL.interval startInstant (maybe startInstant fromDateTime endOfDay)
 
-toHistory :: Array Interval -> M.Map Date (Array Interval)
-toHistory = M.fromFoldableWith (<>) <<< map (\i -> Tuple (intervalDate i) [i])
+localDayBounds 
+  :: forall m
+  .  Monad m
+  => System m
+  -> Instant 
+  -> MaybeT m (Tuple Date Interval)
+localDayBounds system t = do
+  Tuple date start <- MaybeT $ system.dateFFI.midnightLocal t
+  end <- MaybeT <<< pure $ fromDateTime <$> DT.adjust (Days 1.0) (toDateTime start)
+  pure $ Tuple date (interval start end)
+
+incrementDayBounds :: Tuple Date Interval -> Maybe (Tuple Date Interval)
+incrementDayBounds (Tuple d i) =
+  let nextEnd = fromDateTime <$> (DT.adjust (Days 1.0) $ toDateTime (end i))
+   in Tuple <$> D.adjust (Days 1.0) d
+            <*> (interval (end i) <$> nextEnd)
+
+splitInterval 
+  :: forall m
+  .  Monad m
+  => System m
+  -> Interval 
+  -> MaybeT m (Array (Tuple Date DayIntervals))
+splitInterval system i = do
+  lift <<< system.log $ "Splitting interval " <> show i
+  dayBounds@(Tuple date bounds) <- localDayBounds system (start i)
+  split <- if end i < (end bounds)
+     then do
+       pure [Tuple date { dayBounds: bounds, loggedIntervals: [i] }]
+     else do
+       let firstFragment = [ Tuple date { dayBounds: bounds
+                           , loggedIntervals: [interval (start i) (end bounds)] 
+                           } ]
+       append firstFragment <$> splitInterval system (interval (end bounds) (end i))
+  lift <<< system.log $ "Split result: " <> show split
+  pure split
+
+toHistory 
+  :: forall m
+  .  Monad m
+  => System m
+  -> Array Interval 
+  -> MaybeT m (M.Map Date DayIntervals)
+toHistory system xs = do
+  splitIntervals <- join <$> traverse (splitInterval system) xs
+  pure $ M.fromFoldableWith unionDayIntervals splitIntervals
+
+unionDayIntervals :: DayIntervals -> DayIntervals -> DayIntervals
+unionDayIntervals d1 d2 = 
+  { dayBounds: d1.dayBounds -- FIXME, need to be sure these match
+  , loggedIntervals: d1.loggedIntervals <> d2.loggedIntervals 
+  }
+
+unionHistories :: History -> History -> History
+unionHistories = M.unionWith unionDayIntervals
 

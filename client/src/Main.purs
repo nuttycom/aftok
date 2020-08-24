@@ -69,10 +69,10 @@ component system loginCap tlCap pCap = H.mkComponent
       }
   } where
     initialState :: input -> MainState
-    initialState _ = LoggedOut
+    initialState _ = Loading
 
     render :: MainState -> H.ComponentHTML MainAction Slots m
-    render s = case s of
+    render = case _ of
       Loading ->
         HH.div [P.classes [ClassName "loader"]] [HH.text "Loading..."]
 
@@ -92,7 +92,7 @@ component system loginCap tlCap pCap = H.mkComponent
           Login.Forbidden -> H.put LoggedOut
           _ -> H.put LoggedIn
 
-      LoginComplete (Login.LoginComplete xs) -> 
+      LoginComplete (Login.LoginComplete _) -> 
         H.put LoggedIn
 
       Logout -> do
