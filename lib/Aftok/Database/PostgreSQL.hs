@@ -109,7 +109,9 @@ addrFieldParser n f v = do
   let addrMay = stringToAddr n fieldValue
   let err = returnError ConversionFailed
                         f
-                        ("could not deserialize value " <> T.unpack fieldValue <> " to a valid BTC address")
+                        ("could not deserialize value " <> T.unpack fieldValue <>
+                         " to a valid BTC address for network " <> show n
+                        )
   maybe err pure addrMay
 
 btcParser :: RowParser Satoshi
