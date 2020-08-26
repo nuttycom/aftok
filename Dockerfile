@@ -58,18 +58,5 @@ ADD ./migrations  /opt/aftok/migrations
 # build and install and aftok-server sources
 RUN /root/.local/bin/stack install
 
-# add the s6-overlay init process
-# RUN mkdir -p /etc/services.d/aftok
-# RUN mkdir -p /etc/fix-attrs.d/
-# 
-# ADD https://github.com/just-containers/s6-overlay/releases/download/v1.21.8.0/s6-overlay-amd64.tar.gz /tmp/
-# RUN tar xzf /tmp/s6-overlay-amd64.tar.gz -C / --exclude="./bin" && \
-#     tar xzf /tmp/s6-overlay-amd64.tar.gz -C /usr ./bin
-# 
-# ADD ./docker/aftok-server.sh /etc/services.d/aftok/run
-# ADD ./docker/fix-attrs.d/* /etc/fix-attrs.d/
-# 
-# ENTRYPOINT ["/init"]
-
 ENTRYPOINT ["/opt/aftok/bin/aftok-server"]
 

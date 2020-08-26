@@ -10,6 +10,3 @@ build-image:
 deploy-image: build-image
 	docker tag aftok/aftok-server:latest aftok/aftok-server:$(VERSION)
 	docker push docker.io/aftok/aftok-server:$(VERSION)
-
-run-local-docker: build-image
-	docker run --net=host -it -v $(PWD)/local/conf/:/etc/aftok aftok/aftok-server:latest
