@@ -71,7 +71,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
     projectRoute =
       serveJSON projectJSON $ method GET projectGetHandler
     projectWorkIndexRoute =
-      serveJSON (workIndexJSON nmode) $ method GET projectWorkIndex
+      serveJSON (workIndexJSON nmode) (method GET projectWorkIndex)
     projectPayoutsRoute =
       serveJSON (payoutsJSON nmode) $ method GET payoutsHandler
 
@@ -81,8 +81,9 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
     --   serveJSON eventIdJSON $ method POST (logWorkBTCHandler f)
     amendEventRoute =
       serveJSON amendmentIdJSON $ method PUT amendEventHandler
-    userLogEntriesRoute =
-      serveJSON (fmap $ logEntryJSON nmode) $ method GET userLogEntries
+    userEventsRoute =
+      serveJSON (fmap $ logEntryJSON nmode) $ method GET userEvents
+
     userWorkIndexRoute =
       serveJSON (workIndexJSON nmode) $ method GET userWorkIndex
 
@@ -122,7 +123,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
     -- , ("projects/:projectId/logEnd/:btcAddr"   , logWorkBTCRoute StopWork)
     , ("user/projects/:projectId/logStart"     , logWorkRoute StartWork)
     , ("user/projects/:projectId/logEnd"       , logWorkRoute StopWork)
-    , ("user/projects/:projectId/logEntries"   , userLogEntriesRoute)
+    , ("user/projects/:projectId/events"       , userEventsRoute)
     , ("user/projects/:projectId/workIndex"    , userWorkIndexRoute)
     , ("projects/:projectId/workIndex"         , projectWorkIndexRoute)
     , ("projects/:projectId/auctions"  , auctionCreateRoute) -- <|> auctionListRoute)

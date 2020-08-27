@@ -18,6 +18,7 @@ import           Data.AffineSpace
 import           Data.Thyme.Clock              as C
 import           Data.Thyme.Time               as T
                                                 ( Day )
+import           Data.Word                      ( Word32 )
 import           Safe                           ( headMay )
 
 import           Aftok.Types
@@ -57,8 +58,7 @@ data DBOp a where
   CreateEvent      ::ProjectId -> UserId -> LogEntry BTCNet -> DBOp EventId
   AmendEvent       ::EventId -> EventAmendment BTCNet -> DBOp AmendmentId
   FindEvent        ::EventId -> DBOp (Maybe (KeyedLogEntry BTCNet))
-  FindEvents       ::ProjectId -> UserId -> Interval' -> DBOp [LogEntry BTCNet]
-  FindLatestEvents ::ProjectId -> UserId -> Int -> DBOp [LogEntry BTCNet]
+  FindEvents       ::ProjectId -> UserId -> RangeQuery -> Word32 -> DBOp [LogEntry BTCNet]
   ReadWorkIndex    ::ProjectId -> DBOp (WorkIndex BTCNet)
 
   CreateAuction    ::Auction -> DBOp AuctionId
@@ -219,11 +219,8 @@ findEvent :: (MonadDB m) => EventId -> m (Maybe (KeyedLogEntry BTCNet))
 findEvent = liftdb . FindEvent
 
 findEvents
-  :: (MonadDB m) => ProjectId -> UserId -> Interval' -> m [LogEntry BTCNet]
-findEvents p u i = liftdb $ FindEvents p u i
-
-findLatestEvents :: (MonadDB m) => ProjectId -> UserId -> Int -> m [LogEntry BTCNet]
-findLatestEvents p u i = liftdb $ FindLatestEvents p u i
+  :: (MonadDB m) => ProjectId -> UserId -> RangeQuery -> Word32 -> m [LogEntry BTCNet]
+findEvents p u i l = liftdb $ FindEvents p u i l
 
 readWorkIndex :: (MonadDB m) => ProjectId -> UserId -> m (WorkIndex BTCNet)
 readWorkIndex pid uid = withProjectAuth pid uid $ ReadWorkIndex pid

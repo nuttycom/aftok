@@ -6,8 +6,8 @@ module Aftok.Interval
   , start
   , end
   , ilen
-  , Interval'(..)
-  , interval'
+  , RangeQuery(..)
+  , rangeQuery
   , start'
   , end'
   , intervalJSON
@@ -31,19 +31,20 @@ import           Data.Thyme.LocalTime           ( )
 data Interval = Interval { _start :: C.UTCTime
                          , _end   :: C.UTCTime
                          } deriving (Show, Eq, Ord)
-
-data Interval' = Before { _end' :: C.UTCTime }
-               | During { _start' :: C.UTCTime, _end' :: C.UTCTime }
-               | After  { _start' :: C.UTCTime }
-
 makeLenses ''Interval
-makeLenses ''Interval'
+
+data RangeQuery
+  = Before { _end' :: C.UTCTime }
+  | During { _start' :: C.UTCTime, _end' :: C.UTCTime }
+  | After  { _start' :: C.UTCTime }
+  | Always
+makeLenses ''RangeQuery
 
 interval :: C.UTCTime -> C.UTCTime -> Interval
 interval s e = if s < e then Interval s e else Interval e s
 
-interval' :: C.UTCTime -> C.UTCTime -> Interval'
-interval' s e = if s < e then During s e else During e s
+rangeQuery :: C.UTCTime -> C.UTCTime -> RangeQuery
+rangeQuery s e = if s < e then During s e else During e s
 
 containsInclusive :: C.UTCTime -> Interval -> Bool
 containsInclusive t (Interval s e) = t >= s && t <= e

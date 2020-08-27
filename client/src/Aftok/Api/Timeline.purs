@@ -6,6 +6,7 @@ import Control.Alt ((<|>))
 import Control.Monad.Error.Class (throwError)
 import Control.Monad.Except.Trans (withExceptT, runExceptT)
 
+import Data.Array (head)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.:), (.:?))
 import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant)
@@ -183,9 +184,9 @@ apiListIntervals :: ProjectId -> TimeSpan -> Aff (Either TimelineError (Array In
 apiListIntervals pid ts = do
   ts' <- liftEffect $ traverse (JD.toISOString <<< JD.fromDateTime) ts
   let queryElements = case ts' of
-        Before t -> ["before=" <> t]
-        During (Interval x) -> ["after=" <> x.start, "before=" <> x.end]
-        After  t -> ["after=" <> t]
+        Before t -> ["before=" <> t, "limit=100"]
+        During (Interval x) -> ["after=" <> x.start, "before=" <> x.end, "limit=100"]
+        After  t -> ["after=" <> t, "limit=100"]
   response <- get RF.json ("/api/user/projects/" <> pidStr pid <> "/workIndex?" <> intercalate "&" queryElements)
   liftEffect 
     <<< runExceptT 
@@ -193,4 +194,16 @@ apiListIntervals pid ts = do
     <<< map decompose
     <<< withExceptT LogFailure 
       $ parseDatedResponse response
+
+apiLatestEvent :: ProjectId -> Aff (Either TimelineError (Maybe Event))
+apiLatestEvent pid = do
+  response <- get RF.json ("/api/user/projects/" <> pidStr pid <> "/events")
+  liftEffect 
+    <<< runExceptT 
+    <<< map head
+    <<< map decompose
+    <<< withExceptT LogFailure 
+      $ parseDatedResponse response
+
+
 

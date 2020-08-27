@@ -84,30 +84,22 @@ projectWorkIndex = do
   pid <- requireProjectId
   snapEval $ readWorkIndex pid uid
 
-userLogEntries :: S.Handler App App [LogEntry (NetworkId, Address)]
-userLogEntries = do
+userEvents :: S.Handler App App [LogEntry (NetworkId, Address)]
+userEvents = do
   uid       <- requireUserId
   pid       <- requireProjectId
   endpoints <- (,) <$> timeParam "after" <*> timeParam "before"
-  ival      <- case endpoints of
-    (Just s , Just e ) -> pure $ During s e
-    (Nothing, Just e ) -> pure $ Before e
-    (Just s , Nothing) -> pure $ After s
-    (Nothing, Nothing) -> snapError
-      400
-      "You must specify at least one of the \"after\" or \"before\" query parameters"
-  snapEval $ findEvents pid uid ival
-
-userLatestEntries :: S.Handler App App [LogEntry (NetworkId, Address)]
-userLatestEntries = do
-  uid       <- requireUserId
-  pid       <- requireProjectId
+  let ival = case endpoints of
+        (Just s , Just e ) -> During s e
+        (Nothing, Just e ) -> Before e
+        (Just s , Nothing) -> After s
+        (Nothing, Nothing) -> Always
   limit     <- fromMaybe 1 <$> decimalParam "limit"
-  snapEval $ findLatestEvents pid uid limit
+  snapEval $ findEvents pid uid ival limit
 
 userWorkIndex :: S.Handler App App (WorkIndex (NetworkId, Address))
 userWorkIndex =
-  workIndex <$> userLogEntries
+  workIndex <$> userEvents
 
 payoutsHandler :: S.Handler App App (Payouts (NetworkId, Address))
 payoutsHandler = do

@@ -51,7 +51,7 @@ import CSS.Size (px, pct)
 import Aftok.Api.Timeline as TL
 import Aftok.Api.Timeline (TimelineError, Interval'(..), Interval, TimeSpan, start, end, interval)
 import Aftok.Project as Project
-import Aftok.Project (Project, Project'(..), ProjectId, pidStr)
+import Aftok.Project (Project, Project'(..), ProjectId) --, pidStr)
 import Aftok.Types (System)
 
 type TimelineLimits =
@@ -93,6 +93,7 @@ type Capability m =
   , logStart :: ProjectId -> m (Either TimelineError Instant)
   , logEnd :: ProjectId -> m (Either TimelineError Instant)
   , listIntervals :: ProjectId -> TimeSpan -> m (Either TimelineError (Array Interval))
+  , getLatestEvent :: ProjectId -> m (Either TimelineError (Maybe TL.Event))
   }
 
 component
@@ -160,24 +161,45 @@ component system caps pcaps = H.mkComponent
           void $ H.subscribe caps.timer
 
         ProjectSelected p -> do
-          active <- isJust <$> H.gets (_.active)
+          oldActive <- isJust <$> H.gets (_.active)
           currentProject <- H.gets (_.selectedProject)
-          when (active && any (\p' -> (unwrap p').projectId /= (unwrap p).projectId) currentProject)
+          
+          -- End any active intervals when switching projects.
+          when (oldActive && any (\p' -> (unwrap p').projectId /= (unwrap p).projectId) currentProject)
                (traverse_ logEnd currentProject)
+
           timeSpan <- TL.Before <$> lift system.nowDateTime -- FIXME, should come from a form control
           intervals' <- lift $ caps.listIntervals (unwrap p).projectId timeSpan
           intervals <- lift $ case intervals' of
                 Left err -> 
-                  (system.log $ "Error occurred listing intervals") *>
+                  (system.log $ "Error occurred listing intervals" <> show err ) *>
                   pure [] 
                 Right ivals -> 
-                  (system.log $ "Got " <> show (length ivals :: Int) <> " intervals for project " <> pidStr (unwrap p).projectId) *>
+                  --(system.log $ "Got " <> show (length ivals :: Int) <> " intervals for project " <> pidStr (unwrap p).projectId) *>
                   pure ivals
+
           history' <- lift <<< runMaybeT $ toHistory system intervals
           hist <- case history' of
               Nothing -> lift $ system.log "Project history was empty." *> pure M.empty
               Just h -> pure h
-          H.modify_ (_ { selectedProject = Just p, history = hist })
+
+          latestEventResponse <- lift $ caps.getLatestEvent (unwrap p).projectId
+          now <- lift $ system.now
+          active <- lift $ case latestEventResponse of
+              Left err -> 
+                (system.log $ "Error occurred retrieving the latest event: " <> show err) *>
+                pure Nothing
+              Right latestEvent -> do
+                let activeInterval :: TL.Event -> m (Maybe Interval)
+                    activeInterval ev = case ev of
+                      TL.StartEvent i -> 
+                        (system.log $ "Project has an open active interval starting " <> show i) *>
+                        (Just <<< interval i <$> system.now)
+                      TL.StopEvent _  -> 
+                        pure Nothing
+                join <$> traverse activeInterval latestEvent 
+
+          H.modify_ (_ { selectedProject = Just p, history = hist, active = active })
 
         Start   -> do
           project <- H.gets (_.selectedProject)
@@ -317,6 +339,7 @@ apiCapability =
   , logStart: TL.apiLogStart
   , logEnd: TL.apiLogEnd 
   , listIntervals: TL.apiListIntervals
+  , getLatestEvent: TL.apiLatestEvent
   }
 
 mockCapability :: Capability Aff
@@ -325,6 +348,7 @@ mockCapability =
   , logStart: \_ -> Right <$> liftEffect now
   , logEnd:  \_ -> Right <$> liftEffect now
   , listIntervals: \_ _ -> Right <$> pure []
+  , getLatestEvent: \_ -> Right <$> pure Nothing
   }
 
 utcDayBounds :: Instant -> Interval
@@ -358,7 +382,7 @@ splitInterval
   -> Interval 
   -> MaybeT m (Array (Tuple Date DayIntervals))
 splitInterval system i = do
-  lift <<< system.log $ "Splitting interval " <> show i
+  --lift <<< system.log $ "Splitting interval " <> show i
   dayBounds@(Tuple date bounds) <- localDayBounds system (start i)
   split <- if end i < (end bounds)
      then do
@@ -368,7 +392,7 @@ splitInterval system i = do
                            , loggedIntervals: [interval (start i) (end bounds)] 
                            } ]
        append firstFragment <$> splitInterval system (interval (end bounds) (end i))
-  lift <<< system.log $ "Split result: " <> show split
+  --lift <<< system.log $ "Split result: " <> show split
   pure split
 
 toHistory 

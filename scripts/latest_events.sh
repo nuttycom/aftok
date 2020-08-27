@@ -20,4 +20,4 @@ fi
 
 curl --verbose --insecure --user $USER \
   --request GET \
-  "https://$AFTOK_HOST/api/projects/$PID/logEntries?after=2020-01-01T00:00:00Z"
+  "https://$AFTOK_HOST/api/projects/$PID/events?after=2020-01-01T00:00:00Z"
