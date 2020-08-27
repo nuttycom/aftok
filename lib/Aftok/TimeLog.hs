@@ -148,7 +148,7 @@ type RawIndex a = Map (CreditTo a) [Either LogEvent Interval]
 appendLogEntry :: (Ord a) => RawIndex a -> LogEntry a -> RawIndex a
 appendLogEntry idx (LogEntry k ev _) =
   let combine (StartWork t) (StopWork t') | t' > t = Right $ Interval t t'
-      combine (e1 @ (StartWork _)) (e2 @ (StartWork _)) = Left $ min e1 e2 -- ignore redundant starts
+      combine (e1 @ (StartWork _)) (e2 @ (StartWork _)) = Left $ max e1 e2 -- ignore redundant starts
       combine (e1 @ (StopWork  _)) (e2 @ (StopWork  _)) = Left $ min e1 e2 -- ignore redundant ends
       combine _ e2 = Left e2
 
