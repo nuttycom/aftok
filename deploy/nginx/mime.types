@@ -8,6 +8,7 @@ types {
   text/plain                            txt;
   image/png                             png;
   image/x-icon                          ico;
+  image/svg+xml                         svg;
   application/pdf                       pdf;
   video/mpeg                            mpeg mpg;
   video/quicktime                       mov;

@@ -30,11 +30,13 @@ import Affjax.StatusCode (StatusCode(..))
 
 import Effect.Class.Console as C
 import Web.Event.Event as WE
+import Routing.Hash as H
 
 type System m =
   { log :: String -> m Unit
   , error :: String -> m Unit
   , now :: m Instant
+  , getHash :: m String
   , nowDateTime :: m DateTime
   , preventDefault :: WE.Event -> m Unit
   , dateFFI :: DateFFI m
@@ -45,6 +47,7 @@ liveSystem =
   { log: liftEffect <<< C.log
   , error: liftEffect <<< C.error
   , now: liftEffect now
+  , getHash: liftEffect H.getHash
   , nowDateTime: liftEffect nowDateTime
   , preventDefault: liftEffect <<< WE.preventDefault
   , dateFFI: hoistDateFFI liftEffect jsDateFFI

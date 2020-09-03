@@ -14,13 +14,15 @@ import Affjax.StatusCode (StatusCode)
 import Halogen as H
 import Halogen.HTML.Core (AttrName(..), ClassName(..))
 import Halogen.HTML as HH
--- import Halogen.HTML.CSS as CSS
+import Halogen.HTML.CSS as CSS
 import Halogen.HTML.Events as E
 import Web.UIEvent.MouseEvent as ME
 import Web.Event.Event as WE
 import Halogen.HTML.Properties as P
 
 -- import CSS (backgroundImage, url)
+import CSS.Display (display, flex)
+import CSS.Flexbox (flexFlow, row, nowrap)
 
 import Aftok.Types (System)
 
@@ -56,7 +58,6 @@ data SignupAction
 
 data SignupResult 
   = SignupComplete { username :: String }
-  | LoginSwitch
 
 type Slot id = forall query. H.Slot query SignupResult id
 
@@ -108,7 +109,7 @@ component system caps conf = H.mkComponent
               [ HH.text "You can use either an email address or zcash payment address for account recovery." ]
             ]  
           , HH.div
-            [ P.classes (ClassName <$> ["align-items-center", "justify-content-center", "no-gutters"]) ]
+            [ P.classes (ClassName <$> ["row", "align-items-center", "justify-content-center", "no-gutters"]) ]
             [ HH.div
               [ P.classes (ClassName <$> ["col-12", "col-lg-4", "py-8", "py-md-0"]) ]
               [ HH.form 
@@ -178,6 +179,7 @@ component system caps conf = H.mkComponent
     eval = case _ of
       SetUsername user -> H.modify_ (_ { username = Just user })
       SetPassword pass -> H.modify_ (_ { password = Just pass })
+      SetRecoveryType t -> H.modify_ (_ { recoveryType = t })
       ConfirmPassword pass -> H.modify_ (_ { passwordConfirm = Just pass })
       _ -> pure unit
 
@@ -190,7 +192,11 @@ recoverySwitch rt =
       [ P.for "recoverySwitch" ] 
       [ HH.text "Choose a recovery method" ]
     , HH.div
-      [ P.classes (ClassName <$> ["form-group", "mb-3"]) ]
+      [ P.classes (ClassName <$> ["form-group", "mb-3"]) 
+      , CSS.style do
+          display flex
+          flexFlow row nowrap
+      ]
       [ HH.span 
         [ P.classes (ClassName <$> [ if rt == RecoveryEmail then "text-success" else "text-muted"]) ] 
         [ HH.text "Email" ]
@@ -202,6 +208,7 @@ recoverySwitch rt =
           , P.id_ "recoverySwitch"
           , E.onChecked (\b -> Just <<< SetRecoveryType $ if b then RecoveryZAddr else RecoveryEmail)
           ]
+        , HH.label [ P.classes (ClassName <$> [ "custom-control-label" ]), P.for "recoverySwitch" ] []
         ]
       , HH.span 
         [ P.classes (ClassName <$> [if rt == RecoveryZAddr then "text-success" else "text-muted"]) ] 
@@ -234,7 +241,7 @@ recoveryField st = case st.recoveryType of
           [ P.attr (AttrName "data-toggle") "modal" 
           , P.href "#modalAboutZAddr"
           ]
-          [ HH.img [ P.src "./assets/img/icons/duotone-icons/Code/Info-circle.svg" ]
+          [ HH.img [ P.src "/assets/img/icons/duotone-icons/Code/Info-circle.svg" ]
           ]
         ]
       , HH.input 
@@ -247,3 +254,7 @@ recoveryField st = case st.recoveryType of
         ]
       ]
 
+mockCapability :: forall m. Applicative m => Capability m
+mockCapability = 
+  { signup: \_ _ -> pure OK 
+  }

@@ -48,9 +48,10 @@ data LoginAction
   | SetPassword String
   | Login WE.Event
 
-newtype LoginComplete = LoginComplete { username :: String }
+data LoginResult 
+  = LoginComplete { username :: String }
 
-type Slot id = forall query. H.Slot query LoginComplete id
+type Slot id = forall query. H.Slot query LoginResult id
 
 type Capability m = 
   { login :: String -> String -> m LoginResponse
@@ -63,7 +64,7 @@ component
   .  Monad m
   => System m
   -> Capability m 
-  -> H.Component HH.HTML query input LoginComplete m
+  -> H.Component HH.HTML query input LoginResult m
 component system caps = H.mkComponent
   { initialState
   , render
@@ -156,10 +157,17 @@ component system caps = H.mkComponent
                   [ HH.text "Sign in" ]
                 ]
               ]
+              , HH.p  
+                [ P.classes (ClassName <$> ["mb-0", "font-size-sm", "text-center", "text-muted"]) ]
+                [ HH.text "Need an account? " 
+                , HH.a 
+                  [ P.href "./#signup" ]
+                  [ HH.text "Sign up" ]
+                ]
             ]
           ]
 
-    eval :: LoginAction -> H.HalogenM LoginState LoginAction () LoginComplete m Unit
+    eval :: LoginAction -> H.HalogenM LoginState LoginAction () LoginResult m Unit
     eval = case _ of
       SetUsername user -> H.modify_ (_ { username = user })
       SetPassword pass -> H.modify_ (_ { password = pass })

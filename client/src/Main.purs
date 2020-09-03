@@ -21,6 +21,7 @@ import Halogen.HTML.Properties as P
 
 import Aftok.Types (System, liveSystem)
 import Aftok.Login as Login
+import Aftok.Signup as Signup
 import Aftok.Timeline as Timeline
 import Aftok.Project as Project
 
@@ -29,27 +30,37 @@ main = HA.runHalogenAff do
   body <- HA.awaitBody
   let --login = Login.mockCapability
       login = Login.apiCapability
+      signup = Signup.mockCapability
       timeline = Timeline.apiCapability
       project = Project.apiCapability
-      mainComponent = component liveSystem login timeline project
+      mainComponent = component liveSystem login signup timeline project
   runUI mainComponent unit body
 
-data MainState 
-  = Loading
-  | LoggedOut
-  | LoggedIn 
+data MainView 
+  = VLoading
+  | VSignup
+  | VLogin
+  | VTimeline 
+
+type MainState =
+  { view :: MainView
+  , config :: Signup.Config
+  }
 
 data MainAction
   = Initialize
-  | LoginComplete Login.LoginComplete
-  | Logout
+  | LoginAction Login.LoginResult
+  | SignupAction Signup.SignupResult
+  | LogoutAction
 
 type Slots = 
   ( login :: Login.Slot Unit
+  , signup :: Signup.Slot Unit
   , timeline :: Timeline.Slot Unit
   )
 
 _login = SProxy :: SProxy "login"
+_signup = SProxy :: SProxy "signup"
 _timeline = SProxy :: SProxy "timeline"
 
 component 
@@ -57,10 +68,11 @@ component
   .  Monad m
   => System m
   -> Login.Capability m
+  -> Signup.Capability m
   -> Timeline.Capability m
   -> Project.Capability m
   -> H.Component HH.HTML query input output m
-component system loginCap tlCap pCap = H.mkComponent 
+component system loginCap signupCap tlCap pCap = H.mkComponent 
   { initialState
   , render 
   , eval: H.mkEval $ H.defaultEval 
@@ -69,35 +81,49 @@ component system loginCap tlCap pCap = H.mkComponent
       }
   } where
     initialState :: input -> MainState
-    initialState _ = Loading
+    initialState _ = { view: VLoading, config: { recaptchaKey: "" } }
 
     render :: MainState -> H.ComponentHTML MainAction Slots m
-    render = case _ of
-      Loading ->
+    render st = case st.view of
+      VLoading ->
         HH.div [P.classes [ClassName "loader"]] [HH.text "Loading..."]
 
-      LoggedOut -> 
+      VSignup -> 
         HH.div_ 
-          [ HH.slot _login unit (Login.component system loginCap) unit (Just <<< LoginComplete) ]
+          [ HH.slot _signup unit (Signup.component system signupCap st.config) unit (Just <<< SignupAction) ]
 
-      LoggedIn -> 
+      VLogin -> 
+        HH.div_ 
+          [ HH.slot _login unit (Login.component system loginCap) unit (Just <<< LoginAction) ]
+
+      VTimeline -> 
         withNavBar $ HH.div_ 
           [ HH.slot _timeline unit (Timeline.component system tlCap pCap) unit absurd ]
 
     eval :: MainAction -> H.HalogenM MainState MainAction Slots output m Unit
-    eval = case _ of
+    eval action = case action of
       Initialize -> do
-        result <- lift loginCap.checkLogin
-        case result of 
-          Login.Forbidden -> H.put LoggedOut
-          _ -> H.put LoggedIn
+        route <- lift system.getHash
+        nextView <- case route of 
+          "login"  -> pure VLogin
+          "signup" -> pure VSignup
+          other -> do
+            result <- lift loginCap.checkLogin
+            case result of
+                Login.Forbidden -> pure VLogin
+                _ -> pure VTimeline
+        H.modify_ (_ { view = nextView })
 
-      LoginComplete (Login.LoginComplete _) -> 
-        H.put LoggedIn
+      LoginAction (Login.LoginComplete _) -> 
+        H.modify_ (_ { view = VTimeline })
 
-      Logout -> do
+      SignupAction (Signup.SignupComplete _) ->
+        H.modify_ (_ { view = VTimeline })
+
+      LogoutAction -> do
         lift loginCap.logout
-        H.put LoggedOut
+        H.modify_ (_ { view = VLogin })
+
 
 withNavBar :: forall s m. H.ComponentHTML MainAction s m -> H.ComponentHTML MainAction s m
 withNavBar body =
@@ -122,7 +148,7 @@ brand = HH.div
 logout :: forall s m. H.ComponentHTML MainAction s m
 logout = HH.button
   [P.classes (ClassName <$> ["btn", "navbar-btn", "btn-sm", "btn-primary", "lift", "ml-auto"])
-  ,E.onClick \_ -> Just Logout 
+  ,E.onClick \_ -> Just LogoutAction 
   ]
   [HH.text "Logout"]
 

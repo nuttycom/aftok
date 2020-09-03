@@ -7,6 +7,7 @@
     , "affjax"
     , "halogen-css"
     , "argonaut-codecs" 
+    , "routing"
     , "uuid"
     , "js-date"
     , "format"
