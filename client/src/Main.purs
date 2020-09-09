@@ -21,6 +21,7 @@ import Halogen.HTML.Properties as P
 
 import Aftok.Types (System, liveSystem)
 import Aftok.Login as Login
+import Aftok.Api.Account as Acc
 import Aftok.Signup as Signup
 import Aftok.Timeline as Timeline
 import Aftok.Project as Project
@@ -81,7 +82,10 @@ component system loginCap signupCap tlCap pCap = H.mkComponent
       }
   } where
     initialState :: input -> MainState
-    initialState _ = { view: VLoading, config: { recaptchaKey: "" } }
+    initialState _ = 
+      { view: VLoading
+      , config: { recaptchaKey: "6LdiA78ZAAAAAGGvDId_JmDbhalduIDZSqbuikfq" } 
+      }
 
     render :: MainState -> H.ComponentHTML MainAction Slots m
     render st = case st.view of
@@ -110,7 +114,8 @@ component system loginCap signupCap tlCap pCap = H.mkComponent
           other -> do
             result <- lift loginCap.checkLogin
             case result of
-                Login.Forbidden -> pure VLogin
+                Acc.LoginForbidden -> pure VLogin
+                Acc.LoginError _ -> pure VLogin
                 _ -> pure VTimeline
         H.modify_ (_ { view = nextView })
 
@@ -119,6 +124,9 @@ component system loginCap signupCap tlCap pCap = H.mkComponent
 
       SignupAction (Signup.SignupComplete _) ->
         H.modify_ (_ { view = VTimeline })
+
+      SignupAction (Signup.SigninNav) ->
+        H.modify_ (_ { view = VLogin })
 
       LogoutAction -> do
         lift loginCap.logout

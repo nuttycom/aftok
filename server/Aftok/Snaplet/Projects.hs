@@ -63,10 +63,10 @@ projectGetHandler = do
 
 projectInviteHandler :: QConfig -> S.Handler App App ()
 projectInviteHandler cfg = do
-  uid                       <- requireUserId
-  pid                       <- requireProjectId
+  uid     <- requireUserId
+  pid     <- requireProjectId
   toEmail <- parseParam "email" (fmap (Email . decodeUtf8) takeByteString)
-  t                         <- liftIO C.getCurrentTime
+  t       <- liftIO C.getCurrentTime
   (Just u, Just p, invCode) <-
     snapEval
     $   (,,)

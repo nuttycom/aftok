@@ -161,7 +161,9 @@ Executable aftok-server
     , haskoin-core 
     , HsOpenSSL
     , http-client
+    , http-client-tls
     , http-client-openssl
+    , http-types
     , lens
     , mime-mail
     , mtl                     

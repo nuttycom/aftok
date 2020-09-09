@@ -9,6 +9,7 @@
     , "argonaut-codecs" 
     , "routing"
     , "uuid"
+    , "validation"
     , "js-date"
     , "format"
     ]

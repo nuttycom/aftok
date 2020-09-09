@@ -2,10 +2,15 @@ module Aftok.Signup where
 
 import Prelude
 
--- import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Class (lift)
 
+import Data.Foldable (any)
 import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Either (Either(..), note)
+import Data.Validation.Semigroup (V(..), toEither, andThen, invalid)
 
+import Effect.Aff (Aff)
+import Effect.Class (liftEffect)
 -- import Affjax (post, get, printError)
 import Affjax.StatusCode (StatusCode)
 -- import Affjax.RequestBody as RB
@@ -25,10 +30,21 @@ import CSS.Display (display, flex)
 import CSS.Flexbox (flexFlow, row, nowrap)
 
 import Aftok.Types (System)
+import Aftok.Api.Account as Acc
+import Aftok.Api.Account (SignupRequest, SignupResponse, signupRequest)
+import Aftok.Api.Recaptcha (getRecaptchaResponse)
 
-data SignupResponse
-  = OK
-  | Error { status :: Maybe StatusCode, message :: String }
+data SignupError
+  = UsernameRequired
+  | UsernameTaken
+  | PasswordRequired
+  | ConfirmRequired
+  | PasswordMismatch
+  | EmailRequired
+  | ZAddrRequired
+  | ZAddrInvalid
+  | CaptchaError
+  | APIError { status :: Maybe StatusCode, message :: String }
 
 data RecoveryType
   = RecoveryEmail
@@ -43,7 +59,7 @@ type SignupState =
   , recoveryType :: RecoveryType
   , recoveryEmail :: Maybe String
   , recoveryZAddr :: Maybe String
-  , loginResponse :: Maybe SignupResponse
+  , signupErrors :: Array SignupError
   }
 
 data SignupAction
@@ -57,12 +73,16 @@ data SignupAction
   | Signup WE.Event
 
 data SignupResult 
-  = SignupComplete { username :: String }
+  = SignupComplete String 
+  | SigninNav
 
 type Slot id = forall query. H.Slot query SignupResult id
 
 type Capability m = 
-  { signup :: String -> String -> m SignupResponse
+  { checkUsername :: String -> m Acc.UsernameCheckResponse
+  , checkZAddr :: String -> m Acc.ZAddrCheckResponse
+  , signup :: SignupRequest -> m SignupResponse
+  , getRecaptchaResponse :: Maybe String -> m (Maybe String)
   }
 
 type Config =
@@ -90,7 +110,7 @@ component system caps conf = H.mkComponent
       , recoveryType: RecoveryEmail
       , recoveryEmail: Nothing
       , recoveryZAddr: Nothing
-      , loginResponse: Nothing
+      , signupErrors: []
       }
 
     render :: forall slots. SignupState -> H.ComponentHTML SignupAction slots m
@@ -113,7 +133,9 @@ component system caps conf = H.mkComponent
             [ HH.div
               [ P.classes (ClassName <$> ["col-12", "col-lg-4", "py-8", "py-md-0"]) ]
               [ HH.form 
-                [ P.classes (ClassName <$> ["mb-6"]) ]
+                [ P.classes (ClassName <$> ["mb-6"]) 
+                , E.onSubmit (Just <<< Signup)
+                ]
                 [ HH.div
                   [ P.classes (ClassName <$> ["form-group"]) ]
                   [ HH.label [ P.for "username" ] [ HH.text "Username" ]
@@ -143,7 +165,7 @@ component system caps conf = H.mkComponent
                   , HH.input 
                     [ P.type_ P.InputPassword
                     , P.classes (ClassName <$> ["form-control"])
-                    , P.id_ "password"
+                    , P.id_ "passwordConfirm"
                     , P.placeholder "Enter a unique password"
                     , P.required true
                     , P.value (fromMaybe "" st.passwordConfirm)
@@ -155,7 +177,7 @@ component system caps conf = H.mkComponent
                 , HH.div
                   [ P.classes (ClassName <$> ["form-group", "mb-3"]) ]
                   [ HH.div
-                    [ P.classes (ClassName <$> ["form-group", "mb-3"]) 
+                    [ P.classes (ClassName <$> ["g-recaptcha", "mx-auto"]) 
                     , P.attr (AttrName "data-sitekey") conf.recaptchaKey
                     ] []
                   ]
@@ -177,12 +199,65 @@ component system caps conf = H.mkComponent
 
     eval :: SignupAction -> H.HalogenM SignupState SignupAction () SignupResult m Unit
     eval = case _ of
-      SetUsername user -> H.modify_ (_ { username = Just user })
-      SetPassword pass -> H.modify_ (_ { password = Just pass })
-      SetRecoveryType t -> H.modify_ (_ { recoveryType = t })
-      ConfirmPassword pass -> H.modify_ (_ { passwordConfirm = Just pass })
-      _ -> pure unit
+      SetUsername user -> do
+        ures <- lift $ caps.checkUsername user
+        H.modify_ (_ { username = Just user })
+        case ures of
+          Acc.UsernameCheckOK    -> pure unit
+          Acc.UsernameCheckTaken -> H.modify_ (_ { signupErrors = [UsernameTaken] })
 
+      SetPassword pass -> do
+        H.modify_ (_ { password = Just pass })
+        confirm <- H.gets (_.passwordConfirm)
+        when (any (notEq pass) confirm) (H.modify_ (_ { signupErrors = [PasswordMismatch] }))
+           
+      ConfirmPassword confirm -> do
+        H.modify_ (_ { passwordConfirm = Just confirm })
+        password <- H.gets (_.password)
+        when (any (notEq confirm) password) (H.modify_ (_ { signupErrors = [PasswordMismatch] }))
+
+      SetRecoveryType t -> H.modify_ (_ { recoveryType = t })
+      SetRecoveryEmail email -> H.modify_ (_ { recoveryEmail = Just email })
+      SetRecoveryZAddr addr -> do
+        zres <- lift $ caps.checkZAddr addr
+        H.modify_ (_ { recoveryZAddr = Just addr })
+        case zres of
+          Acc.ZAddrCheckOK -> pure unit
+          Acc.ZAddrCheckInvalid -> H.modify_ (_ { signupErrors = [ZAddrInvalid] })
+
+      Signin ev -> do 
+        lift $ system.preventDefault (ME.toEvent ev)
+        H.raise SigninNav
+
+      Signup ev -> do
+        lift $ system.preventDefault ev
+        recType <- H.gets (_.recoveryType)
+        usernameV <- V <<< note [UsernameRequired] <$> H.gets (_.username)
+        pwdFormV  <- V <<< note [PasswordRequired] <$> H.gets (_.password)
+        pwdConfV  <- V <<< note [ConfirmRequired ] <$> H.gets (_.passwordConfirm)
+        recoveryType <- H.gets (_.recoveryType)
+        recoveryV <- case recoveryType of
+          RecoveryEmail -> 
+            V <<< note [EmailRequired] <<< map Acc.RecoverByEmail <$> H.gets (_.recoveryEmail)
+          RecoveryZAddr -> 
+            V <<< note [ZAddrRequired] <<< map Acc.RecoverByZAddr <$> H.gets (_.recoveryZAddr)
+        recapV <- lift $ V <<< note [CaptchaError] <$> caps.getRecaptchaResponse Nothing
+        let reqV :: V (Array SignupError) Acc.SignupRequest
+            reqV = signupRequest <$> usernameV
+                                 <*> ((eq <$> pwdFormV <*> pwdConfV) `andThen` 
+                                      (if _ then pwdFormV else invalid [PasswordMismatch]))
+                                 <*> recoveryV
+                                 <*> recapV
+        case toEither reqV of
+          Left errors -> 
+            H.modify_ (_ { signupErrors = errors })
+          Right req -> do
+            response <- lift (caps.signup req)
+            case response of
+              Acc.SignupOK -> H.raise (SignupComplete $ req.username)
+              Acc.CaptchaInvalid -> H.modify_ (_ { signupErrors = [CaptchaError] })
+              Acc.ZAddrInvalid -> H.modify_ (_ { signupErrors = [ZAddrInvalid] })
+              Acc.UsernameTaken -> H.modify_ (_ { signupErrors = [UsernameTaken] })
 
 recoverySwitch :: forall i. RecoveryType -> HH.HTML i SignupAction
 recoverySwitch rt = 
@@ -254,7 +329,10 @@ recoveryField st = case st.recoveryType of
         ]
       ]
 
-mockCapability :: forall m. Applicative m => Capability m
+mockCapability :: Capability Aff
 mockCapability = 
-  { signup: \_ _ -> pure OK 
+  { checkUsername: \_ -> pure Acc.UsernameCheckOK
+  , checkZAddr: \_ -> pure Acc.ZAddrCheckOK
+  , signup: \_ -> pure Acc.SignupOK
+  , getRecaptchaResponse: liftEffect <<< getRecaptchaResponse 
   }

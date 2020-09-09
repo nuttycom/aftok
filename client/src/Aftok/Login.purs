@@ -4,16 +4,9 @@ import Prelude
 
 import Control.Monad.Trans.Class (lift)
 
-import Data.Argonaut.Encode (encodeJson)
-import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 
 import Effect.Aff (Aff)
-import Effect.Class.Console (log)
-import Affjax (post, get, printError)
-import Affjax.StatusCode (StatusCode(..))
-import Affjax.RequestBody as RB
-import Affjax.ResponseFormat as RF
 
 import Halogen as H
 import Halogen.HTML.Core (ClassName(..))
@@ -28,19 +21,16 @@ import CSS (backgroundImage, url)
 import Landkit.Card as Card
 
 import Aftok.Types (System)
+import Aftok.Api.Account (LoginResponse(..), login, checkLogin, logout)
 
-
-type LoginRequest = { username :: String, password :: String }
-
-data LoginResponse
-  = OK
-  | Forbidden
-  | Error { status :: Maybe StatusCode, message :: String }
+data LoginError
+  = Forbidden 
+  | ServerError
 
 type LoginState =
   { username :: String
   , password :: String
-  , loginResponse :: Maybe LoginResponse
+  , loginError :: Maybe LoginError
   }
 
 data LoginAction
@@ -72,7 +62,7 @@ component system caps = H.mkComponent
   } where
 
     initialState :: input -> LoginState
-    initialState _ = { username: "", password: "", loginResponse: Nothing }
+    initialState _ = { username: "", password: "", loginError: Nothing }
 
     render :: forall slots. LoginState -> H.ComponentHTML LoginAction slots m
     render st =
@@ -135,25 +125,19 @@ component system caps = H.mkComponent
                     , E.onValueInput (Just <<< SetPassword)
                     ]
                   ]
-                , case st.loginResponse of
+                , case st.loginError of
                     Nothing ->
                       HH.div_ []
-                    Just OK ->
-                      HH.div
-                      [ P.classes (ClassName <$> ["alert alert-warning"]) ]
-                      [ HH.text "Login ok, but you should have been redirected. Why are you still here?" ]
-                    Just Forbidden ->
-                      HH.div
-                      [ P.classes (ClassName <$> ["alert alert-danger"]) ]
-                      [ HH.text "Login failed. Check your username and password." ]
-                    Just (Error e) ->
-                      HH.div
-                      [ P.classes (ClassName <$> ["alert alert-danger"]) ]
-                      [ HH.text ("Login failed: " <> e.message) ]
+                    Just err -> 
+                      let message = case err of
+                            Forbidden -> "Login failed. Check your username and password."
+                            ServerError -> "Login failed due to an internal error. Please contact support."
+                       in HH.div
+                            [ P.classes (ClassName <$> ["alert alert-danger"]) ]
+                            [ HH.text message ]
 
                 , HH.button
-                  [ P.classes (ClassName <$> ["btn", "btn-block", "btn-primary"])
-                  ]
+                  [ P.classes (ClassName <$> ["btn", "btn-block", "btn-primary"]) ]
                   [ HH.text "Sign in" ]
                 ]
               ]
@@ -176,54 +160,17 @@ component system caps = H.mkComponent
         user <- H.gets (_.username)
         pass <- H.gets (_.password)
         response <- lift (caps.login user pass)
-        H.modify_ (_ { loginResponse = Just response })
         case response of
-          OK -> H.raise (LoginComplete { username: user })
-          _  -> pure unit
-
--- | Post credentials to the login service and interpret the response
-login :: String -> String -> Aff LoginResponse
-login user pass = do
-  log "Sending login request to /api/login ..."
-  result <- post RF.ignore "/api/login" (Just <<< RB.Json <<< encodeJson $ { username: user, password : pass })
-  case result of
-       Left err -> log ("Login failed: " <> printError err)
-       Right r  -> log ("Login status: " <> show r.status)
-  pure $ case result of
-    Left err -> Error { status: Nothing, message: printError err }
-    Right r -> case r.status of
-      StatusCode 403 -> Forbidden
-      StatusCode 200 -> OK
-      other -> Error { status: Just other, message: r.statusText }
-
-checkLogin :: Aff LoginResponse
-checkLogin = do
-  log "Sending login check to /api/login/check ..."
-  result <- get RF.ignore "/api/login/check"
-  case result of
-    Left err -> do
-      log ("Login failed: " <> printError err)
-      pure $ Error { status: Nothing, message: printError err }
-    Right r -> do
-      log ("Login status: " <> show r.status)
-      pure $ case r.status of
-        StatusCode 200 -> OK
-        StatusCode _   -> Forbidden
-
-logout :: Aff Unit
-logout = do
-  log "Logging out on server with  /api/logout ..."
-  result <- get RF.ignore "/api/logout"
-  case result of
-    Left err -> log ("Logout failed: " <> printError err)
-    Right r ->  log ("Logout status: " <> show r.status)
+          LoginOK        -> H.raise (LoginComplete { username: user })
+          LoginForbidden -> H.modify_ (_ { loginError = Just Forbidden })
+          LoginError _   -> H.modify_ (_ { loginError = Just ServerError })
 
 apiCapability :: Capability Aff
 apiCapability = { login, checkLogin, logout }
 
 mockCapability :: forall m. Applicative m => Capability m
 mockCapability = 
-  { login: \_ _ -> pure OK 
-  , checkLogin: pure OK
+  { login: \_ _ -> pure LoginOK 
+  , checkLogin: pure LoginOK
   , logout: pure unit
   }

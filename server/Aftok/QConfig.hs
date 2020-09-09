@@ -33,6 +33,7 @@ data QConfig = QConfig
   , _billingConfig :: BillingConfig
   , _templatePath  :: P.FilePath
   , _staticAssetPath :: P.FilePath
+  , _recaptchaSecret :: Maybe Text
   }
 makeLenses ''QConfig
 
@@ -61,6 +62,7 @@ readQConfig cfg pc =
                                       cfg
                                       "staticAssetPath"
         )
+    <*> C.lookup cfg "recaptchaSecret"
 
 baseSnapConfig :: QConfig -> SC.Config m a -> SC.Config m a
 baseSnapConfig qc = SC.setHostname (qc ^. hostname) . SC.setPort (qc ^. port)

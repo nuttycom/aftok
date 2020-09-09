@@ -63,8 +63,8 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
     xhrLoginRoute     = void $ method POST requireLoginXHR
     checkLoginRoute   = void $ method GET requireUser
     logoutRoute       = method GET (with auth AU.logout)
-    registerRoute     = void $ method POST registerHandler
 
+    registerRoute     = void $ method POST registerHandler
     inviteRoute       = void $ method POST (projectInviteHandler cfg)
     acceptInviteRoute = void $ method POST acceptInvitationHandler
 
