@@ -1,3 +1,15 @@
+Local Builds with Nix
+=====================
+
+The simplest way to get the server building is currently to use [nix](https://nixos.org/manual/nixos/stable/).
+
+Once you've installed nix, from the root of the project, run:
+
+~~~bash
+nix-shell --pure
+cabal new-build
+~~~
+
 Local Development with docker-compose
 =====================================
 
