@@ -14,6 +14,7 @@ pkgs.stdenv.mkDerivation{
   name = "aftok";
 
   buildInputs = [
+    pkgs.cacert
     pkgs.ghc
     pkgs.git
     pkgs.nodejs
@@ -29,5 +30,6 @@ pkgs.stdenv.mkDerivation{
     export PATH="./node_modules/.bin:$PATH"
   '';
 
+  SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
   LD_LIBRARY_PATH = "${pkgs.stdenv.lib.makeLibraryPath libInputs}";
 }
