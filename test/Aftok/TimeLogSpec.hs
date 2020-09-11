@@ -101,5 +101,19 @@ spec = do
          in workIndex logEntries
               `shouldBe` (WorkIndex $ fmap (L.reverse . L.sort) widx')
 
+    -- Given a base set of payouts and data
+    -- describing existing (Advances) to users, if a user has received an
+    -- advance, then their share of the payouts should be reallocated to
+    -- the advancing party. Any excess above the advanced amount should
+    -- be allocated to the original payee as usual.
+    --
+    -- The result of this new function should return both the new Payouts
+    -- value and information that describes the earned-out advance amounts,
+    -- such that the remaining debt can be adjusted accordingly.
+    --
+    -- newtype Debtor a = Debtor (CreditTo a)
+    -- newtype Loaner a = Loaner (CreditTo a)
+    -- type Advances a = Map Debtor (Amount, Loaner)
+
 main :: IO ()
 main = hspec spec

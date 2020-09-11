@@ -186,10 +186,13 @@ workIndex logEntries =
    in WorkIndex $ MS.foldrWithKey accum MS.empty rawIndex
 
 -- |
--- - The values of the raw index map are either complete intervals (which may be
--- - extended if a new start is encountered at the same instant as the end of the
--- - interval) or start events awaiting completion.
-type RawIndex = Map CreditTo [Either LogEvent Interval]
+-- The values of the raw index map are either complete intervals (which may be
+-- extended if a new start is encountered at the same instant as the end of the
+-- interval) or start events awaiting completion.
+--
+-- This should really be instead:
+-- type RawIndex a = Map (CreditTo a) ([Interval], Maybe LogEvent)
+type RawIndex a = Map (CreditTo a) [Either LogEvent Interval]
 
 appendLogEntry :: RawIndex -> LogEntry -> RawIndex
 appendLogEntry idx (LogEntry k ev _) =
@@ -204,6 +207,8 @@ appendLogEntry idx (LogEntry k ev _) =
         | containsInclusive t ival =
           Just $ StartWork (ival ^. start)
       extension _ _ = Nothing
+
+      ivals :: [Either LogEvent Interval]
       ivals = case MS.lookup k idx of
         -- if it is possible to extend an interval at the top of the stack
         -- because the end of that interval is the same
