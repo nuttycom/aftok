@@ -14,7 +14,6 @@ import           Control.FromSum                ( fromMaybeM
                                                 )
 import           Control.Lens            hiding ( (.=) )
 import qualified Control.Lens                  as L
-import           Control.Monad.Fail             ( MonadFail(..) )
 import           Data.Aeson
 import           Data.Aeson.Types
 import qualified Data.Attoparsec.ByteString.Char8
@@ -34,10 +33,10 @@ import           Data.Thyme.Clock              as Clock
 import           Data.Thyme.Time                ( Day )
 import           Data.UUID                     as U
 
-import           Network.Haskoin.Address        ( Address
+import           Haskoin.Address        ( Address
                                                 , addrToJSON
                                                 , addrFromJSON
-                                                , stringToAddr
+                                                , textToAddr
                                                 )
 
 import           Aftok.Currency.Bitcoin
@@ -45,7 +44,6 @@ import           Aftok.Auction                 as A
 import qualified Aftok.Billables               as B
 import           Aftok.Interval
 import           Aftok.Payments
-import           Aftok.Payments.Types           ( BillDetail )
 import           Aftok.Project                 as P
 import           Aftok.TimeLog
 import           Aftok.Types
@@ -196,7 +194,7 @@ parseBtcAddr nmode net addrText = maybe
   <> " cannot be parsed as a BTC network address."
   )
   (pure . CreditToCurrency . (net, ))
-  (stringToAddr (toNetwork nmode net) addrText)
+  (textToAddr (toNetwork nmode net) addrText)
 
 parseCreditToV1
   :: NetworkMode -> Object -> Parser (CreditTo (NetworkId, Address))

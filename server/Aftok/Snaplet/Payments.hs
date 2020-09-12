@@ -15,7 +15,6 @@ import           Control.Lens                   ( view
                                                 , _Right
                                                 , _Left
                                                 , preview
-                                                , (&)
                                                 , (.~)
                                                 , (^.)
                                                 )
@@ -26,7 +25,7 @@ import           Data.ProtocolBuffers           ( decodeMessage )
 import           Data.Serialize.Get             ( runGetLazy )
 import           Data.Thyme.Clock              as C
 import qualified Data.Text.Encoding            as T
-import qualified Network.Bippy.Proto           as P
+import qualified Bippy.Proto           as P
 import           Network.HTTP.Client.OpenSSL
 import           Network.HTTP.Client            ( defaultManagerSettings
                                                 , managerResponseTimeout

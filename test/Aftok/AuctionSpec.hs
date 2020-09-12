@@ -12,7 +12,10 @@ import           Data.Thyme.Clock               ( )
 import           Data.UUID
 import           Text.Read                      ( read )
 
-import           Aftok
+import           Haskoin.Constants              ( btc )
+
+import           Bippy.Types                    ( Satoshi(..) )
+import           Bippy.Test.Types               ( arbitrarySatoshi )
 import           Aftok.Auction
 import           Aftok.Generators
 import           Aftok.Types
@@ -27,9 +30,12 @@ genBid =
   Bid
     <$>        (UserId <$> genUUID)
     <*>        (Seconds <$> arbitrary `suchThat` (>= 0))
-    <*>        genSatoshi
+    <*>        arbitrarySatoshi btc
     `suchThat` (> Satoshi 0)
     <*>        arbitrary
+
+subs :: Satoshi -> Satoshi -> Satoshi
+subs (Satoshi a) (Satoshi b) = Satoshi (a - b)
 
 spec :: Spec
 spec =
@@ -84,10 +90,10 @@ spec =
                     "Sufficinent bids were presented, but auction algorithm asserted otherwise."
 
         it "ensures that the raise amount is fully consumed by the winning bids"
-          $ forAll ((,) <$> genSatoshi <*> listOf genBid)
+          $ forAll ((,) <$> arbitrarySatoshi btc <*> listOf genBid)
           $ \(raiseAmount', bids) -> case runAuction' raiseAmount' bids of
               WinningBids      xs -> bidsTotal xs == raiseAmount'
-              InsufficientBids t  -> t == (raiseAmount' - bidsTotal bids)
+              InsufficientBids t  -> t == (raiseAmount' `subs` bidsTotal bids)
 
 main :: IO ()
 main = hspec spec

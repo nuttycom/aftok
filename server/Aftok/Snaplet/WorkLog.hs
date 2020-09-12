@@ -12,8 +12,8 @@ import qualified Data.Aeson.Types              as A
 import qualified Data.Text                     as T
 import           Data.Thyme.Clock              as C
 import           Data.UUID                     as U
-import           Network.Haskoin.Address        ( Address
-                                                , stringToAddr
+import           Haskoin.Address        ( Address
+                                                , textToAddr
                                                 )
 
 import           Aftok.Currency.Bitcoin         ( NetworkId(..)
@@ -25,7 +25,7 @@ import           Aftok.Interval
 import           Aftok.Json
 import           Aftok.Project
 import           Aftok.TimeLog
-import           Aftok.Types                    ( CreditTo(..), _ProjectId, _UserId )
+import           Aftok.Types                    ( _ProjectId, _UserId )
 import           Aftok.Util                     ( fromMaybeT )
 
 import           Aftok.Snaplet
@@ -68,7 +68,7 @@ logWorkBTCHandler evCtr = do
   addrBytes   <- getParam "btcAddr"
   requestBody <- readRequestBody 4096
   timestamp   <- liftIO C.getCurrentTime
-  case fmap decodeUtf8 addrBytes >>= stringToAddr network of
+  case fmap decodeUtf8 addrBytes >>= textToAddr network of
     Nothing ->
       snapError 400
         $  "Unable to parse bitcoin address from "

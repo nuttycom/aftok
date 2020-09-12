@@ -107,6 +107,7 @@ Test-Suite spec
     , aeson
     , attoparsec
     , bifunctors
+    , bippy
     , containers
     , hspec      
     , HUnit
@@ -120,6 +121,8 @@ Test-Suite spec
     , thyme
     , uuid
     , vector-space
+
+  build-tool-depends: hspec-discover:hspec-discover
 
 Executable aftok-server
   import:             buildenv

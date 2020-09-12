@@ -7,8 +7,8 @@ module Aftok.Currency.Bitcoin where
 
 import qualified Data.Configurator.Types       as C
 import           Control.Lens
-import           Network.Bippy.Types            ( Satoshi(..) )
-import           Network.Haskoin.Constants
+import           Bippy.Types            ( Satoshi(..) )
+import           Haskoin.Constants
 
 satoshi :: Lens' Satoshi Word64
 satoshi inj (Satoshi value) = Satoshi <$> inj value

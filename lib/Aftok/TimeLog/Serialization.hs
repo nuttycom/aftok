@@ -7,15 +7,12 @@ module Aftok.TimeLog.Serialization
 where
 
 
-import           Control.Applicative            ( (<*>) )
-
 import           Data.Aeson                     ( Value(..)
                                                 , (.=)
                                                 , (.:)
                                                 , object
                                                 )
 import           Data.Aeson.Types               ( Parser )
-import           Data.Functor                   ( (<$>) )
 import           Data.Text                      ( unpack )
 
 import           Aftok.Types

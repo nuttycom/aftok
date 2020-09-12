@@ -14,7 +14,6 @@ import           Control.Lens            (makeClassy, makeClassyPrisms, review,
                                           view, (%~), (^.), traverseOf)
 import           Control.Lens.Tuple
 import           Control.Monad.Except    (MonadError, throwError)
-import           Control.Monad.Trans.Maybe    (MaybeT(..), runMaybeT)
 import qualified Crypto.PubKey.RSA.Types as RSA (Error (..), PrivateKey)
 import           Crypto.Random.Types     (MonadRandom, getRandomBytes)
 
@@ -23,12 +22,12 @@ import           Data.Map.Strict         (assocs)
 import           Data.Thyme.Clock        as C
 import           Data.Thyme.Time         as T
 
-import qualified Network.Bippy           as B
-import qualified Network.Bippy.Proto     as P
-import qualified Network.Bippy.Types     as BT
-import           Network.Haskoin.Address (Address(..))
-import           Network.Haskoin.Address.Base58 (encodeBase58Check)
-import           Network.Haskoin.Script  (ScriptOutput (..))
+import qualified Bippy           as B
+import qualified Bippy.Proto     as P
+import qualified Bippy.Types     as BT
+import           Haskoin.Address (Address(..))
+import           Haskoin.Address.Base58 (encodeBase58Check)
+import           Haskoin.Script  (ScriptOutput (..))
 import           Network.URI
 
 import           Aftok.Types             (UserId, ProjectId, userAddress)

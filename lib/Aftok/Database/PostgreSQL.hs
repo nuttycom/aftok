@@ -11,10 +11,7 @@ where
 
 import           Prelude                 hiding ( null )
 import           Control.Lens
-import           Control.Monad.Trans.Except     ( ExceptT(..)
-                                                , throwE
-                                                , runExceptT
-                                                )
+import           Control.Monad.Trans.Except     ( throwE )
 import           Crypto.Random.Types            ( MonadRandom
                                                 , getRandomBytes
                                                 )
@@ -57,12 +54,12 @@ import           Aftok.Payments.Types
 import qualified Aftok.Project                 as P
 import           Aftok.TimeLog
 import           Aftok.Types
-import           Network.Bippy.Types            ( Satoshi(..) )
-import           Network.Haskoin.Address        ( Address
-                                                , stringToAddr
-                                                , addrToString
+import           Bippy.Types            ( Satoshi(..) )
+import           Haskoin.Address        ( Address
+                                                , textToAddr
+                                                , addrToText
                                                 )
-import           Network.Haskoin.Constants      ( Network )
+import           Haskoin.Constants      ( Network )
 
 newtype QDBM a = QDBM (ReaderT (NetworkMode, Connection) (ExceptT DBError IO) a)
   deriving (Functor, Applicative, Monad)
@@ -106,7 +103,7 @@ addressParser mode = do
 addrFieldParser :: Network -> FieldParser Address
 addrFieldParser n f v = do
   fieldValue <- fromField f v
-  let addrMay = stringToAddr n fieldValue
+  let addrMay = textToAddr n fieldValue
   let err = returnError ConversionFailed
                         f
                         ("could not deserialize value " <> T.unpack fieldValue <>
@@ -327,7 +324,7 @@ pgEval (CreateEvent (ProjectId pid) (UserId uid) (LogEntry c e m)) = case c of
       , uid
       , creditToName c
       , renderNetworkId nid
-      , addrToString network addr
+      , addrToText network addr
       , eventName e
       , fromThyme $ e ^. eventTime
       , m
@@ -447,7 +444,7 @@ pgEval (AmendEvent (EventId eid) (CreditToChange mt c)) = do
         , fromThyme $ mt ^. _ModTime
         , creditToName c
         , renderNetworkId nid
-        , addrToString network addr
+        , addrToText network addr
         )
 
     CreditToProject pid -> pinsert
@@ -524,7 +521,7 @@ pgEval (CreateUser user') = do
       addrMay = do
         network <- toNetwork mode <$> nidMay
         address <- snd <$> _userAddress user'
-        pure $ addrToString network address
+        addrToText network address
   pinsert
     UserId
     [sql| INSERT INTO users (handle, default_payment_network, default_payment_addr, email)

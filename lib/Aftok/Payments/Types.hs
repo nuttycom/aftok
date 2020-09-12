@@ -19,13 +19,13 @@ import           Data.Thyme.Time               as C
 import qualified Data.Text                     as T
 import           Data.UUID
 
-import qualified Network.Bippy.Proto           as P
-import           Network.Bippy.Types            ( expiryTime
+import qualified Bippy.Proto           as P
+import           Bippy.Types            ( expiryTime
                                                 , getExpires
                                                 , getPaymentDetails
                                                 , Satoshi(..)
                                                 )
-import           Network.Haskoin.Address.Base58 ( decodeBase58Check )
+import           Haskoin.Address.Base58 ( decodeBase58Check )
 
 import           Aftok.Billables                ( Billable
                                                 , Subscription

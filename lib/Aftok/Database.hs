@@ -13,12 +13,10 @@ import           Control.Lens                   ( view
                                                 , makeClassyPrisms
                                                 , traverseOf
                                                 )
-import           Control.Monad.Trans.Maybe      ( MaybeT(..) )
 import           Data.AffineSpace
 import           Data.Thyme.Clock              as C
 import           Data.Thyme.Time               as T
                                                 ( Day )
-import           Data.Word                      ( Word32 )
 import           Safe                           ( headMay )
 
 import           Aftok.Types
@@ -31,7 +29,7 @@ import           Aftok.Project                 as P
 import           Aftok.TimeLog
 import           Aftok.Util
 
-import           Network.Haskoin.Address        ( Address )
+import           Haskoin.Address        ( Address )
 
 type KeyedLogEntry a = (ProjectId, UserId, LogEntry a)
 type InvitingUID = UserId

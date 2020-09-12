@@ -9,13 +9,12 @@ module Aftok.Billables where
 
 
 import           Control.Lens     (makeLenses, makePrisms, preview, view, _Just)
-import           Data.List        (unfoldr)
 import           Data.Thyme.Clock as C
 import           Data.Thyme.Time  as T
 import           Data.UUID
 
 import           Aftok.Types      (UserId, ProjectId)
-import           Network.Bippy.Types (Satoshi)
+import           Bippy.Types (Satoshi)
 
 newtype BillableId = BillableId UUID deriving (Show, Eq)
 makePrisms ''BillableId

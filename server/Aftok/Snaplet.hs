@@ -6,7 +6,6 @@ module Aftok.Snaplet where
 
 
 import           Control.Lens
-import           Control.Monad.Trans.Except     ( runExceptT )
 import qualified Data.Aeson                    as A
 import           Data.Attoparsec.ByteString     ( Parser
                                                 , parseOnly

@@ -12,7 +12,6 @@ where
 
 import           Control.Lens
 import           Control.Monad.Trans.Maybe      ( mapMaybeT
-                                                , runMaybeT
                                                 )
 import           Data.Aeson                    as A
 import           Data.Attoparsec.ByteString     ( takeByteString )
@@ -118,7 +117,7 @@ buildProjectInviteEmail tpath pn fromEmail toEmail invCode = do
           fromAddr = Address Nothing ("invitations@aftok.com")
           toAddr   = Address Nothing (toEmail ^. _Email)
           subject  = "Welcome to the " <> pn <> " Aftok!"
-          body     = plainTextPart . render $ setAttrs template
+          body     = plainPart . render $ setAttrs template
       in  pure $ SMTP.simpleMail fromAddr [toAddr] [] [] subject [body]
 
 

@@ -13,17 +13,12 @@ import           Control.Lens                   ( (^.)
                                                 , traverseOf
                                                 , to
                                                 )
-import           Control.Monad.IO.Class         ( MonadIO(..) )
 import           Control.Monad.Except           ( MonadError
                                                 , throwError
                                                 )
-import           Control.Monad.Reader           ( MonadReader )
-import           Control.Monad.Trans.Except     ( ExceptT
-                                                , withExceptT
-                                                , runExceptT
+import           Control.Monad.Trans.Except     ( withExceptT
                                                 )
 import           Control.Monad.Trans.Reader     ( mapReaderT
-                                                , withReaderT
                                                 )
 
 import           Crypto.Random.Types            ( MonadRandom(..) )
@@ -39,7 +34,7 @@ import qualified Network.Mail.SMTP             as SMTP
 import           Network.URI                    ( URI
                                                 , parseURI
                                                 )
-import           Network.Haskoin.Address        ( Address )
+import           Haskoin.Address        ( Address )
 import           Text.StringTemplate            ( directoryGroup
                                                 , newSTMP
                                                 , getStringTemplate
@@ -48,7 +43,7 @@ import           Text.StringTemplate            ( directoryGroup
                                                 )
 import           Filesystem.Path.CurrentOS      ( encodeString )
 
-import           Network.Bippy.Types            ( Satoshi )
+import           Bippy.Types            ( Satoshi )
 
 import           Aftok.Types                    ( User
                                                 , UserId
@@ -198,7 +193,7 @@ buildPaymentRequestEmail cfg req paymentUrl = do
           fromAddr = Mime.Address Nothing ("billing@aftok.com")
           toAddr   = Mime.Address Nothing (toEmail ^. _Email)
           subject  = "Payment is due for your " <> pname <> " subscription!"
-          body     = SMTP.plainTextPart . render $ setAttrs template
+          body     = Mime.plainPart . render $ setAttrs template
       in  pure $ SMTP.simpleMail fromAddr [toAddr] [] [] subject [body]
 
 memoGen

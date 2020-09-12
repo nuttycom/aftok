@@ -10,7 +10,6 @@ import           Data.Aeson                     ((.:))
 import qualified Data.Aeson                     as A
 import qualified Data.Aeson.Types               as A
 import           Data.Attoparsec.ByteString     ( parseOnly )
-import           Data.Text                      ( Text )
 
 import           Aftok.Types
 import           Aftok.Database

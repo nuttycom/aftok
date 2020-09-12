@@ -16,7 +16,7 @@ import           Aftok.Types                    ( UserId
 import           Aftok.Currency.Bitcoin         ( satoshi
                                                 , ssub
                                                 )
-import           Network.Bippy.Types            ( Satoshi(..) )
+import           Bippy.Types            ( Satoshi(..) )
 
 newtype AuctionId = AuctionId UUID deriving (Show, Eq)
 makePrisms ''AuctionId
@@ -39,7 +39,7 @@ data Bid = Bid
   , _bidSeconds :: Seconds
   , _bidAmount  :: Satoshi
   , _bidTime    :: C.UTCTime
-  } deriving (Eq)
+  } deriving (Eq, Show)
 makeLenses ''Bid
 
 data Commitment = Commitment

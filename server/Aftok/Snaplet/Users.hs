@@ -15,7 +15,7 @@ import qualified Data.Map.Strict               as M
 import           Data.Text                     as T
 import           Data.Thyme.Clock              as C
 
-import           Network.Haskoin.Address        ( stringToAddr )
+import           Haskoin.Address        ( textToAddr )
 
 import           Aftok.Types
 import           Aftok.Currency.Bitcoin         ( NetworkId(..)
@@ -65,7 +65,7 @@ registerHandler = do
   t     <- liftIO C.getCurrentTime
   nmode <- getNetworkMode
   let addr =
-        stringToAddr (toNetwork nmode BTC) =<< (userData ^. cuser . userAddress)
+        textToAddr (toNetwork nmode BTC) =<< (userData ^. cuser . userAddress)
   let
     createSUser = AU.createUser (userData ^. (cuser . username . _UserName))
                                 (userData ^. password)

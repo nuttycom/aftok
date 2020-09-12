@@ -7,7 +7,6 @@ module Aftok.Util where
 
 import           Control.Error.Util             ( maybeT )
 import           Control.Monad.Free.Church
-import           Control.Monad.Trans.Maybe      ( MaybeT )
 
 import           Data.Functor.Coyoneda
 import           Data.Map.Strict               as M
