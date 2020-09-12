@@ -16,14 +16,14 @@ import qualified Data.List.NonEmpty            as L
 import qualified Data.Map.Strict               as M
 import           Data.Thyme.Time               as T
 import           Data.Time.ISO8601
-import           Haskoin.Address        ( Address )
+import           Haskoin.Address                ( Address )
 
 import qualified Aftok.Interval                as I
 import           Aftok.TimeLog
 
 import           Test.Hspec
 import           Test.QuickCheck
-import           Haskoin.Util.Arbitrary.Address (arbitraryAddress)
+import           Haskoin.Util.Arbitrary.Address ( arbitraryAddress )
 
 -- genInterval :: Gen I.Interval
 -- genInterval = do

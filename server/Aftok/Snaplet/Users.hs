@@ -15,7 +15,7 @@ import qualified Data.Map.Strict               as M
 import           Data.Text                     as T
 import           Data.Thyme.Clock              as C
 
-import           Haskoin.Address        ( textToAddr )
+import           Haskoin.Address                ( textToAddr )
 
 import           Aftok.Types
 import           Aftok.Currency.Bitcoin         ( NetworkId(..)

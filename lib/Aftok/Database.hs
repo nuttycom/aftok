@@ -29,7 +29,7 @@ import           Aftok.Project                 as P
 import           Aftok.TimeLog
 import           Aftok.Util
 
-import           Haskoin.Address        ( Address )
+import           Haskoin.Address                ( Address )
 
 type KeyedLogEntry a = (ProjectId, UserId, LogEntry a)
 type InvitingUID = UserId
@@ -39,49 +39,49 @@ type BTCNet = (NetworkId, Address)
 type BTCUser = User BTCNet
 
 data DBOp a where
-  CreateUser       ::BTCUser -> DBOp UserId
-  FindUser         ::UserId -> DBOp (Maybe BTCUser)
-  FindUserByName   ::UserName -> DBOp (Maybe (UserId, BTCUser))
+  CreateUser       :: BTCUser -> DBOp UserId
+  FindUser         :: UserId -> DBOp (Maybe BTCUser)
+  FindUserByName   :: UserName -> DBOp (Maybe (UserId, BTCUser))
 
-  CreateProject    ::Project -> DBOp ProjectId
-  FindProject      ::ProjectId -> DBOp (Maybe Project)
-  ListProjects     ::DBOp [ProjectId]
-  FindSubscribers  ::ProjectId -> DBOp [UserId]
-  FindUserProjects ::UserId -> DBOp [(ProjectId, Project)]
-  AddUserToProject ::ProjectId -> InvitingUID -> InvitedUID -> DBOp ()
-  CreateInvitation ::ProjectId -> InvitingUID -> Email -> C.UTCTime -> DBOp InvitationCode
-  FindInvitation   ::InvitationCode -> DBOp (Maybe Invitation)
-  AcceptInvitation ::UserId -> InvitationCode -> C.UTCTime -> DBOp ()
+  CreateProject    :: Project -> DBOp ProjectId
+  FindProject      :: ProjectId -> DBOp (Maybe Project)
+  ListProjects     :: DBOp [ProjectId]
+  FindSubscribers  :: ProjectId -> DBOp [UserId]
+  FindUserProjects :: UserId -> DBOp [(ProjectId, Project)]
+  AddUserToProject :: ProjectId -> InvitingUID -> InvitedUID -> DBOp ()
+  CreateInvitation :: ProjectId -> InvitingUID -> Email -> C.UTCTime -> DBOp InvitationCode
+  FindInvitation   :: InvitationCode -> DBOp (Maybe Invitation)
+  AcceptInvitation :: UserId -> InvitationCode -> C.UTCTime -> DBOp ()
 
-  CreateEvent      ::ProjectId -> UserId -> LogEntry BTCNet -> DBOp EventId
-  AmendEvent       ::EventId -> EventAmendment BTCNet -> DBOp AmendmentId
-  FindEvent        ::EventId -> DBOp (Maybe (KeyedLogEntry BTCNet))
-  FindEvents       ::ProjectId -> UserId -> RangeQuery -> Word32 -> DBOp [LogEntry BTCNet]
-  ReadWorkIndex    ::ProjectId -> DBOp (WorkIndex BTCNet)
+  CreateEvent      :: ProjectId -> UserId -> LogEntry BTCNet -> DBOp EventId
+  AmendEvent       :: EventId -> EventAmendment BTCNet -> DBOp AmendmentId
+  FindEvent        :: EventId -> DBOp (Maybe (KeyedLogEntry BTCNet))
+  FindEvents       :: ProjectId -> UserId -> RangeQuery -> Word32 -> DBOp [LogEntry BTCNet]
+  ReadWorkIndex    :: ProjectId -> DBOp (WorkIndex BTCNet)
 
-  CreateAuction    ::Auction -> DBOp AuctionId
-  FindAuction      ::AuctionId -> DBOp (Maybe Auction)
-  CreateBid        ::AuctionId -> Bid -> DBOp BidId
-  FindBids         ::AuctionId -> DBOp [(BidId, Bid)]
+  CreateAuction    :: Auction -> DBOp AuctionId
+  FindAuction      :: AuctionId -> DBOp (Maybe Auction)
+  CreateBid        :: AuctionId -> Bid -> DBOp BidId
+  FindBids         :: AuctionId -> DBOp [(BidId, Bid)]
 
-  CreateBillable   ::UserId -> Billable -> DBOp BillableId
-  FindBillable     ::BillableId -> DBOp (Maybe Billable)
-  FindBillables    ::ProjectId  -> DBOp [(BillableId, Billable)]
+  CreateBillable   :: UserId -> Billable -> DBOp BillableId
+  FindBillable     :: BillableId -> DBOp (Maybe Billable)
+  FindBillables    :: ProjectId  -> DBOp [(BillableId, Billable)]
 
-  CreateSubscription ::UserId -> BillableId -> T.Day -> DBOp SubscriptionId
-  FindSubscription   ::SubscriptionId -> DBOp (Maybe Subscription)
-  FindSubscriptions  ::UserId -> ProjectId -> DBOp [(SubscriptionId, Subscription)]
+  CreateSubscription :: UserId -> BillableId -> T.Day -> DBOp SubscriptionId
+  FindSubscription   :: SubscriptionId -> DBOp (Maybe Subscription)
+  FindSubscriptions  :: UserId -> ProjectId -> DBOp [(SubscriptionId, Subscription)]
 
-  CreatePaymentRequest  ::PaymentRequest -> DBOp PaymentRequestId
-  FindPaymentRequests   ::SubscriptionId -> DBOp [(PaymentRequestId, PaymentRequest)]
-  FindUnpaidRequests    ::SubscriptionId -> DBOp [BillDetail]
-  FindPaymentRequest    ::PaymentKey -> DBOp (Maybe (PaymentRequestId, PaymentRequest))
-  FindPaymentRequestId  ::PaymentRequestId -> DBOp (Maybe PaymentRequest)
+  CreatePaymentRequest  :: PaymentRequest -> DBOp PaymentRequestId
+  FindPaymentRequests   :: SubscriptionId -> DBOp [(PaymentRequestId, PaymentRequest)]
+  FindUnpaidRequests    :: SubscriptionId -> DBOp [BillDetail]
+  FindPaymentRequest    :: PaymentKey -> DBOp (Maybe (PaymentRequestId, PaymentRequest))
+  FindPaymentRequestId  :: PaymentRequestId -> DBOp (Maybe PaymentRequest)
 
-  CreatePayment  ::Payment -> DBOp PaymentId
-  FindPayments   ::PaymentRequestId -> DBOp [(PaymentId, Payment)]
+  CreatePayment  :: Payment -> DBOp PaymentId
+  FindPayments   :: PaymentRequestId -> DBOp [(PaymentId, Payment)]
 
-  RaiseDBError     :: forall x y. DBError -> DBOp x -> DBOp y
+  RaiseDBError   :: forall x y. DBError -> DBOp x -> DBOp y
 
 data OpForbiddenReason = UserNotProjectMember
                        | UserNotEventLogger
@@ -217,7 +217,12 @@ findEvent :: (MonadDB m) => EventId -> m (Maybe (KeyedLogEntry BTCNet))
 findEvent = liftdb . FindEvent
 
 findEvents
-  :: (MonadDB m) => ProjectId -> UserId -> RangeQuery -> Word32 -> m [LogEntry BTCNet]
+  :: (MonadDB m)
+  => ProjectId
+  -> UserId
+  -> RangeQuery
+  -> Word32
+  -> m [LogEntry BTCNet]
 findEvents p u i l = liftdb $ FindEvents p u i l
 
 readWorkIndex :: (MonadDB m) => ProjectId -> UserId -> m (WorkIndex BTCNet)

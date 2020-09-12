@@ -16,7 +16,7 @@ import           Aftok.Types                    ( UserId
 import           Aftok.Currency.Bitcoin         ( satoshi
                                                 , ssub
                                                 )
-import           Bippy.Types            ( Satoshi(..) )
+import           Bippy.Types                    ( Satoshi(..) )
 
 newtype AuctionId = AuctionId UUID deriving (Show, Eq)
 makePrisms ''AuctionId

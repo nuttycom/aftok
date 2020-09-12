@@ -18,7 +18,7 @@ import           Filesystem.Path.CurrentOS      ( fromText
 import qualified Filesystem.Path.CurrentOS     as P
 import           Safe                           ( headMay )
 
-import qualified Bippy.Types           as BT
+import qualified Bippy.Types                   as BT
 import qualified Network.Mail.SMTP             as SMTP
 import qualified Network.Socket                as NS
 

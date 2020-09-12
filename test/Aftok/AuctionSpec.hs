@@ -8,9 +8,9 @@ where
 
 import           Control.Lens
 import           Data.Hourglass
-import           Data.List                      ((!!))
+import           Data.List                      ( (!!) )
 import           Data.Thyme.Clock               ( )
-import qualified Data.UUID.V4                   as U
+import qualified Data.UUID.V4                  as U
 import           Text.Read                      ( read )
 
 import           Haskoin.Constants              ( btc )
@@ -71,18 +71,16 @@ spec = do
       bidOrder testB2 testB4 `shouldBe` LT
 
   describe "winning bids" $ do
-    it
-        "determines a sufficient number of winners to fulfill the raise amount"
+    it "determines a sufficient number of winners to fulfill the raise amount"
       $ let
-          result = runAuction' (Satoshi 1250)
-                               [testB0, testB1, testB2, testB3, testB4]
+          result =
+            runAuction' (Satoshi 1250) [testB0, testB1, testB2, testB3, testB4]
           split =
             Bid (users !! 4) (Seconds 31) (Satoshi 50) (testB4 ^. bidTime)
           expected = sortBy bidOrder [testB0, testB1, testB2, split]
         in
           case result of
-            WinningBids winners ->
-              sortBy bidOrder winners `shouldBe` expected
+            WinningBids winners -> sortBy bidOrder winners `shouldBe` expected
 
             InsufficientBids _ ->
               assertFailure

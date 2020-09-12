@@ -6,9 +6,9 @@ module Aftok.Snaplet.Auth where
 import           Control.Lens
 import           Control.Error.Util             ( maybeT )
 import           Control.Monad.Trans.Maybe      ( mapMaybeT )
-import           Data.Aeson                     ((.:))
-import qualified Data.Aeson                     as A
-import qualified Data.Aeson.Types               as A
+import           Data.Aeson                     ( (.:) )
+import qualified Data.Aeson                    as A
+import qualified Data.Aeson.Types              as A
 import           Data.Attoparsec.ByteString     ( parseOnly )
 
 import           Aftok.Types
@@ -26,17 +26,19 @@ data LoginRequest = LoginRequest
   }
 
 parseLoginRequest :: A.Value -> A.Parser LoginRequest
-parseLoginRequest (A.Object o) = LoginRequest <$> o .: "username" <*> o .: "password"
+parseLoginRequest (A.Object o) =
+  LoginRequest <$> o .: "username" <*> o .: "password"
 parseLoginRequest val = fail $ "Value " <> show val <> " is not a JSON object."
 
 requireLogin :: S.Handler App App AU.AuthUser
 requireLogin = do
   requireLoginWith (const throwChallenge)
 
-requireLoginWith :: (forall a. () -> S.Handler App App a) -> S.Handler App App AU.AuthUser
+requireLoginWith
+  :: (forall a . () -> S.Handler App App a) -> S.Handler App App AU.AuthUser
 requireLoginWith throwMissingAuth = do
-  req          <- getRequest
-  rawHeader    <- maybe (throwMissingAuth ()) pure $ getHeader "Authorization" req
+  req <- getRequest
+  rawHeader <- maybe (throwMissingAuth ()) pure $ getHeader "Authorization" req
   (uname, pwd) <- either (throwDenied . AU.AuthError) pure
     $ parseOnly authHeaderParser rawHeader
   authResult <- with auth $ AU.loginByUsername uname (AU.ClearText pwd) False
@@ -45,18 +47,23 @@ requireLoginWith throwMissingAuth = do
 requireLoginXHR :: S.Handler App App AU.AuthUser
 requireLoginXHR = do
   requestBody <- readRequestBody 4096
-  credentials <- case
-      A.eitherDecode requestBody >>= A.parseEither parseLoginRequest
-    of
-      Left _ -> snapError 400 $ "Unable to parse login credentials object."
+  credentials <-
+    case A.eitherDecode requestBody >>= A.parseEither parseLoginRequest of
+      Left  _     -> snapError 400 $ "Unable to parse login credentials object."
       Right creds -> pure creds
-  authResult <- with auth $ AU.loginByUsername (loginUser credentials) (AU.ClearText (encodeUtf8 $ loginPass credentials)) False
+  authResult <- with auth $ AU.loginByUsername
+    (loginUser credentials)
+    (AU.ClearText (encodeUtf8 $ loginPass credentials))
+    False
   either throwDenied pure authResult
 
 requireUser :: S.Handler App App AU.AuthUser
 requireUser = do
   currentUser <- with auth AU.currentUser
-  maybe (requireLoginWith $ const (throwDenied $ AU.AuthError "Not Authenticated")) pure currentUser
+  maybe
+    (requireLoginWith $ const (throwDenied $ AU.AuthError "Not Authenticated"))
+    pure
+    currentUser
 
 requireUserId :: S.Handler App App UserId
 requireUserId = do

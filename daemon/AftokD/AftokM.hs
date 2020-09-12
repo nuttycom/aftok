@@ -16,10 +16,8 @@ import           Control.Lens                   ( (^.)
 import           Control.Monad.Except           ( MonadError
                                                 , throwError
                                                 )
-import           Control.Monad.Trans.Except     ( withExceptT
-                                                )
-import           Control.Monad.Trans.Reader     ( mapReaderT
-                                                )
+import           Control.Monad.Trans.Except     ( withExceptT )
+import           Control.Monad.Trans.Reader     ( mapReaderT )
 
 import           Crypto.Random.Types            ( MonadRandom(..) )
 
@@ -34,7 +32,7 @@ import qualified Network.Mail.SMTP             as SMTP
 import           Network.URI                    ( URI
                                                 , parseURI
                                                 )
-import           Haskoin.Address        ( Address )
+import           Haskoin.Address                ( Address )
 import           Text.StringTemplate            ( directoryGroup
                                                 , newSTMP
                                                 , getStringTemplate
@@ -43,7 +41,7 @@ import           Text.StringTemplate            ( directoryGroup
                                                 )
 import           Filesystem.Path.CurrentOS      ( encodeString )
 
-import           Bippy.Types            ( Satoshi )
+import           Bippy.Types                    ( Satoshi )
 
 import           Aftok.Types                    ( User
                                                 , UserId

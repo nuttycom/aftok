@@ -54,12 +54,12 @@ import           Aftok.Payments.Types
 import qualified Aftok.Project                 as P
 import           Aftok.TimeLog
 import           Aftok.Types
-import           Bippy.Types            ( Satoshi(..) )
-import           Haskoin.Address        ( Address
+import           Bippy.Types                    ( Satoshi(..) )
+import           Haskoin.Address                ( Address
                                                 , textToAddr
                                                 , addrToText
                                                 )
-import           Haskoin.Constants      ( Network )
+import           Haskoin.Constants              ( Network )
 
 newtype QDBM a = QDBM (ReaderT (NetworkMode, Connection) (ExceptT DBError IO) a)
   deriving (Functor, Applicative, Monad)
@@ -104,11 +104,14 @@ addrFieldParser :: Network -> FieldParser Address
 addrFieldParser n f v = do
   fieldValue <- fromField f v
   let addrMay = textToAddr n fieldValue
-  let err = returnError ConversionFailed
-                        f
-                        ("could not deserialize value " <> T.unpack fieldValue <>
-                         " to a valid BTC address for network " <> show n
-                        )
+  let err = returnError
+        ConversionFailed
+        f
+        (  "could not deserialize value "
+        <> T.unpack fieldValue
+        <> " to a valid BTC address for network "
+        <> show n
+        )
   maybe err pure addrMay
 
 btcParser :: RowParser Satoshi
@@ -146,13 +149,17 @@ creditToParser' mode f v = do
   if tn /= "credit_to_t"
     then returnError Incompatible f "column was not of type credit_to_t"
     else maybe empty (pure . parser . decodeUtf8) v
-  where
-    parser :: Text -> RowParser (CreditTo (NetworkId, Address))
-    parser = \case
-      "credit_to_address" -> CreditToCurrency <$> (addressParser mode     <* nullField       <* nullField)
-      "credit_to_user"    -> CreditToUser     <$> (nullField *> nullField *> idParser UserId <* nullField)
-      "credit_to_project" -> CreditToProject  <$> (nullField *> nullField *> nullField       *> idParser ProjectId)
-      _ -> empty
+ where
+  parser :: Text -> RowParser (CreditTo (NetworkId, Address))
+  parser = \case
+    "credit_to_address" ->
+      CreditToCurrency <$> (addressParser mode <* nullField <* nullField)
+    "credit_to_user" ->
+      CreditToUser <$> (nullField *> nullField *> idParser UserId <* nullField)
+    "credit_to_project" ->
+      CreditToProject
+        <$> (nullField *> nullField *> nullField *> idParser ProjectId)
+    _ -> empty
 
 logEntryParser :: NetworkMode -> RowParser (LogEntry (NetworkId, Address))
 logEntryParser mode =

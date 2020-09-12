@@ -3,16 +3,16 @@ module Aftok.Snaplet.WorkLog where
 
 
 
-import           Control.Lens                   ((^.))
+import           Control.Lens                   ( (^.) )
 import           Control.Monad.Trans.Maybe      ( mapMaybeT )
 
 import qualified Data.Aeson                    as A
-import           Data.Aeson                     ((.=))
+import           Data.Aeson                     ( (.=) )
 import qualified Data.Aeson.Types              as A
 import qualified Data.Text                     as T
 import           Data.Thyme.Clock              as C
 import           Data.UUID                     as U
-import           Haskoin.Address        ( Address
+import           Haskoin.Address                ( Address
                                                 , textToAddr
                                                 )
 
@@ -25,7 +25,9 @@ import           Aftok.Interval
 import           Aftok.Json
 import           Aftok.Project
 import           Aftok.TimeLog
-import           Aftok.Types                    ( _ProjectId, _UserId )
+import           Aftok.Types                    ( _ProjectId
+                                                , _UserId
+                                                )
 import           Aftok.Util                     ( fromMaybeT )
 
 import           Aftok.Snaplet
@@ -35,7 +37,9 @@ import           Aftok.Snaplet.Util
 import           Snap.Core
 import           Snap.Snaplet                  as S
 
-logWorkHandler :: (C.UTCTime -> LogEvent) -> S.Handler App App (EventId, KeyedLogEntry BTCNet)
+logWorkHandler
+  :: (C.UTCTime -> LogEvent)
+  -> S.Handler App App (EventId, KeyedLogEntry BTCNet)
 logWorkHandler evCtr = do
   uid         <- requireUserId
   pid         <- requireProjectId
@@ -43,7 +47,8 @@ logWorkHandler evCtr = do
   requestBody <- readRequestBody 4096
   timestamp   <- liftIO C.getCurrentTime
   case
-      A.eitherDecode requestBody >>= A.parseEither (parseLogEntry nmode uid evCtr)
+      A.eitherDecode requestBody
+        >>= A.parseEither (parseLogEntry nmode uid evCtr)
     of
       Left err ->
         snapError 400
@@ -55,8 +60,10 @@ logWorkHandler evCtr = do
         eid <- snapEval $ createEvent pid uid (entry timestamp)
         ev  <- snapEval $ findEvent eid
         maybe
-          (snapError 500 $ "An error occured retrieving the newly created event record.")
-          (pure . (eid,))
+          ( snapError 500
+          $ "An error occured retrieving the newly created event record."
+          )
+          (pure . (eid, ))
           ev
 
 logWorkBTCHandler :: (C.UTCTime -> LogEvent) -> S.Handler App App EventId
@@ -94,12 +101,11 @@ userEvents = do
         (Nothing, Just e ) -> Before e
         (Just s , Nothing) -> After s
         (Nothing, Nothing) -> Always
-  limit     <- fromMaybe 1 <$> decimalParam "limit"
+  limit <- fromMaybe 1 <$> decimalParam "limit"
   snapEval $ findEvents pid uid ival limit
 
 userWorkIndex :: S.Handler App App (WorkIndex (NetworkId, Address))
-userWorkIndex =
-  workIndex <$> userEvents
+userWorkIndex = workIndex <$> userEvents
 
 payoutsHandler :: S.Handler App App (Payouts (NetworkId, Address))
 payoutsHandler = do
@@ -126,10 +132,14 @@ amendEventHandler = do
          (snapEval . amendEvent uid eventId)
          (A.parseEither (parseEventAmendment nmode modTime) requestJSON)
 
-keyedLogEntryJSON :: NetworkMode -> (EventId, KeyedLogEntry (NetworkId, Address)) -> A.Value
-keyedLogEntryJSON nmode (eid, (pid, uid, ev)) = v2 . obj $
-  [ "eventId"   .= idValue _EventId eid
-  , "projectId" .= idValue _ProjectId pid
-  , "loggedBy"  .= idValue _UserId uid
-  ] <> logEntryFields nmode ev
+keyedLogEntryJSON
+  :: NetworkMode -> (EventId, KeyedLogEntry (NetworkId, Address)) -> A.Value
+keyedLogEntryJSON nmode (eid, (pid, uid, ev)) =
+  v2
+    .  obj
+    $  [ "eventId" .= idValue _EventId eid
+       , "projectId" .= idValue _ProjectId pid
+       , "loggedBy" .= idValue _UserId uid
+       ]
+    <> logEntryFields nmode ev
 

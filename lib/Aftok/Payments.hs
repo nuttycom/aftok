@@ -5,38 +5,59 @@
 module Aftok.Payments
   ( module Aftok.Payments
   , module Aftok.Payments.Types
-  ) where
+  )
+where
 
 
 
-import           Control.Error.Util      (maybeT)
-import           Control.Lens            (makeClassy, makeClassyPrisms, review,
-                                          view, (%~), (^.), traverseOf)
+import           Control.Error.Util             ( maybeT )
+import           Control.Lens                   ( makeClassy
+                                                , makeClassyPrisms
+                                                , review
+                                                , view
+                                                , (%~)
+                                                , (^.)
+                                                , traverseOf
+                                                )
 import           Control.Lens.Tuple
-import           Control.Monad.Except    (MonadError, throwError)
-import qualified Crypto.PubKey.RSA.Types as RSA (Error (..), PrivateKey)
-import           Crypto.Random.Types     (MonadRandom, getRandomBytes)
+import           Control.Monad.Except           ( MonadError
+                                                , throwError
+                                                )
+import qualified Crypto.PubKey.RSA.Types       as RSA
+                                                ( Error(..)
+                                                , PrivateKey
+                                                )
+import           Crypto.Random.Types            ( MonadRandom
+                                                , getRandomBytes
+                                                )
 
-import           Data.AffineSpace        ((.+^))
-import           Data.Map.Strict         (assocs)
-import           Data.Thyme.Clock        as C
-import           Data.Thyme.Time         as T
+import           Data.AffineSpace               ( (.+^) )
+import           Data.Map.Strict                ( assocs )
+import           Data.Thyme.Clock              as C
+import           Data.Thyme.Time               as T
 
-import qualified Bippy           as B
-import qualified Bippy.Proto     as P
-import qualified Bippy.Types     as BT
-import           Haskoin.Address (Address(..))
-import           Haskoin.Address.Base58 (encodeBase58Check)
-import           Haskoin.Script  (ScriptOutput (..))
+import qualified Bippy                         as B
+import qualified Bippy.Proto                   as P
+import qualified Bippy.Types                   as BT
+import           Haskoin.Address                ( Address(..) )
+import           Haskoin.Address.Base58         ( encodeBase58Check )
+import           Haskoin.Script                 ( ScriptOutput(..) )
 import           Network.URI
 
-import           Aftok.Types             (UserId, ProjectId, userAddress)
+import           Aftok.Types                    ( UserId
+                                                , ProjectId
+                                                , userAddress
+                                                )
 import           Aftok.Billables
-import           Aftok.Currency.Bitcoin  (NetworkId(..), NetworkMode, satoshi, toNetwork)
+import           Aftok.Currency.Bitcoin         ( NetworkId(..)
+                                                , NetworkMode
+                                                , satoshi
+                                                , toNetwork
+                                                )
 import           Aftok.Database
 import           Aftok.Payments.Types
-import           Aftok.Project           (depf)
-import qualified Aftok.TimeLog           as TL
+import           Aftok.Project                  ( depf )
+import qualified Aftok.TimeLog                 as TL
 
 data PaymentsConfig = PaymentsConfig
   { _networkMode  :: !NetworkMode
@@ -77,24 +98,29 @@ makeClassyPrisms ''PaymentError
  - determine which if any are up for renewal. Create a payment
  - request for each such subscription.
  --}
-createPaymentRequests :: ( MonadRandom m
-                         , MonadReader r m, HasPaymentsConfig r
-                         , MonadError e m,  AsPaymentError e
-                         , MonadDB m
-                         )
-                      => BillingOps m -- ^ generators for payment request components
-                      -> C.UTCTime    -- ^ timestamp for payment request creation
-                      -> UserId       -- ^ customer responsible for payment
-                      -> ProjectId    -- ^ project whose worklog is to be paid
-                      -> m [PaymentRequestId]
+createPaymentRequests
+  :: ( MonadRandom m
+     , MonadReader r m
+     , HasPaymentsConfig r
+     , MonadError e m
+     , AsPaymentError e
+     , MonadDB m
+     )
+  => BillingOps m -- ^ generators for payment request components
+  -> C.UTCTime    -- ^ timestamp for payment request creation
+  -> UserId       -- ^ customer responsible for payment
+  -> ProjectId    -- ^ project whose worklog is to be paid
+  -> m [PaymentRequestId]
 createPaymentRequests ops now custId pid = do
   subscriptions <- findSubscriptions custId pid
   join <$> traverse (createSubscriptionPaymentRequests ops now) subscriptions
 
-createSubscriptionPaymentRequests ::
-     ( MonadRandom m
-     , MonadReader r m, HasPaymentsConfig r
-     , MonadError e m, AsPaymentError e
+createSubscriptionPaymentRequests
+  :: ( MonadRandom m
+     , MonadReader r m
+     , HasPaymentsConfig r
+     , MonadError e m
+     , AsPaymentError e
      , MonadDB m
      )
   => BillingOps m
@@ -102,17 +128,22 @@ createSubscriptionPaymentRequests ::
   -> (SubscriptionId, Subscription)
   -> m [PaymentRequestId]
 createSubscriptionPaymentRequests ops now (sid, sub) = do
-  billableSub <- maybeT (raiseSubjectNotFound . FindBillable $ sub ^. billable) pure $
-                 traverseOf billable findBillable sub
+  billableSub <-
+    maybeT (raiseSubjectNotFound . FindBillable $ sub ^. billable) pure
+      $ traverseOf billable findBillable sub
   paymentRequests <- findPaymentRequests sid
-  billableDates   <- findUnbilledDates now (view billable billableSub) paymentRequests $
-                     takeWhile (< view _utctDay now) $ billingSchedule billableSub
+  billableDates   <-
+    findUnbilledDates now (view billable billableSub) paymentRequests
+    $ takeWhile (< view _utctDay now)
+    $ billingSchedule billableSub
   traverse (createPaymentRequest ops now sid billableSub) billableDates
 
-createPaymentRequest ::
-     ( MonadRandom m
-     , MonadReader r m, HasPaymentsConfig r
-     , MonadError e m, AsPaymentError e
+createPaymentRequest
+  :: ( MonadRandom m
+     , MonadReader r m
+     , HasPaymentsConfig r
+     , MonadError e m
+     , AsPaymentError e
      , MonadDB m
      )
   => BillingOps m
@@ -122,7 +153,7 @@ createPaymentRequest ::
   -> T.Day
   -> m PaymentRequestId
 createPaymentRequest ops now sid sub bday = do
-  cfg <- ask
+  cfg     <- ask
   -- TODO: maybe make pkey a function of subscription, billable, bday
   pkey    <- PaymentKey . encodeBase58Check <$> getRandomBytes 32
   memo    <- memoGen ops sub bday now
@@ -137,19 +168,21 @@ createPaymentRequest ops now sid sub bday = do
  - FIXME: The current implementation expects the billing day to be a suitable
  - key for comparison to payment requests. This is almost certainly inadequate.
  -}
-findUnbilledDates :: (MonadDB m, MonadError e m, AsPaymentError e)
-                  => C.UTCTime -- ^ the date against which payment request expiration should be checked
-                  -> Billable
-                  -> [(PaymentRequestId, PaymentRequest)] -- ^ the list of existing payment requests
-                  -> [T.Day]   -- ^ the list of expected billing days
-                  -> m [T.Day] -- ^ the list of billing days for which no payment request exists
-findUnbilledDates now b (px @ (p : ps)) (dx @ (d : ds)) =
+findUnbilledDates
+  :: (MonadDB m, MonadError e m, AsPaymentError e)
+  => C.UTCTime -- ^ the date against which payment request expiration should be checked
+  -> Billable
+  -> [(PaymentRequestId, PaymentRequest)] -- ^ the list of existing payment requests
+  -> [T.Day]   -- ^ the list of expected billing days
+  -> m [T.Day] -- ^ the list of billing days for which no payment request exists
+findUnbilledDates now b (px@(p : ps)) (dx@(d : ds)) =
   case compare (view (_2 . billingDate) p) d of
     EQ -> getRequestStatus now p >>= \s -> case s of
-            Expired r -> if view _utctDay now > addDays (view gracePeriod b) (view billingDate r)
-                           then throwError (review _Overdue (r ^. subscription))
-                           else fmap (d :) $ findUnbilledDates now b px dx -- d will be rebilled
-            _         -> findUnbilledDates now b ps ds -- if paid or unpaid, nothing to do
+      Expired r ->
+        if view _utctDay now > addDays (view gracePeriod b) (view billingDate r)
+          then throwError (review _Overdue (r ^. subscription))
+          else fmap (d :) $ findUnbilledDates now b px dx -- d will be rebilled
+      _ -> findUnbilledDates now b ps ds -- if paid or unpaid, nothing to do
     GT -> fmap (d :) $ findUnbilledDates now b px ds
     LT -> findUnbilledDates now b ps dx
 findUnbilledDates _ _ _ ds = pure ds
@@ -158,10 +191,11 @@ findUnbilledDates _ _ _ ds = pure ds
 {- Check whether the specified payment request has a payment associated with
  - it, and return a PaymentRequestStatus value indicating the result.
  -}
-getRequestStatus :: (MonadDB m)
-                 => C.UTCTime -- ^ the date against which request expiration should be checked
-                 -> (PaymentRequestId, PaymentRequest) -- ^ the request for which to find a payment
-                 -> m PaymentRequestStatus
+getRequestStatus
+  :: (MonadDB m)
+  => C.UTCTime -- ^ the date against which request expiration should be checked
+  -> (PaymentRequestId, PaymentRequest) -- ^ the request for which to find a payment
+  -> m PaymentRequestStatus
 getRequestStatus now (reqid, req) =
   let ifUnpaid = (if isExpired now req then Expired else Unpaid) req
   in  maybe ifUnpaid Paid <$> runMaybeT (findPayment reqid)
@@ -170,8 +204,10 @@ getRequestStatus now (reqid, req) =
  -}
 createPaymentDetails
   :: ( MonadRandom m
-     , MonadReader r m , HasPaymentsConfig r
-     , MonadError e m, AsPaymentError e
+     , MonadReader r m
+     , HasPaymentsConfig r
+     , MonadError e m
+     , AsPaymentError e
      , MonadDB m
      )
   => T.Day              -- ^ payout date (billing date)
@@ -184,15 +220,18 @@ createPaymentDetails
 createPaymentDetails payoutDate billingTime memo uri payload b = do
   payouts <- getProjectPayouts payoutTime (b ^. project)
   outputs <- createPayoutsOutputs payoutTime (b ^. amount) payouts
-  let expiry = (BT.Expiry . T.fromThyme . (billingTime .+^)) <$> (b ^. requestExpiryPeriod)
+  let expiry =
+        (BT.Expiry . T.fromThyme . (billingTime .+^))
+          <$> (b ^. requestExpiryPeriod)
   cfg <- ask
-  pure $ B.createPaymentDetails
-    (toNetwork (cfg ^. networkMode) BTC)
-    outputs
-    (T.fromThyme billingTime)
-    expiry memo uri payload
-  where
-    payoutTime = T.mkUTCTime payoutDate (fromInteger 0)
+  pure $ B.createPaymentDetails (toNetwork (cfg ^. networkMode) BTC)
+                                outputs
+                                (T.fromThyme billingTime)
+                                expiry
+                                memo
+                                uri
+                                payload
+  where payoutTime = T.mkUTCTime payoutDate (fromInteger 0)
 
 
 getProjectPayouts
@@ -218,7 +257,6 @@ createPayoutsOutputs
 createPayoutsOutputs t amt p =
   let payoutFractions :: [(TL.CreditTo (NetworkId, Address), BT.Satoshi)]
       payoutFractions = (_2 %~ outputAmount amt) <$> assocs (p ^. TL._Payouts)
-
   in  join <$> traverse (uncurry (createOutputs t)) payoutFractions
 
 
@@ -239,7 +277,7 @@ createOutputs _ (TL.CreditToUser uid) amt = (fmap maybeToList) . runMaybeT $ do
   addr <- MaybeT . pure . fmap snd $ user ^. userAddress
   case addr of
     PubKeyAddress a -> pure $ BT.Output amt (PayPKHash a)
-    other -> throwError $ review _IllegalAddress other
+    other           -> throwError $ review _IllegalAddress other
 
 createOutputs t (TL.CreditToProject pid) amt = do
   payouts <- getProjectPayouts t pid
@@ -249,13 +287,14 @@ createOutputs t (TL.CreditToProject pid) amt = do
 outputAmount :: BT.Satoshi -> Rational -> BT.Satoshi
 outputAmount i r = BT.Satoshi . round $ toRational (i ^. satoshi) * r
 
-findPayableRequests :: (MonadDB m) => UserId -> SubscriptionId -> C.UTCTime -> m [BillDetail]
+findPayableRequests
+  :: (MonadDB m) => UserId -> SubscriptionId -> C.UTCTime -> m [BillDetail]
 findPayableRequests uid sid now = do
   requests <- liftdb findOp
-  join <$> (traverse checkAccess $ filter (not . isExpired now . view _2) requests)
-  where
-    findOp = FindUnpaidRequests sid
-    checkAccess d =
-      if view (_3 . customer) d == uid
-        then pure [d]
-        else raiseOpForbidden uid (UserNotSubscriber sid) findOp
+  join
+    <$> (traverse checkAccess $ filter (not . isExpired now . view _2) requests)
+ where
+  findOp = FindUnpaidRequests sid
+  checkAccess d = if view (_3 . customer) d == uid
+    then pure [d]
+    else raiseOpForbidden uid (UserNotSubscriber sid) findOp

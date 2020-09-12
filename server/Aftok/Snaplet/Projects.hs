@@ -11,8 +11,7 @@ where
 
 
 import           Control.Lens
-import           Control.Monad.Trans.Maybe      ( mapMaybeT
-                                                )
+import           Control.Monad.Trans.Maybe      ( mapMaybeT )
 import           Data.Aeson                    as A
 import           Data.Attoparsec.ByteString     ( takeByteString )
 import           Data.Thyme.Clock              as C

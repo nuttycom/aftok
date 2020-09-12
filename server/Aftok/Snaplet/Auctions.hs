@@ -33,7 +33,7 @@ import           Aftok.Util                     ( fromMaybeT )
 
 import           Aftok.Snaplet
 import           Aftok.Snaplet.Auth
-import           Bippy.Types            ( Satoshi(..) )
+import           Bippy.Types                    ( Satoshi(..) )
 
 data AuctionCreateRequest = CA { raiseAmount :: Word64, auctionStart :: C.UTCTime , auctionEnd :: C.UTCTime }
 

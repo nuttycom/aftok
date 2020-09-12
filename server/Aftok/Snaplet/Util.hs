@@ -1,7 +1,8 @@
 module Aftok.Snaplet.Util where
 
-import           Data.Attoparsec.ByteString     (parseOnly)
-import           Data.Attoparsec.ByteString.Char8     (decimal)
+import           Data.Attoparsec.ByteString     ( parseOnly )
+import           Data.Attoparsec.ByteString.Char8
+                                                ( decimal )
 
 import           Data.ByteString.Char8         as B
 import           Data.Thyme.Clock              as C

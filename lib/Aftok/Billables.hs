@@ -92,22 +92,21 @@ nextRecurrence r = case r of
   Weekly w  -> Just . T.addDays (w * 7)
   OneTime   -> const Nothing
 
-{-
- - A stream of dates upon which the specified subscription
- - should be billed, beginning with the first day of the
- - subscription.
- -}
+-- | A stream of dates upon which the specified subscription
+-- should be billed, beginning with the first day of the
+-- subscription.
 billingSchedule :: forall u. Subscription' u Billable -> [T.Day]
 billingSchedule s =
-  let rec = view (billable . recurrence) s
-      subEndDay = preview (endTime . _Just . C._utctDay) s
+  unfoldr next (Just $ view (startTime . C._utctDay) s)
+  where
+    rec = view (billable . recurrence) s
+    subEndDay = preview (endTime . _Just . C._utctDay) s
 
-      next :: Maybe T.Day -> Maybe (T.Day, Maybe T.Day)
-      next d = do
-        d' <- d
-        if (all (d' <) subEndDay) then Just (d', nextRecurrence rec d') else Nothing
+    next :: Maybe T.Day -> Maybe (T.Day, Maybe T.Day)
+    next d = do
+      d' <- d
+      if (all (d' <) subEndDay) then Just (d', nextRecurrence rec d') else Nothing
 
-  in  unfoldr next (Just $ view (startTime . C._utctDay) s)
 
 
 

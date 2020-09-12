@@ -33,7 +33,7 @@ import           Data.Thyme.Clock              as Clock
 import           Data.Thyme.Time                ( Day )
 import           Data.UUID                     as U
 
-import           Haskoin.Address        ( Address
+import           Haskoin.Address                ( Address
                                                 , addrToJSON
                                                 , addrFromJSON
                                                 , textToAddr
@@ -133,10 +133,7 @@ idJSON t l a = v1 $ obj [t .= idValue l a]
 
 qdbJSON :: Text -> Getter a UUID -> Getter a Value -> a -> Value
 qdbJSON name _id _value x =
-  v1 $ obj
-    [(name <> "Id") .= idValue _id x
-    , name .= (x ^. _value)
-    ]
+  v1 $ obj [(name <> "Id") .= idValue _id x, name .= (x ^. _value)]
 
 projectIdJSON :: ProjectId -> Value
 projectIdJSON = idJSON "projectId" _ProjectId
@@ -264,14 +261,14 @@ parsePayoutsJSON nmode = unversion "Payouts" $ p where
 --
 
 workIndexJSON :: NetworkMode -> WorkIndex (NetworkId, Address) -> Value
-workIndexJSON nmode (WorkIndex widx) =
-  v2 $ obj ["workIndex" .= fmap widxRec (MS.assocs widx)]
-  where
-    widxRec :: (CreditTo (NetworkId, Address), NonEmpty Interval) -> Value
-    widxRec (c, l) = object
-      [ "creditTo" .= creditToJSON nmode c
-      , "intervals" .= (intervalJSON <$> L.toList l)
-      ]
+workIndexJSON nmode (WorkIndex widx) = v2
+  $ obj ["workIndex" .= fmap widxRec (MS.assocs widx)]
+ where
+  widxRec :: (CreditTo (NetworkId, Address), NonEmpty Interval) -> Value
+  widxRec (c, l) = object
+    [ "creditTo" .= creditToJSON nmode c
+    , "intervals" .= (intervalJSON <$> L.toList l)
+    ]
 
 eventIdJSON :: EventId -> Value
 eventIdJSON = idJSON "eventId" _EventId
@@ -311,7 +308,8 @@ billableKV b =
   ]
 
 qdbBillableJSON :: (B.BillableId, B.Billable) -> Value
-qdbBillableJSON = qdbJSON "billable" (_1 . B._BillableId) (_2 . to billableJSON)
+qdbBillableJSON =
+  qdbJSON "billable" (_1 . B._BillableId) (_2 . to billableJSON)
 
 recurrenceJSON' :: B.Recurrence -> Value
 recurrenceJSON' B.Annually    = object ["annually" .= Null]

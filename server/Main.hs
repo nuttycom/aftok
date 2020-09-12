@@ -31,7 +31,7 @@ import           Aftok.Snaplet.WorkLog
 
 import           Snap.Core
 import           Snap.Snaplet
-import qualified Snap.Snaplet.Auth as AU
+import qualified Snap.Snaplet.Auth             as AU
 import           Snap.Snaplet.PostgresqlSimple
 import           Snap.Snaplet.Auth.Backends.PostgresqlSimple
 import           Snap.Snaplet.Session.Backends.CookieSession
@@ -47,7 +47,12 @@ main = do
 appInit :: QConfig -> SnapletInit App App
 appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
   let cookieKey = cfg ^. authSiteKey . to encodeString
-  sesss <- nestSnaplet "sessions" sess $ initCookieSessionManager cookieKey "quookie" Nothing (cfg ^. cookieTimeout)
+  sesss <- nestSnaplet "sessions" sess
+    $ initCookieSessionManager
+        cookieKey
+        "quookie"
+        Nothing
+        (cfg ^. cookieTimeout)
   pgs   <- nestSnaplet "db" db $ pgsInit' (cfg ^. pgsConfig)
   auths <- nestSnaplet "auth" auth $ initPostgresAuth sess pgs
 
@@ -68,8 +73,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
     projectListRoute =
       serveJSON (fmap qdbProjectJSON) $ method GET projectListHandler
 
-    projectRoute =
-      serveJSON projectJSON $ method GET projectGetHandler
+    projectRoute = serveJSON projectJSON $ method GET projectGetHandler
     projectWorkIndexRoute =
       serveJSON (workIndexJSON nmode) (method GET projectWorkIndex)
     projectPayoutsRoute =
@@ -79,8 +83,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
       serveJSON (keyedLogEntryJSON nmode) $ method POST (logWorkHandler f)
     -- logWorkBTCRoute f =
     --   serveJSON eventIdJSON $ method POST (logWorkBTCHandler f)
-    amendEventRoute =
-      serveJSON amendmentIdJSON $ method PUT amendEventHandler
+    amendEventRoute = serveJSON amendmentIdJSON $ method PUT amendEventHandler
     userEventsRoute =
       serveJSON (fmap $ logEntryJSON nmode) $ method GET userEvents
 
@@ -89,10 +92,8 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
 
     auctionCreateRoute =
       serveJSON auctionIdJSON $ method POST auctionCreateHandler
-    auctionRoute    =
-      serveJSON auctionJSON $ method GET auctionGetHandler
-    auctionBidRoute =
-      serveJSON bidIdJSON $ method POST auctionBidHandler
+    auctionRoute    = serveJSON auctionJSON $ method GET auctionGetHandler
+    auctionBidRoute = serveJSON bidIdJSON $ method POST auctionBidHandler
 
     billableCreateRoute =
       serveJSON billableIdJSON $ method POST billableCreateHandler
@@ -113,25 +114,31 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
 
   addRoutes
     [ ("static", serveDirectory . encodeString $ cfg ^. staticAssetPath)
-    , ("login"                              , loginRoute)
-    , ("login"                              , xhrLoginRoute)
-    , ("logout"                             , logoutRoute)
-    , ("login/check"                        , checkLoginRoute)
-    , ("register"                           , registerRoute)
-    , ("accept_invitation"                  , acceptInviteRoute)
+    , ("login"      , loginRoute)
+    , ("login"      , xhrLoginRoute)
+    , ("logout"     , logoutRoute)
+    , ("login/check", checkLoginRoute)
+    , ("register"   , registerRoute)
+    , ( "accept_invitation"
+      , acceptInviteRoute
+      )
     -- , ("projects/:projectId/logStart/:btcAddr" , logWorkBTCRoute StartWork)
     -- , ("projects/:projectId/logEnd/:btcAddr"   , logWorkBTCRoute StopWork)
-    , ("user/projects/:projectId/logStart"     , logWorkRoute StartWork)
-    , ("user/projects/:projectId/logEnd"       , logWorkRoute StopWork)
-    , ("user/projects/:projectId/events"       , userEventsRoute)
-    , ("user/projects/:projectId/workIndex"    , userWorkIndexRoute)
-    , ("projects/:projectId/workIndex"         , projectWorkIndexRoute)
-    , ("projects/:projectId/auctions"  , auctionCreateRoute) -- <|> auctionListRoute)
-    , ("projects/:projectId/billables" , billableCreateRoute <|> billableListRoute)
-    , ("projects/:projectId/payouts"   , projectPayoutsRoute)
-    , ("projects/:projectId/invite"    , inviteRoute)
-    , ("projects/:projectId"           , projectRoute)
-    , ("projects"                      , projectCreateRoute <|> projectListRoute)
+    , ("user/projects/:projectId/logStart" , logWorkRoute StartWork)
+    , ("user/projects/:projectId/logEnd"   , logWorkRoute StopWork)
+    , ("user/projects/:projectId/events"   , userEventsRoute)
+    , ("user/projects/:projectId/workIndex", userWorkIndexRoute)
+    , ("projects/:projectId/workIndex"     , projectWorkIndexRoute)
+    , ( "projects/:projectId/auctions"
+      , auctionCreateRoute
+      ) -- <|> auctionListRoute)
+    , ( "projects/:projectId/billables"
+      , billableCreateRoute <|> billableListRoute
+      )
+    , ("projects/:projectId/payouts", projectPayoutsRoute)
+    , ("projects/:projectId/invite" , inviteRoute)
+    , ("projects/:projectId"        , projectRoute)
+    , ("projects"                   , projectCreateRoute <|> projectListRoute)
     , ("auctions/:auctionId"        , auctionRoute)
     , ("auctions/:auctionId/bid"    , auctionBidRoute)
     , ("subscribe/:billableId"      , subscribeRoute)
