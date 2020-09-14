@@ -104,5 +104,17 @@ checkZAddr zaddr = do
 
 signup :: SignupRequest -> Aff SignupResponse
 signup req = do
-  pure SignupOK
+  let signupJSON = 
+        { username: req.username
+        , password: req.password
+        , recoveryType: case req.recoverBy of
+                             RecoverByEmail _ => "email"
+                             RecoverByZAddr _ => "zaddr"
+        , email: case req.recoverBy of
+                      RecoverByEmail email -> Just email
+                      RecoverByZAddr _ -> Nothing
+        , zaddr: case req.recoverBy of
+                      RecoverByEmail _ -> Nothing
+                      RecoverByZAddr zaddr -> Just zaddr
+        }
   

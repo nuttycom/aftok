@@ -1,0 +1,13 @@
+Description: (Describe migration here.)
+Created: 2020-09-14 23:27:57.342707094 UTC
+Depends: 2020-06-06_03-53-54_add-payment-networks
+Apply: |
+  ALTER TABLE users RENAME COLUMN email TO recovery_email;
+  ALTER TABLE users ALTER COLUMN recovery_email DROP NOT NULL;
+  ALTER TABLE users ADD COLUMN recovery_zaddr text;
+
+Revert: |
+  ALTER TABLE users RENAME COLUMN recovery_email TO email;
+  ALTER TABLE users ALTER COLUMN email SET NOT NULL;
+  ALTER TABLE users DROP COLUMN recovery_zaddr;
+  

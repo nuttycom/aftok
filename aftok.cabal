@@ -32,6 +32,7 @@ library
                       Aftok.Config
                       Aftok.Currency
                       Aftok.Currency.Bitcoin
+                      Aftok.Currency.ZCash
                       Aftok.Database
                       Aftok.Database.PostgreSQL
                       Aftok.Database.PostgreSQL.Types
@@ -155,6 +156,7 @@ Executable aftok-server
     , directory
     , either
     , errors
+    , from-sum
     , hourglass
     , HStringTemplate          
     , iso8601-time

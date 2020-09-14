@@ -48,10 +48,21 @@ psql -h localhost -U aftok -W aftok < local/db-dumps/aftok.dump
 Now, you should be able to shut down docker-compose using ^C and 
 restart it with `docker-compose up`.
 
-Once all the containers are up, you'll need to run the database migrations
-as follows:
+Database Configuration
+----------------------
+
+All database DDL state is handled using the Haskell dbmigrations tool.
+
+Once all the containers are up, you'll need to run the existing database
+migrations as follows:
 
 ~~~bash
 stack install dbmigrations-postgresql
 moo-postgresql upgrade --config-file ./local/conf/server/aftok-migrations.cfg
+~~~
+
+New migrations can be created with:
+
+~~~bash
+moo-postgresql new --config-file ./local/conf/server/aftok-migrations.cfg kebab-case-descriptive-name
 ~~~

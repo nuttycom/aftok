@@ -157,8 +157,7 @@ payouts dep ptime (WorkIndex widx) =
       (totalTime, keyTimes) = MS.mapAccum addIntervalDiff zeroV widx
   in  Payouts $ fmap ((/ toSeconds totalTime) . toSeconds) keyTimes
 
-workIndex
-  :: forall a f . (Ord a, Foldable f) => f (LogEntry a) -> (WorkIndex a)
+workIndex :: forall a f . (Ord a, Foldable f) => f (LogEntry a) -> (WorkIndex a)
 workIndex logEntries =
   let sortedEntries = F.foldr H.insert H.empty logEntries
       rawIndex      = F.foldl' appendLogEntry MS.empty sortedEntries

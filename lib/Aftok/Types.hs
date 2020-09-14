@@ -6,7 +6,6 @@ module Aftok.Types where
 import           Control.Lens                   ( makeLenses
                                                 , makePrisms
                                                 )
-import           Data.Maybe                     ( Maybe )
 import           Data.Eq                        ( Eq )
 import           Data.Functor                   ( Functor )
 import           Data.Ord                       ( Ord )
@@ -14,6 +13,7 @@ import           Data.Text                      ( Text )
 import           Data.UUID                      ( UUID )
 import           Prelude                        ( Integer )
 import           Text.Show                      ( Show )
+import           Aftok.Currency.ZCash           ( ZAddr )
 
 
 newtype UserId = UserId UUID deriving (Show, Eq, Ord)
@@ -25,10 +25,14 @@ makePrisms ''UserName
 newtype Email = Email Text deriving (Show, Eq)
 makePrisms ''Email
 
-data User a = User
-  { _username    :: !UserName
-  , _userAddress :: !(Maybe a)
-  , _userEmail   :: !Email
+data AccountRecovery
+  = RecoverByEmail Email
+  | RecoverByZAddr ZAddr
+makePrisms ''AccountRecovery
+
+data User = User
+  { _username             :: !UserName
+  , _userAccountRecovery  :: !AccountRecovery
   }
 makeLenses ''User
 

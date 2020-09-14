@@ -41,6 +41,7 @@ import           Safe                           ( headMay )
 import qualified Aftok.Auction                 as A
 import qualified Aftok.Billables               as B
 import           Aftok.Currency.Bitcoin
+import           Aftok.Currency.ZCash           (ZAddr(..), _ZAddr)
 import           Aftok.Database
 import           Aftok.Database.PostgreSQL.Types
                                                 ( SerDepFunction(..) )
@@ -76,9 +77,6 @@ instance MonadDB QDBM where
 runQDBM :: NetworkMode -> Connection -> QDBM a -> ExceptT DBError IO a
 runQDBM mode conn (QDBM r) = runReaderT r (mode, conn)
 
-null :: RowParser Null
-null = field
-
 idParser :: (UUID -> a) -> RowParser a
 idParser f = f <$> field
 
@@ -94,8 +92,8 @@ networkIdParser f b = do
       ("Network identifier " <> other <> " is not supported.")
     Nothing -> pure BTC
 
-addressParser :: NetworkMode -> RowParser (NetworkId, Address)
-addressParser mode = do
+btcAddressParser :: NetworkMode -> RowParser (NetworkId, Address)
+btcAddressParser mode = do
   networkId <- fieldWith (networkIdParser)
   address   <- fieldWith $ addrFieldParser (toNetwork mode networkId)
   pure (networkId, address)
@@ -153,7 +151,7 @@ creditToParser' mode f v = do
   parser :: Text -> RowParser (CreditTo (NetworkId, Address))
   parser = \case
     "credit_to_address" ->
-      CreditToCurrency <$> (addressParser mode <* nullField <* nullField)
+      CreditToCurrency <$> (btcAddressParser mode <* nullField <* nullField)
     "credit_to_user" ->
       CreditToUser <$> (nullField *> nullField *> idParser UserId <* nullField)
     "credit_to_project" ->
@@ -187,12 +185,15 @@ bidParser :: RowParser A.Bid
 bidParser =
   A.Bid <$> idParser UserId <*> (Seconds <$> field) <*> btcParser <*> utcParser
 
-userParser :: NetworkMode -> RowParser BTCUser
-userParser mode =
+userParser :: RowParser User
+userParser =
   User
     <$> (UserName <$> field)
-    <*> ((null *> null *> pure Nothing) <|> fmap Just (addressParser mode))
-    <*> (Email <$> field)
+    <*> (
+      (maybe empty pure =<< fmap (RecoverByEmail . Email) <$> field)
+      <|>
+      (maybe empty pure =<< fmap (RecoverByZAddr . ZAddr) <$> field)
+    )
 
 projectParser :: RowParser P.Project
 projectParser =
@@ -522,36 +523,33 @@ pgEval (FindBids aucId) = pquery
   (Only (aucId ^. A._AuctionId))
 
 pgEval (CreateUser user') = do
-  mode <- askNetworkMode
-  let nidMay = fst <$> _userAddress user'
-      addrMay :: Maybe Text
-      addrMay = do
-        network <- toNetwork mode <$> nidMay
-        address <- snd <$> _userAddress user'
-        addrToText network address
   pinsert
     UserId
-    [sql| INSERT INTO users (handle, default_payment_network, default_payment_addr, email)
+    [sql| INSERT INTO users (handle, recovery_email, recovery_zaddr)
           VALUES (?, ?, ?, ?) RETURNING id |]
     ( user' ^. (username . _UserName)
-    , renderNetworkId <$> nidMay
-    , addrMay
-    , user' ^. userEmail . _Email
+    , user' ^? userAccountRecovery . _RecoverByEmail . _Email
+    , user' ^? userAccountRecovery . _RecoverByZAddr . _ZAddr
     )
 
 pgEval (FindUser (UserId uid)) = do
-  mode <- askNetworkMode
   headMay <$> pquery
-    (userParser mode)
-    [sql| SELECT handle, default_payment_network, default_payment_addr, email FROM users WHERE id = ? |]
+    userParser
+    [sql| SELECT handle, recovery_email, recovery_zaddr FROM users WHERE id = ? |]
     (Only uid)
 
 pgEval (FindUserByName (UserName h)) = do
+  headMay <$> pquery
+    ((,) <$> idParser UserId <*> userParser)
+    [sql| SELECT id, handle, recovery_email, recovery_zaddr FROM users WHERE handle = ? |]
+    (Only h)
+
+pgEval (FindUserPaymentAddress (UserId uid)) = do
   mode <- askNetworkMode
   headMay <$> pquery
-    ((,) <$> idParser UserId <*> userParser mode)
-    [sql| SELECT id, handle, default_payment_network, default_payment_addr, email FROM users WHERE handle = ? |]
-    (Only h)
+    (btcAddressParser mode)
+    [sql| SELECT default_payment_network, default_payment_addr FROM users WHERE id = ? |]
+    (Only uid)
 
 pgEval (CreateInvitation (ProjectId pid) (UserId uid) (Email e) t) = do
   invCode <- liftIO P.randomInvCode

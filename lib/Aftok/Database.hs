@@ -36,12 +36,12 @@ type InvitingUID = UserId
 type InvitedUID = UserId
 
 type BTCNet = (NetworkId, Address)
-type BTCUser = User BTCNet
 
 data DBOp a where
-  CreateUser       :: BTCUser -> DBOp UserId
-  FindUser         :: UserId -> DBOp (Maybe BTCUser)
-  FindUserByName   :: UserName -> DBOp (Maybe (UserId, BTCUser))
+  CreateUser       :: User -> DBOp UserId
+  FindUser         :: UserId -> DBOp (Maybe User)
+  FindUserByName   :: UserName -> DBOp (Maybe (UserId, User))
+  FindUserPaymentAddress :: UserId -> DBOp (Maybe (BTCNet))
 
   CreateProject    :: Project -> DBOp ProjectId
   FindProject      :: ProjectId -> DBOp (Maybe Project)
@@ -113,14 +113,17 @@ raiseSubjectNotFound op = liftdb $ RaiseDBError SubjectNotFound op
 
 -- User ops
 
-createUser :: (MonadDB m) => BTCUser -> m UserId
+createUser :: (MonadDB m) => User -> m UserId
 createUser = liftdb . CreateUser
 
-findUser :: (MonadDB m) => UserId -> MaybeT m BTCUser
+findUser :: (MonadDB m) => UserId -> MaybeT m User
 findUser = MaybeT . liftdb . FindUser
 
-findUserByName :: (MonadDB m) => UserName -> MaybeT m (UserId, BTCUser)
+findUserByName :: (MonadDB m) => UserName -> MaybeT m (UserId, User)
 findUserByName = MaybeT . liftdb . FindUserByName
+
+findUserPaymentAddress :: (MonadDB m) => UserId -> MaybeT m (BTCNet)
+findUserPaymentAddress = MaybeT . liftdb . FindUserPaymentAddress
 
 -- Project ops
 

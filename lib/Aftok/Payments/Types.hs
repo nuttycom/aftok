@@ -72,8 +72,8 @@ type BillDetail = (PaymentKey, PaymentRequest, Subscription, Billable)
 isExpired :: forall s . C.UTCTime -> PaymentRequest' s -> Bool
 isExpired now req =
   let check = any ((now >) . C.toThyme . expiryTime)
-      -- using error here is reasonable since it would indicate
-      -- a serialization problem
+          -- using error here is reasonable since it would indicate
+          -- a serialization problem
   in  either (error . T.pack) (check . getExpires)
         $ getPaymentDetails (view paymentRequest req)
 

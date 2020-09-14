@@ -46,7 +46,6 @@ import           Network.URI
 
 import           Aftok.Types                    ( UserId
                                                 , ProjectId
-                                                , userAddress
                                                 )
 import           Aftok.Billables
 import           Aftok.Currency.Bitcoin         ( NetworkId(..)
@@ -273,8 +272,7 @@ createOutputs _ (TL.CreditToCurrency (_, other)) _ =
   throwError $ review _IllegalAddress other
 
 createOutputs _ (TL.CreditToUser uid) amt = (fmap maybeToList) . runMaybeT $ do
-  user <- findUser uid
-  addr <- MaybeT . pure . fmap snd $ user ^. userAddress
+  (_, addr) <- findUserPaymentAddress uid
   case addr of
     PubKeyAddress a -> pure $ BT.Output amt (PayPKHash a)
     other           -> throwError $ review _IllegalAddress other

@@ -22,6 +22,7 @@ import qualified Snap.Http.Server.Config       as SC
 import           Snap.Snaplet.PostgresqlSimple
 
 import           Aftok.Config
+import           Aftok.Snaplet.Users (CaptchaConfig(..))
 
 data QConfig = QConfig
   { _hostname      :: C8.ByteString
@@ -33,7 +34,7 @@ data QConfig = QConfig
   , _billingConfig :: BillingConfig
   , _templatePath  :: P.FilePath
   , _staticAssetPath :: P.FilePath
-  , _recaptchaSecret :: Maybe Text
+  , _recaptchaSecret :: CaptchaConfig
   }
 makeLenses ''QConfig
 
@@ -62,7 +63,7 @@ readQConfig cfg pc =
                                       cfg
                                       "staticAssetPath"
         )
-    <*> C.lookup cfg "recaptchaSecret"
+    <*> (CaptchaConfig <$> C.require cfg "recaptchaSecret")
 
 baseSnapConfig :: QConfig -> SC.Config m a -> SC.Config m a
 baseSnapConfig qc = SC.setHostname (qc ^. hostname) . SC.setPort (qc ^. port)
