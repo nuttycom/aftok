@@ -21,6 +21,7 @@ import           Snap.Core
 import qualified Snap.Http.Server.Config       as SC
 import           Snap.Snaplet.PostgresqlSimple
 
+import           Aftok.Currency.Zcash (ZcashdConfig(..))
 import           Aftok.Config
 import           Aftok.Snaplet.Users (CaptchaConfig(..))
 
@@ -35,6 +36,7 @@ data QConfig = QConfig
   , _templatePath  :: P.FilePath
   , _staticAssetPath :: P.FilePath
   , _recaptchaSecret :: CaptchaConfig
+  , _zcashdConfig  :: ZcashdConfig
   }
 makeLenses ''QConfig
 
@@ -64,6 +66,12 @@ readQConfig cfg pc =
                                       "staticAssetPath"
         )
     <*> (CaptchaConfig <$> C.require cfg "recaptchaSecret")
+    <*> (readZcashdConfig $ C.subconfig "zcashd" cfg)
+
+readZcashdConfig :: CT.Config -> IO ZcashdConfig
+readZcashdConfig cfg =
+  ZcashdConfig <$> C.require cfg "zcashdHost"
+               <*> C.require cfg "zcashdPort"
 
 baseSnapConfig :: QConfig -> SC.Config m a -> SC.Config m a
 baseSnapConfig qc = SC.setHostname (qc ^. hostname) . SC.setPort (qc ^. port)

@@ -13,7 +13,7 @@ import           Data.Text                      ( Text )
 import           Data.UUID                      ( UUID )
 import           Prelude                        ( Integer )
 import           Text.Show                      ( Show )
-import           Aftok.Currency.ZCash           ( ZAddr )
+import           Aftok.Currency.Zcash           ( ZAddr )
 
 
 newtype UserId = UserId UUID deriving (Show, Eq, Ord)
@@ -25,14 +25,14 @@ makePrisms ''UserName
 newtype Email = Email Text deriving (Show, Eq)
 makePrisms ''Email
 
-data AccountRecovery
+data AccountRecovery z
   = RecoverByEmail Email
-  | RecoverByZAddr ZAddr
+  | RecoverByZAddr z
 makePrisms ''AccountRecovery
 
 data User = User
   { _username             :: !UserName
-  , _userAccountRecovery  :: !AccountRecovery
+  , _userAccountRecovery  :: !(AccountRecovery ZAddr)
   }
 makeLenses ''User
 

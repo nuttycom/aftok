@@ -12,11 +12,14 @@ import           Data.Serialize.Put             ( runPutLazy )
 import           Filesystem.Path.CurrentOS      ( decodeString
                                                 , encodeString
                                                 )
+import           Network.HTTP.Client            ( Manager, newManager, defaultManagerSettings )
 import           System.Environment
 import           System.IO.Error                ( IOError )
 
+import           Aftok.Currency.Zcash           ( rpcValidateZAddr )
 import           Aftok.Json
 import           Aftok.TimeLog
+import           Aftok.Users                    ( RegisterError(..) )
 
 import qualified Aftok.Config                  as C
 import           Aftok.QConfig                 as Q
@@ -44,9 +47,19 @@ main = do
   sconf   <- snapConfig cfg
   serveSnaplet sconf $ appInit cfg
 
+registerOps :: Manager -> QConfig -> RegisterOps IO
+registerOps mgr cfg = RegisterOps
+  { parseZAddr =
+      (pure . first ZAddrParseError)
+      <=< rpcValidateZAddr mgr (_zcashdConfig cfg)
+  , sendConfirmationEmail = const $ pure ()
+  }
+
 appInit :: QConfig -> SnapletInit App App
 appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
+  mgr <- liftIO $ newManager defaultManagerSettings
   let cookieKey = cfg ^. authSiteKey . to encodeString
+      rops = registerOps mgr cfg
   sesss <- nestSnaplet "sessions" sess
     $ initCookieSessionManager
         cookieKey
@@ -64,7 +77,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
     checkLoginRoute   = void $ method GET requireUser
     logoutRoute       = method GET (with auth AU.logout)
 
-    registerRoute     = void $ method POST (registerHandler $ cfg ^. recaptchaSecret)
+    registerRoute     = void $ method POST (registerHandler rops (cfg ^. recaptchaSecret))
     inviteRoute       = void $ method POST (projectInviteHandler cfg)
     acceptInviteRoute = void $ method POST acceptInvitationHandler
 

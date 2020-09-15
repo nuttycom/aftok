@@ -8,6 +8,7 @@ module Aftok.Snaplet.Users
   , CaptchaConfig(..)
   , CaptchaError(..)
   , checkCaptcha
+  , RegisterOps(..)
   )
 where
 
@@ -36,10 +37,14 @@ import           Network.HTTP.Client.MultipartFormData
                                                 )
 import           Network.HTTP.Types.Status      ( statusCode )
 
-import           Aftok.Currency.ZCash           ( ZAddr(..) )
-import           Aftok.Database
-import           Aftok.Project
-import           Aftok.Types
+import           Aftok.Database                 ( createUser, acceptInvitation )
+import           Aftok.Project                  ( InvitationCode, parseInvCode )
+import           Aftok.Users                    ( RegisterOps(..) )
+import           Aftok.Types                    ( UserId, User(..)
+                                                , AccountRecovery(..)
+                                                , Email(..)
+                                                , UserName(..), _UserName
+                                                )
 
 import           Aftok.Snaplet
 import           Aftok.Snaplet.Auth
@@ -48,8 +53,14 @@ import qualified Snap.Core                     as S
 import qualified Snap.Snaplet                  as S
 import qualified Snap.Snaplet.Auth             as AU
 
+data RegUser = RegUser
+  { _username             :: !UserName
+  , _userAccountRecovery  :: !(AccountRecovery Text)
+  }
+makeLenses ''RegUser
+
 data RegisterRequest = RegisterRequest
-  { _cuser           :: User
+  { _regUser         :: RegUser
   , _password        :: ByteString
   , _captchaToken    :: Text
   , _invitationCodes :: [InvitationCode]
@@ -61,15 +72,15 @@ instance A.FromJSON RegisterRequest where
     recoveryType <- v .: "recoveryType"
     recovery <- case (recoveryType :: Text) of
       "email" -> RecoverByEmail . Email <$> v .: "email"
-      "zaddr" -> RecoverByZAddr . ZAddr <$> v .: "zaddr"
+      "zaddr" -> RecoverByZAddr         <$> v .: "zaddr"
       _ -> Prelude.empty
-    user <- User <$> (UserName <$> v .: "username")
-                 <*> pure recovery
+    user <- RegUser <$> (UserName <$> v .: "username")
+                    <*> pure recovery
 
     RegisterRequest user
-          <$> (fromString <$> v .: "password")
-          <*> (v .: "captchaToken")
-          <*> (parseInvitationCodes =<< v .: "invitation_codes")
+      <$> (fromString <$> v .: "password")
+      <*> (v .: "captchaToken")
+      <*> (parseInvitationCodes =<< v .: "invitation_codes")
 
     where
       parseInvitationCodes c = either
@@ -78,23 +89,36 @@ instance A.FromJSON RegisterRequest where
              (traverse parseInvCode c)
   parseJSON _ = mzero
 
-registerHandler :: CaptchaConfig -> S.Handler App App UserId
-registerHandler cfg = do
+registerHandler :: RegisterOps IO -> CaptchaConfig -> S.Handler App App UserId
+registerHandler ops cfg = do
   rbody    <- S.readRequestBody 4096
   userData <- fromMaybeM (snapError 400 "Could not parse user data") (A.decode rbody)
   captchaResult <- liftIO $ checkCaptcha cfg (userData ^. captchaToken)
-  void . either (const . throwDenied $ AU.AuthError "Captcha check failed, please try again.") pure $ captchaResult
+  let captchaFailed = throwDenied $ AU.AuthError "Captcha check failed, please try again."
+  void . either (const captchaFailed) pure $ captchaResult
 
-  now   <- liftIO C.getCurrentTime
+  acctRecovery <- case (userData ^. regUser . userAccountRecovery) of
+    RecoverByEmail e -> do
+      liftIO $ sendConfirmationEmail ops e
+      pure $ RecoverByEmail e
+    RecoverByZAddr z -> do
+      zaddrValid <- liftIO $ parseZAddr ops z
+      case zaddrValid of
+        Left _  -> snapError 400 "The Z-Address provided for account recovery was invalid."
+        Right r -> pure $ RecoverByZAddr r
+
+  now <- liftIO C.getCurrentTime
   let
-    createSUser = AU.createUser (userData ^. (cuser . username . _UserName))
-                                (userData ^. password)
+    uname = userData ^. (regUser . username)
+    createSUser = AU.createUser (uname ^. _UserName) (userData ^. password)
     createQUser = snapEval $ do
-      userId <- createUser (userData ^. cuser)
+      userId <- createUser $ User uname acctRecovery
       void $ traverse (acceptInvitation userId now) (userData ^. invitationCodes)
       pure userId
   authUser <- S.with auth createSUser
   either throwDenied (\_ -> createQUser) authUser
+
+
 
 acceptInvitationHandler :: S.Handler App App ()
 acceptInvitationHandler = do

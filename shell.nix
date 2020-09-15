@@ -22,6 +22,7 @@ pkgs.stdenv.mkDerivation{
     haskellPackages.brittany
     haskellPackages.cabal-install
     haskellPackages.ghcid
+    haskellPackages.ormolu
   ] ++ libInputs;
 
   shellHook = ''

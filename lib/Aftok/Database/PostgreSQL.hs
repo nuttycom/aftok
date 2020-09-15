@@ -41,7 +41,7 @@ import           Safe                           ( headMay )
 import qualified Aftok.Auction                 as A
 import qualified Aftok.Billables               as B
 import           Aftok.Currency.Bitcoin
-import           Aftok.Currency.ZCash           (ZAddr(..), _ZAddr)
+import           Aftok.Currency.Zcash           (ZAddr(..), _ZAddr)
 import           Aftok.Database
 import           Aftok.Database.PostgreSQL.Types
                                                 ( SerDepFunction(..) )

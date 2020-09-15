@@ -32,7 +32,7 @@ library
                       Aftok.Config
                       Aftok.Currency
                       Aftok.Currency.Bitcoin
-                      Aftok.Currency.ZCash
+                      Aftok.Currency.Zcash
                       Aftok.Database
                       Aftok.Database.PostgreSQL
                       Aftok.Database.PostgreSQL.Types
@@ -44,6 +44,7 @@ library
                       Aftok.TimeLog
                       Aftok.TimeLog.Serialization
                       Aftok.Types
+                      Aftok.Users
                       Aftok.Util
                       Aftok.Util.Http
   build-depends:      
@@ -67,6 +68,8 @@ library
     , haskoin-core 
     , heaps       
     , hourglass  
+    , http-client
+    , http-types
     , kan-extensions
     , lens     
     , lens-aeson

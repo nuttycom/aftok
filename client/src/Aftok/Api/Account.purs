@@ -104,7 +104,7 @@ checkZAddr zaddr = do
 
 signup :: SignupRequest -> Aff SignupResponse
 signup req = do
-  let signupJSON = 
+  let signupJSON = encodeJson $ 
         { username: req.username
         , password: req.password
         , recoveryType: case req.recoverBy of
@@ -116,5 +116,11 @@ signup req = do
         , zaddr: case req.recoverBy of
                       RecoverByEmail _ -> Nothing
                       RecoverByZAddr zaddr -> Just zaddr
+        , captchaToken: req.captchaToken
         }
+  result <- post RF.ignore "/api/register" (Just <<< RB.Json $ signupJson)
+  case result of
+       Left err -> log ("Registration failed: " <> printError err)
+       Right r  -> log ("Registration status: " <> show r.status)
+
   
