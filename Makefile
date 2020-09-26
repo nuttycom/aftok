@@ -1,5 +1,4 @@
 VERSION=$(shell git describe)
-PWD=$(shell pwd)
 
 format:
 	find lib test server daemon -name \*.hs -exec brittany --write-mode=inplace {} \;
