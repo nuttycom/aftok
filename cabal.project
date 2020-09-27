@@ -8,7 +8,7 @@ packages:
 source-repository-package
     type: git
     location: https://github.com/aftok/bippy.git
-    tag: dcf0965c777b995e317476d5f37515573e71a89a
+    tag: 1f373039ff22d51c54b41cda57e688e74d00a642
 
 source-repository-package
     type: git
