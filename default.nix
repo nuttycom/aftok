@@ -10,11 +10,12 @@
 , snap-core, snap-server, snaplet-postgresql-simple, stdenv
 , system-filepath, template-haskell, text, thyme, transformers
 , unordered-containers, uuid, vector-space, wreq, x509, x509-store
+, nix-gitignore
 }:
 mkDerivation {
   pname = "aftok";
   version = "0.1";
-  src = ./.;
+  src = nix-gitignore.gitignoreSource [] ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
