@@ -10,7 +10,7 @@ let
     sha256 = "1mykgak4flrl0hx0xkll4rdjlfvr91r5l9rlhbyc6axl40487dqn";
   };
 
-  #secp256k1-haskell
+  #secp256k1-haskell 0.4.0
   secp256k1-haskell = pkgs.fetchFromGitHub {
     owner = "haskoin";
     repo = "secp256k1-haskell";
