@@ -8,6 +8,7 @@ services:
       - "8000"
     depends_on:
       - aftokdb
+      - zcashd
     volumes:
       - type: bind
         source: ./local/conf/server
@@ -27,7 +28,7 @@ services:
       - aftok
     volumes:
       - type: bind
-        source: ./deploy/nginx/
+        source: ./local/conf/nginx/
         target: /etc/nginx
       - type: bind
         source: ./local/conf/nginx-certs
@@ -59,6 +60,21 @@ services:
       - type: bind
         source: ./local/db-dumps
         target: /opt/
+    networks:
+      - back-tier
+
+  zcashd:
+    image: electriccoinco/zcashd:v4.0.0
+    container_name: aftok-zcashd
+    ports:
+      - "8232:8232"
+    volumes:
+      - type: bind
+        source: ./local/conf/zcashd/zcash-data
+        target: /srv/zcashd/.zcash
+      - type: bind
+        source: ./local/conf/zcashd/zcash-params
+        target: /srv/zcashd/.zcash-params
     networks:
       - back-tier
 

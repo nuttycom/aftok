@@ -47,6 +47,7 @@ ADD ./stack.yaml  /opt/aftok/stack.yaml
 # Build dependencies
 RUN /root/.local/bin/stack setup
 RUN /root/.local/bin/stack install cpphs 
+RUN apt-get install -y --no-install-recommends pkg-config
 RUN /root/.local/bin/stack build --only-dependencies -j1
 
 ADD ./lib         /opt/aftok/lib

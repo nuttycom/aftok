@@ -13,6 +13,82 @@ cabal new-build
 Local Development with docker-compose
 =====================================
 
+The easiest way to run local aftok infrastructure is using Docker and
+docker-compose. Several steps are necessary to set up your local environment
+for development.
+
+Obtaining Docker Images
+-----------------------
+
+The docker-compose setup requires 4 images:
+
+* `aftok/aftok-server:latest`
+* `nginx/nginx:latest`
+* `postgres/postgres:9.4`
+* `electriccoinco/zcashd:v4.0.0`
+
+You can obtain these images by running the following. This assumes the use of
+`sudo` under Linux; this may not be necessary on other platforms (e.g. OSX).
+
+~~~bash
+make build-image # build the aftok-server image(s)
+docker pull nginx/nginx:lates
+docker pull postgres/postgres:9.4
+docker pull electriccoinco/zcashd:v4.0.0
+~~~
+
+If you have problems building the aftok-server image, you can also obtain
+a prebuilt image by running
+
+~~~bash
+docker pull aftok/aftok-server:latest
+~~~
+
+Configuration Files
+-------------------
+
+A number of configuration files are required for docker-compose to be able
+to run all of the necessary containers successfully. You should create
+a `local` directory, which will have the following contents:
+
+~~~
+local
+├── conf
+│   ├── nginx
+│   │   ├── mime.types
+│   │   └── nginx.conf
+│   ├── nginx-certs
+│   │   ├── aftok.crt
+│   │   └── aftok.key
+│   ├── server
+│   │   ├── aftok.bip70-chain.cert.pem
+│   │   ├── aftok.bip70.key.pem
+│   │   ├── aftok.cfg
+│   │   ├── aftok-migrations.cfg
+│   │   └── snap-site-key
+│   └── zcashd
+│       ├── zcash-data
+│       │   └── zcash.conf
+│       └── zcash-params
+└── db-dumps
+    └── aftok.sample.plsql
+~~~
+
+Sample default versions of each of these files can be found in the `conf`
+directory; you can simply use the following to set up your local environment:
+
+~~~bash
+mkdir local
+cp -r conf local
+
+# The aftok-zcashd container runs zcashd as user 2001, so we change the
+# owner of the zcashd configuration directories to this user.
+sudo chown -R 2001.2001 local/conf/zcashd
+~~~
+
+Database Initialization
+-----------------------
+
 When you first set up your local docker environment for aftok development, the
 database that is created by `docker-compose up` will not be initialized.  The
 easiest way to get it set up is to bootstrap from an existing database dump. 
