@@ -219,13 +219,15 @@ component system caps conf = H.mkComponent
       SetRecoveryType t -> H.modify_ (_ { recoveryType = t })
       SetRecoveryEmail email -> H.modify_ (_ { recoveryEmail = Just email })
       SetRecoveryZAddr addr -> do
+        lift $ system.log "Switching to signin..."
         zres <- lift $ caps.checkZAddr addr
         H.modify_ (_ { recoveryZAddr = Just addr })
         case zres of
-          Acc.ZAddrCheckOK -> pure unit
+          Acc.ZAddrCheckValid -> pure unit
           Acc.ZAddrCheckInvalid -> H.modify_ (_ { signupErrors = [ZAddrInvalid] })
 
       Signin ev -> do 
+        lift $ system.log "Switching to signin..."
         lift $ system.preventDefault (ME.toEvent ev)
         H.raise SigninNav
 
@@ -242,6 +244,7 @@ component system caps conf = H.mkComponent
           RecoveryZAddr -> 
             V <<< note [ZAddrRequired] <<< map Acc.RecoverByZAddr <$> H.gets (_.recoveryZAddr)
         recapV <- lift $ V <<< note [CaptchaError] <$> caps.getRecaptchaResponse Nothing
+        lift $ system.log "Sending signup request..."
         let reqV :: V (Array SignupError) Acc.SignupRequest
             reqV = signupRequest <$> usernameV
                                  <*> ((eq <$> pwdFormV <*> pwdConfV) `andThen` 
@@ -249,15 +252,18 @@ component system caps conf = H.mkComponent
                                  <*> recoveryV
                                  <*> recapV
         case toEither reqV of
-          Left errors -> 
+          Left errors -> do
+            lift $ system.log "Got signup HTTP error."
             H.modify_ (_ { signupErrors = errors })
           Right req -> do
             response <- lift (caps.signup req)
+            lift <<< system.log $ "Got signup response " <> show response
             case response of
-              Acc.SignupOK -> H.raise (SignupComplete $ req.username)
-              Acc.CaptchaInvalid -> H.modify_ (_ { signupErrors = [CaptchaError] })
-              Acc.ZAddrInvalid -> H.modify_ (_ { signupErrors = [ZAddrInvalid] })
-              Acc.UsernameTaken -> H.modify_ (_ { signupErrors = [UsernameTaken] })
+              Acc.SignupOK         -> H.raise (SignupComplete $ req.username)
+              Acc.CaptchaInvalid   -> H.modify_ (_ { signupErrors = [CaptchaError] })
+              Acc.ZAddrInvalid     -> H.modify_ (_ { signupErrors = [ZAddrInvalid] })
+              Acc.UsernameTaken    -> H.modify_ (_ { signupErrors = [UsernameTaken] })
+              Acc.ServiceError c m -> H.modify_ (_ { signupErrors = [APIError { status: c, message: m }]})
 
 recoverySwitch :: forall i. RecoveryType -> HH.HTML i SignupAction
 recoverySwitch rt = 
@@ -329,10 +335,18 @@ recoveryField st = case st.recoveryType of
         ]
       ]
 
+apiCapability :: Capability Aff
+apiCapability = 
+  { checkUsername: \_ -> pure Acc.UsernameCheckOK
+  , checkZAddr: Acc.checkZAddr
+  , signup: Acc.signup
+  , getRecaptchaResponse: liftEffect <<< getRecaptchaResponse 
+  }
+
 mockCapability :: Capability Aff
 mockCapability = 
   { checkUsername: \_ -> pure Acc.UsernameCheckOK
-  , checkZAddr: \_ -> pure Acc.ZAddrCheckOK
+  , checkZAddr: \_ -> pure Acc.ZAddrCheckValid
   , signup: \_ -> pure Acc.SignupOK
   , getRecaptchaResponse: liftEffect <<< getRecaptchaResponse 
   }

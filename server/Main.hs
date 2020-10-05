@@ -19,7 +19,6 @@ import           System.IO.Error                ( IOError )
 import           Aftok.Currency.Zcash           ( rpcValidateZAddr )
 import           Aftok.Json
 import           Aftok.TimeLog
-import           Aftok.Users                    ( RegisterError(..) )
 
 import qualified Aftok.Config                  as C
 import           Aftok.QConfig                 as Q
@@ -49,9 +48,7 @@ main = do
 
 registerOps :: Manager -> QConfig -> RegisterOps IO
 registerOps mgr cfg = RegisterOps
-  { parseZAddr =
-      (pure . first ZAddrParseError)
-      <=< rpcValidateZAddr mgr (_zcashdConfig cfg)
+  { parseZAddr = rpcValidateZAddr mgr (_zcashdConfig cfg)
   , sendConfirmationEmail = const $ pure ()
   }
 
@@ -77,6 +74,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
     checkLoginRoute   = void $ method GET requireUser
     logoutRoute       = method GET (with auth AU.logout)
 
+    checkZAddrRoute   = void $ method GET  (checkZAddrHandler rops)
     registerRoute     = void $ method POST (registerHandler rops (cfg ^. recaptchaSecret))
     inviteRoute       = void $ method POST (projectInviteHandler cfg)
     acceptInviteRoute = void $ method POST acceptInvitationHandler
@@ -132,6 +130,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
     , ("logout"     , logoutRoute)
     , ("login/check", checkLoginRoute)
     , ("register"   , registerRoute)
+    , ("validate_zaddr", checkZAddrRoute)
     , ( "accept_invitation"
       , acceptInviteRoute
       )

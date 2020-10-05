@@ -3,8 +3,9 @@
 {-# LANGUAGE TupleSections   #-}
 
 module Aftok.Snaplet.Users
-  ( registerHandler
-  , acceptInvitationHandler
+  ( acceptInvitationHandler
+  , checkZAddrHandler
+  , registerHandler
   , CaptchaConfig(..)
   , CaptchaError(..)
   , checkCaptcha
@@ -37,6 +38,7 @@ import           Network.HTTP.Client.MultipartFormData
                                                 )
 import           Network.HTTP.Types.Status      ( statusCode )
 
+import           Aftok.Currency.Zcash           ( ZAddr )
 import           Aftok.Database                 ( createUser, acceptInvitation )
 import           Aftok.Project                  ( InvitationCode, parseInvCode )
 import           Aftok.Users                    ( RegisterOps(..) )
@@ -71,8 +73,8 @@ instance A.FromJSON RegisterRequest where
   parseJSON (A.Object v) = do
     recoveryType <- v .: "recoveryType"
     recovery <- case (recoveryType :: Text) of
-      "email" -> RecoverByEmail . Email <$> v .: "email"
-      "zaddr" -> RecoverByZAddr         <$> v .: "zaddr"
+      "email" -> RecoverByEmail . Email <$> v .: "recoveryEmail"
+      "zaddr" -> RecoverByZAddr         <$> v .: "recoveryZAddr"
       _ -> Prelude.empty
     user <- RegUser <$> (UserName <$> v .: "username")
                     <*> pure recovery
@@ -89,10 +91,26 @@ instance A.FromJSON RegisterRequest where
              (traverse parseInvCode c)
   parseJSON _ = mzero
 
+checkZAddrHandler :: RegisterOps IO -> S.Handler App App ZAddr
+checkZAddrHandler ops = do
+  params <- S.getParams
+  zaddrBytes <- maybe (snapError 400 "zaddr parameter is required")
+                       pure
+                       (listToMaybe =<< M.lookup "zaddr" params)
+  zaddrEither <- liftIO $ parseZAddr ops (T.decodeUtf8 zaddrBytes)
+  case zaddrEither of
+    Left _  ->
+      snapError 400 "The Z-Address provided for account recovery was invalid."
+    Right zaddr ->
+      pure zaddr
+
+
+
 registerHandler :: RegisterOps IO -> CaptchaConfig -> S.Handler App App UserId
 registerHandler ops cfg = do
   rbody    <- S.readRequestBody 4096
   userData <- fromMaybeM (snapError 400 "Could not parse user data") (A.decode rbody)
+
   captchaResult <- liftIO $ checkCaptcha cfg (userData ^. captchaToken)
   let captchaFailed = throwDenied $ AU.AuthError "Captcha check failed, please try again."
   void . either (const captchaFailed) pure $ captchaResult
@@ -104,8 +122,10 @@ registerHandler ops cfg = do
     RecoverByZAddr z -> do
       zaddrValid <- liftIO $ parseZAddr ops z
       case zaddrValid of
-        Left _  -> snapError 400 "The Z-Address provided for account recovery was invalid."
-        Right r -> pure $ RecoverByZAddr r
+        Left _  ->
+          snapError 400 "The Z-Address provided for account recovery was invalid."
+        Right r ->
+          pure $ RecoverByZAddr r
 
   now <- liftIO C.getCurrentTime
   let
@@ -117,7 +137,6 @@ registerHandler ops cfg = do
       pure userId
   authUser <- S.with auth createSUser
   either throwDenied (\_ -> createQUser) authUser
-
 
 
 acceptInvitationHandler :: S.Handler App App ()

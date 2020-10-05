@@ -243,6 +243,7 @@ subscriptionParser =
   B.Subscription
     <$> idParser UserId
     <*> idParser B.BillableId
+    <*> (B.EmailChannel . Email <$> field)
     <*> (toThyme <$> field)
     <*> ((fmap toThyme) <$> field)
 
@@ -674,14 +675,14 @@ pgEval dbop@(CreateSubscription uid bid start_date) = do
 
 pgEval (FindSubscription sid) = headMay <$> pquery
   subscriptionParser
-  [sql| SELECT id, billable_id, start_date, end_date
+  [sql| SELECT id, billable_id, contact_email, start_date, end_date
           FROM subscriptions s
           WHERE s.id = ? |]
   (Only (sid ^. B._SubscriptionId))
 
 pgEval (FindSubscriptions uid pid) = pquery
   ((,) <$> idParser B.SubscriptionId <*> subscriptionParser)
-  [sql| SELECT s.id, user_id, billable_id, start_date, end_date
+  [sql| SELECT s.id, user_id, billable_id, contact_email, start_date, end_date
           FROM subscriptions s
           JOIN billables b ON b.id = s.billable_id
           WHERE s.user_id = ?
@@ -738,7 +739,7 @@ pgEval (FindUnpaidRequests sid) =
         rowp
         [sql| SELECT r.url_key,
                    r.subscription_id, r.request_data, r.url_key, r.request_time, r.billing_date,
-                   s.user_id, s.billable_id, s.start_date, s.end_date,
+                   s.user_id, s.billable_id, s.contact_email, s.start_date, s.end_date,
                    b.project_id, e.created_by, b.name, b.description, b.recurrence_type,
                    b.recurrence_count, b.billing_amount, b.grace_period_days,
                    b.payment_request_email_template, b.payment_request_memo_template

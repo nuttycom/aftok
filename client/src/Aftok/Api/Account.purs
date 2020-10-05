@@ -2,8 +2,7 @@ module Aftok.Api.Account where
 
 import Prelude
 
-import Control.Monad.Trans.Class (lift)
-
+import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
@@ -14,20 +13,6 @@ import Affjax (post, get, printError)
 import Affjax.StatusCode (StatusCode(..))
 import Affjax.RequestBody as RB
 import Affjax.ResponseFormat as RF
-
-import Halogen as H
-import Halogen.HTML.Core (ClassName(..))
-import Halogen.HTML as HH
-import Halogen.HTML.CSS as CSS
-import Halogen.HTML.Events as E
-import Web.Event.Event as WE
-import Halogen.HTML.Properties as P
-
-import CSS (backgroundImage, url)
-
-import Landkit.Card as Card
-
-import Aftok.Types (System)
 
 type LoginRequest = { username :: String, password :: String }
 
@@ -85,13 +70,22 @@ data SignupResponse
   | CaptchaInvalid
   | ZAddrInvalid
   | UsernameTaken
+  | ServiceError (Maybe StatusCode) String
+
+instance srShow :: Show SignupResponse where
+  show r = case r of
+    SignupOK -> "SignupOK"
+    CaptchaInvalid -> "CaptchaInvalid"
+    ZAddrInvalid -> "ZAddrInvalid"
+    UsernameTaken -> "UsernameTaken"
+    ServiceError _ _ -> "ServiceError"
 
 data UsernameCheckResponse
   = UsernameCheckOK
   | UsernameCheckTaken
 
 data ZAddrCheckResponse
-  = ZAddrCheckOK
+  = ZAddrCheckValid
   | ZAddrCheckInvalid
 
 checkUsername :: String -> Aff UsernameCheckResponse
@@ -100,7 +94,16 @@ checkUsername uname = do
 
 checkZAddr :: String -> Aff ZAddrCheckResponse
 checkZAddr zaddr = do
-  pure ZAddrCheckOK
+  result <- get RF.ignore ("/api/validate_zaddr?zaddr=" <> zaddr) 
+  case result of
+    Left err -> do
+      log ("ZAddr validation failed: " <> printError err)
+      pure ZAddrCheckInvalid
+    Right r | r.status == StatusCode 200 -> do
+      pure ZAddrCheckValid
+    Right r -> do
+      log ("ZAddr was determined to be invalid: " <> r.statusText)
+      pure ZAddrCheckInvalid
 
 signup :: SignupRequest -> Aff SignupResponse
 signup req = do
@@ -108,19 +111,35 @@ signup req = do
         { username: req.username
         , password: req.password
         , recoveryType: case req.recoverBy of
-                             RecoverByEmail _ => "email"
-                             RecoverByZAddr _ => "zaddr"
-        , email: case req.recoverBy of
-                      RecoverByEmail email -> Just email
-                      RecoverByZAddr _ -> Nothing
-        , zaddr: case req.recoverBy of
-                      RecoverByEmail _ -> Nothing
-                      RecoverByZAddr zaddr -> Just zaddr
+            RecoverByEmail _ -> "email"
+            RecoverByZAddr _ -> "zaddr"
+        , recoveryEmail: case req.recoverBy of
+            RecoverByEmail email -> Just email
+            RecoverByZAddr _     -> Nothing
+        , recoveryZAddr: case req.recoverBy of
+            RecoverByEmail _     -> Nothing
+            RecoverByZAddr zaddr -> Just zaddr
         , captchaToken: req.captchaToken
         }
-  result <- post RF.ignore "/api/register" (Just <<< RB.Json $ signupJson)
+  log ("Sending JSON request: " <> stringify signupJSON)
+  result <- post RF.ignore "/api/register" (Just <<< RB.Json $ signupJSON)
   case result of
-       Left err -> log ("Registration failed: " <> printError err)
-       Right r  -> log ("Registration status: " <> show r.status)
+    Left err -> do
+      log ("Registration failed: " <> printError err)
+      pure (ServiceError Nothing $ printError err)
+    Right r | r.status == StatusCode 200 -> do
+      log "Registration succeeded!"
+      pure SignupOK
+    Right r | r.status == StatusCode 403 -> do
+      log ("Registration failed: Capcha Invalid")
+      pure CaptchaInvalid
+    Right r | r.status == StatusCode 400 -> do
+      log ("Registration failed: Z-Address Invalid")
+      pure ZAddrInvalid
+    Right r -> do
+      log ("Registration failed: " <> r.statusText)
+      pure $ ServiceError (Just r.status) r.statusText
+
+  
 
   

@@ -5,6 +5,7 @@
 {-# LANGUAGE TupleSections      #-}
 {-# LANGUAGE TemplateHaskell    #-}
 
+-- brittany --disable-next-binding
 module Aftok.Database where
 
 

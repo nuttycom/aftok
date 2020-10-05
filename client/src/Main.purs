@@ -31,7 +31,7 @@ main = HA.runHalogenAff do
   body <- HA.awaitBody
   let --login = Login.mockCapability
       login = Login.apiCapability
-      signup = Signup.mockCapability
+      signup = Signup.apiCapability
       timeline = Timeline.apiCapability
       project = Project.apiCapability
       mainComponent = component liveSystem login signup timeline project

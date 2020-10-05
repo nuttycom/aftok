@@ -1,4 +1,4 @@
-cabal-version: 2.4
+cabal-version: 3.0
 Name:          aftok
 Version:       0.1
 Synopsis:      The Aftok Collaboration Platform
@@ -16,7 +16,9 @@ common buildenv
   ghc-options:        -Wall -Werror
   default-extensions: KindSignatures
                     , LambdaCase
+                    , MultiParamTypeClasses
                     , OverloadedStrings
+                    , RankNTypes
                     , ScopedTypeVariables
   build-depends:      
       base                

@@ -32,7 +32,6 @@ import qualified Network.Mail.SMTP             as SMTP
 import           Network.URI                    ( URI
                                                 , parseURI
                                                 )
-import           Haskoin.Address                ( Address )
 import           Text.StringTemplate            ( directoryGroup
                                                 , newSTMP
                                                 , getStringTemplate
@@ -46,16 +45,15 @@ import           Bippy.Types                    ( Satoshi )
 import           Aftok.Types                    ( User
                                                 , UserId
                                                 , ProjectId(..)
-                                                , userEmail
                                                 , _Email
                                                 )
-import           Aftok.Currency.Bitcoin         ( NetworkId
-                                                , satoshi
-                                                )
+import           Aftok.Currency.Bitcoin         ( satoshi )
 import qualified Aftok.Config                  as AC
 import           Aftok.Billables                ( Billable
                                                 , Billable'
                                                 , Subscription'
+                                                , ContactChannel(..)
+                                                , contactChannel
                                                 , customer
                                                 , name
                                                 , billable
@@ -159,11 +157,7 @@ sendPaymentRequestEmail reqId = do
 buildPaymentRequestEmail
   :: (MonadIO m, MonadError AftokDErr m)
   => D.PaymentRequestConfig
-  -> P.PaymentRequest'
-       ( Subscription'
-           (User (NetworkId, Address))
-           (Billable' Project UserId Satoshi)
-       )
+  -> P.PaymentRequest' (Subscription' User (Billable' Project UserId Satoshi))
   -> URI
   -> m Mime.Mail
 buildPaymentRequestEmail cfg req paymentUrl = do
@@ -176,9 +170,11 @@ buildPaymentRequestEmail cfg req paymentUrl = do
   case billTemplate <|> defaultTemplate of
     Nothing ->
       throwError $ ConfigError "Could not find template for invitation email"
-    Just template ->
+    Just template -> do
+      toEmail <- case req ^. (subscription . contactChannel) of
+        EmailChannel email -> pure email
+        -- TODO: other channels
       let fromEmail = cfg ^. D.billingFromEmail
-          toEmail   = req ^. (subscription . customer . userEmail)
           pname     = req ^. (subscription . billable . project . projectName)
           total     = req ^. (P.paymentRequest . to paymentRequestTotal)
           setAttrs  = setManyAttrib
@@ -192,7 +188,7 @@ buildPaymentRequestEmail cfg req paymentUrl = do
           toAddr   = Mime.Address Nothing (toEmail ^. _Email)
           subject  = "Payment is due for your " <> pname <> " subscription!"
           body     = Mime.plainPart . render $ setAttrs template
-      in  pure $ SMTP.simpleMail fromAddr [toAddr] [] [] subject [body]
+      pure $ SMTP.simpleMail fromAddr [toAddr] [] [] subject [body]
 
 memoGen
   :: Subscription' UserId Billable -> C.Day -> C.UTCTime -> AftokM (Maybe Text)
