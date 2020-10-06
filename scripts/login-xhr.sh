@@ -13,5 +13,13 @@ if [ -z "${USER}" ]; then
   echo
 fi
 
-curl --verbose --user $USER \
+if [ -z "${PASS}" ]; then 
+  read -sp "Password: " PASS
+  echo
+fi
+
+curl --verbose \
+  --request POST \
+  --data "{\"username\": \"${USER}\", \"password\":\"${PASS}\"}" \
   "https://$AFTOK_HOST/api/login"
+
