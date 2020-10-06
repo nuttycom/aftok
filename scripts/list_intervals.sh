@@ -18,6 +18,6 @@ if [ -z "${PID}" ]; then
   echo
 fi
 
-curl --verbose --insecure --user $USER \
+curl --verbose --user $USER \
   --request GET \
-  "https://$AFTOK_HOST/api/projects/$PID/intervals"
+  "https://$AFTOK_HOST/api/projects/$PID/workIndex?limit=100&before=$(date -Iseconds)"
