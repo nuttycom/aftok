@@ -5,8 +5,10 @@ Apply: |
   ALTER TABLE users RENAME COLUMN email TO recovery_email;
   ALTER TABLE users ALTER COLUMN recovery_email DROP NOT NULL;
   ALTER TABLE users ADD COLUMN recovery_zaddr text;
+  ALTER TABLE users ALTER COLUMN default_payment_addr DROP NOT NULL;
 
 Revert: |
+  ALTER TABLE users ALTER COLUMN default_payment_addr SET NOT NULL;
   ALTER TABLE users RENAME COLUMN recovery_email TO email;
   ALTER TABLE users ALTER COLUMN email SET NOT NULL;
   ALTER TABLE users DROP COLUMN recovery_zaddr;

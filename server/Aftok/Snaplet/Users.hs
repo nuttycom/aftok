@@ -87,7 +87,7 @@ instance A.FromJSON RegisterRequest where
     RegisterRequest user
       <$> (fromString <$> v .: "password")
       <*> (v .: "captchaToken")
-      <*> (parseInvitationCodes =<< v .: "invitation_codes")
+      <*> (parseInvitationCodes . maybeToList =<< v .:? "invitation_codes")
 
     where
       parseInvitationCodes c = either

@@ -527,7 +527,7 @@ pgEval (CreateUser user') = do
   pinsert
     UserId
     [sql| INSERT INTO users (handle, recovery_email, recovery_zaddr)
-          VALUES (?, ?, ?, ?) RETURNING id |]
+          VALUES (?, ?, ?) RETURNING id |]
     ( user' ^. (username . _UserName)
     , user' ^? userAccountRecovery . _RecoverByEmail . _Email
     , user' ^? userAccountRecovery . _RecoverByZAddr . _ZAddr
