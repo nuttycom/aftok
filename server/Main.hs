@@ -48,7 +48,7 @@ main = do
 
 registerOps :: Manager -> QConfig -> RegisterOps IO
 registerOps mgr cfg = RegisterOps
-  { parseZAddr = rpcValidateZAddr mgr (_zcashdConfig cfg)
+  { validateZAddr = rpcValidateZAddr mgr (_zcashdConfig cfg)
   , sendConfirmationEmail = const $ pure ()
   }
 

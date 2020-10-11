@@ -14,7 +14,8 @@ Build-type:    Simple
 common buildenv
   default-language:   Haskell2010
   ghc-options:        -Wall -Werror
-  default-extensions: KindSignatures
+  default-extensions: GADTs
+                    , KindSignatures
                     , LambdaCase
                     , MultiParamTypeClasses
                     , OverloadedStrings
@@ -30,7 +31,7 @@ library
   import:             buildenv
   hs-source-dirs:     lib
   exposed-modules:    Aftok.Auction
-                      Aftok.Billables
+                      Aftok.Billing
                       Aftok.Config
                       Aftok.Currency
                       Aftok.Currency.Bitcoin
@@ -46,7 +47,6 @@ library
                       Aftok.TimeLog
                       Aftok.TimeLog.Serialization
                       Aftok.Types
-                      Aftok.Users
                       Aftok.Util
                       Aftok.Util.Http
   build-depends:      

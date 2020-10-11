@@ -49,7 +49,7 @@ import           Aftok.Types                    ( User
                                                 )
 import           Aftok.Currency.Bitcoin         ( satoshi )
 import qualified Aftok.Config                  as AC
-import           Aftok.Billables                ( Billable
+import           Aftok.Billing                  ( Billable
                                                 , Billable'
                                                 , Subscription'
                                                 , ContactChannel(..)

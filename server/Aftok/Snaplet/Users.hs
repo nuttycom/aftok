@@ -15,11 +15,12 @@ where
 
 
 
-import           Control.Lens
+import           Control.Lens                   ( makeLenses, (^.) )
 import           Control.FromSum                ( fromMaybeM )
 import qualified Data.Aeson                    as A
 import           Data.Aeson                     ( (.:)
                                                 , (.:?)
+                                                , (.=)
                                                 )
 import qualified Data.Map.Strict               as M
 import           Data.Text                     as T
@@ -38,10 +39,9 @@ import           Network.HTTP.Client.MultipartFormData
                                                 )
 import           Network.HTTP.Types.Status      ( statusCode )
 
-import           Aftok.Currency.Zcash           ( ZAddr )
+import           Aftok.Currency.Zcash           ( ZAddr, RPCError, ZValidateAddressErr )
 import           Aftok.Database                 ( createUser, acceptInvitation )
 import           Aftok.Project                  ( InvitationCode, parseInvCode )
-import           Aftok.Users                    ( RegisterOps(..) )
 import           Aftok.Types                    ( UserId, User(..)
                                                 , AccountRecovery(..)
                                                 , Email(..)
@@ -54,6 +54,11 @@ import           Aftok.Snaplet.Auth
 import qualified Snap.Core                     as S
 import qualified Snap.Snaplet                  as S
 import qualified Snap.Snaplet.Auth             as AU
+
+data RegisterOps m = RegisterOps
+  { validateZAddr :: Text -> m (Either (RPCError ZValidateAddressErr) ZAddr)
+  , sendConfirmationEmail :: Email -> m ()
+  }
 
 data RegUser = RegUser
   { _username             :: !UserName
@@ -91,19 +96,33 @@ instance A.FromJSON RegisterRequest where
              (traverse parseInvCode c)
   parseJSON _ = mzero
 
+data RegisterError
+  = RegParseError String
+  | RegCaptchaError [CaptchaError]
+  | RegZAddrError (RPCError ZValidateAddressErr)
+
+instance A.ToJSON RegisterError where
+  toJSON = \case
+    RegParseError msg -> A.object
+      [ "parseError" .= msg ]
+    RegCaptchaError e -> A.object
+      [ "captchaError" .= (show e :: Text) ]
+    RegZAddrError zerr -> A.object
+      [ "zaddrError" .= (show zerr :: Text) ]
+
+
 checkZAddrHandler :: RegisterOps IO -> S.Handler App App ZAddr
 checkZAddrHandler ops = do
   params <- S.getParams
   zaddrBytes <- maybe (snapError 400 "zaddr parameter is required")
                        pure
                        (listToMaybe =<< M.lookup "zaddr" params)
-  zaddrEither <- liftIO $ parseZAddr ops (T.decodeUtf8 zaddrBytes)
+  zaddrEither <- liftIO $ validateZAddr ops (T.decodeUtf8 zaddrBytes)
   case zaddrEither of
     Left _  ->
       snapError 400 "The Z-Address provided for account recovery was invalid."
     Right zaddr ->
       pure zaddr
-
 
 
 registerHandler :: RegisterOps IO -> CaptchaConfig -> S.Handler App App UserId
@@ -112,18 +131,22 @@ registerHandler ops cfg = do
   userData <- fromMaybeM (snapError 400 "Could not parse user data") (A.decode rbody)
 
   captchaResult <- liftIO $ checkCaptcha cfg (userData ^. captchaToken)
-  let captchaFailed = throwDenied $ AU.AuthError "Captcha check failed, please try again."
-  void . either (const captchaFailed) pure $ captchaResult
+  case captchaResult of
+    Left err ->
+      let cmsg = "Captcha check failed, please try again."
+       in snapErrorJS 400 cmsg (RegCaptchaError err)
+    Right _ -> pure ()
 
   acctRecovery <- case (userData ^. regUser . userAccountRecovery) of
     RecoverByEmail e -> do
       liftIO $ sendConfirmationEmail ops e
       pure $ RecoverByEmail e
     RecoverByZAddr z -> do
-      zaddrValid <- liftIO $ parseZAddr ops z
+      zaddrValid <- liftIO $ validateZAddr ops z
       case zaddrValid of
-        Left _  ->
-          snapError 400 "The Z-Address provided for account recovery was invalid."
+        Left err  ->
+          let msg = "The Z-Address provided for account recovery was invalid."
+           in snapErrorJS 400 msg (RegZAddrError err)
         Right r ->
           pure $ RecoverByZAddr r
 
@@ -153,6 +176,7 @@ acceptInvitationHandler = do
     )
     (\cx -> void . snapEval $ traverse (acceptInvitation uid now) cx)
     invCodes
+
 
 type CaptchaCheckResult = Either [CaptchaError] ()
 

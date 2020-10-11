@@ -4,7 +4,7 @@
 {-# LANGUAGE ExplicitForAll    #-}
 {-# LANGUAGE TemplateHaskell   #-}
 
-module Aftok.Billables where
+module Aftok.Billing where
 
 
 

@@ -46,7 +46,7 @@ import           Snap.Core                      ( readRequestBody
 import           Snap.Snaplet                  as S
 
 import           Aftok.Config                  as AC
-import           Aftok.Billables
+import           Aftok.Billing
 import           Aftok.Database
 import           Aftok.Payments
 import           Aftok.Util                     ( fromMaybeT )

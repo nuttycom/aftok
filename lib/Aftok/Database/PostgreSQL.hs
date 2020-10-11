@@ -39,7 +39,7 @@ import           Database.PostgreSQL.Simple.Types
 import           Safe                           ( headMay )
 
 import qualified Aftok.Auction                 as A
-import qualified Aftok.Billables               as B
+import qualified Aftok.Billing                 as B
 import           Aftok.Currency.Bitcoin
 import           Aftok.Currency.Zcash           (ZAddr(..), _ZAddr)
 import           Aftok.Database

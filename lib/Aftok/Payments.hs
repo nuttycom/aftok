@@ -47,7 +47,7 @@ import           Network.URI
 import           Aftok.Types                    ( UserId
                                                 , ProjectId
                                                 )
-import           Aftok.Billables
+import           Aftok.Billing
 import           Aftok.Currency.Bitcoin         ( NetworkId(..)
                                                 , NetworkMode
                                                 , satoshi

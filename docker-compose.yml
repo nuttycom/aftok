@@ -66,8 +66,10 @@ services:
   zcashd:
     image: electriccoinco/zcashd:v4.0.0
     container_name: aftok-zcashd
+    expose:
+      - "18232"
     ports:
-      - "8232:8232"
+      - "18232:18232"
     volumes:
       - type: bind
         source: ./local/conf/zcashd/zcash-data

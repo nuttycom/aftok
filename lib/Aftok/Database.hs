@@ -22,7 +22,7 @@ import           Safe                           ( headMay )
 
 import           Aftok.Types
 import           Aftok.Auction                 as A
-import           Aftok.Billables               as B
+import           Aftok.Billing                 as B
 import           Aftok.Currency.Bitcoin         ( NetworkId )
 import           Aftok.Interval
 import           Aftok.Payments.Types

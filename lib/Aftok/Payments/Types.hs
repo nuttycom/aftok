@@ -27,7 +27,7 @@ import           Bippy.Types                    ( expiryTime
                                                 )
 import           Haskoin.Address.Base58         ( decodeBase58Check )
 
-import           Aftok.Billables                ( Billable
+import           Aftok.Billing                  ( Billable
                                                 , Subscription
                                                 , SubscriptionId
                                                 )

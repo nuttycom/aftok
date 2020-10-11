@@ -11,22 +11,41 @@ import           Data.Attoparsec.ByteString     ( Parser
                                                 , parseOnly
                                                 , takeByteString
                                                 )
-import           Data.UUID
+import           Data.UUID                      ( UUID, fromASCIIBytes )
 
 import           Aftok.Auction                  ( AuctionId(..) )
 import           Aftok.Currency.Bitcoin         ( NetworkMode(..) )
-import           Aftok.Database
-import           Aftok.Database.PostgreSQL
+import           Aftok.Database                 ( DBError(..)
+                                                , DBOp
+                                                , liftdb
+                                                )
+import           Aftok.Database.PostgreSQL      ( runQDBM )
 import           Aftok.Types                    ( UserId(..)
                                                 , ProjectId(..)
                                                 )
 import           Aftok.Util
 
-import           Snap.Core
+import           Snap.Core                      ( MonadSnap
+                                                , getParam
+                                                , readRequestBody
+                                                , setResponseCode
+                                                , modifyResponse
+                                                , finishWith
+                                                , getResponse
+                                                , writeText
+                                                , writeLBS
+                                                , setResponseStatus
+                                                , logError
+                                                )
 import           Snap.Snaplet                  as S
 import qualified Snap.Snaplet.Auth             as AU
-import           Snap.Snaplet.PostgresqlSimple
-import           Snap.Snaplet.Session
+import           Snap.Snaplet.PostgresqlSimple  ( Postgres
+                                                , HasPostgres(..)
+                                                , setLocalPostgresState
+                                                , liftPG
+                                                )
+import           Snap.Snaplet.Session           ( SessionManager )
+
 
 data App = App
   { _networkMode :: NetworkMode
@@ -64,9 +83,20 @@ snapEval p = do
 
 snapError :: MonadSnap m => Int -> Text -> m a
 snapError c t = do
-  modifyResponse $ setResponseStatus c $ encodeUtf8 t
-  writeText $ ((show c) <> " - " <> t)
+  let errBytes = encodeUtf8 t
+  logError errBytes
+  modifyResponse $ setResponseStatus c errBytes
+  writeText (show c <> " - " <> t)
   getResponse >>= finishWith
+
+snapErrorJS :: (A.ToJSON err, MonadSnap m) => Int -> Text -> err -> m a
+snapErrorJS c t err = do
+  let errBytes = A.encode err
+  logError (fromLazy errBytes)
+  modifyResponse $ setResponseStatus c (encodeUtf8 t)
+  writeLBS errBytes
+  getResponse >>= finishWith
+
 
 ok :: MonadSnap m => m a
 ok = do

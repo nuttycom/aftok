@@ -41,7 +41,7 @@ import           Haskoin.Address                ( Address
 
 import           Aftok.Currency.Bitcoin
 import           Aftok.Auction                 as A
-import qualified Aftok.Billables               as B
+import qualified Aftok.Billing                 as B
 import           Aftok.Interval
 import           Aftok.Payments
 import           Aftok.Project                 as P

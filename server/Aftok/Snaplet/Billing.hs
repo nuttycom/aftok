@@ -17,7 +17,7 @@ import           Data.Thyme.Time.Core           ( toThyme )
 
 import           Snap.Snaplet                  as S
 
-import           Aftok.Billables
+import           Aftok.Billing
 import           Bippy.Types                    ( Satoshi(..) )
 import           Aftok.Json
 import           Aftok.Types

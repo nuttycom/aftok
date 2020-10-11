@@ -70,8 +70,10 @@ readQConfig cfg pc =
 
 readZcashdConfig :: CT.Config -> IO ZcashdConfig
 readZcashdConfig cfg =
-  ZcashdConfig <$> C.require cfg "zcashdHost"
-               <*> C.require cfg "zcashdPort"
+  ZcashdConfig <$> C.require cfg "rpcHost"
+               <*> C.require cfg "rpcPort"
+               <*> C.require cfg "rpcUser"
+               <*> C.require cfg "rpcPassword"
 
 baseSnapConfig :: QConfig -> SC.Config m a -> SC.Config m a
 baseSnapConfig qc = SC.setHostname (qc ^. hostname) . SC.setPort (qc ^. port)
