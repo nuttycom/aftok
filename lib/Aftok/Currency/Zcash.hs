@@ -1,37 +1,40 @@
-{-# LANGUAGE TemplateHaskell    #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Aftok.Currency.Zcash
-  ( ZAddr(..)
-  , _ZAddr
-  , RPCError(..)
-  , ZValidateAddressErr(..)
-  , ZcashdConfig(..)
-  , Zatoshi
-  , ToZatoshi(..)
-  , rpcAddViewingKey
-  , rpcValidateZAddr
-  ) where
+  ( ZAddr (..),
+    _ZAddr,
+    RPCError (..),
+    ZValidateAddressErr (..),
+    ZcashdConfig (..),
+    Zatoshi,
+    ToZatoshi (..),
+    rpcAddViewingKey,
+    rpcValidateZAddr,
+  )
+where
 
-import           Control.Exception              ( catch )
-import           Control.Lens                   ( makePrisms )
-import           Control.Monad.Trans.Except     ( except )
-
-import qualified Data.Aeson                     as A
-import           Data.Aeson                     ( Value, (.=), (.:), (.:?), object, encode )
-import           Data.Aeson.Types               ( Parser )
-import qualified Data.Text.Encoding            as T
-
-import           Network.HTTP.Client            ( Manager
-                                                , RequestBody(..)
-                                                , HttpException
-                                                , defaultRequest
-                                                , responseBody
-                                                , responseStatus
-                                                , httpLbs
-                                                , host, port, method, requestBody
-                                                , applyBasicAuth
-                                                )
-import           Network.HTTP.Types             ( Status, statusCode )
+import Control.Exception (catch)
+import Control.Lens (makePrisms)
+import Control.Monad.Trans.Except (except)
+import Data.Aeson ((.:), (.:?), (.=), Value, encode, object)
+import qualified Data.Aeson as A
+import Data.Aeson.Types (Parser)
+import qualified Data.Text.Encoding as T
+import Network.HTTP.Client
+  ( HttpException,
+    Manager,
+    RequestBody (..),
+    applyBasicAuth,
+    defaultRequest,
+    host,
+    httpLbs,
+    method,
+    port,
+    requestBody,
+    responseBody,
+    responseStatus,
+  )
+import Network.HTTP.Types (Status, statusCode)
 
 coin :: Word64
 coin = 100000000
@@ -39,12 +42,14 @@ coin = 100000000
 maxMoney :: Word64
 maxMoney = 21000000 * coin
 
-newtype ZAddr = ZAddr { zaddrText :: Text }
+newtype ZAddr = ZAddr {zaddrText :: Text}
   deriving (Eq, Ord, Show)
+
 makePrisms ''ZAddr
 
 newtype Zatoshi = Zatoshi Word64
   deriving (Eq, Ord, Show)
+
 makePrisms ''Zatoshi
 
 class ToZatoshi a where
@@ -58,15 +63,16 @@ data ZAddrType
   = Sprout
   | Sapling
 
-data ZcashdConfig = ZcashdConfig
-  { zcashdHost :: Text
-  , zcashdPort :: Int
-  , rpcUser :: Text
-  , rpcPassword :: Text
-  }
+data ZcashdConfig
+  = ZcashdConfig
+      { zcashdHost :: Text,
+        zcashdPort :: Int,
+        rpcUser :: Text,
+        rpcPassword :: Text
+      }
 
 data RPCCall a where
-  ZValidateAddress  :: Text -> RPCCall ZValidateAddressResp
+  ZValidateAddress :: Text -> RPCCall ZValidateAddressResp
   ZImportViewingKey :: Text -> RPCCall ZImportViewingKeyResp
 
 data RPCError e
@@ -83,21 +89,23 @@ toRequestBody = \case
 
 rpcEval :: A.FromJSON a => Manager -> ZcashdConfig -> RPCCall a -> ExceptT (RPCError e) IO a
 rpcEval mgr cfg call = do
-  let req = applyBasicAuth (T.encodeUtf8 $ rpcUser cfg) (T.encodeUtf8 $ rpcPassword cfg) $
-            defaultRequest { host = T.encodeUtf8 $ zcashdHost cfg
-                           , port = zcashdPort cfg
-                           , method = "POST"
-                           , requestBody = RequestBodyLBS . encode $ toRequestBody call
-                           }
-
-  response <- ExceptT $ catch
-    (Right <$> httpLbs req mgr)
-    (pure . Left . HttpError)
-
+  let req =
+        applyBasicAuth (T.encodeUtf8 $ rpcUser cfg) (T.encodeUtf8 $ rpcPassword cfg) $
+          defaultRequest
+            { host = T.encodeUtf8 $ zcashdHost cfg,
+              port = zcashdPort cfg,
+              method = "POST",
+              requestBody = RequestBodyLBS . encode $ toRequestBody call
+            }
+  response <-
+    ExceptT $
+      catch
+        (Right <$> httpLbs req mgr)
+        (pure . Left . HttpError)
   let status = responseStatus response
   except $ case statusCode status of
     200 -> first ParseError $ A.eitherDecode (responseBody response)
-    _   -> Left (ServiceError status)
+    _ -> Left (ServiceError status)
 
 -- Address Validation
 
@@ -107,22 +115,24 @@ data ZValidateAddressErr
   | DataMissing
   deriving (Eq, Show)
 
-data ZValidateAddressResp = ZValidateAddressResp
-  { vzrIsValid  :: Bool
-  --, vzrAddress  :: Maybe Text
-  , vzrAddrType :: Maybe ZAddrType
-  }
+data ZValidateAddressResp
+  = ZValidateAddressResp
+      { vzrIsValid :: Bool,
+        --, vzrAddress  :: Maybe Text
+        vzrAddrType :: Maybe ZAddrType
+      }
 
 instance A.FromJSON ZValidateAddressResp where
   parseJSON = parseValidateZAddrResponse
 
 validateZAddrRequest :: Text -> Value
-validateZAddrRequest addr = object
-  [ "jsonrpc" .= ("1.0" :: Text)
-  , "id"      .= ("aftok-z_validateaddress" :: Text)
-  , "method"  .= ("z_validateaddress" :: Text)
-  , "params"  .= [addr]
-  ]
+validateZAddrRequest addr =
+  object
+    [ "jsonrpc" .= ("1.0" :: Text),
+      "id" .= ("aftok-z_validateaddress" :: Text),
+      "method" .= ("z_validateaddress" :: Text),
+      "params" .= [addr]
+    ]
 
 decodeAddrType :: Text -> Maybe ZAddrType
 decodeAddrType = \case
@@ -141,40 +151,38 @@ parseValidateZAddrResponse = \case
   (A.Object v) -> do
     res <- v .: "result"
     ZValidateAddressResp <$> res .: "isvalid"
-                         -- <*> res .:? "address"
-                         <*> parseAddrType res
-
+      -- <*> res .:? "address"
+      <*> parseAddrType res
   _ ->
     fail "ZAddr validation response body was not a valid JSON object"
 
 rpcValidateZAddr :: Manager -> ZcashdConfig -> Text -> IO (Either (RPCError ZValidateAddressErr) ZAddr)
 rpcValidateZAddr mgr cfg addr = runExceptT $ do
   resp <- rpcEval mgr cfg (ZValidateAddress addr)
-  except $ if vzrIsValid resp
-    then
-      case vzrAddrType resp of
-        Nothing      -> Left (RPCError DataMissing)
-        Just Sprout  -> Left (RPCError SproutAddress)
+  except $
+    if vzrIsValid resp
+      then case vzrAddrType resp of
+        Nothing -> Left (RPCError DataMissing)
+        Just Sprout -> Left (RPCError SproutAddress)
         Just Sapling -> Right (ZAddr addr)
-    else
-      Left $ RPCError ZAddrInvalid
+      else Left $ RPCError ZAddrInvalid
 
 -- Viewing Keys
 
-data ZImportViewingKeyResp = ZImportViewingKeyResp
-  { addressType :: ZAddrType
-  -- , address :: ZAddr
-  }
+data ZImportViewingKeyResp
+  = ZImportViewingKeyResp
+      { addressType :: ZAddrType
+        -- , address :: ZAddr
+      }
 
 parseImportViewingKeyResponse :: Value -> Parser ZImportViewingKeyResp
 parseImportViewingKeyResponse = \case
   (A.Object v) -> do
     ZImportViewingKeyResp
       <$> (maybe (fail "Missing address type.") pure =<< parseAddrType v)
-      -- <*> (ZAddr <$> v .: "address")
+  -- <*> (ZAddr <$> v .: "address")
   _ ->
     fail "z_importviewingkey response body was not a valid JSON object"
-
 
 instance A.FromJSON ZImportViewingKeyResp where
   parseJSON = parseImportViewingKeyResponse
@@ -183,12 +191,13 @@ data ZImportViewingKeyError
   = SproutViewingKey
 
 importViewingKeyRequest :: Text -> Value
-importViewingKeyRequest vk = object
-  [ "jsonrpc" .= ("1.0" :: Text)
-  , "id"      .= ("aftok-z_importviewingkey" :: Text)
-  , "method"  .= ("z_importviewingkey" :: Text)
-  , "params"  .= [vk, "no"] -- no need to rescan, for our purposes
-  ]
+importViewingKeyRequest vk =
+  object
+    [ "jsonrpc" .= ("1.0" :: Text),
+      "id" .= ("aftok-z_importviewingkey" :: Text),
+      "method" .= ("z_importviewingkey" :: Text),
+      "params" .= [vk, "no"] -- no need to rescan, for our purposes
+    ]
 
 rpcAddViewingKey :: Manager -> ZcashdConfig -> Text -> IO (Either (RPCError ZImportViewingKeyError) ())
 rpcAddViewingKey mgr cfg vk = runExceptT $ do
@@ -196,8 +205,3 @@ rpcAddViewingKey mgr cfg vk = runExceptT $ do
   except $ case addressType resp of
     Sprout -> Left . RPCError $ SproutViewingKey
     Sapling -> Right ()
-
-
-
-
-

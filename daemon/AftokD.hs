@@ -2,32 +2,35 @@
 
 module AftokD where
 
-import           Control.Lens
+import qualified Aftok.Config as AC
+import Aftok.Types (Email (..))
+import Control.Lens
+import qualified Data.Configurator as C
+import qualified Data.Configurator.Types as CT
+import Database.PostgreSQL.Simple (ConnectInfo)
+import Filesystem.Path.CurrentOS
+  ( encodeString,
+    fromText,
+  )
+import qualified Filesystem.Path.CurrentOS as P
 
-import qualified Data.Configurator             as C
-import qualified Data.Configurator.Types       as CT
-import           Database.PostgreSQL.Simple     ( ConnectInfo )
-import           Filesystem.Path.CurrentOS      ( fromText
-                                                , encodeString
-                                                )
-import qualified Filesystem.Path.CurrentOS     as P
+data PaymentRequestConfig
+  = PaymentRequestConfig
+      { _aftokHost :: Text,
+        _templatePath :: P.FilePath,
+        _billingFromEmail :: Email
+      }
 
-import           Aftok.Types                    ( Email(..) )
-import qualified Aftok.Config                  as AC
-
-data PaymentRequestConfig = PaymentRequestConfig
-  { _aftokHost :: Text
-  , _templatePath :: P.FilePath
-  , _billingFromEmail :: Email
-  }
 makeLenses ''PaymentRequestConfig
 
-data Config = Config
-  { _smtpConfig     :: AC.SmtpConfig
-  , _billingConfig  :: AC.BillingConfig
-  , _dbConfig       :: ConnectInfo
-  , _paymentRequestConfig :: PaymentRequestConfig
-  }
+data Config
+  = Config
+      { _smtpConfig :: AC.SmtpConfig,
+        _billingConfig :: AC.BillingConfig,
+        _dbConfig :: ConnectInfo,
+        _paymentRequestConfig :: PaymentRequestConfig
+      }
+
 makeLenses ''Config
 
 loadConfig :: P.FilePath -> IO Config

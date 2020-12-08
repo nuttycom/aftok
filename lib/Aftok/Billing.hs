@@ -1,45 +1,44 @@
-{-# LANGUAGE DeriveFoldable    #-}
-{-# LANGUAGE DeriveFunctor     #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE ExplicitForAll    #-}
-{-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Aftok.Billing where
 
-
-
-import           Control.Lens     (makeLenses, makePrisms, preview, view, _Just)
-import           Data.Thyme.Clock as C
-import           Data.Thyme.Time  as T
-import           Data.UUID
-
-import           Aftok.Types      (UserId, ProjectId, Email)
-import           Bippy.Types      (Satoshi)
+import Aftok.Types (Email, ProjectId, UserId)
+import Bippy.Types (Satoshi)
+import Control.Lens (_Just, makeLenses, makePrisms, preview, view)
+import Data.Thyme.Clock as C
+import Data.Thyme.Time as T
+import Data.UUID
 
 newtype BillableId = BillableId UUID deriving (Show, Eq)
+
 makePrisms ''BillableId
 
 data Recurrence
   = Annually
   | Monthly T.Months
---  | SemiMonthly
-  | Weekly Int
+  | --  | SemiMonthly
+    Weekly Int
   | OneTime
+
 makeLenses ''Recurrence
 
 recurrenceName :: Recurrence -> Text
-recurrenceName Annually    = "annually"
+recurrenceName Annually = "annually"
 recurrenceName (Monthly _) = "monthly"
 --recurrenceName SemiMonthly = "semimonthly"
-recurrenceName (Weekly _)  = "weekly"
-recurrenceName OneTime     = "onetime"
+recurrenceName (Weekly _) = "weekly"
+recurrenceName OneTime = "onetime"
 
 recurrenceCount :: Recurrence -> Maybe Int
-recurrenceCount Annually    = Nothing
+recurrenceCount Annually = Nothing
 recurrenceCount (Monthly i) = Just i
 --recurrenceCount SemiMonthly = Nothing
-recurrenceCount (Weekly i)  = Just i
-recurrenceCount OneTime     = Nothing
+recurrenceCount (Weekly i) = Just i
+recurrenceCount OneTime = Nothing
 
 monthly :: Recurrence
 monthly = Monthly 1
@@ -56,45 +55,50 @@ seminannually = Monthly 6
 annually :: Recurrence
 annually = Annually
 
-data Billable' p u c = Billable
-  { _project             :: p
-  , _creator             :: u
-  , _name                :: Text
-  , _description         :: Text
-  , _recurrence          :: Recurrence
-  , _amount              :: c
-  , _gracePeriod         :: Days
-  , _requestExpiryPeriod :: Maybe C.NominalDiffTime
-  , _paymentRequestEmailTemplate :: Maybe Text
-  , _paymentRequestMemoTemplate :: Maybe Text
-  }
+data Billable' p u c
+  = Billable
+      { _project :: p,
+        _creator :: u,
+        _name :: Text,
+        _description :: Text,
+        _recurrence :: Recurrence,
+        _amount :: c,
+        _gracePeriod :: Days,
+        _requestExpiryPeriod :: Maybe C.NominalDiffTime,
+        _paymentRequestEmailTemplate :: Maybe Text,
+        _paymentRequestMemoTemplate :: Maybe Text
+      }
+
 makeLenses ''Billable'
 
 type Billable = Billable' ProjectId UserId Satoshi
 
 newtype SubscriptionId = SubscriptionId UUID deriving (Show, Eq)
+
 makePrisms ''SubscriptionId
 
 data ContactChannel
   = EmailChannel Email
 
-data Subscription' u b = Subscription
-  { _customer       :: u
-  , _billable       :: b
-  , _contactChannel :: ContactChannel
-  , _startTime      :: C.UTCTime
-  , _endTime        :: Maybe C.UTCTime
-  }
+data Subscription' u b
+  = Subscription
+      { _customer :: u,
+        _billable :: b,
+        _contactChannel :: ContactChannel,
+        _startTime :: C.UTCTime,
+        _endTime :: Maybe C.UTCTime
+      }
+
 makeLenses ''Subscription'
 
 type Subscription = Subscription' UserId BillableId
 
 nextRecurrence :: Recurrence -> T.Day -> Maybe T.Day
 nextRecurrence r = case r of
-  Annually  -> Just . T.addGregorianYearsClip 1
+  Annually -> Just . T.addGregorianYearsClip 1
   Monthly m -> Just . T.addGregorianMonthsClip m
-  Weekly w  -> Just . T.addDays (w * 7)
-  OneTime   -> const Nothing
+  Weekly w -> Just . T.addDays (w * 7)
+  OneTime -> const Nothing
 
 -- | A stream of dates upon which the specified subscription
 -- should be billed, beginning with the first day of the
@@ -105,12 +109,7 @@ billingSchedule s =
   where
     rec = view (billable . recurrence) s
     subEndDay = preview (endTime . _Just . C._utctDay) s
-
     next :: Maybe T.Day -> Maybe (T.Day, Maybe T.Day)
     next d = do
       d' <- d
       if (all (d' <) subEndDay) then Just (d', nextRecurrence rec d') else Nothing
-
-
-
-
