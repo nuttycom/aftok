@@ -1,20 +1,25 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Aftok.Currency.Zcash
-  ( ZAddr (..),
-    _ZAddr,
+  ( Z.Address (..),
+    Z._Address,
+    Z.IVK (..),
+    Z._IVK,
     RPCError (..),
     ZValidateAddressErr (..),
     ZcashdConfig (..),
-    Zatoshi,
-    ToZatoshi (..),
+    Z.Zatoshi (..),
+    Z._Zatoshi,
+    Z.ToZatoshi (..),
     rpcAddViewingKey,
     rpcValidateZAddr,
+    getUserDiversifiedAddress,
   )
 where
 
+import Aftok.Currency.Zcash.Types as Z
+import Aftok.Types (UserId)
 import Control.Exception (catch)
-import Control.Lens (makePrisms)
 import Control.Monad.Trans.Except (except)
 import Data.Aeson ((.:), (.:?), (.=), Value, encode, object)
 import qualified Data.Aeson as A
@@ -35,33 +40,6 @@ import Network.HTTP.Client
     responseStatus,
   )
 import Network.HTTP.Types (Status, statusCode)
-
-coin :: Word64
-coin = 100000000
-
-maxMoney :: Word64
-maxMoney = 21000000 * coin
-
-newtype ZAddr = ZAddr {zaddrText :: Text}
-  deriving (Eq, Ord, Show)
-
-makePrisms ''ZAddr
-
-newtype Zatoshi = Zatoshi Word64
-  deriving (Eq, Ord, Show)
-
-makePrisms ''Zatoshi
-
-class ToZatoshi a where
-  toZatoshi :: a -> Maybe Zatoshi
-
-instance ToZatoshi Word64 where
-  toZatoshi amt =
-    if amt > maxMoney then Nothing else Just (Zatoshi amt)
-
-data ZAddrType
-  = Sprout
-  | Sapling
 
 data ZcashdConfig
   = ZcashdConfig
@@ -119,7 +97,7 @@ data ZValidateAddressResp
   = ZValidateAddressResp
       { vzrIsValid :: Bool,
         --, vzrAddress  :: Maybe Text
-        vzrAddrType :: Maybe ZAddrType
+        vzrAddrType :: Maybe Z.ZAddrType
       }
 
 instance A.FromJSON ZValidateAddressResp where
@@ -134,16 +112,10 @@ validateZAddrRequest addr =
       "params" .= [addr]
     ]
 
-decodeAddrType :: Text -> Maybe ZAddrType
-decodeAddrType = \case
-  "sprout" -> Just Sprout
-  "sapling" -> Just Sapling
-  _ -> Nothing
-
-parseAddrType :: A.Object -> Parser (Maybe ZAddrType)
+parseAddrType :: A.Object -> Parser (Maybe Z.ZAddrType)
 parseAddrType res = do
   typeStr <- res .:? "type"
-  let typeMay = decodeAddrType <$> typeStr
+  let typeMay = Z.decodeAddrType <$> typeStr
   traverse (maybe (fail $ "Not a recognized zaddr type: " <> show typeStr) pure) typeMay
 
 parseValidateZAddrResponse :: Value -> Parser ZValidateAddressResp
@@ -156,23 +128,23 @@ parseValidateZAddrResponse = \case
   _ ->
     fail "ZAddr validation response body was not a valid JSON object"
 
-rpcValidateZAddr :: Manager -> ZcashdConfig -> Text -> IO (Either (RPCError ZValidateAddressErr) ZAddr)
+rpcValidateZAddr :: Manager -> ZcashdConfig -> Text -> IO (Either (RPCError ZValidateAddressErr) Z.Address)
 rpcValidateZAddr mgr cfg addr = runExceptT $ do
   resp <- rpcEval mgr cfg (ZValidateAddress addr)
   except $
     if vzrIsValid resp
       then case vzrAddrType resp of
         Nothing -> Left (RPCError DataMissing)
-        Just Sprout -> Left (RPCError SproutAddress)
-        Just Sapling -> Right (ZAddr addr)
+        Just Z.Sprout -> Left (RPCError SproutAddress)
+        Just Z.Sapling -> Right (Z.Address addr)
       else Left $ RPCError ZAddrInvalid
 
 -- Viewing Keys
 
 data ZImportViewingKeyResp
   = ZImportViewingKeyResp
-      { addressType :: ZAddrType
-        -- , address :: ZAddr
+      { addressType :: Z.ZAddrType
+        -- , address :: Z.Address
       }
 
 parseImportViewingKeyResponse :: Value -> Parser ZImportViewingKeyResp
@@ -180,7 +152,7 @@ parseImportViewingKeyResponse = \case
   (A.Object v) -> do
     ZImportViewingKeyResp
       <$> (maybe (fail "Missing address type.") pure =<< parseAddrType v)
-  -- <*> (ZAddr <$> v .: "address")
+  -- <*> (Z.Address <$> v .: "address")
   _ ->
     fail "z_importviewingkey response body was not a valid JSON object"
 
@@ -203,5 +175,8 @@ rpcAddViewingKey :: Manager -> ZcashdConfig -> Text -> IO (Either (RPCError ZImp
 rpcAddViewingKey mgr cfg vk = runExceptT $ do
   resp <- rpcEval mgr cfg (ZImportViewingKey vk)
   except $ case addressType resp of
-    Sprout -> Left . RPCError $ SproutViewingKey
-    Sapling -> Right ()
+    Z.Sprout -> Left . RPCError $ SproutViewingKey
+    Z.Sapling -> Right ()
+
+getUserDiversifiedAddress :: UserId -> IVK -> Address
+getUserDiversifiedAddress = error "Not Yet Implemented."

@@ -201,7 +201,11 @@ buildPaymentRequestEmail cfg req paymentUrl = do
       pure $ SMTP.simpleMail fromAddr [toAddr] [] [] subject [body]
 
 memoGen ::
-  Subscription' UserId Billable -> C.Day -> C.UTCTime -> AftokM (Maybe Text)
+  MonadDB m =>
+  Subscription' UserId Billable ->
+  C.Day ->
+  C.UTCTime ->
+  m (Maybe Text)
 memoGen sub billingDate requestTime = do
   req <- traverseOf (billable . project) DB.findProjectOrError sub
   let template =

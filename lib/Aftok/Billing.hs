@@ -1,21 +1,15 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Aftok.Billing where
 
 import Aftok.Types (Email, ProjectId, UserId)
-import Bippy.Types (Satoshi)
 import Control.Lens (_Just, makeLenses, makePrisms, preview, view)
 import Data.Thyme.Clock as C
 import Data.Thyme.Time as T
 import Data.UUID
-
-newtype BillableId = BillableId UUID deriving (Show, Eq)
-
-makePrisms ''BillableId
 
 data Recurrence
   = Annually
@@ -55,43 +49,52 @@ seminannually = Monthly 6
 annually :: Recurrence
 annually = Annually
 
-data Billable' p u c
+-- | A potentially recurring billable amount.
+data Billable' p u currency
   = Billable
       { _project :: p,
         _creator :: u,
         _name :: Text,
         _description :: Text,
+        _messageText :: Text,
         _recurrence :: Recurrence,
-        _amount :: c,
+        _amount :: currency,
         _gracePeriod :: Days,
-        _requestExpiryPeriod :: Maybe C.NominalDiffTime,
+        _requestExpiryPeriod :: NominalDiffTime,
         _paymentRequestEmailTemplate :: Maybe Text,
         _paymentRequestMemoTemplate :: Maybe Text
       }
 
 makeLenses ''Billable'
 
-type Billable = Billable' ProjectId UserId Satoshi
+type Billable amt = Billable' ProjectId UserId amt
 
-newtype SubscriptionId = SubscriptionId UUID deriving (Show, Eq)
+newtype BillableId = BillableId UUID deriving (Show, Eq)
 
-makePrisms ''SubscriptionId
+makePrisms ''BillableId
 
 data ContactChannel
   = EmailChannel Email
 
+-- | An association between a customer and a (potentially recurring) billable amount.
+--
+-- For one-time billing events, the end date should be the same as the start date.
 data Subscription' u b
   = Subscription
       { _customer :: u,
         _billable :: b,
         _contactChannel :: ContactChannel,
-        _startTime :: C.UTCTime,
-        _endTime :: Maybe C.UTCTime
+        _startTime :: UTCTime,
+        _endTime :: Maybe UTCTime
       }
 
 makeLenses ''Subscription'
 
 type Subscription = Subscription' UserId BillableId
+
+newtype SubscriptionId = SubscriptionId UUID deriving (Show, Eq)
+
+makePrisms ''SubscriptionId
 
 nextRecurrence :: Recurrence -> T.Day -> Maybe T.Day
 nextRecurrence r = case r of
@@ -103,7 +106,7 @@ nextRecurrence r = case r of
 -- | A stream of dates upon which the specified subscription
 -- should be billed, beginning with the first day of the
 -- subscription.
-billingSchedule :: forall u. Subscription' u Billable -> [T.Day]
+billingSchedule :: forall u a. Subscription' u (Billable a) -> [T.Day]
 billingSchedule s =
   unfoldr next (Just $ view (startTime . C._utctDay) s)
   where

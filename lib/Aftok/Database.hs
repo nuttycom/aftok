@@ -8,73 +8,93 @@
 -- brittany --disable-next-binding
 module Aftok.Database where
 
-import Aftok.Auction as A
+import qualified Aftok.Auction as A
 import Aftok.Billing as B
-import Aftok.Currency.Bitcoin (NetworkId)
-import Aftok.Interval
+import Aftok.Currency (Amount, Currency)
+import qualified Aftok.Currency.Zcash as Zcash
+import Aftok.Interval (RangeQuery)
 import Aftok.Payments.Types
+  ( Payment,
+    PaymentId,
+    PaymentKey,
+    PaymentRequest,
+    PaymentRequestId,
+    SomePaymentRequestDetail,
+  )
 import Aftok.Project as P
 import Aftok.TimeLog
+  ( AmendmentId,
+    EventAmendment,
+    EventId,
+    LogEntry,
+    WorkIndex,
+  )
 import Aftok.Types
-import Aftok.Util
+  ( AccountId,
+    Email,
+    ProjectId,
+    User,
+    UserId,
+    UserName,
+  )
+import Aftok.Util (Program, fc, fromMaybeT)
 import Control.Lens
   ( (^.),
     makeClassyPrisms,
     traverseOf,
     view,
   )
-import Data.AffineSpace
+import Data.AffineSpace ((.-.))
 import Data.Thyme.Clock as C
 import Data.Thyme.Time as T
   ( Day,
   )
-import Haskoin.Address (Address)
 import Safe (headMay)
 
-type KeyedLogEntry a = (ProjectId, UserId, LogEntry a)
+type KeyedLogEntry = (ProjectId, UserId, LogEntry)
 
 type InvitingUID = UserId
 
 type InvitedUID = UserId
 
-type BTCNet = (NetworkId, Address)
-
 data DBOp a where
   CreateUser :: User -> DBOp UserId
   FindUser :: UserId -> DBOp (Maybe User)
   FindUserByName :: UserName -> DBOp (Maybe (UserId, User))
-  FindUserPaymentAddress :: UserId -> DBOp (Maybe (BTCNet))
+  FindUserPaymentAddress :: UserId -> Currency a c -> DBOp (Maybe a)
+  FindAccountPaymentAddress :: AccountId -> Currency a c -> DBOp (Maybe a)
+  FindAccountZcashIVK :: AccountId -> DBOp (Maybe Zcash.IVK)
   CreateProject :: Project -> DBOp ProjectId
   FindProject :: ProjectId -> DBOp (Maybe Project)
   ListProjects :: DBOp [ProjectId]
-  FindSubscribers :: ProjectId -> DBOp [UserId]
   FindUserProjects :: UserId -> DBOp [(ProjectId, Project)]
   AddUserToProject :: ProjectId -> InvitingUID -> InvitedUID -> DBOp ()
   CreateInvitation :: ProjectId -> InvitingUID -> Email -> C.UTCTime -> DBOp InvitationCode
   FindInvitation :: InvitationCode -> DBOp (Maybe Invitation)
   AcceptInvitation :: UserId -> InvitationCode -> C.UTCTime -> DBOp ()
-  CreateEvent :: ProjectId -> UserId -> LogEntry BTCNet -> DBOp EventId
-  AmendEvent :: EventId -> EventAmendment BTCNet -> DBOp AmendmentId
-  FindEvent :: EventId -> DBOp (Maybe (KeyedLogEntry BTCNet))
-  FindEvents :: ProjectId -> UserId -> RangeQuery -> Word32 -> DBOp [LogEntry BTCNet]
-  ReadWorkIndex :: ProjectId -> DBOp (WorkIndex BTCNet)
-  CreateAuction :: Auction -> DBOp AuctionId
-  FindAuction :: AuctionId -> DBOp (Maybe Auction)
-  CreateBid :: AuctionId -> Bid -> DBOp BidId
-  FindBids :: AuctionId -> DBOp [(BidId, Bid)]
-  CreateBillable :: UserId -> Billable -> DBOp BillableId
-  FindBillable :: BillableId -> DBOp (Maybe Billable)
-  FindBillables :: ProjectId -> DBOp [(BillableId, Billable)]
+  CreateEvent :: ProjectId -> UserId -> LogEntry -> DBOp EventId
+  AmendEvent :: EventId -> EventAmendment -> DBOp AmendmentId
+  FindEvent :: EventId -> DBOp (Maybe KeyedLogEntry)
+  FindEvents :: ProjectId -> UserId -> RangeQuery -> Word32 -> DBOp [LogEntry]
+  ReadWorkIndex :: ProjectId -> DBOp WorkIndex
+  CreateAuction :: A.Auction -> DBOp A.AuctionId
+  FindAuction :: A.AuctionId -> DBOp (Maybe A.Auction)
+  CreateBid :: A.AuctionId -> A.Bid -> DBOp A.BidId
+  FindBids :: A.AuctionId -> DBOp [(A.BidId, A.Bid)]
+  CreateBillable :: UserId -> Billable Amount -> DBOp BillableId
+  FindBillable :: BillableId -> DBOp (Maybe (Billable Amount))
+  FindBillables :: ProjectId -> DBOp [(BillableId, Billable Amount)]
   CreateSubscription :: UserId -> BillableId -> T.Day -> DBOp SubscriptionId
   FindSubscription :: SubscriptionId -> DBOp (Maybe Subscription)
   FindSubscriptions :: UserId -> ProjectId -> DBOp [(SubscriptionId, Subscription)]
-  CreatePaymentRequest :: PaymentRequest -> DBOp PaymentRequestId
-  FindPaymentRequests :: SubscriptionId -> DBOp [(PaymentRequestId, PaymentRequest)]
-  FindUnpaidRequests :: SubscriptionId -> DBOp [BillDetail]
-  FindPaymentRequest :: PaymentKey -> DBOp (Maybe (PaymentRequestId, PaymentRequest))
-  FindPaymentRequestId :: PaymentRequestId -> DBOp (Maybe PaymentRequest)
-  CreatePayment :: Payment -> DBOp PaymentId
-  FindPayments :: PaymentRequestId -> DBOp [(PaymentId, Payment)]
+  FindSubscribers :: ProjectId -> DBOp [UserId]
+  StorePaymentRequest :: PaymentRequestId -> PaymentRequest c -> DBOp ()
+  FindPaymentRequestByKey :: PaymentKey -> DBOp (Maybe (PaymentRequestId, SomePaymentRequestDetail))
+  FindPaymentRequestById :: PaymentRequestId -> DBOp (Maybe SomePaymentRequestDetail)
+  FindSubscriptionPaymentRequests :: SubscriptionId -> DBOp [(PaymentRequestId, SomePaymentRequestDetail)]
+  FindSubscriptionUnpaidRequests :: SubscriptionId -> DBOp [(PaymentRequestId, SomePaymentRequestDetail)]
+  CreatePayment :: Payment c -> DBOp PaymentId
+  FindPayments :: Currency a c -> PaymentRequestId -> DBOp [(PaymentId, Payment c)]
   RaiseDBError :: forall x y. DBError -> DBOp x -> DBOp y
 
 data OpForbiddenReason
@@ -102,6 +122,9 @@ class (Monad m) => MonadDB (m :: * -> *) where
 instance MonadDB (Program DBOp) where
   liftdb = fc
 
+instance MonadDB m => MonadDB (ExceptT e m) where
+  liftdb = lift . liftdb
+
 raiseOpForbidden :: (MonadDB m) => UserId -> OpForbiddenReason -> DBOp x -> m x
 raiseOpForbidden uid r op = liftdb $ RaiseDBError (OpForbidden uid r) op
 
@@ -119,8 +142,11 @@ findUser = MaybeT . liftdb . FindUser
 findUserByName :: (MonadDB m) => UserName -> MaybeT m (UserId, User)
 findUserByName = MaybeT . liftdb . FindUserByName
 
-findUserPaymentAddress :: (MonadDB m) => UserId -> MaybeT m (BTCNet)
-findUserPaymentAddress = MaybeT . liftdb . FindUserPaymentAddress
+findUserPaymentAddress :: (MonadDB m) => UserId -> Currency a c -> MaybeT m a
+findUserPaymentAddress uid n = MaybeT . liftdb $ FindUserPaymentAddress uid n
+
+findAccountPaymentAddress :: (MonadDB m) => AccountId -> Currency a c -> MaybeT m a
+findAccountPaymentAddress uid n = MaybeT . liftdb $ FindAccountPaymentAddress uid n
 
 -- Project ops
 
@@ -201,11 +227,11 @@ acceptInvitation uid t ic = do
 
 -- TODO: ignore "duplicate" events within some small time limit?
 createEvent ::
-  (MonadDB m) => ProjectId -> UserId -> LogEntry BTCNet -> m EventId
+  (MonadDB m) => ProjectId -> UserId -> LogEntry -> m EventId
 createEvent p u l = withProjectAuth p u $ CreateEvent p u l
 
 amendEvent ::
-  (MonadDB m) => UserId -> EventId -> EventAmendment BTCNet -> m AmendmentId
+  (MonadDB m) => UserId -> EventId -> EventAmendment -> m AmendmentId
 amendEvent uid eid a = do
   ev <- findEvent eid
   let act = AmendEvent eid a
@@ -216,7 +242,7 @@ amendEvent uid eid a = do
     (\(_, uid', _) -> if uid' == uid then liftdb act else forbidden)
     ev
 
-findEvent :: (MonadDB m) => EventId -> m (Maybe (KeyedLogEntry BTCNet))
+findEvent :: (MonadDB m) => EventId -> m (Maybe KeyedLogEntry)
 findEvent = liftdb . FindEvent
 
 findEvents ::
@@ -225,19 +251,19 @@ findEvents ::
   UserId ->
   RangeQuery ->
   Word32 ->
-  m [LogEntry BTCNet]
+  m [LogEntry]
 findEvents p u i l = liftdb $ FindEvents p u i l
 
-readWorkIndex :: (MonadDB m) => ProjectId -> UserId -> m (WorkIndex BTCNet)
+readWorkIndex :: (MonadDB m) => ProjectId -> UserId -> m WorkIndex
 readWorkIndex pid uid = withProjectAuth pid uid $ ReadWorkIndex pid
 
 -- Billing ops
 
-createBillable :: (MonadDB m) => UserId -> Billable -> m BillableId
+createBillable :: (MonadDB m) => UserId -> Billable Amount -> m BillableId
 createBillable uid b =
   withProjectAuth (b ^. B.project) uid $ CreateBillable uid b
 
-findBillable :: (MonadDB m) => BillableId -> MaybeT m Billable
+findBillable :: (MonadDB m) => BillableId -> MaybeT m (Billable Amount)
 findBillable = MaybeT . liftdb . FindBillable
 
 findSubscriptions ::
@@ -245,38 +271,38 @@ findSubscriptions ::
 findSubscriptions uid pid = liftdb $ FindSubscriptions uid pid
 
 findSubscriptionBillable ::
-  (MonadDB m) => SubscriptionId -> MaybeT m (Subscription' UserId Billable)
+  (MonadDB m) => SubscriptionId -> MaybeT m (Subscription' UserId (Billable Amount))
 findSubscriptionBillable sid = do
   sub <- MaybeT . liftdb $ FindSubscription sid
   traverseOf B.billable findBillable sub
 
-findPaymentRequests ::
-  (MonadDB m) => SubscriptionId -> m [(PaymentRequestId, PaymentRequest)]
-findPaymentRequests = liftdb . FindPaymentRequests
+findPaymentRequestByKey ::
+  (MonadDB m) => PaymentKey -> MaybeT m (PaymentRequestId, SomePaymentRequestDetail)
+findPaymentRequestByKey = MaybeT . liftdb . FindPaymentRequestByKey
 
-findPaymentRequest ::
-  (MonadDB m) => PaymentKey -> MaybeT m (PaymentRequestId, PaymentRequest)
-findPaymentRequest = MaybeT . liftdb . FindPaymentRequest
+findPaymentRequestById ::
+  (MonadDB m) => PaymentRequestId -> MaybeT m SomePaymentRequestDetail
+findPaymentRequestById = MaybeT . liftdb . FindPaymentRequestById
 
-findPaymentRequestId ::
-  (MonadDB m) => PaymentRequestId -> MaybeT m PaymentRequest
-findPaymentRequestId = MaybeT . liftdb . FindPaymentRequestId
+findSubscriptionPaymentRequests ::
+  (MonadDB m) => SubscriptionId -> m [(PaymentRequestId, SomePaymentRequestDetail)]
+findSubscriptionPaymentRequests = liftdb . FindSubscriptionPaymentRequests
 
 -- this could be implemented in terms of other operations, but it's
 -- much cleaner to just do the joins in the database
-findUnpaidRequests :: (MonadDB m) => SubscriptionId -> m [BillDetail]
-findUnpaidRequests = liftdb . FindUnpaidRequests
+findSubscriptionUnpaidRequests :: (MonadDB m) => SubscriptionId -> m [(PaymentRequestId, SomePaymentRequestDetail)]
+findSubscriptionUnpaidRequests = liftdb . FindSubscriptionUnpaidRequests
 
-findPayment :: (MonadDB m) => PaymentRequestId -> MaybeT m Payment
-findPayment prid = MaybeT $ (fmap snd . headMay) <$> liftdb (FindPayments prid)
+findPayment :: (MonadDB m) => Currency a c -> PaymentRequestId -> MaybeT m (Payment c)
+findPayment currency prid = MaybeT $ (fmap snd . headMay) <$> liftdb (FindPayments currency prid)
 
 -- Auction ops
 
-createAuction :: (MonadDB m) => Auction -> m AuctionId
+createAuction :: (MonadDB m) => A.Auction -> m A.AuctionId
 createAuction a = do
   withProjectAuth (a ^. A.projectId) (a ^. A.initiator) $ CreateAuction a
 
-findAuction :: (MonadDB m) => AuctionId -> UserId -> MaybeT m Auction
+findAuction :: (MonadDB m) => A.AuctionId -> UserId -> MaybeT m A.Auction
 findAuction aid uid =
   let findOp = FindAuction aid
    in do
@@ -284,7 +310,7 @@ findAuction aid uid =
         _ <- lift $ checkProjectAuth (auc ^. A.projectId) uid findOp
         pure auc
 
-findAuction' :: (MonadDB m) => AuctionId -> UserId -> m Auction
+findAuction' :: (MonadDB m) => A.AuctionId -> UserId -> m A.Auction
 findAuction' aid uid =
   let findOp = FindAuction aid
    in do
@@ -295,11 +321,11 @@ findAuction' aid uid =
             maybeAuc
         maybe (raiseSubjectNotFound findOp) pure maybeAuc
 
-createBid :: (MonadDB m) => AuctionId -> UserId -> Bid -> m BidId
+createBid :: (MonadDB m) => A.AuctionId -> UserId -> A.Bid -> m A.BidId
 createBid aid uid bid =
   let createOp = CreateBid aid bid
    in do
         auc <- findAuction' aid uid
-        if view bidTime bid > view auctionEnd auc
+        if view A.bidTime bid > view A.auctionEnd auc
           then raiseOpForbidden uid AuctionEnded createOp
           else liftdb createOp

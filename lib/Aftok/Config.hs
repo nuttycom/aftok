@@ -3,7 +3,7 @@
 module Aftok.Config where
 
 import Aftok.Currency.Bitcoin (NetworkMode)
-import Aftok.Payments (PaymentsConfig (..))
+import Aftok.Payments.Bitcoin (PaymentsConfig (..))
 import qualified Bippy.Types as BT
 import Control.Lens
   ( (^.),
@@ -86,4 +86,4 @@ toPaymentsConfig c = do
           <> encodeString
             (c ^. signingKeyFile)
   let pkiData = BT.X509SHA256 . CertificateChain $ pkiEntries
-  pure $ PaymentsConfig (c ^. networkMode) privKey pkiData
+  pure $ PaymentsConfig (c ^. networkMode) privKey pkiData mempty

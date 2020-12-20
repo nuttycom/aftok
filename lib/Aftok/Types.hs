@@ -1,15 +1,13 @@
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Aftok.Types where
 
-import Aftok.Currency.Zcash (ZAddr)
+import qualified Aftok.Currency.Zcash.Types as Zcash
 import Control.Lens
   ( makeLenses,
     makePrisms,
   )
 import Data.Eq (Eq)
-import Data.Functor (Functor)
 import Data.Ord (Ord)
 import Data.Text (Text)
 import Data.UUID (UUID)
@@ -28,16 +26,16 @@ newtype Email = Email Text deriving (Show, Eq)
 
 makePrisms ''Email
 
-data AccountRecovery z
+data RecoverBy z
   = RecoverByEmail Email
   | RecoverByZAddr z
 
-makePrisms ''AccountRecovery
+makePrisms ''RecoverBy
 
 data User
   = User
       { _username :: !UserName,
-        _userAccountRecovery :: !(AccountRecovery ZAddr)
+        _userAccountRecovery :: !(RecoverBy Zcash.Address)
       }
 
 makeLenses ''User
@@ -46,21 +44,25 @@ newtype ProjectId = ProjectId UUID deriving (Show, Eq, Ord)
 
 makePrisms ''ProjectId
 
-data CreditTo a
+-- Identifier for a cryptocurrency account. An account
+-- is a mapping from cryptocurrency network to address;
+-- this abstraction permits users to accept payment
+-- in multiple currencies, or to direct payments in a
+-- fashion that can change over time.
+newtype AccountId = AccountId UUID deriving (Show, Eq, Ord)
+
+makePrisms ''AccountId
+
+data CreditTo
   = -- payouts are made directly via a cryptocurrency network
-    CreditToCurrency !a
+    CreditToAccount !AccountId
   | -- payouts are distributed as requested by the specified contributor
     CreditToUser !UserId
   | -- payouts are distributed to this project's contributors
     CreditToProject !ProjectId
-  deriving (Show, Eq, Ord, Functor)
+  deriving (Show, Eq, Ord)
 
 makePrisms ''CreditTo
-
-creditToName :: CreditTo a -> Text
-creditToName (CreditToCurrency _) = "credit_via_net"
-creditToName (CreditToUser _) = "credit_to_user"
-creditToName (CreditToProject _) = "credit_to_project"
 
 data DepreciationFunction = LinearDepreciation Months Months
   deriving (Eq, Show)

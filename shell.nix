@@ -20,6 +20,7 @@ pkgs.stdenv.mkDerivation{
     pkgs.nodejs
     pkgs.pkg-config
     pkgs.purescript
+    haskellPackages.brittany
     haskellPackages.cabal-install
     haskellPackages.ghcid
     haskellPackages.ormolu
