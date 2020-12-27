@@ -26,9 +26,8 @@ import Aftok.Database
     KeyedLogEntry,
   )
 import Aftok.Database.PostgreSQL.Json
-  ( bip70PaymentJSON,
-    bip70PaymentRequestJSON,
-    zcashPaymentJSON,
+  ( bip70PaymentRequestJSON,
+    paymentJSON,
   )
 import Aftok.Database.PostgreSQL.Types
   ( DBM,
@@ -113,7 +112,9 @@ storeEvent = \case
             [ "zip321_request" .= zip321URI r
             ]
   (CreatePayment p) ->
-    Just $ storeEventJSON Nothing "create_payment" (paymentJSON p)
+    Just $ do
+      nmode <- asks fst
+      storeEventJSON Nothing "create_payment" (paymentJSON nmode p)
   _ -> Nothing
 
 storeEvent' :: DBOp a -> DBM EventId

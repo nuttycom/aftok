@@ -44,11 +44,9 @@ import Aftok.Billing
 import Aftok.Currency (Amount (..), Currency (..))
 import qualified Aftok.Currency.Bitcoin as Bitcoin
 import Aftok.Currency.Bitcoin (Satoshi)
-import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
 import Aftok.Currency.Zcash (Zatoshi)
-import qualified Aftok.Currency.Zcash.Payments as Zcash
 import qualified Aftok.Currency.Zcash.Zip321 as Zip321
-import Aftok.Database.PostgreSQL.Json (paymentJSON)
+import Aftok.Database.PostgreSQL.Json (parseBitcoinPaymentJSON, parseZcashPaymentJSON, paymentJSON)
 import Aftok.Database.PostgreSQL.Types
   ( DBM,
     currencyAmountParser,
@@ -70,10 +68,10 @@ import Aftok.Payments.Types
     PaymentRequest,
     PaymentRequest' (..),
     PaymentRequestId (..),
+    PaymentRequestId,
     SomePaymentRequest (..),
     SomePaymentRequestDetail,
     _PaymentRequestId,
-    nativePayment,
     paymentDate,
     paymentRequest,
   )
@@ -90,6 +88,7 @@ import Aftok.Types
   )
 import Control.Lens ((.~), (^.), to, view)
 import Data.Aeson (encode)
+import Data.Aeson.Types (parseEither)
 import Data.ProtocolBuffers (decodeMessage)
 import Data.Serialize.Get (runGet)
 import qualified Data.Thyme.Clock as C
@@ -158,17 +157,27 @@ paymentRequestParser = do
       pure . SomePaymentRequest $ PaymentRequest (billable & amount .~ zats) createdAt billingDate nativeReq
 
 paymentParser :: Bitcoin.NetworkMode -> PaymentRequestId -> Currency a c -> RowParser (Payment c)
-paymentParser nmode id ccy = do
-  paymentDate :: C.UTCTime <- C.toThyme <$> field
+paymentParser nmode prid ccy = do
+  d :: C.UTCTime <- C.toThyme <$> field
   case ccy of
-    BTC -> Payment (Const id) paymentDate <$> bitcoinPaymentParser nmode
-    ZEC -> Payment (Const id) paymentDate <$> zcashPaymentParser
+    BTC -> Payment (Const prid) d <$> bitcoinPaymentParser nmode
+    ZEC -> Payment (Const prid) d <$> zcashPaymentParser
 
 bitcoinPaymentParser :: Bitcoin.NetworkMode -> RowParser (NativePayment Satoshi)
-bitcoinPaymentParser nmode = undefined
+bitcoinPaymentParser nmode = do
+  pvalue <- field
+  either
+    (const empty)
+    (pure . BitcoinPayment)
+    (parseEither (parseBitcoinPaymentJSON nmode) pvalue)
 
 zcashPaymentParser :: RowParser (NativePayment Zatoshi)
-zcashPaymentParser = undefined
+zcashPaymentParser = do
+  pvalue <- field
+  either
+    (const empty)
+    (pure . ZcashPayment)
+    (parseEither parseZcashPaymentJSON pvalue)
 
 createBillable :: EventId -> UserId -> Billable Amount -> DBM BillableId
 createBillable eventId _ b = do
