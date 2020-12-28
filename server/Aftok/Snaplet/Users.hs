@@ -13,14 +13,15 @@ module Aftok.Snaplet.Users
   )
 where
 
-import Aftok.Currency.Zcash (RPCError, ZAddr, ZValidateAddressErr)
+import qualified Aftok.Currency.Zcash as Zcash
+import Aftok.Currency.Zcash (RPCError, ZValidateAddressErr)
 import Aftok.Database (acceptInvitation, createUser)
 import Aftok.Project (InvitationCode, parseInvCode)
 import Aftok.Snaplet
 import Aftok.Snaplet.Auth
 import Aftok.Types
-  ( AccountRecovery (..),
-    Email (..),
+  ( Email (..),
+    RecoverBy (..),
     User (..),
     UserId,
     UserName (..),
@@ -56,14 +57,14 @@ import qualified Snap.Snaplet.Auth as AU
 
 data RegisterOps m
   = RegisterOps
-      { validateZAddr :: Text -> m (Either (RPCError ZValidateAddressErr) ZAddr),
+      { validateZAddr :: Text -> m (Either (RPCError ZValidateAddressErr) Zcash.Address),
         sendConfirmationEmail :: Email -> m ()
       }
 
 data RegUser
   = RegUser
       { _username :: !UserName,
-        _userAccountRecovery :: !(AccountRecovery Text)
+        _userAccountRecovery :: !(RecoverBy Text)
       }
 
 makeLenses ''RegUser
@@ -95,7 +96,7 @@ instance A.FromJSON RegisterRequest where
     where
       parseInvitationCodes c =
         either
-          (\e -> fail $ "Invitation code was rejected as invalid: " <> e)
+          (\e -> fail $ "Invitation code was rejected as invalid: " <> toString e)
           pure
           (traverse parseInvCode c)
   parseJSON _ = mzero
@@ -117,7 +118,7 @@ instance A.ToJSON RegisterError where
       A.object
         ["zaddrError" .= (show zerr :: Text)]
 
-checkZAddrHandler :: RegisterOps IO -> S.Handler App App ZAddr
+checkZAddrHandler :: RegisterOps IO -> S.Handler App App Zcash.Address
 checkZAddrHandler ops = do
   params <- S.getParams
   zaddrBytes <-
@@ -175,9 +176,7 @@ acceptInvitationHandler = do
       (pure . traverse (parseInvCode . T.decodeUtf8))
       (M.lookup "invCode" params)
   either
-    ( \e ->
-        snapError 400 $ "Invitation code was rejected as invalid: " <> T.pack e
-    )
+    (\e -> snapError 400 $ "Invitation code was rejected as invalid: " <> e)
     (\cx -> void . snapEval $ traverse (acceptInvitation uid now) cx)
     invCodes
 

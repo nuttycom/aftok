@@ -2,11 +2,6 @@
 
 module Aftok.Snaplet.WorkLog where
 
-import Aftok.Currency.Bitcoin
-  ( NetworkId (..),
-    NetworkMode,
-    toNetwork,
-  )
 import Aftok.Database
 import Aftok.Interval
 import Aftok.Json
@@ -28,24 +23,18 @@ import qualified Data.Aeson.Types as A
 import qualified Data.Text as T
 import Data.Thyme.Clock as C
 import Data.UUID as U
-import Haskoin.Address
-  ( Address,
-    textToAddr,
-  )
 import Snap.Core
 import Snap.Snaplet as S
 
 logWorkHandler ::
   (C.UTCTime -> LogEvent) ->
-  S.Handler App App (EventId, KeyedLogEntry BTCNet)
+  S.Handler App App (EventId, KeyedLogEntry)
 logWorkHandler evCtr = do
   uid <- requireUserId
   pid <- requireProjectId
-  nmode <- getNetworkMode
   requestBody <- readRequestBody 4096
   timestamp <- liftIO C.getCurrentTime
-  case A.eitherDecode requestBody
-    >>= A.parseEither (parseLogEntry nmode uid evCtr) of
+  case (A.eitherDecode requestBody >>= A.parseEither (parseLogEntry uid evCtr)) of
     Left err ->
       snapError 400 $
         "Unable to parse log entry "
@@ -62,34 +51,13 @@ logWorkHandler evCtr = do
         (pure . (eid,))
         ev
 
-logWorkBTCHandler :: (C.UTCTime -> LogEvent) -> S.Handler App App EventId
-logWorkBTCHandler evCtr = do
-  uid <- requireUserId
-  pid <- requireProjectId
-  nmode <- getNetworkMode
-  let network = toNetwork nmode BTC
-  addrBytes <- getParam "btcAddr"
-  requestBody <- readRequestBody 4096
-  timestamp <- liftIO C.getCurrentTime
-  case fmap decodeUtf8 addrBytes >>= textToAddr network of
-    Nothing ->
-      snapError 400 $
-        "Unable to parse bitcoin address from "
-          <> (show addrBytes)
-    Just addr ->
-      snapEval . createEvent pid uid $
-        LogEntry
-          (CreditToCurrency (BTC, addr))
-          (evCtr timestamp)
-          (A.decode requestBody)
-
-projectWorkIndex :: S.Handler App App (WorkIndex (NetworkId, Address))
+projectWorkIndex :: S.Handler App App WorkIndex
 projectWorkIndex = do
   uid <- requireUserId
   pid <- requireProjectId
   snapEval $ readWorkIndex pid uid
 
-userEvents :: S.Handler App App [LogEntry (NetworkId, Address)]
+userEvents :: S.Handler App App [LogEntry]
 userEvents = do
   uid <- requireUserId
   pid <- requireProjectId
@@ -102,10 +70,10 @@ userEvents = do
   limit <- fromMaybe 1 <$> decimalParam "limit"
   snapEval $ findEvents pid uid ival limit
 
-userWorkIndex :: S.Handler App App (WorkIndex (NetworkId, Address))
+userWorkIndex :: S.Handler App App WorkIndex
 userWorkIndex = workIndex <$> userEvents
 
-payoutsHandler :: S.Handler App App (Payouts (NetworkId, Address))
+payoutsHandler :: S.Handler App App FractionalPayouts
 payoutsHandler = do
   uid <- requireUserId
   pid <- requireProjectId
@@ -120,7 +88,6 @@ payoutsHandler = do
 amendEventHandler :: S.Handler App App AmendmentId
 amendEventHandler = do
   uid <- requireUserId
-  nmode <- getNetworkMode
   eventIdBytes <- getParam "eventId"
   eventId <-
     maybe
@@ -132,15 +99,14 @@ amendEventHandler = do
   either
     (snapError 400 . T.pack)
     (snapEval . amendEvent uid eventId)
-    (A.parseEither (parseEventAmendment nmode modTime) requestJSON)
+    (A.parseEither (parseEventAmendment modTime) requestJSON)
 
-keyedLogEntryJSON ::
-  NetworkMode -> (EventId, KeyedLogEntry (NetworkId, Address)) -> A.Value
-keyedLogEntryJSON nmode (eid, (pid, uid, ev)) =
+keyedLogEntryJSON :: (EventId, KeyedLogEntry) -> A.Value
+keyedLogEntryJSON (eid, (pid, uid, ev)) =
   v2
     . obj
     $ [ "eventId" .= idValue _EventId eid,
         "projectId" .= idValue _ProjectId pid,
         "loggedBy" .= idValue _UserId uid
       ]
-      <> logEntryFields nmode ev
+      <> logEntryFields ev

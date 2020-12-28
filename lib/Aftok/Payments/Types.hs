@@ -28,6 +28,7 @@ import Data.AffineSpace ((.+^))
 import Data.Thyme.Clock as C
 import Data.Thyme.Time as C
 import Data.UUID
+import Haskoin.Address (decodeBase58Check)
 
 newtype PaymentRequestId = PaymentRequestId UUID deriving (Show, Eq)
 
@@ -42,6 +43,10 @@ makePrisms ''PaymentId
 newtype PaymentKey = PaymentKey Text deriving (Eq)
 
 makePrisms ''PaymentKey
+
+parsePaymentKey :: ByteString -> Maybe PaymentKey
+parsePaymentKey bs =
+  (PaymentKey . decodeUtf8) <$> decodeBase58Check (decodeUtf8 bs)
 
 data NativeRequest currency where
   Bip70Request :: B.PaymentRequest -> NativeRequest Satoshi

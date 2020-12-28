@@ -63,13 +63,13 @@ paymentJSON nmode p =
 bitcoinPaymentJSON :: NetworkMode -> Bitcoin.Payment -> Value
 bitcoinPaymentJSON nmode bp =
   object
-    [ "amount" .= (bp ^. Bitcoin.amount . _Satoshi),
+    [ "amount" .= (bp ^? Bitcoin.amount . _Just . _Satoshi),
       "txid" .= (bp ^. Bitcoin.txid),
       "address" .= addrText,
       "payment_protobuf_64" .= (B64.encodeBase64 . runPut . encodeMessage $ bp ^. Bitcoin.bip70Payment)
     ]
   where
-    addrText = addrToText (getNetwork nmode) (bp ^. Bitcoin.address)
+    addrText = addrToText (getNetwork nmode) <$> (bp ^. Bitcoin.address)
 
 zcashPaymentJSON :: Zcash.Payment -> Value
 zcashPaymentJSON _ = object []
@@ -81,9 +81,10 @@ decodeBip70Payment =
 parseBitcoinPaymentJSON :: NetworkMode -> Value -> Parser Bitcoin.Payment
 parseBitcoinPaymentJSON nmode = \case
   Object o ->
-    Bitcoin.Payment <$> (Satoshi <$> o .: "amount")
-      <*> (o .: "txid")
-      <*> (parseBtcAddr nmode =<< o .: "address")
+    Bitcoin.Payment
+      <$> (fmap Satoshi <$> o .:? "amount")
+      <*> (o .:? "txid")
+      <*> (traverse (parseBtcAddr nmode) =<< o .:? "address")
       <*> (either (fail . unpack) decodeBip70Payment =<< B64.decodeBase64 . encodeUtf8 @Text @ByteString <$> (o .: "payment_protobuf_64"))
   val ->
     fail $ "Value " <> show val <> " is not a JSON object."

@@ -81,18 +81,16 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
         serveJSON (fmap qdbProjectJSON) $ method GET projectListHandler
       projectRoute = serveJSON projectJSON $ method GET projectGetHandler
       projectWorkIndexRoute =
-        serveJSON (workIndexJSON nmode) (method GET projectWorkIndex)
+        serveJSON workIndexJSON $ method GET projectWorkIndex
       projectPayoutsRoute =
-        serveJSON (payoutsJSON nmode) $ method GET payoutsHandler
+        serveJSON payoutsJSON $ method GET payoutsHandler
       logWorkRoute f =
-        serveJSON (keyedLogEntryJSON nmode) $ method POST (logWorkHandler f)
-      -- logWorkBTCRoute f =
-      --   serveJSON eventIdJSON $ method POST (logWorkBTCHandler f)
+        serveJSON keyedLogEntryJSON $ method POST (logWorkHandler f)
       amendEventRoute = serveJSON amendmentIdJSON $ method PUT amendEventHandler
       userEventsRoute =
-        serveJSON (fmap $ logEntryJSON nmode) $ method GET userEvents
+        serveJSON (fmap logEntryJSON) $ method GET userEvents
       userWorkIndexRoute =
-        serveJSON (workIndexJSON nmode) $ method GET userWorkIndex
+        serveJSON workIndexJSON $ method GET userWorkIndex
       auctionCreateRoute =
         serveJSON auctionIdJSON $ method POST auctionCreateHandler
       auctionRoute = serveJSON auctionJSON $ method GET auctionGetHandler
@@ -103,16 +101,16 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
         serveJSON (fmap qdbBillableJSON) $ method GET billableListHandler
       subscribeRoute =
         serveJSON subscriptionIdJSON $ method POST subscribeHandler
-      payableRequestsRoute =
-        serveJSON billDetailsJSON $ method GET listPayableRequestsHandler
-      getPaymentRequestRoute =
+      -- payableRequestsRoute =
+      --   serveJSON billDetailsJSON $ method GET listPayableRequestsHandler
+      getBip70PaymentRequestRoute =
         writeLBS
           . runPutLazy
           . encodeMessage
-          =<< method GET getPaymentRequestHandler
-      submitPaymentRoute =
+          =<< method GET getBip70PaymentRequestHandler
+      submitBip70PaymentRoute =
         serveJSON paymentIdJSON $
-          method POST (paymentResponseHandler $ cfg ^. billingConfig)
+          method POST (bip70PaymentResponseHandler $ cfg ^. billingConfig)
   addRoutes
     [ ("static", serveDirectory . encodeString $ cfg ^. staticAssetPath),
       ("login", loginRoute),
@@ -124,8 +122,6 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
       ( "accept_invitation",
         acceptInviteRoute
       ),
-      -- , ("projects/:projectId/logStart/:btcAddr" , logWorkBTCRoute StartWork)
-      -- , ("projects/:projectId/logEnd/:btcAddr"   , logWorkBTCRoute StopWork)
       ("user/projects/:projectId/logStart", logWorkRoute StartWork),
       ("user/projects/:projectId/logEnd", logWorkRoute StopWork),
       ("user/projects/:projectId/events", userEventsRoute),
@@ -144,8 +140,8 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
       ("auctions/:auctionId", auctionRoute),
       ("auctions/:auctionId/bid", auctionBidRoute),
       ("subscribe/:billableId", subscribeRoute),
-      ("subscriptions/:subscriptionId/payment_requests", payableRequestsRoute),
-      ("pay/:paymentRequestKey", getPaymentRequestRoute <|> submitPaymentRoute),
+      -- ("subscriptions/:subscriptionId/payment_requests", payableRequestsRoute),
+      ("pay/btc/:paymentRequestKey", getBip70PaymentRequestRoute <|> submitBip70PaymentRoute),
       ("events/:eventId/amend", amendEventRoute)
     ]
   return $ App nmode sesss pgs auths

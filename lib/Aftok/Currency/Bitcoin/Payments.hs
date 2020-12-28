@@ -17,9 +17,9 @@ import Haskoin.Address (Address (..))
 
 data Payment
   = Payment
-      { _amount :: Satoshi,
-        _txid :: Text,
-        _address :: Address,
+      { _amount :: Maybe Satoshi,
+        _txid :: Maybe Text,
+        _address :: Maybe Address,
         _bip70Payment :: B.Payment
       }
 
