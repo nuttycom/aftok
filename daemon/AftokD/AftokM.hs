@@ -10,6 +10,7 @@ import Aftok.Billing
     Billable',
     ContactChannel (..),
     Subscription',
+    SubscriptionId,
     billable,
     contactChannel,
     customer,
@@ -19,10 +20,11 @@ import Aftok.Billing
     project,
   )
 import qualified Aftok.Config as AC
-import Aftok.Currency.Bitcoin (satoshi)
+import Aftok.Currency.Bitcoin (_Satoshi)
 import qualified Aftok.Database as DB
 import Aftok.Database.PostgreSQL (QDBM (..))
 import qualified Aftok.Payments as P
+import Aftok.Payments.Bitcoin (BillingOps)
 import Aftok.Payments.Types
   ( PaymentKey (..),
     paymentKey,
@@ -132,24 +134,28 @@ createAllPaymentRequests cfg = do
 createProjectsPaymentRequests :: AftokM ()
 createProjectsPaymentRequests = do
   projects <- liftQDBM $ DB.listProjects
-  traverse_ createProjectPaymentRequests projects
+  traverse_ createProjectSubscriptionPaymentRequests projects
 
-createProjectPaymentRequests :: ProjectId -> AftokM ()
-createProjectPaymentRequests pid = do
+createProjectSubscriptionPaymentRequests :: ProjectId -> AftokM ()
+createProjectSubscriptionPaymentRequests pid = do
   now <- liftIO C.getCurrentTime
-  let ops = P.BillingOps memoGen (fmap Just . paymentURL) payloadGen
+  let btcOps = BillingOps memoGen (fmap Just . paymentURL) payloadGen
+      btcCfg = undefined
+      zecCfg = undefined
+      pcfg = P.PaymentsConfig btcOps btcCfg zecCfg
   subscribers <- liftQDBM $ DB.findSubscribers pid
-  requests <-
-    traverse (\uid -> P.createPaymentRequests ops now uid pid) $ subscribers
+  subscriptions <- join <$> traverse (findSubscriptions pid) subscribers
+  requests <- traverse (P.createSubscriptionPaymentRequests pcfg now) subscriptions
   traverse_ sendPaymentRequestEmail (join requests)
 
-sendPaymentRequestEmail :: P.PaymentRequestId -> AftokM ()
+-- | TODO: Currently will only send email for bip70 requests
+sendPaymentRequestEmail :: SubscriptionId -> P.PaymentRequestId -> AftokM ()
 sendPaymentRequestEmail reqId = do
   cfg <- ask
   let AC.SmtpConfig {..} = cfg ^. (dcfg . D.smtpConfig)
       preqCfg = cfg ^. (dcfg . D.paymentRequestConfig)
       reqMay = do
-        preq <- DB.findPaymentRequestId reqId
+        SomePaymentRequest preq <- DB.findPaymentRequestById reqId
         preq' <- traverseOf P.subscription DB.findSubscriptionBillable preq
         preq'' <- traverseOf (P.subscription . customer) DB.findUser preq'
         traverseOf (P.subscription . billable . project) DB.findProject preq''
@@ -191,7 +197,7 @@ buildPaymentRequestEmail cfg req paymentUrl = do
               [ ("from_email", fromEmail ^. _Email),
                 ("project_name", pname),
                 ("to_email", toEmail ^. _Email),
-                ("amount_due", show $ total ^. satoshi),
+                ("amount_due", show $ total ^. _Satoshi),
                 ("payment_url", show paymentUrl)
               ]
           fromAddr = Mime.Address Nothing ("billing@aftok.com")

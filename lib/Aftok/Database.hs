@@ -86,7 +86,7 @@ data DBOp a where
   FindBillables :: ProjectId -> DBOp [(BillableId, Billable Amount)]
   CreateSubscription :: UserId -> BillableId -> T.Day -> DBOp SubscriptionId
   FindSubscription :: SubscriptionId -> DBOp (Maybe Subscription)
-  FindSubscriptions :: UserId -> ProjectId -> DBOp [(SubscriptionId, Subscription)]
+  FindSubscriptions :: ProjectId -> UserId -> DBOp [(SubscriptionId, Subscription)]
   FindSubscribers :: ProjectId -> DBOp [UserId]
   StorePaymentRequest :: PaymentRequestId -> PaymentRequest c -> DBOp ()
   FindPaymentRequestByKey :: PaymentKey -> DBOp (Maybe (PaymentRequestId, SomePaymentRequestDetail))
@@ -267,8 +267,8 @@ findBillable :: (MonadDB m) => BillableId -> MaybeT m (Billable Amount)
 findBillable = MaybeT . liftdb . FindBillable
 
 findSubscriptions ::
-  (MonadDB m) => UserId -> ProjectId -> m [(SubscriptionId, Subscription)]
-findSubscriptions uid pid = liftdb $ FindSubscriptions uid pid
+  (MonadDB m) => ProjectId -> UserId -> m [(SubscriptionId, Subscription)]
+findSubscriptions pid uid = liftdb $ FindSubscriptions pid uid
 
 findSubscriptionBillable ::
   (MonadDB m) => SubscriptionId -> MaybeT m (Subscription' UserId (Billable Amount))

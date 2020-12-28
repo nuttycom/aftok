@@ -29,7 +29,6 @@ import Aftok.Database
     findPayment,
     findSubscriptionPaymentRequests,
     findSubscriptionUnpaidRequests,
-    findSubscriptions,
     liftdb,
     raiseOpForbidden,
     raiseSubjectNotFound,
@@ -51,8 +50,7 @@ import Aftok.Payments.Types
 import qualified Aftok.Payments.Types as PT
 import qualified Aftok.Payments.Zcash as Zcash
 import Aftok.Types
-  ( ProjectId,
-    UserId,
+  ( UserId,
   )
 import Control.Error.Util (maybeT)
 import Control.Lens
@@ -97,29 +95,6 @@ data PaymentError
   | BillableIdMismatch !BillableId !BillableId
 
 makeClassyPrisms ''PaymentError
-
-{--
- - Find all the subscriptions for the specified customer, and
- - determine which if any are up for renewal. Create a payment
- - request for each such subscription.
- --}
-createPaymentRequests ::
-  ( MonadDB m,
-    CR.MonadRandom m,
-    MonadRandom m
-  ) =>
-  -- | bitcoin payment generation setup
-  PaymentsConfig m ->
-  -- | timestamp for payment request creation
-  C.UTCTime ->
-  -- | customer responsible for payment
-  UserId ->
-  -- | project whose worklog is to be paid
-  ProjectId ->
-  ExceptT PaymentError m [PaymentRequestId]
-createPaymentRequests cfg now custId pid = do
-  subscriptions <- lift $ findSubscriptions custId pid
-  join <$> traverse (createSubscriptionPaymentRequests cfg now) subscriptions
 
 createSubscriptionPaymentRequests ::
   forall m.

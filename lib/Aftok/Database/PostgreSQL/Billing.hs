@@ -254,8 +254,8 @@ findSubscription sid =
           WHERE s.id = ? |]
       (Only (sid ^. _SubscriptionId))
 
-findSubscriptions :: UserId -> ProjectId -> DBM [(SubscriptionId, Subscription)]
-findSubscriptions uid pid =
+findSubscriptions :: ProjectId -> UserId -> DBM [(SubscriptionId, Subscription)]
+findSubscriptions pid uid =
   pquery
     ((,) <$> idParser SubscriptionId <*> subscriptionParser)
     [sql| SELECT s.id, user_id, billable_id, contact_email, start_date, end_date
