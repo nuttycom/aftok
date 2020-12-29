@@ -100,8 +100,8 @@ itemsParams xs =
     itemParams (i, item) =
       addrParam i (item ^. address) : itemPartial i item
 
-zip321URI :: PaymentRequest -> Text
-zip321URI req =
+toURI :: PaymentRequest -> Text
+toURI req =
   case req ^. items of
     i :| [] ->
       "zcash:" <> zaddrText (i ^. address) <> "?"
@@ -192,5 +192,5 @@ parseOtherParam = do
   where
     paramNameChar c = isDigit c || (isAscii c && isAlpha c) || c == '+' || c == '-'
 
-parseZip321URI :: Text -> Either String PaymentRequest
-parseZip321URI = parseOnly zip321Parser
+parseURI :: Text -> Either String PaymentRequest
+parseURI = parseOnly zip321Parser

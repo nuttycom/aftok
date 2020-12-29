@@ -2,35 +2,32 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
 
 module AftokD.AftokM where
 
+import qualified Aftok.Billing as B
 import Aftok.Billing
   ( Billable,
     Billable',
     ContactChannel (..),
     Subscription',
-    SubscriptionId,
-    billable,
     contactChannel,
     customer,
-    name,
     paymentRequestEmailTemplate,
     paymentRequestMemoTemplate,
     project,
   )
 import qualified Aftok.Config as AC
-import Aftok.Currency.Bitcoin (_Satoshi)
+import Aftok.Currency.Bitcoin (Satoshi, _Satoshi)
+import Aftok.Currency.Zcash (Zatoshi(..))
+import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
 import qualified Aftok.Database as DB
 import Aftok.Database.PostgreSQL (QDBM (..))
 import qualified Aftok.Payments as P
-import Aftok.Payments.Bitcoin (BillingOps)
-import Aftok.Payments.Types
-  ( PaymentKey (..),
-    paymentKey,
-    paymentRequestTotal,
-    subscription,
-  )
+import Aftok.Payments.Bitcoin (BillingOps (..), PaymentsConfig)
+import qualified Aftok.Payments.Types as P
+import qualified Aftok.Payments.Zcash as Zcash
 import Aftok.Project
   ( Project,
     projectName,
@@ -42,14 +39,19 @@ import Aftok.Types
     _Email,
   )
 import qualified AftokD as D
-import Bippy.Types (Satoshi)
-import Control.Error.Util (maybeT)
+import Control.Error.Util (exceptT, maybeT)
 import Control.Lens
-  ( (^.),
+  ( (.~),
+    Iso',
+    (^.),
+    from,
+    iso,
     makeClassyPrisms,
     makeLenses,
+    over,
     to,
     traverseOf,
+    set,
   )
 import Control.Monad.Except
   ( MonadError,
@@ -87,25 +89,25 @@ data AftokDErr
 
 makeClassyPrisms ''AftokDErr
 
-instance P.AsPaymentError AftokDErr where
-  _PaymentError = _PaymentErr . P._PaymentError
-  _Overdue = _PaymentErr . P._Overdue
-  _SigningError = _PaymentErr . P._SigningError
+-- instance P.AsPaymentError AftokDErr where
+--   _PaymentError = _PaymentErr . P._PaymentError
+--   _Overdue = _PaymentErr . P._Overdue
+--   _SigningError = _PaymentErr . P._SigningError
 
 data AftokMEnv
   = AftokMEnv
       { _dcfg :: !D.Config,
         _conn :: !Connection,
-        _pcfg :: !P.PaymentsConfig
+        _pcfg :: !PaymentsConfig
       }
 
 makeLenses ''AftokMEnv
 
-instance P.HasPaymentsConfig AftokMEnv where
-  networkMode = pcfg . P.networkMode
-  signingKey = pcfg . P.signingKey
-  pkiData = pcfg . P.pkiData
-  paymentsConfig = pcfg
+-- instance P.HasPaymentsConfig AftokMEnv where
+--   networkMode = pcfg . P.networkMode
+--   signingKey = pcfg . P.signingKey
+--   pkiData = pcfg . P.pkiData
+--   paymentsConfig = pcfg
 
 newtype AftokM a = AftokM {runAftokM :: ReaderT AftokMEnv (ExceptT AftokDErr IO) a}
   deriving (Functor, Applicative, Monad, MonadIO, MonadError AftokDErr, MonadReader AftokMEnv)
@@ -139,59 +141,82 @@ createProjectsPaymentRequests = do
 createProjectSubscriptionPaymentRequests :: ProjectId -> AftokM ()
 createProjectSubscriptionPaymentRequests pid = do
   now <- liftIO C.getCurrentTime
-  let btcOps = BillingOps memoGen (fmap Just . paymentURL) payloadGen
-      btcCfg = undefined
-      zecCfg = undefined
-      pcfg = P.PaymentsConfig btcOps btcCfg zecCfg
+  btcCfg <- asks _pcfg
+  let btcOps = BillingOps _memoGen (fmap Just . bip70PaymentURL) _payloadGen
+      zecCfg = Zcash.PaymentsConfig (Zatoshi 100)
+      pcfg' = P.PaymentsConfig btcOps btcCfg zecCfg
   subscribers <- liftQDBM $ DB.findSubscribers pid
-  subscriptions <- join <$> traverse (findSubscriptions pid) subscribers
-  requests <- traverse (P.createSubscriptionPaymentRequests pcfg now) subscriptions
-  traverse_ sendPaymentRequestEmail (join requests)
+  subscriptions <- join <$> traverse (DB.findSubscriptions pid) subscribers
+  requests <-
+    fmap join
+      . exceptT (throwError . PaymentErr) pure
+      $ traverse (\s -> fmap (snd s,) <$> P.createSubscriptionPaymentRequests pcfg' now s) subscriptions
+  traverse_ sendPaymentRequestEmail requests
+
+_Compose :: Iso' (f (g a)) (Compose f g a)
+_Compose = iso Compose getCompose
 
 -- | TODO: Currently will only send email for bip70 requests
-sendPaymentRequestEmail :: SubscriptionId -> P.PaymentRequestId -> AftokM ()
-sendPaymentRequestEmail reqId = do
+sendPaymentRequestEmail :: (B.Subscription, (P.PaymentRequestId, P.SomePaymentRequestDetail)) -> AftokM ()
+sendPaymentRequestEmail (sub, (_, P.SomePaymentRequest req)) = do
   cfg <- ask
   let AC.SmtpConfig {..} = cfg ^. (dcfg . D.smtpConfig)
       preqCfg = cfg ^. (dcfg . D.paymentRequestConfig)
-      reqMay = do
-        SomePaymentRequest preq <- DB.findPaymentRequestById reqId
-        preq' <- traverseOf P.subscription DB.findSubscriptionBillable preq
-        preq'' <- traverseOf (P.subscription . customer) DB.findUser preq'
-        traverseOf (P.subscription . billable . project) DB.findProject preq''
-  req <- maybeT (throwError $ DBErr DB.SubjectNotFound) pure reqMay
-  bip70URL <- paymentURL (req ^. paymentKey)
-  mail <- buildPaymentRequestEmail preqCfg req bip70URL
-  let mailer =
-        maybe
-          (SMTP.sendMailWithLogin _smtpHost)
-          (SMTP.sendMailWithLogin' _smtpHost)
-          _smtpPort
-  liftIO $ mailer _smtpUser _smtpPass mail
+      req' = over P.billable (\b -> Compose $ sub & B.billable .~ b) req
+  req'' <- enrichWithUser req'
+  req''' <- enrichWithProject req''
+  case req''' ^. P.nativeRequest of
+    P.Bip70Request nreq -> do
+      bip70URL <- bip70PaymentURL (nreq ^. Bitcoin.paymentRequestKey)
+      mail <- buildBip70PaymentRequestEmail preqCfg req''' bip70URL
+      let mailer =
+            maybe
+              (SMTP.sendMailWithLogin _smtpHost)
+              (SMTP.sendMailWithLogin' _smtpHost)
+              _smtpPort
+      liftIO $ mailer _smtpUser _smtpPass mail
+    P.Zip321Request _ -> pure ()
 
-buildPaymentRequestEmail ::
+enrichWithUser ::
+  P.PaymentRequest' (Compose (Subscription' UserId) (Billable' p u)) a ->
+  AftokM (P.PaymentRequest' (Compose (Subscription' User) (Billable' p u)) a)
+enrichWithUser req = do
+  let sub = req ^. P.billable . from _Compose
+  sub' <- maybeT (throwError $ DBErr DB.SubjectNotFound) pure $
+    traverseOf customer DB.findUser sub
+  pure (set P.billable (Compose sub') req)
+
+enrichWithProject ::
+  P.PaymentRequest' (Compose (Subscription' u) (Billable' ProjectId u')) a ->
+  AftokM (P.PaymentRequest' (Compose (Subscription' u) (Billable' Project u')) a)
+enrichWithProject req = do
+  let sub = req ^. P.billable . from _Compose
+  sub' <- maybeT (throwError $ DBErr DB.SubjectNotFound) pure $
+    traverseOf (B.billable . project) DB.findProject sub
+  pure (set P.billable (Compose sub') req)
+
+buildBip70PaymentRequestEmail ::
   (MonadIO m, MonadError AftokDErr m) =>
   D.PaymentRequestConfig ->
-  P.PaymentRequest' (Subscription' User (Billable' Project UserId Satoshi)) ->
+  P.PaymentRequest' (Compose (Subscription' User) (Billable' Project UserId)) Satoshi ->
   URI ->
   m Mime.Mail
-buildPaymentRequestEmail cfg req paymentUrl = do
+buildBip70PaymentRequestEmail cfg req paymentUrl = do
   templates <- liftIO . directoryGroup $ encodeString (cfg ^. D.templatePath)
   let billTemplate =
         (newSTMP . T.unpack)
-          <$> req
-          ^. (subscription . billable . paymentRequestEmailTemplate)
+          <$> (req ^. P.billable . to getCompose . B.billable . paymentRequestEmailTemplate)
       defaultTemplate = getStringTemplate "payment_request" templates
   case billTemplate <|> defaultTemplate of
     Nothing ->
       throwError $ ConfigError "Could not find template for invitation email"
     Just template -> do
-      toEmail <- case req ^. (subscription . contactChannel) of
+      toEmail <- case req ^. (P.billable . to getCompose . contactChannel) of
         EmailChannel email -> pure email
       -- TODO: other channels
       let fromEmail = cfg ^. D.billingFromEmail
-          pname = req ^. (subscription . billable . project . projectName)
-          total = req ^. (P.paymentRequest . to paymentRequestTotal)
+          pname = req ^. P.billable . to getCompose . B.billable . B.project . projectName
+          total = req ^. P.billable . to getCompose . B.billable . B.amount
           setAttrs =
             setManyAttrib
               [ ("from_email", fromEmail ^. _Email),
@@ -206,21 +231,21 @@ buildPaymentRequestEmail cfg req paymentUrl = do
           body = Mime.plainPart . render $ setAttrs template
       pure $ SMTP.simpleMail fromAddr [toAddr] [] [] subject [body]
 
-memoGen ::
-  MonadDB m =>
-  Subscription' UserId Billable ->
+_memoGen ::
+  DB.MonadDB m =>
+  Billable Satoshi ->
   C.Day ->
   C.UTCTime ->
   m (Maybe Text)
-memoGen sub billingDate requestTime = do
-  req <- traverseOf (billable . project) DB.findProjectOrError sub
+_memoGen bill billingDate requestTime = do
+  req <- traverseOf B.project DB.findProjectOrError bill
   let template =
         (newSTMP . T.unpack)
-          <$> (sub ^. (billable . paymentRequestMemoTemplate))
+          <$> (bill ^. paymentRequestMemoTemplate)
       setAttrs =
         setManyAttrib
-          [ ("project_name", req ^. (billable . project . projectName)),
-            ("subscription", req ^. (billable . name)),
+          [ ("project_name", req ^. B.project . projectName),
+            ("subscription", req ^. B.name),
             ("billing_date", show billingDate),
             ("issue_time", show requestTime)
           ]
@@ -228,8 +253,8 @@ memoGen sub billingDate requestTime = do
 
 -- The same URL is used for retrieving a BIP-70 payment request and for submitting
 -- the response.
-paymentURL :: PaymentKey -> AftokM URI
-paymentURL (PaymentKey k) = do
+bip70PaymentURL :: Bitcoin.PaymentKey -> AftokM URI
+bip70PaymentURL (Bitcoin.PaymentKey k) = do
   env <- ask
   let hostname = env ^. (dcfg . D.paymentRequestConfig . D.aftokHost)
       paymentRequestPath = "https://" <> hostname <> "/pay/" <> k
@@ -243,10 +268,10 @@ paymentURL (PaymentKey k) = do
     pure
     (parseURI $ show paymentRequestPath)
 
-payloadGen ::
+_payloadGen ::
   Monad m =>
-  Subscription' UserId Billable ->
+  Billable Satoshi ->
   C.Day ->
   C.UTCTime ->
   m (Maybe ByteString)
-payloadGen _ _ _ = pure Nothing
+_payloadGen _ _ _ = pure Nothing

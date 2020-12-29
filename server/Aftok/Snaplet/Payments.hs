@@ -16,10 +16,7 @@ import Aftok.Payments.Types
   ( NativePayment (..),
     Payment' (..),
     PaymentId,
-    SomePaymentRequestDetail,
-    _PaymentKey,
     nativeRequest,
-    parsePaymentKey,
   )
 import Aftok.Snaplet
 import Aftok.Snaplet.Auth
@@ -57,11 +54,11 @@ listPayableRequestsHandler = do
 bip70PaymentResponseHandler :: AC.BillingConfig -> S.Handler App App PaymentId
 bip70PaymentResponseHandler _ = do
   requestBody <- readRequestBody 4096
-  (prid, SomePaymentRequest _) <- getBip70PaymentRequestHandler'
+  (prid, preq) <- getBip70PaymentRequestHandler
   pmnt <-
     either
       (\msg -> snapError 400 $ "Could not decode payment response: " <> show msg)
-      (pure . Bitcoin.Payment Nothing Nothing Nothing)
+      (pure . Bitcoin.Payment Nothing Nothing Nothing (preq ^. Bitcoin.paymentRequestKey))
       (runGetLazy decodeMessage requestBody)
   now <- liftIO $ C.getCurrentTime
   -- let opts =
@@ -84,25 +81,20 @@ bip70PaymentResponseHandler _ = do
   let newPayment = Payment (Const prid) now (BitcoinPayment pmnt)
   snapEval . liftdb $ CreatePayment newPayment
 
-getBip70PaymentRequestHandler :: S.Handler App App Bitcoin.PaymentRequest
+getBip70PaymentRequestHandler :: S.Handler App App (PaymentRequestId, Bitcoin.PaymentRequest)
 getBip70PaymentRequestHandler = do
-  (_, SomePaymentRequest preq) <- getBip70PaymentRequestHandler'
+  (rid, SomePaymentRequest preq) <- getBip70PaymentRequestHandler'
   case (preq ^. nativeRequest) of
-    Bip70Request bp -> pure bp
+    Bip70Request bp -> pure (rid, bp)
     _ -> snapError 400 $ "Not a BIP-70 bitcoin payment request."
 
 getBip70PaymentRequestHandler' ::
   S.Handler App App (PaymentRequestId, SomePaymentRequestDetail)
 getBip70PaymentRequestHandler' = do
-  pkBytes <- requireParam "paymentRequestKey"
-  pkey <-
-    maybe
-      (snapError 400 $ "parameter paymentRequestKey is formatted incorrectly.")
-      pure
-      (parsePaymentKey pkBytes)
+  pkey <- Bitcoin.PaymentKey . decodeUtf8 <$> requireParam "paymentRequestKey"
   fromMaybeT
     ( snapError 404 $
         "Outstanding payment request not found for key "
-          <> (view _PaymentKey pkey)
+          <> (view Bitcoin._PaymentKey pkey)
     )
     (mapMaybeT snapEval $ findPaymentRequestByKey pkey)

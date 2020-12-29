@@ -14,7 +14,6 @@ module Aftok.Database.PostgreSQL.Events
   )
 where
 
-import Aftok.Currency.Zcash.Zip321 (zip321URI)
 import Aftok.Database
   ( DBError (EventStorageFailed),
     DBOp
@@ -26,7 +25,7 @@ import Aftok.Database
     KeyedLogEntry,
   )
 import Aftok.Database.PostgreSQL.Json
-  ( bip70PaymentRequestJSON,
+  ( nativeRequestJSON,
     paymentJSON,
   )
 import Aftok.Database.PostgreSQL.Types
@@ -46,12 +45,10 @@ import Aftok.Json
 import Aftok.Payments.Types
 import Aftok.TimeLog
 import Aftok.Types
-import Control.Lens ((^.), _Just, preview, view)
+import Control.Lens ((^.), _Just, preview)
 import Control.Monad.Trans.Except (throwE)
 import Data.Aeson
-  ( (.=),
-    Value,
-    object,
+  ( Value,
   )
 import Data.Thyme.Clock as C
 import Data.Thyme.Time
@@ -99,18 +96,9 @@ storeEvent = \case
         (Just uid)
         "create_subscription"
         (createSubscriptionJSON uid bid t)
-  (StorePaymentRequest rid req) ->
-    Just $ storeEventJSON Nothing "create_payment_request" reqJSON
-    where
-      reqJSON = case view nativeRequest req of
-        Bip70Request _ ->
-          object
-            [ "bip70_request" .= bip70PaymentRequestJSON rid req
-            ]
-        Zip321Request r ->
-          object
-            [ "zip321_request" .= zip321URI r
-            ]
+  (StorePaymentRequest req) ->
+    Just $
+      storeEventJSON Nothing "create_payment_request" (nativeRequestJSON (req ^. nativeRequest))
   (CreatePayment p) ->
     Just $ do
       nmode <- asks fst

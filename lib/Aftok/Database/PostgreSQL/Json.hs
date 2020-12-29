@@ -4,61 +4,74 @@ module Aftok.Database.PostgreSQL.Json where
 
 import Aftok.Currency.Bitcoin (NetworkMode, Satoshi (..), _Satoshi, getNetwork)
 import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
-import Aftok.Currency.Zcash (Zatoshi (..))
+import Aftok.Currency.Zcash (Zatoshi (..), _Zatoshi)
 import qualified Aftok.Currency.Zcash.Payments as Zcash
+import qualified Aftok.Currency.Zcash.Zip321 as Zip321
 import Aftok.Json (idValue, obj, parseBtcAddr, v1)
 import Aftok.Payments.Types
   ( NativePayment (..),
     NativeRequest (..),
     Payment,
-    PaymentRequest,
-    PaymentRequestId,
     _PaymentRequestId,
-    billingDate,
-    createdAt,
     nativePayment,
-    nativeRequest,
     paymentDate,
     paymentRequest,
   )
-import qualified Bippy.Proto as BP
-import Control.Lens hiding ((.=))
+-- import qualified Bippy.Proto as BP
+import Control.Lens ((^.), (^?), _Just, review, to, view)
 import Data.Aeson
 import Data.Aeson.Types (Parser)
 import qualified Data.ByteString.Base64 as B64
-import Data.ProtocolBuffers (decodeMessage, encodeMessage)
+import Data.ProtocolBuffers (Decode, Encode, decodeMessage, encodeMessage)
 import Data.Serialize.Get (runGet)
 import Data.Serialize.Put (runPut)
 import Data.Text (unpack)
-import Data.Thyme.Calendar (showGregorian)
+-- import Data.Thyme.Calendar (showGregorian)
 import Haskoin.Address (addrToText)
 
-bip70PaymentRequestJSON :: PaymentRequestId -> PaymentRequest Satoshi -> Value
-bip70PaymentRequestJSON _ = (v1 . obj) . bip70PaymentRequestKV
+protoBase64 :: Encode a => a -> Text
+protoBase64 = B64.encodeBase64 . runPut . encodeMessage
 
-bip70PaymentRequestKV :: (KeyValue kv) => PaymentRequest Satoshi -> [kv]
-bip70PaymentRequestKV r = case (r ^. nativeRequest) of
-  Bip70Request req ->
-    [ "payment_request_protobuf_64" .= prBytes req,
-      "payment_request_time" .= view createdAt r,
-      "billing_date" .= view (billingDate . to showGregorian) r
+fromBase64Proto :: Decode a => Text -> Either Text a
+fromBase64Proto t = (first toText . runGet decodeMessage) <=< B64.decodeBase64 $ encodeUtf8 t
+
+bip70PaymentRequestJSON :: Bitcoin.PaymentRequest -> Value
+bip70PaymentRequestJSON r =
+  v1 . obj $
+    [ "bip70_request"
+        .= object
+          [ "payment_key" .= (r ^. Bitcoin.paymentRequestKey . Bitcoin._PaymentKey),
+            "payment_request_protobuf_64" .= (r ^. Bitcoin.bip70Request . to protoBase64)
+          ]
     ]
-  where
-    prBytes = B64.encodeBase64 . runPut . encodeMessage
 
-paymentJSON :: NetworkMode -> Payment c -> Value
-paymentJSON nmode p =
-  v1 $
-    obj
-      [ "payment_request_id" .= idValue (paymentRequest . to getConst . _PaymentRequestId) p,
-        "payment_date" .= view paymentDate p,
-        "payment_value" .= nativePaymentValue
-      ]
-  where
-    nativePaymentValue :: Value
-    nativePaymentValue = case view nativePayment p of
-      BitcoinPayment bp -> bitcoinPaymentJSON nmode bp
-      ZcashPayment bp -> zcashPaymentJSON bp
+parseBip70PaymentRequestJSON :: Value -> Parser Bitcoin.PaymentRequest
+parseBip70PaymentRequestJSON = \case
+  Object wrapper -> do
+    o <- wrapper .: "bip70_request"
+    Bitcoin.PaymentRequest
+      <$> (Bitcoin.PaymentKey <$> o .: "paymentKey")
+      <*> ( either (fail . toString) pure . fromBase64Proto =<< (o .: "payment_request_protobuf_64")
+          )
+  nonobject ->
+    fail $ "Value " <> show nonobject <> " is not a JSON object."
+
+zip321PaymentRequestJSON :: Zip321.PaymentRequest -> Value
+zip321PaymentRequestJSON r =
+  v1 . obj $
+    ["zip321_request" .= (toJSON . Zip321.toURI $ r)]
+
+parseZip321PaymentRequestJSON :: Value -> Parser Zip321.PaymentRequest
+parseZip321PaymentRequestJSON = \case
+  Object o ->
+    either fail pure . Zip321.parseURI =<< (o .: "zip321_request")
+  nonobject ->
+    fail $ "Value " <> show nonobject <> " is not a JSON object."
+
+nativeRequestJSON :: NativeRequest c -> Value
+nativeRequestJSON = \case
+  Bip70Request r -> bip70PaymentRequestJSON r
+  Zip321Request r -> zip321PaymentRequestJSON r
 
 bitcoinPaymentJSON :: NetworkMode -> Bitcoin.Payment -> Value
 bitcoinPaymentJSON nmode bp =
@@ -66,17 +79,11 @@ bitcoinPaymentJSON nmode bp =
     [ "amount" .= (bp ^? Bitcoin.amount . _Just . _Satoshi),
       "txid" .= (bp ^. Bitcoin.txid),
       "address" .= addrText,
-      "payment_protobuf_64" .= (B64.encodeBase64 . runPut . encodeMessage $ bp ^. Bitcoin.bip70Payment)
+      "payment_key" .= (bp ^. Bitcoin.paymentKey . Bitcoin._PaymentKey),
+      "payment_protobuf_64" .= (bp ^. Bitcoin.bip70Payment . to protoBase64)
     ]
   where
     addrText = addrToText (getNetwork nmode) <$> (bp ^. Bitcoin.address)
-
-zcashPaymentJSON :: Zcash.Payment -> Value
-zcashPaymentJSON _ = object []
-
-decodeBip70Payment :: ByteString -> Parser BP.Payment
-decodeBip70Payment =
-  either fail pure . runGet decodeMessage
 
 parseBitcoinPaymentJSON :: NetworkMode -> Value -> Parser Bitcoin.Payment
 parseBitcoinPaymentJSON nmode = \case
@@ -85,14 +92,37 @@ parseBitcoinPaymentJSON nmode = \case
       <$> (fmap Satoshi <$> o .:? "amount")
       <*> (o .:? "txid")
       <*> (traverse (parseBtcAddr nmode) =<< o .:? "address")
-      <*> (either (fail . unpack) decodeBip70Payment =<< B64.decodeBase64 . encodeUtf8 @Text @ByteString <$> (o .: "payment_protobuf_64"))
-  val ->
-    fail $ "Value " <> show val <> " is not a JSON object."
+      <*> (Bitcoin.PaymentKey <$> o .: "paymentKey")
+      <*> ( either (fail . unpack) pure . fromBase64Proto =<< (o .: "payment_protobuf_64")
+          )
+  nonobject ->
+    fail $ "Value " <> show nonobject <> " is not a JSON object."
+
+zcashPaymentJSON :: Zcash.Payment -> Value
+zcashPaymentJSON zp =
+  v1 . obj $
+    [ "amount" .= (zp ^. Zcash.amount . _Zatoshi),
+      "txid" .= (zp ^. Zcash.txid . Zcash._TxId)
+    ]
 
 parseZcashPaymentJSON :: Value -> Parser Zcash.Payment
 parseZcashPaymentJSON = \case
   (Object o) ->
-    Zcash.Payment <$> (Zatoshi <$> o .: "amount")
-      <*> (fromInteger <$> o .: "txid")
+    Zcash.Payment
+      <$> (Zatoshi <$> o .: "amount")
+      <*> (review Zcash._TxId <$> o .: "txid")
   val ->
     fail $ "Value " <> show val <> " is not a JSON object."
+
+paymentJSON :: NetworkMode -> Payment c -> Value
+paymentJSON nmode p =
+  v1 . obj $
+    [ "payment_request_id" .= idValue (paymentRequest . to getConst . _PaymentRequestId) p,
+      "payment_date" .= view paymentDate p,
+      "payment_value" .= nativePaymentValue
+    ]
+  where
+    nativePaymentValue :: Value
+    nativePaymentValue = case view nativePayment p of
+      BitcoinPayment bp -> bitcoinPaymentJSON nmode bp
+      ZcashPayment bp -> zcashPaymentJSON bp

@@ -3,6 +3,7 @@
 module Main where
 
 import qualified Aftok.Config as C
+import Aftok.Currency.Bitcoin.Payments (_bip70Request)
 import Aftok.Currency.Zcash (rpcValidateZAddr)
 import Aftok.Json
 import Aftok.QConfig as Q
@@ -107,6 +108,8 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
         writeLBS
           . runPutLazy
           . encodeMessage
+          . _bip70Request
+          . snd
           =<< method GET getBip70PaymentRequestHandler
       submitBip70PaymentRoute =
         serveJSON paymentIdJSON $

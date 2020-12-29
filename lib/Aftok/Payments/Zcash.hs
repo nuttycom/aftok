@@ -10,7 +10,6 @@ import Aftok.Billing
   )
 import Aftok.Currency (Currency (ZEC))
 import Aftok.Currency.Zcash (Address, Zatoshi)
-import Aftok.Currency.Zcash.Types (Memo (..))
 import Aftok.Currency.Zcash.Zip321 (PaymentItem (..), PaymentRequest (..))
 import Aftok.Database (MonadDB)
 import qualified Aftok.Payments.Types as PT
@@ -20,7 +19,6 @@ import Control.Lens ((^.), makeLenses)
 import Data.Map.Strict (assocs)
 import Data.Thyme.Clock as C
 import Data.Thyme.Time as C
-import Data.UUID (toASCIIBytes)
 
 data PaymentsConfig
   = PaymentsConfig
@@ -35,7 +33,7 @@ paymentOps ::
   PT.PaymentOps Zatoshi (ExceptT PT.PaymentRequestError m)
 paymentOps cfg =
   PT.PaymentOps
-    { PT.newPaymentRequest = (((fmap PT.Zip321Request .) .) .) . zip321PaymentRequest cfg
+    { PT.newPaymentRequest = ((fmap PT.Zip321Request .) .) . zip321PaymentRequest cfg
     }
 
 zip321PaymentRequest ::
@@ -43,14 +41,12 @@ zip321PaymentRequest ::
   PaymentsConfig ->
   -- | billing information
   Billable Zatoshi ->
-  -- | unique identifier for the request to be created
-  PT.PaymentRequestId ->
   -- | payout date (billing date)
   C.Day ->
   -- | timestamp for payment request creation
   C.UTCTime ->
   ExceptT PT.PaymentRequestError m PaymentRequest
-zip321PaymentRequest cfg billable reqid billingDay _ = do
+zip321PaymentRequest cfg billable billingDay _ = do
   let payoutTime = C.mkUTCTime billingDay (fromInteger 0)
       billTotal = billable ^. amount
   payoutFractions <- lift $ getProjectPayoutFractions payoutTime (billable ^. project)
@@ -64,6 +60,6 @@ zip321PaymentRequest cfg billable reqid billingDay _ = do
           _label = Nothing,
           _message = Just $ billable ^. messageText,
           _amount = z,
-          _memo = Just . Memo $ toASCIIBytes (reqid ^. PT._PaymentRequestId),
+          _memo = Nothing, -- Just . Memo $ toASCIIBytes (reqid ^. PT._PaymentRequestId),
           _other = []
         }

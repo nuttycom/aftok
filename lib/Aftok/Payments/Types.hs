@@ -28,7 +28,6 @@ import Data.AffineSpace ((.+^))
 import Data.Thyme.Clock as C
 import Data.Thyme.Time as C
 import Data.UUID
-import Haskoin.Address (decodeBase58Check)
 
 newtype PaymentRequestId = PaymentRequestId UUID deriving (Show, Eq)
 
@@ -38,33 +37,32 @@ newtype PaymentId = PaymentId UUID deriving (Show, Eq)
 
 makePrisms ''PaymentId
 
--- A unique identifier for the payment request, suitable
--- for URL embedding.
-newtype PaymentKey = PaymentKey Text deriving (Eq)
-
-makePrisms ''PaymentKey
-
-parsePaymentKey :: ByteString -> Maybe PaymentKey
-parsePaymentKey bs =
-  (PaymentKey . decodeUtf8) <$> decodeBase58Check (decodeUtf8 bs)
-
 data NativeRequest currency where
   Bip70Request :: B.PaymentRequest -> NativeRequest Satoshi
   Zip321Request :: Z.PaymentRequest -> NativeRequest Zatoshi
+
+bip70Request :: NativeRequest currency -> Maybe B.PaymentRequest
+bip70Request = \case
+  Bip70Request r -> Just r
+  _ -> Nothing
+
+zip321Request :: NativeRequest currency -> Maybe Z.PaymentRequest
+zip321Request = \case
+  Zip321Request r -> Just r
+  _ -> Nothing
+
+data NativePayment currency where
+  BitcoinPayment :: B.Payment -> NativePayment Satoshi
+  ZcashPayment :: Z.Payment -> NativePayment Zatoshi
 
 data PaymentOps currency m
   = PaymentOps
       { newPaymentRequest ::
           Billable currency -> -- billing information
-          PaymentRequestId -> -- identifier for the payment request
           C.Day -> -- payout date (billing date)
           C.UTCTime -> -- timestamp of payment request creation
           m (NativeRequest currency)
       }
-
-data NativePayment currency where
-  BitcoinPayment :: B.Payment -> NativePayment Satoshi
-  ZcashPayment :: Z.Payment -> NativePayment Zatoshi
 
 data PaymentRequest' (billable :: * -> *) currency
   = PaymentRequest
@@ -78,9 +76,9 @@ makeLenses ''PaymentRequest'
 
 type PaymentRequest currency = PaymentRequest' (Const BillableId) currency
 
-data SomePaymentRequest (b :: * -> *) = forall c. SomePaymentRequest (PaymentRequest' b c)
-
 type PaymentRequestDetail currency = PaymentRequest' (Billable' ProjectId UserId) currency
+
+data SomePaymentRequest (b :: * -> *) = forall c. SomePaymentRequest (PaymentRequest' b c)
 
 type SomePaymentRequestDetail = SomePaymentRequest (Billable' ProjectId UserId)
 
@@ -88,6 +86,11 @@ paymentRequestCurrency :: PaymentRequest' b c -> Currency' c
 paymentRequestCurrency pr = case _nativeRequest pr of
   Bip70Request _ -> Currency' BTC
   Zip321Request _ -> Currency' ZEC
+
+isExpired :: forall c. UTCTime -> PaymentRequestDetail c -> Bool
+isExpired now req =
+  let expiresAt = (req ^. createdAt) .+^ (req ^. (billable . requestExpiryPeriod))
+   in now >= expiresAt
 
 data Payment' (paymentRequest :: * -> *) currency
   = Payment
@@ -105,8 +108,3 @@ data PaymentRequestError
 type Payment currency = Payment' (Const PaymentRequestId) currency
 
 type PaymentDetail currency = Payment' (PaymentRequest' (Billable' ProjectId UserId)) currency
-
-isExpired :: forall c. UTCTime -> PaymentRequestDetail c -> Bool
-isExpired now req =
-  let expiresAt = (req ^. createdAt) .+^ (req ^. (billable . requestExpiryPeriod))
-   in now >= expiresAt

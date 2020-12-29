@@ -12,6 +12,7 @@ import Aftok.Billing
   ( Billable,
     BillableId,
     Subscription,
+    Subscription',
     SubscriptionId,
     amount,
   )
@@ -20,8 +21,7 @@ import Aftok.Currency (Amount (..), Currency (..), Currency' (..))
 import Aftok.Database
   ( DBOp
       ( FindBillable,
-        FindSubscription,
-        StorePaymentRequest
+        FindSubscription
       ),
     MonadDB,
     OpForbiddenReason (UserNotSubscriber),
@@ -32,6 +32,7 @@ import Aftok.Database
     liftdb,
     raiseOpForbidden,
     raiseSubjectNotFound,
+    storePaymentRequest,
   )
 import qualified Aftok.Payments.Bitcoin as BTC
 import Aftok.Payments.Types
@@ -43,6 +44,7 @@ import Aftok.Payments.Types
     PaymentRequestDetail,
     PaymentRequestId,
     SomePaymentRequest (..),
+    SomePaymentRequestDetail,
     billingDate,
     isExpired,
     paymentRequestCurrency,
@@ -54,10 +56,10 @@ import Aftok.Types
   )
 import Control.Error.Util (maybeT)
 import Control.Lens
-  ( (^.),
+  ( (.~),
+    (^.),
     makeClassyPrisms,
     makeLenses,
-    over,
     review,
     traverseOf,
   )
@@ -65,7 +67,6 @@ import Control.Monad.Except
   ( throwError,
     withExceptT,
   )
-import Control.Monad.Random.Class (MonadRandom, getRandom)
 import qualified Crypto.Random.Types as CR
 import Data.Thyme.Clock as C
 import Data.Thyme.Time as T
@@ -98,11 +99,11 @@ makeClassyPrisms ''PaymentError
 
 createSubscriptionPaymentRequests ::
   forall m.
-  (MonadDB m, CR.MonadRandom m, MonadRandom m) =>
+  (MonadDB m, CR.MonadRandom m) =>
   PaymentsConfig m ->
   C.UTCTime ->
   (SubscriptionId, Subscription) ->
-  ExceptT PaymentError m [PaymentRequestId]
+  ExceptT PaymentError m [(PaymentRequestId, SomePaymentRequestDetail)]
 createSubscriptionPaymentRequests cfg now (sid, sub) = do
   -- fill in the billable for the subscription
   sub' <-
@@ -115,32 +116,36 @@ createSubscriptionPaymentRequests cfg now (sid, sub) = do
     findUnbilledDates now paymentRequests
       . takeWhile (< now ^. _utctDay)
       $ B.billingSchedule sub'
-  -- create a payment request for the specified unbilled date
-  let createPaymentRequest' :: T.Day -> ExceptT PaymentError m PaymentRequestId
-      createPaymentRequest' day = case sub' ^. B.billable . amount of
-        Amount BTC sats ->
-          let b' = over B.amount (const sats) (sub' ^. B.billable)
-              ops = BTC.paymentOps (cfg ^. bitcoinBillingOps) (cfg ^. bitcoinPaymentsConfig)
-           in withExceptT BTCPaymentError $ createPaymentRequest ops now billableId b' day
-        Amount ZEC zats ->
-          let b' = over B.amount (const zats) (sub' ^. B.billable)
-              ops = Zcash.paymentOps (cfg ^. zcashPaymentsConfig)
-           in withExceptT RequestError $ createPaymentRequest ops now billableId b' day
-  traverse createPaymentRequest' billableDates
+  traverse (createPaymentRequest' sub') billableDates
   where
     billableId = sub ^. B.billable
+    -- create a payment request for the specified unbilled date
+    createPaymentRequest' ::
+      Subscription' UserId (Billable Amount) ->
+      T.Day ->
+      ExceptT PaymentError m (PaymentRequestId, SomePaymentRequestDetail)
+    createPaymentRequest' sub' day =
+      let bill = sub' ^. B.billable
+       in case bill ^. amount of
+            Amount BTC sats -> withExceptT BTCPaymentError $ do
+              let ops = BTC.paymentOps (cfg ^. bitcoinBillingOps) (cfg ^. bitcoinPaymentsConfig)
+                  bill' = bill & amount .~ sats
+              second SomePaymentRequest <$> createPaymentRequest ops now billableId bill' day
+            Amount ZEC zats -> withExceptT RequestError $ do
+              let ops = Zcash.paymentOps (cfg ^. zcashPaymentsConfig)
+                  bill' = bill & amount .~ zats
+              second SomePaymentRequest <$> createPaymentRequest ops now billableId bill' day
 
 createPaymentRequest ::
-  (MonadDB m, MonadRandom m) =>
+  (MonadDB m) =>
   PaymentOps currency m ->
   C.UTCTime ->
   BillableId ->
   Billable currency ->
   T.Day ->
-  m PaymentRequestId
+  m (PaymentRequestId, PaymentRequestDetail currency)
 createPaymentRequest ops now billId bill bday = do
-  reqId <- PT.PaymentRequestId <$> getRandom
-  nativeReq <- newPaymentRequest ops bill reqId bday now
+  nativeReq <- newPaymentRequest ops bill bday now
   let req =
         PaymentRequest
           { _billable = (Const billId),
@@ -148,8 +153,8 @@ createPaymentRequest ops now billId bill bday = do
             _billingDate = bday,
             _nativeRequest = nativeReq
           }
-  liftdb $ StorePaymentRequest reqId req
-  pure reqId
+  reqId <- storePaymentRequest req
+  pure (reqId, req & PT.billable .~ bill)
 
 {-
  - FIXME: The current implementation expects the billing day to be a suitable

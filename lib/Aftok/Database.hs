@@ -11,12 +11,12 @@ module Aftok.Database where
 import qualified Aftok.Auction as A
 import Aftok.Billing as B
 import Aftok.Currency (Amount, Currency)
+import Aftok.Currency.Bitcoin.Payments (PaymentKey)
 import qualified Aftok.Currency.Zcash as Zcash
 import Aftok.Interval (RangeQuery)
 import Aftok.Payments.Types
   ( Payment,
     PaymentId,
-    PaymentKey,
     PaymentRequest,
     PaymentRequestId,
     SomePaymentRequestDetail,
@@ -88,7 +88,7 @@ data DBOp a where
   FindSubscription :: SubscriptionId -> DBOp (Maybe Subscription)
   FindSubscriptions :: ProjectId -> UserId -> DBOp [(SubscriptionId, Subscription)]
   FindSubscribers :: ProjectId -> DBOp [UserId]
-  StorePaymentRequest :: PaymentRequestId -> PaymentRequest c -> DBOp ()
+  StorePaymentRequest :: PaymentRequest c -> DBOp PaymentRequestId
   FindPaymentRequestByKey :: PaymentKey -> DBOp (Maybe (PaymentRequestId, SomePaymentRequestDetail))
   FindPaymentRequestById :: PaymentRequestId -> DBOp (Maybe SomePaymentRequestDetail)
   FindSubscriptionPaymentRequests :: SubscriptionId -> DBOp [(PaymentRequestId, SomePaymentRequestDetail)]
@@ -275,6 +275,10 @@ findSubscriptionBillable ::
 findSubscriptionBillable sid = do
   sub <- MaybeT . liftdb $ FindSubscription sid
   traverseOf B.billable findBillable sub
+
+storePaymentRequest ::
+  (MonadDB m) => PaymentRequest c -> m PaymentRequestId
+storePaymentRequest = liftdb . StorePaymentRequest
 
 findPaymentRequestByKey ::
   (MonadDB m) => PaymentKey -> MaybeT m (PaymentRequestId, SomePaymentRequestDetail)

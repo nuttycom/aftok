@@ -42,11 +42,18 @@ import Aftok.Billing
     recurrenceName,
   )
 import Aftok.Currency (Amount (..), Currency (..))
-import qualified Aftok.Currency.Bitcoin as Bitcoin
 import Aftok.Currency.Bitcoin (Satoshi)
+import qualified Aftok.Currency.Bitcoin as Bitcoin
+import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
 import Aftok.Currency.Zcash (Zatoshi)
-import qualified Aftok.Currency.Zcash.Zip321 as Zip321
-import Aftok.Database.PostgreSQL.Json (parseBitcoinPaymentJSON, parseZcashPaymentJSON, paymentJSON)
+import Aftok.Database.PostgreSQL.Json
+  ( nativeRequestJSON,
+    parseBip70PaymentRequestJSON,
+    parseBitcoinPaymentJSON,
+    parseZcashPaymentJSON,
+    parseZip321PaymentRequestJSON,
+    paymentJSON,
+  )
 import Aftok.Database.PostgreSQL.Types
   ( DBM,
     currencyAmountParser,
@@ -64,7 +71,6 @@ import Aftok.Payments.Types
     Payment,
     Payment' (Payment),
     PaymentId (..),
-    PaymentKey (..),
     PaymentRequest,
     PaymentRequest' (..),
     PaymentRequestId (..),
@@ -72,6 +78,10 @@ import Aftok.Payments.Types
     SomePaymentRequest (..),
     SomePaymentRequestDetail,
     _PaymentRequestId,
+    billingDate,
+    bip70Request,
+    createdAt,
+    nativeRequest,
     paymentDate,
     paymentRequest,
   )
@@ -86,11 +96,9 @@ import Aftok.Types
     _ProjectId,
     _UserId,
   )
-import Control.Lens ((.~), (^.), to, view)
+import Control.Lens ((.~), (^.), (^?), _Just, to, view)
 import Data.Aeson (encode)
 import Data.Aeson.Types (parseEither)
-import Data.ProtocolBuffers (decodeMessage)
-import Data.Serialize.Get (runGet)
 import qualified Data.Thyme.Clock as C
 import qualified Data.Thyme.Time as C
 import Database.PostgreSQL.Simple (Only (..))
@@ -137,24 +145,24 @@ subscriptionParser =
 
 bip70RequestParser :: RowParser (NativeRequest Satoshi)
 bip70RequestParser =
-  Bip70Request <$> ((either (const empty) pure . runGet decodeMessage) =<< field)
+  Bip70Request <$> ((either (const empty) pure . parseEither parseBip70PaymentRequestJSON) =<< field)
 
 zip321RequestParser :: RowParser (NativeRequest Zatoshi)
 zip321RequestParser =
-  Zip321Request <$> ((either (const empty) pure . Zip321.parseZip321URI) =<< field)
+  Zip321Request <$> ((either (const empty) pure . parseEither parseZip321PaymentRequestJSON) =<< field)
 
-paymentRequestParser :: RowParser SomePaymentRequestDetail
-paymentRequestParser = do
+paymentRequestDetailParser :: RowParser SomePaymentRequestDetail
+paymentRequestDetailParser = do
   billable <- billableParser
-  createdAt :: C.UTCTime <- C.toThyme <$> field
-  billingDate :: C.Day <- C.toThyme <$> field
+  ctime :: C.UTCTime <- C.toThyme <$> field
+  billDay :: C.Day <- C.toThyme <$> field
   case billable ^. amount of
     (Amount BTC sats) -> do
       nativeReq <- bip70RequestParser
-      pure . SomePaymentRequest $ PaymentRequest (billable & amount .~ sats) createdAt billingDate nativeReq
+      pure . SomePaymentRequest $ PaymentRequest (billable & amount .~ sats) ctime billDay nativeReq
     (Amount ZEC zats) -> do
       nativeReq <- zip321RequestParser
-      pure . SomePaymentRequest $ PaymentRequest (billable & amount .~ zats) createdAt billingDate nativeReq
+      pure . SomePaymentRequest $ PaymentRequest (billable & amount .~ zats) ctime billDay nativeReq
 
 paymentParser :: Bitcoin.NetworkMode -> PaymentRequestId -> Currency a c -> RowParser (Payment c)
 paymentParser nmode prid ccy = do
@@ -275,72 +283,94 @@ findSubscribers pid =
           WHERE b.project_id = ? |]
     (Only (pid ^. _ProjectId))
 
-storePaymentRequest :: EventId -> PaymentRequestId -> PaymentRequest c -> DBM ()
-storePaymentRequest _ _ = error "TODO"
+storePaymentRequest ::
+  EventId ->
+  Maybe SubscriptionId ->
+  PaymentRequest c ->
+  DBM PaymentRequestId
+storePaymentRequest eid sid req =
+  pinsert
+    PaymentRequestId
+    [sql| INSERT INTO payment_requests
+          (subscription_id, event_id, request_json, url_key, request_time, billing_date)
+          VALUES (?, ?, ?, ?, ?, ?) RETURNING id |]
+    ( (^. _SubscriptionId) <$> sid,
+      eid ^. _EventId,
+      req ^. nativeRequest . to nativeRequestJSON,
+      req ^? nativeRequest . to bip70Request . _Just . Bitcoin.paymentRequestKey . Bitcoin._PaymentKey,
+      req ^. createdAt . to C.fromThyme,
+      req ^. billingDate . to C.fromThyme
+    )
 
---storeBip70PaymentRequest   :: EventId -> PaymentRequestId -> PaymentRequest c -> DBM ()
---storeBip70PaymentRequest rid req =
---  pinsert
---    PaymentRequestId
---    [sql| INSERT INTO payment_requests
---          (subscription_id, event_id, request_data, url_key, request_time, billing_date)
---          VALUES (?, ?, ?, ?, ?, ?) RETURNING id |]
---    ( req ^. (subscription . _SubscriptionId)
---    , eventId ^. _EventId
---    , req ^. (paymentRequest . to (runPut . encodeMessage))
---    , req ^. (paymentKey . _PaymentKey)
---    , req ^. (paymentRequestTime . to C.fromThyme)
---    , req ^. (billingDate . to C.fromThyme)
---    )
-
-findPaymentRequestByKey :: PaymentKey -> DBM (Maybe (PaymentRequestId, SomePaymentRequestDetail))
-findPaymentRequestByKey (PaymentKey k) =
+findPaymentRequestByKey :: Bitcoin.PaymentKey -> DBM (Maybe (PaymentRequestId, SomePaymentRequestDetail))
+findPaymentRequestByKey (Bitcoin.PaymentKey k) =
   headMay
     <$> pquery
-      ((,) <$> idParser PaymentRequestId <*> paymentRequestParser)
-      [sql| SELECT id, subscription_id, request_data, url_key, request_time, billing_date
-        FROM payment_requests
-        WHERE url_key = ?
-        AND id NOT IN (SELECT payment_request_id FROM payments) |]
+      ((,) <$> idParser PaymentRequestId <*> paymentRequestDetailParser)
+      [sql|
+        SELECT r.id,
+          b.project_id, e.created_by, b.name, b.description, b.recurrence_type,
+          b.recurrence_count, b.billing_currency, b.billing_amount, b.grace_period_days,
+          b.payment_request_email_template, b.payment_request_memo_template
+          r.request_time, r.billing_date, r.request_json,
+        FROM payment_requests r
+        JOIN billables b on b.id = s.billable_id
+        JOIN aftok_events e on e.id = b.event_id
+        WHERE r.url_key = ?
+      |]
       (Only k)
 
 findPaymentRequestById :: PaymentRequestId -> DBM (Maybe SomePaymentRequestDetail)
 findPaymentRequestById (PaymentRequestId prid) =
   headMay
     <$> pquery
-      paymentRequestParser
-      [sql| SELECT subscription_id, request_data, url_key, request_time, billing_date
-        FROM payment_requests
-        WHERE id = ? |]
+      paymentRequestDetailParser
+      [sql|
+        SELECT
+          b.project_id, e.created_by, b.name, b.description, b.recurrence_type,
+          b.recurrence_count, b.billing_currency, b.billing_amount, b.grace_period_days,
+          b.payment_request_email_template, b.payment_request_memo_template
+          r.request_time, r.billing_date, r.request_json,
+        FROM payment_requests r
+        JOIN billables b on b.id = s.billable_id
+        JOIN aftok_events e on e.id = b.event_id
+        WHERE r.id = ?
+      |]
       (Only prid)
 
 findSubscriptionPaymentRequests :: SubscriptionId -> DBM [(PaymentRequestId, SomePaymentRequestDetail)]
 findSubscriptionPaymentRequests sid =
   pquery
-    ((,) <$> idParser PaymentRequestId <*> paymentRequestParser)
-    [sql| SELECT id, subscription_id, request_data, url_key, request_time, billing_date
-        FROM payment_requests
-        WHERE subscription_id = ? |]
+    ((,) <$> idParser PaymentRequestId <*> paymentRequestDetailParser)
+    [sql|
+      SELECT r.id,
+        b.project_id, e.created_by, b.name, b.description, b.recurrence_type,
+        b.recurrence_count, b.billing_currency, b.billing_amount, b.grace_period_days,
+        b.payment_request_email_template, b.payment_request_memo_template
+        r.request_time, r.billing_date, r.request_json,
+      FROM payment_requests r
+      JOIN billables b on b.id = s.billable_id
+      JOIN aftok_events e on e.id = b.event_id
+      WHERE subscription_id = ?
+    |]
     (Only (sid ^. _SubscriptionId))
 
 findSubscriptionUnpaidRequests :: SubscriptionId -> DBM [(PaymentRequestId, SomePaymentRequestDetail)]
 findSubscriptionUnpaidRequests sid =
   pquery
-    ((,) <$> idParser PaymentRequestId <*> paymentRequestParser)
-    [sql| SELECT r.url_key,
-             r.subscription_id, r.request_data, r.url_key, r.request_time, r.billing_date,
-
-             s.user_id, s.billable_id, s.contact_email, s.start_date, s.end_date,
-
+    ((,) <$> idParser PaymentRequestId <*> paymentRequestDetailParser)
+    [sql| SELECT r.id,
              b.project_id, e.created_by, b.name, b.description, b.recurrence_type,
              b.recurrence_count, b.billing_currency, b.billing_amount, b.grace_period_days,
              b.payment_request_email_template, b.payment_request_memo_template
+             r.request_time, r.billing_date, r.request_json,
       FROM payment_requests r
       JOIN subscriptions s on s.id = r.subscription_id
       JOIN billables b on b.id = s.billable_id
       JOIN aftok_events e on e.id = b.event_id
       WHERE subscription_id = ?
-      AND r.id NOT IN (SELECT payment_request_id FROM payments) |]
+      AND r.id NOT IN (SELECT payment_request_id FROM payments)
+    |]
     (Only (sid ^. _SubscriptionId))
 
 createPayment :: EventId -> Payment c -> DBM PaymentId

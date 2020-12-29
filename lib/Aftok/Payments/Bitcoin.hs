@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
 
 module Aftok.Payments.Bitcoin where
 
@@ -15,14 +16,12 @@ import Aftok.Currency.Bitcoin
     _Satoshi,
     getNetwork,
   )
+import Aftok.Currency.Bitcoin.Payments (PaymentKey (..), PaymentRequest (..))
 import Aftok.Database (MonadDB)
 import Aftok.Payments.Types
   ( NativeRequest (Bip70Request),
-    PaymentKey (..),
     PaymentOps (..),
     PaymentRequestError,
-    PaymentRequestId,
-    _PaymentRequestId,
   )
 import Aftok.Payments.Util (MinPayout (..), getPayouts, getProjectPayoutFractions)
 import qualified Bippy as B
@@ -48,14 +47,14 @@ import qualified Crypto.PubKey.RSA.Types as RSA
   )
 import Crypto.Random.Types
   ( MonadRandom,
+    getRandomBytes,
   )
 import Data.AffineSpace ((.+^))
 import Data.Map.Strict (assocs)
 import qualified Data.Text as T
 import Data.Thyme.Clock as C
 import Data.Thyme.Time as C
-import qualified Data.UUID as UUID
-import Haskoin.Address (Address (..))
+import Haskoin.Address (Address (..), encodeBase58Check)
 import Haskoin.Script (ScriptOutput (..))
 import Network.URI (URI)
 
@@ -114,7 +113,7 @@ paymentOps ::
   PaymentOps Satoshi (ExceptT PaymentError m)
 paymentOps ops cfg =
   PaymentOps
-    { newPaymentRequest = ((((fmap Bip70Request) .) .) .) . bip70PaymentRequest ops cfg
+    { newPaymentRequest = (((fmap Bip70Request) .) .) . bip70PaymentRequest ops cfg
     }
 
 bip70PaymentRequest ::
@@ -125,20 +124,18 @@ bip70PaymentRequest ::
   PaymentsConfig ->
   -- | bill denominated in satoshi
   Billable Satoshi ->
-  -- | unique identifier for the request to be created
-  PaymentRequestId ->
   -- | billing base date
   C.Day ->
   -- | time at which the bill is being issued
   UTCTime ->
-  ExceptT PaymentError m P.PaymentRequest
-bip70PaymentRequest ops cfg billable reqid billingDay billingTime = do
+  ExceptT PaymentError m PaymentRequest
+bip70PaymentRequest ops cfg billable billingDay billingTime = do
   let billTotal = billable ^. amount
       payoutTime = C.mkUTCTime billingDay (fromInteger 0)
   payoutFractions <- lift $ getProjectPayoutFractions payoutTime (billable ^. project)
   payouts <- withExceptT RequestError $ getPayouts payoutTime BTC (MinPayout $ cfg ^. minPayment) billTotal payoutFractions
   outputs <- except $ traverse toOutput (assocs payouts)
-  let pkey = PaymentKey . UUID.toText $ (reqid ^. _PaymentRequestId)
+  pkey <- PaymentKey . encodeBase58Check <$> lift (getRandomBytes 32)
   memo <- lift $ memoGen ops billable billingDay billingTime
   uri <- lift $ uriGen ops pkey
   payload <- lift $ payloadGen ops billable billingDay billingTime
@@ -152,8 +149,8 @@ bip70PaymentRequest ops cfg billable reqid billingDay billingTime = do
           memo
           uri
           payload
-  reqErr <- lift $ B.createPaymentRequest (cfg ^. signingKey) (cfg ^. pkiData) details
-  either (throwError . SigningError) pure reqErr
+  resp <- lift $ B.createPaymentRequest (cfg ^. signingKey) (cfg ^. pkiData) details
+  either (throwError . SigningError) (pure . PaymentRequest pkey) resp
 
 toOutput :: (Address, Satoshi) -> Either PaymentError Output
 toOutput (addr, amt) = case addr of

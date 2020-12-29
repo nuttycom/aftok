@@ -76,9 +76,9 @@ pgEval =
     (FindSubscription sid) -> Q.findSubscription sid
     (FindSubscriptions uid pid) -> Q.findSubscriptions uid pid
     (FindSubscribers pid) -> Q.findSubscribers pid
-    dbop@(StorePaymentRequest rid req) -> do
+    dbop@(StorePaymentRequest req) -> do
       eventId <- Q.storeEvent' dbop
-      Q.storePaymentRequest eventId rid req
+      Q.storePaymentRequest eventId Nothing req
     (FindPaymentRequestByKey k) -> Q.findPaymentRequestByKey k
     (FindPaymentRequestById prid) -> Q.findPaymentRequestById prid
     (FindSubscriptionPaymentRequests sid) -> Q.findSubscriptionPaymentRequests sid

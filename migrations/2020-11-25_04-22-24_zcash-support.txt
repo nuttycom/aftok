@@ -46,9 +46,12 @@ Apply: |
     AND event_credit_to_amendments.credit_to_address = ca.btc_addr;
   ALTER TABLE event_credit_to_amendments DROP COLUMN credit_to_address;
 
-  ALTER TABLE payment_requests ALTER COLUMN subscription_id DROP NOT NULL;
-
   ALTER TABLE billables ADD COLUMN billing_currency currency_t NOT NULL;
+
+  ALTER TABLE payment_requests ALTER COLUMN subscription_id DROP NOT NULL;
+  ALTER TABLE payment_requests ALTER COLUMN url_key DROP NOT NULL;
+  ALTER TABLE payment_requests ADD COLUMN request_json json NOT NULL;
+  ALTER TABLE payment_requests DROP COLUMN request_data json;
 
   ALTER TABLE payments ADD COLUMN payment_json json NOT NULL;
   ALTER TABLE payments DROP COLUMN payment_data;
