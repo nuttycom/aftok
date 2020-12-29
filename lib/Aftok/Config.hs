@@ -2,8 +2,8 @@
 
 module Aftok.Config where
 
-import Aftok.Currency.Bitcoin (NetworkMode)
-import Aftok.Payments.Bitcoin (PaymentsConfig (..))
+import Aftok.Currency.Bitcoin (NetworkMode, Satoshi(..))
+import qualified Aftok.Payments.Bitcoin as Bitcoin
 import qualified Bippy.Types as BT
 import Control.Lens
   ( (^.),
@@ -41,7 +41,8 @@ data BillingConfig
       { _networkMode :: NetworkMode,
         _signingKeyFile :: P.FilePath,
         _certsFile :: P.FilePath,
-        _exchangeRateServiceURI :: String
+        _exchangeRateServiceURI :: String,
+        _minPayment :: Satoshi
       }
 
 makeClassy ''BillingConfig
@@ -61,6 +62,7 @@ readBillingConfig cfg =
     <*> (fromText <$> C.require cfg "signingKeyFile")
     <*> (fromText <$> C.require cfg "certsFile")
     <*> C.require cfg "exchangeRateServiceURI"
+    <*> (Satoshi <$> C.lookupDefault 100 cfg "minPayment")
 
 readConnectInfo :: C.Config -> IO ConnectInfo
 readConnectInfo cfg =
@@ -71,7 +73,7 @@ readConnectInfo cfg =
     <*> C.require cfg "password"
     <*> C.require cfg "database"
 
-toPaymentsConfig :: BillingConfig -> IO PaymentsConfig
+toPaymentsConfig :: BillingConfig -> IO Bitcoin.PaymentsConfig
 toPaymentsConfig c = do
   privKeys <- readKeyFile . encodeString $ c ^. signingKeyFile
   pkiEntries <- readSignedObject . encodeString $ c ^. certsFile
@@ -86,4 +88,4 @@ toPaymentsConfig c = do
           <> encodeString
             (c ^. signingKeyFile)
   let pkiData = BT.X509SHA256 . CertificateChain $ pkiEntries
-  pure $ PaymentsConfig (c ^. networkMode) privKey pkiData mempty
+  pure $ Bitcoin.PaymentsConfig (c ^. networkMode) privKey pkiData (_minPayment c)
