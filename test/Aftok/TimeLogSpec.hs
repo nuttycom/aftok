@@ -8,7 +8,9 @@ module Aftok.TimeLogSpec
   )
 where
 
+import Aftok.Types (UserId(..))
 import qualified Aftok.Interval as I
+import Aftok.Generators (genUUID)
 import Aftok.TimeLog
 import Control.Lens ((^.))
 import Data.AffineSpace
@@ -16,8 +18,6 @@ import qualified Data.List.NonEmpty as L
 import qualified Data.Map.Strict as M
 import Data.Thyme.Time as T
 import Data.Time.ISO8601
-import Haskoin.Address (Address)
-import Haskoin.Util.Arbitrary.Address (arbitraryAddress)
 import Test.Hspec
 import Test.QuickCheck
 
@@ -43,20 +43,20 @@ genIntervals =
         intervals <- suchThat (buildIntervals startTime <$> deltas) (not . null)
         pure $ L.fromList intervals
 
-genWorkIndex :: Gen (WorkIndex Address)
+genWorkIndex :: Gen WorkIndex
 genWorkIndex =
-  let recordGen :: Gen (CreditTo Address, L.NonEmpty I.Interval)
+  let recordGen :: Gen (CreditTo, L.NonEmpty I.Interval)
       recordGen = do
-        addr <- arbitraryAddress
+        uid <- UserId <$> genUUID
         ivals <- genIntervals
-        pure (CreditToCurrency addr, ivals)
+        pure (CreditToUser uid, ivals)
    in WorkIndex . M.fromList <$> listOf recordGen
 
 spec :: Spec
 spec = do
   describe "log reduction to intervals" $ do
     it "reduces a log to a work index" $ do
-      testAddrs <- replicateM 3 (generate arbitraryAddress)
+      testUsers <- take 3 <$> sample' (UserId <$> genUUID)
       let starts =
             toThyme
               <$> catMaybes
@@ -69,12 +69,12 @@ spec = do
                 [ parseISO8601 "2014-01-01T00:11:59Z",
                   parseISO8601 "2014-01-01T00:18:00Z"
                 ]
-          testIntervals :: [(CreditTo Address, I.Interval)]
+          testIntervals :: [(CreditTo, I.Interval)]
           testIntervals = do
-            addr <- testAddrs
+            user <- testUsers
             (start', end') <- zip starts ends
-            pure $ (CreditToCurrency addr, I.interval start' end')
-          testLogEntries :: [LogEntry Address]
+            pure $ (CreditToUser user, I.interval start' end')
+          testLogEntries :: [LogEntry]
           testLogEntries = do
             (addr, I.Interval start' end') <- testIntervals
             LogEntry addr <$> [StartWork start', StopWork end'] <*> [Nothing]
