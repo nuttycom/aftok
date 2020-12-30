@@ -34,15 +34,15 @@ makePrisms ''InvitationCode
 randomInvCode :: (MonadRandom m) => m InvitationCode
 randomInvCode = InvitationCode <$> getRandomBytes 32
 
-parseInvCode :: Text -> Either String InvitationCode
+parseInvCode :: Text -> Either Text InvitationCode
 parseInvCode t = do
-  code <- B64.decode . encodeUtf8 $ t
+  code <- B64.decodeBase64 . encodeUtf8 $ t
   if BS.length code == 32
     then Right $ InvitationCode code
     else Left "Invitation code appears to be invalid."
 
 renderInvCode :: InvitationCode -> Text
-renderInvCode (InvitationCode bs) = decodeUtf8 $ B64.encode bs
+renderInvCode (InvitationCode bs) = B64.encodeBase64 bs
 
 data Invitation
   = Invitation

@@ -18,12 +18,7 @@ if [ -z "${PID}" ]; then
   echo
 fi
 
-read -p "Invite: " EMAIL
-echo
-
 curl --verbose \
   ${ALLOW_INSECURE} \
   --user $USER \
-  --header "Content-Type: application/json" \
-  --data '{}' \
-  "https://$AFTOK_HOST/api/projects/$PID/invite?email=$EMAIL"
+  "https://$AFTOK_HOST/api/user/projects/$PID/workIndex?limit=100&before=$(date -Iseconds)"

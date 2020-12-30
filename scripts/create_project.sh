@@ -32,8 +32,10 @@ BODY=$(cat <<END_BODY
 END_BODY
 )
 
-curl --verbose --insecure --user $USER \
-  --request POST --header "Content-Type: application/json" \
+curl --verbose \
+  ${ALLOW_INSECURE} \
+  --user $USER \
+  --header "Content-Type: application/json" \
   --data "$BODY" \
   "https://$AFTOK_HOST/api/projects"
 

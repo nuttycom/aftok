@@ -3,7 +3,7 @@
 module Aftok.Auction where
 
 import Aftok.Currency.Bitcoin
-  ( satoshi,
+  ( _Satoshi,
     ssub,
   )
 import Aftok.Types
@@ -69,7 +69,7 @@ bidOrder :: Bid -> Bid -> Ordering
 bidOrder = comparing costRatio `mappend` comparing (^. bidTime)
   where
     secs bid = toRational $ bid ^. bidSeconds
-    btc bid = toRational $ bid ^. bidAmount . satoshi
+    btc bid = toRational $ bid ^. bidAmount . _Satoshi
     costRatio bid = secs bid / btc bid
 
 -- lowest bids of seconds/btc win
@@ -85,7 +85,7 @@ runAuction' raiseAmount' bids =
           bid : takeWinningBids (total <> (bid ^. bidAmount)) xs
         | -- if the last bid will exceed the raise amount, reduce it to fit
           total < raiseAmount' =
-          let winFraction r = r % (bid ^. bidAmount . satoshi)
+          let winFraction r = r % (bid ^. bidAmount . _Satoshi)
               remainderSeconds (Satoshi r) =
                 Seconds . round $ winFraction r * fromIntegral (bid ^. bidSeconds)
               adjustBid r = bid & bidSeconds .~ remainderSeconds r & bidAmount .~ r
@@ -111,7 +111,7 @@ bidCommitment raiseAmount' bid = do
     -- if the last bid will exceed the raise amount, reduce it to fit
     x
       | x < raiseAmount' ->
-        let winFraction r = r % (bid ^. bidAmount . satoshi)
+        let winFraction r = r % (bid ^. bidAmount . _Satoshi)
             remainderSeconds (Satoshi r) =
               Seconds . round $ winFraction r * fromIntegral (bid ^. bidSeconds)
          in for (raiseAmount' `ssub` x) $ \remainder ->

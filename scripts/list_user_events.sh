@@ -21,9 +21,12 @@ fi
 if [ $(uname) == 'Darwin' ]; then
   after=$(date -v-4y +"%Y-%m-%dT%H:%M:%S%z")
 else
-  after=$(date -Iseconds --date='1 month ago')
+  after=$(date -Iseconds --date='4 years ago')
 fi
 
-curl --verbose --insecure --user $USER \
-  --request GET \
-  "https://$AFTOK_HOST/api/projects/$PID/logEntries?after=${after}"
+echo "Retrieving your log entries for project ${PID} after ${after}..."
+
+curl --verbose \
+  ${ALLOW_INSECURE} \
+  --user $USER \
+  "https://$AFTOK_HOST/api/user/projects/$PID/events?after=${after}&limit=100"

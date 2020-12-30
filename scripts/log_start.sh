@@ -18,7 +18,8 @@ if [ -z "${PID}" ]; then
   echo
 fi
 
-curl --verbose --insecure --user $USER \
-  --request POST \
+curl --verbose \
+  ${ALLOW_INSECURE} \
+  --user $USER \
   --data '{"schemaVersion": "2.0"}' \
   "https://$AFTOK_HOST/api/user/projects/$PID/logStart"

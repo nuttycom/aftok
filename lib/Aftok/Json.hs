@@ -8,32 +8,32 @@
 
 module Aftok.Json where
 
-import Aftok.Auction as A
+import qualified Aftok.Auction as A
 import qualified Aftok.Billing as B
+import Aftok.Currency (Amount (..), Currency (..))
 import Aftok.Currency.Bitcoin
+import Aftok.Currency.Zcash (_Zatoshi)
 import Aftok.Interval
-import Aftok.Payments
-import Aftok.Project as P
+import Aftok.Payments.Types
+  ( PaymentId,
+    _PaymentId,
+  )
+import qualified Aftok.Project as P
 import Aftok.TimeLog
 import Aftok.Types
-import Aftok.Util (traverseKeys)
 import Control.FromSum
   ( fromEitherM,
-    fromMaybeM,
   )
 import Control.Lens hiding ((.=))
 import qualified Control.Lens as L
 import Data.Aeson
 import Data.Aeson.Types
 import qualified Data.Attoparsec.ByteString.Char8 as PC
-import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as C
 import Data.Data
 import Data.HashMap.Strict as O
 import Data.List.NonEmpty as L
 import Data.Map.Strict as MS
-import Data.ProtocolBuffers (encodeMessage)
-import Data.Serialize.Put (runPut)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Thyme.Calendar (showGregorian)
@@ -42,8 +42,6 @@ import Data.Thyme.Time (Day)
 import Data.UUID as U
 import Haskoin.Address
   ( Address,
-    addrFromJSON,
-    addrToJSON,
     textToAddr,
   )
 import qualified Language.Haskell.TH as TH
@@ -141,93 +139,69 @@ qdbJSON name _id _value x =
 projectIdJSON :: ProjectId -> Value
 projectIdJSON = idJSON "projectId" _ProjectId
 
-projectJSON :: Project -> Value
+projectJSON :: P.Project -> Value
 projectJSON p =
   v1 $
     obj
-      [ "projectName" .= (p ^. projectName),
-        "inceptionDate" .= (p ^. inceptionDate),
+      [ "projectName" .= (p ^. P.projectName),
+        "inceptionDate" .= (p ^. P.inceptionDate),
         "initiator" .= (p ^. P.initiator . _UserId)
       ]
 
-qdbProjectJSON :: (ProjectId, Project) -> Value
+qdbProjectJSON :: (ProjectId, P.Project) -> Value
 qdbProjectJSON = qdbJSON "project" (_1 . _ProjectId) (_2 . L.to projectJSON)
 
-auctionIdJSON :: AuctionId -> Value
-auctionIdJSON = idJSON "auctionId" _AuctionId
+auctionIdJSON :: A.AuctionId -> Value
+auctionIdJSON = idJSON "auctionId" A._AuctionId
 
-auctionJSON :: Auction -> Value
+auctionJSON :: A.Auction -> Value
 auctionJSON x =
   v1 $
     obj
       [ "projectId" .= idValue (A.projectId . _ProjectId) x,
         "initiator" .= idValue (A.initiator . _UserId) x,
-        "raiseAmount" .= (x ^. (raiseAmount . satoshi))
+        "raiseAmount" .= (x ^. (A.raiseAmount . _Satoshi))
       ]
 
-bidIdJSON :: BidId -> Value
-bidIdJSON pid = v1 $ obj ["bidId" .= (pid ^. _BidId)]
+bidIdJSON :: A.BidId -> Value
+bidIdJSON pid = v1 $ obj ["bidId" .= (pid ^. A._BidId)]
 
 --
 -- CreditTo
 --
 
-creditToJSON :: NetworkMode -> CreditTo (NetworkId, Address) -> Value
-creditToJSON nmode (CreditToCurrency (netId, addr)) =
-  v2 $
-    obj
-      [ "creditToAddress" .= addrToJSON (toNetwork nmode netId) addr,
-        "creditToNetwork" .= renderNetworkId netId
-      ]
-creditToJSON _ (CreditToUser uid) =
+creditToJSON :: CreditTo -> Value
+creditToJSON (CreditToAccount accountId) =
+  v2 $ obj ["creditToAccount" .= idValue _AccountId accountId]
+creditToJSON (CreditToUser uid) =
   v2 $ obj ["creditToUser" .= idValue _UserId uid]
-creditToJSON _ (CreditToProject pid) =
+creditToJSON (CreditToProject pid) =
   v2 $ obj ["creditToProject" .= projectIdJSON pid]
 
-parseCreditTo :: NetworkMode -> Value -> Parser (CreditTo (NetworkId, Address))
-parseCreditTo nmode = unversion "CreditTo" $ \case
-  (Version 1 0) -> parseCreditToV1 nmode
-  (Version 2 0) -> parseCreditToV2 nmode
+parseCreditTo :: Value -> Parser CreditTo
+parseCreditTo = unversion "CreditTo" $ \case
+  (Version 2 0) -> parseCreditToV2
   ver -> badVersion "EventAmendment" ver
 
 parseBtcAddr ::
-  NetworkMode -> NetworkId -> Text -> Parser (CreditTo (NetworkId, Address))
-parseBtcAddr nmode net addrText =
+  NetworkMode -> Text -> Parser Address
+parseBtcAddr nmode addrText =
   maybe
-    ( fail
-        . T.unpack
-        $ "Address "
-          <> addrText
-          <> " cannot be parsed as a BTC network address."
-    )
-    (pure . CreditToCurrency . (net,))
-    (textToAddr (toNetwork nmode net) addrText)
+    (fail . T.unpack $ "Address " <> addrText <> " cannot be parsed as a BTC network address.")
+    pure
+    (textToAddr (getNetwork nmode) addrText)
 
-parseCreditToV1 ::
-  NetworkMode -> Object -> Parser (CreditTo (NetworkId, Address))
-parseCreditToV1 nmode x = do
-  parseBtcAddr nmode BTC =<< x .: "btcAddr"
-
-parseCreditToV2 ::
-  NetworkMode -> Object -> Parser (CreditTo (NetworkId, Address))
-parseCreditToV2 nmode o =
-  let parseCreditToAddr = do
-        netName <- o .: "creditToNetwork"
-        net <-
-          fromMaybeM
-            (fail . T.unpack $ "Currency network " <> netName <> " not recognized.")
-            (parseNetworkId netName)
-        addrValue <- o .: "creditToAddress"
-        CreditToCurrency
-          . (net,)
-          <$> addrFromJSON (toNetwork nmode net) addrValue
+parseCreditToV2 :: Object -> Parser CreditTo
+parseCreditToV2 o =
+  let parseCreditToAcct = do
+        fmap CreditToAccount . parseId _AccountId =<< o .: "creditToAccount"
       parseCreditToUser =
         fmap CreditToUser . parseId _UserId =<< o .: "creditToUser"
       parseCreditToProject =
         fmap CreditToProject . parseId _ProjectId =<< o .: "creditToProject"
       notFound =
         fail $ "Value " <> show o <> " does not represent a CreditTo value."
-   in parseCreditToAddr
+   in parseCreditToAcct
         <|> parseCreditToUser
         <|> parseCreditToProject
         <|> notFound
@@ -236,27 +210,22 @@ parseCreditToV2 nmode o =
 -- Payouts
 --
 
-payoutsJSON :: NetworkMode -> Payouts (NetworkId, Address) -> Value
-payoutsJSON nmode (Payouts m) =
+payoutsJSON :: FractionalPayouts -> Value
+payoutsJSON (Payouts m) =
   v2 $
-    let payoutsRec :: (CreditTo (NetworkId, Address), Rational) -> Value
+    let payoutsRec :: (CreditTo, Rational) -> Value
         payoutsRec (c, r) =
-          object ["creditTo" .= creditToJSON nmode c, "payoutRatio" .= r]
+          object ["creditTo" .= creditToJSON c, "payoutRatio" .= r, "payoutPercentage" .= (fromRational @Double r * 100)]
      in obj $ ["payouts" .= fmap payoutsRec (MS.assocs m)]
 
-parsePayoutsJSON ::
-  NetworkMode -> Value -> Parser (Payouts (NetworkId, Address))
-parsePayoutsJSON nmode = unversion "Payouts" $ p
+parsePayoutsJSON :: Value -> Parser FractionalPayouts
+parsePayoutsJSON = unversion "Payouts" $ p
   where
-    p :: Version -> Object -> Parser (Payouts (NetworkId, Address))
-    p (Version 1 _) val =
-      Payouts
-        <$> join
-          (traverseKeys (parseBtcAddr nmode BTC) <$> parseJSON (Object val))
+    p :: Version -> Object -> Parser FractionalPayouts
     p (Version 2 0) val =
       let parsePayoutRecord x =
             (,)
-              <$> (parseCreditToV2 nmode =<< (x .: "creditTo"))
+              <$> (parseCreditToV2 =<< (x .: "creditTo"))
               <*> (x .: "payoutRatio")
        in Payouts
             . MS.fromList
@@ -267,15 +236,15 @@ parsePayoutsJSON nmode = unversion "Payouts" $ p
 -- WorkIndex
 --
 
-workIndexJSON :: NetworkMode -> WorkIndex (NetworkId, Address) -> Value
-workIndexJSON nmode (WorkIndex widx) =
+workIndexJSON :: WorkIndex -> Value
+workIndexJSON (WorkIndex widx) =
   v2 $
     obj ["workIndex" .= fmap widxRec (MS.assocs widx)]
   where
-    widxRec :: (CreditTo (NetworkId, Address), NonEmpty Interval) -> Value
+    widxRec :: (CreditTo, NonEmpty Interval) -> Value
     widxRec (c, l) =
       object
-        [ "creditTo" .= creditToJSON nmode c,
+        [ "creditTo" .= creditToJSON c,
           "intervals" .= (intervalJSON <$> L.toList l)
         ]
 
@@ -286,12 +255,12 @@ logEventJSON' :: LogEvent -> Value
 logEventJSON' ev =
   object [eventName ev .= object ["eventTime" .= (ev ^. eventTime)]]
 
-logEntryJSON :: NetworkMode -> LogEntry (NetworkId, Address) -> Value
-logEntryJSON nmode le = v2 $ obj (logEntryFields nmode le)
+logEntryJSON :: LogEntry -> Value
+logEntryJSON le = v2 $ obj (logEntryFields le)
 
-logEntryFields :: NetworkMode -> LogEntry (NetworkId, Address) -> [Pair]
-logEntryFields nmode (LogEntry c ev m) =
-  [ "creditTo" .= creditToJSON nmode c,
+logEntryFields :: LogEntry -> [Pair]
+logEntryFields (LogEntry c ev m) =
+  [ "creditTo" .= creditToJSON c,
     "event" .= logEventJSON' ev,
     "eventMeta" .= m
   ]
@@ -299,24 +268,29 @@ logEntryFields nmode (LogEntry c ev m) =
 amendmentIdJSON :: AmendmentId -> Value
 amendmentIdJSON = idJSON "amendmentId" _AmendmentId
 
+amountJSON :: Amount -> Value
+amountJSON (Amount currency value) = case currency of
+  BTC -> object ["satoshi" .= (value ^. _Satoshi)]
+  ZEC -> object ["zatoshi" .= (value ^. _Zatoshi)]
+
 billableIdJSON :: B.BillableId -> Value
 billableIdJSON = idJSON "billableId" B._BillableId
 
-billableJSON :: B.Billable -> Value
+billableJSON :: B.Billable Amount -> Value
 billableJSON = v1 . obj . billableKV
 
-billableKV :: (KeyValue kv) => B.Billable -> [kv]
+billableKV :: (KeyValue kv) => B.Billable Amount -> [kv]
 billableKV b =
   [ "projectId" .= idValue (B.project . _ProjectId) b,
     "name" .= (b ^. B.name),
     "description" .= (b ^. B.description),
-    "recurrence" .= recurrenceJSON' (b ^. B.recurrence),
-    "amount" .= (b ^. (B.amount . satoshi)),
+    "recurrence" .= (b ^. B.recurrence . to recurrenceJSON'),
+    "amount" .= (b ^. (B.amount . to amountJSON)),
     "gracePeriod" .= (b ^. B.gracePeriod),
-    "requestExpiryPeriod" .= (Clock.toSeconds' <$> (b ^. B.requestExpiryPeriod))
+    "requestExpiryPeriod" .= (b ^. B.requestExpiryPeriod . to Clock.toSeconds')
   ]
 
-qdbBillableJSON :: (B.BillableId, B.Billable) -> Value
+qdbBillableJSON :: (B.BillableId, B.Billable Amount) -> Value
 qdbBillableJSON =
   qdbJSON "billable" (_1 . B._BillableId) (_2 . to billableJSON)
 
@@ -350,48 +324,19 @@ subscriptionKV sub =
 subscriptionIdJSON :: B.SubscriptionId -> Value
 subscriptionIdJSON = idJSON "subscriptionId" B._SubscriptionId
 
-paymentRequestJSON :: PaymentRequest -> Value
-paymentRequestJSON = v1 . obj . paymentRequestKV
-
-paymentRequestKV :: (KeyValue kv) => PaymentRequest -> [kv]
-paymentRequestKV r =
-  [ "subscription_id" .= idValue (subscription . B._SubscriptionId) r,
-    "payment_request_protobuf_64" .= view prBytes r,
-    "url_key" .= view (paymentKey . _PaymentKey) r,
-    "payment_request_time" .= view paymentRequestTime r,
-    "billing_date" .= view (billingDate . to showGregorian) r
-  ]
-  where
-    prBytes =
-      paymentRequest . to (T.decodeUtf8 . B64.encode . runPut . encodeMessage)
-
-billDetailsJSON :: [BillDetail] -> Value
-billDetailsJSON r = v1 $ obj ["payment_requests" .= fmap billDetailJSON r]
-
-billDetailJSON :: BillDetail -> Object
-billDetailJSON r =
-  obj $
-    concat
-      [ ["payment_request_id" .= view (_1 . _PaymentKey) r],
-        paymentRequestKV $ view _2 r,
-        subscriptionKV $ view _3 r,
-        billableKV $ view _4 r
-      ]
+-- paymentRequestDetailsJSON :: [PaymentRequestDetail Amount] -> Value
+-- paymentRequestDetailsJSON r = v1 $ obj ["payment_requests" .= fmap paymentRequestDetailJSON r]
+--
+-- paymentRequestDetailJSON :: PaymentRequestDetail Amount -> Object
+-- paymentRequestDetailJSON r = obj $ concat
+--   [ ["payment_request_id" .= view () r]
+--   , paymentRequestKV $ view _2 r
+--   , subscriptionKV $ view _3 r
+--   , billableKV $ view _4 r
+--   ]
 
 paymentIdJSON :: PaymentId -> Value
 paymentIdJSON = idJSON "paymentId" _PaymentId
-
-paymentJSON :: Payment -> Value
-paymentJSON r =
-  v1 $
-    obj
-      [ "payment_request_id" .= idValue (request . _PaymentRequestId) r,
-        "payment_protobuf_64" .= view paymentBytes r,
-        "payment_date" .= (r ^. paymentDate)
-      ]
-  where
-    paymentBytes =
-      payment . to (T.decodeUtf8 . B64.encode . runPut . encodeMessage)
 
 -------------
 -- Parsers --
@@ -406,58 +351,36 @@ parseId :: forall a. Prism' a UUID -> Value -> Parser a
 parseId p = fmap (review p) . parseUUID
 
 parseEventAmendment ::
-  NetworkMode ->
   ModTime ->
   Value ->
-  Parser (EventAmendment (NetworkId, Address))
-parseEventAmendment nmode t = unversion "EventAmendment" $ p
+  Parser EventAmendment
+parseEventAmendment t = unversion "EventAmendment" $ p
   where
-    p (Version 1 _) = parseEventAmendmentV1 nmode t
-    p (Version 2 0) = parseEventAmendmentV2 nmode t
+    p (Version 2 0) = parseEventAmendmentV2 t
     p ver = badVersion "EventAmendment" ver
 
-parseEventAmendmentV1 ::
-  NetworkMode ->
-  ModTime ->
-  Object ->
-  Parser (EventAmendment (NetworkId, Address))
-parseEventAmendmentV1 nmode t o =
-  let parseA :: Text -> Parser (EventAmendment (NetworkId, Address))
-      parseA "timeChange" = TimeChange t <$> o .: "eventTime"
-      parseA "addrChange" = CreditToChange t <$> parseCreditToV1 nmode o
-      parseA "metadataChange" = MetadataChange t <$> o .: "eventMeta"
-      parseA tid =
-        fail . T.unpack $ "Amendment type " <> tid <> " not recognized."
-   in o .: "amendment" >>= parseA
-
 parseEventAmendmentV2 ::
-  NetworkMode ->
   ModTime ->
   Object ->
-  Parser (EventAmendment (NetworkId, Address))
-parseEventAmendmentV2 nmode t o =
-  let parseA :: Text -> Parser (EventAmendment (NetworkId, Address))
+  Parser EventAmendment
+parseEventAmendmentV2 t o =
+  let parseA :: Text -> Parser EventAmendment
       parseA "timeChange" = TimeChange t <$> o .: "eventTime"
-      parseA "creditToChange" = CreditToChange t <$> parseCreditToV2 nmode o
+      parseA "creditToChange" = CreditToChange t <$> parseCreditToV2 o
       parseA "metadataChange" = MetadataChange t <$> o .: "eventMeta"
       parseA tid =
         fail . T.unpack $ "Amendment type " <> tid <> " not recognized."
    in o .: "amendment" >>= parseA
 
 parseLogEntry ::
-  NetworkMode ->
   UserId ->
   (UTCTime -> LogEvent) ->
   Value ->
-  Parser (UTCTime -> (LogEntry (NetworkId, Address)))
-parseLogEntry nmode uid f = unversion "LogEntry" p
+  Parser (UTCTime -> LogEntry)
+parseLogEntry uid f = unversion "LogEntry" p
   where
     p (Version 2 0) o = do
-      creditTo' <-
-        o .:? "creditTo"
-          >>= maybe
-            (pure $ CreditToUser uid)
-            (parseCreditToV2 nmode)
+      creditTo' <- o .:? "creditTo" >>= maybe (pure $ CreditToUser uid) (parseCreditToV2)
       eventMeta' <- o .:? "eventMeta"
       pure $ \t -> LogEntry creditTo' (f t) eventMeta'
     p ver o = badVersion "LogEntry" ver o

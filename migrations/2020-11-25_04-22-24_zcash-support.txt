@@ -1,0 +1,71 @@
+Description: (Describe migration here.)
+Created: 2020-11-25 04:24:09.873312342 UTC
+Depends: 2020-06-06_03-53-54_add-payment-networks 2017-09-24_22-06-01_billing-templates 2017-06-08_04-37-31_event-metadata-ids 2016-12-31_03-45-17_create-payments 2016-10-14_02-49-36_event-amendments 2016-10-14_02-14-09_create_invitations 2016-10-14_02-11-24_project_companions_invitations 2016-10-13_05-36-55_user-event-log
+Apply: |
+  CREATE TYPE currency_t AS ENUM ('ZEC', 'BTC');
+
+  ALTER TABLE work_events ALTER COLUMN credit_to_type DROP DEFAULT;
+  ALTER TABLE work_events ALTER COLUMN credit_to_type TYPE VARCHAR(255);
+  ALTER TABLE event_credit_to_amendments ALTER COLUMN credit_to_type TYPE VARCHAR(255);
+
+  UPDATE work_events SET credit_to_type = 'credit_to_account' WHERE credit_to_type = 'credit_to_address';
+  UPDATE event_credit_to_amendments SET credit_to_type = 'credit_to_account' WHERE credit_to_type = 'credit_to_address';
+
+  DROP TYPE IF EXISTS credit_to_t;
+  CREATE TYPE credit_to_t AS ENUM ('credit_to_account', 'credit_to_user', 'credit_to_project');
+
+  ALTER TABLE work_events ALTER COLUMN credit_to_type TYPE credit_to_t USING (credit_to_type::credit_to_t);
+  ALTER TABLE event_credit_to_amendments ALTER COLUMN credit_to_type TYPE credit_to_t USING (credit_to_type::credit_to_t);
+
+  CREATE TABLE IF NOT EXISTS cryptocurrency_accounts (
+    id uuid primary key default uuid_generate_v4(),
+    user_id uuid references users(id) not null,
+    currency currency_t not null,
+    is_primary bool,
+    zcash_ivk text,
+    zcash_addr text,
+    btc_addr text,
+    UNIQUE (user_id, currency, is_primary),
+    CHECK ((currency = 'BTC' AND btc_addr IS NOT NULL) OR (currency = 'ZEC' AND zcash_ivk IS NOT NULL))
+  );
+
+  INSERT INTO cryptocurrency_accounts
+    (user_id, currency, btc_addr, is_primary)
+     SELECT DISTINCT id, 'BTC'::currency_t, default_payment_addr, true FROM users
+     WHERE default_payment_addr IS NOT NULL;
+
+  INSERT INTO cryptocurrency_accounts
+    (user_id, currency, btc_addr)
+    SELECT DISTINCT user_id, 'BTC'::currency_t, credit_to_address FROM work_events
+    WHERE credit_to_address IS NOT NULL;
+
+  ALTER TABLE work_events ADD COLUMN credit_to_account uuid REFERENCES cryptocurrency_accounts(id);
+  UPDATE work_events 
+    SET credit_to_account = ca.id, credit_to_type = 'credit_to_account'
+    FROM cryptocurrency_accounts ca
+    WHERE ca.user_id = work_events.user_id
+    AND credit_to_address = ca.btc_addr;
+  ALTER TABLE work_events DROP COLUMN credit_to_address;
+
+  ALTER TABLE event_credit_to_amendments ADD COLUMN credit_to_account uuid REFERENCES cryptocurrency_accounts(id);
+  UPDATE event_credit_to_amendments 
+    SET credit_to_account = ca.id, credit_to_type = 'credit_to_account'
+    FROM cryptocurrency_accounts ca
+    JOIN work_events w
+    ON ca.user_id = w.user_id
+    WHERE w.id = event_credit_to_amendments.event_id
+    AND event_credit_to_amendments.credit_to_address = ca.btc_addr;
+  ALTER TABLE event_credit_to_amendments DROP COLUMN credit_to_address;
+
+  ALTER TABLE billables ADD COLUMN billing_currency currency_t NOT NULL;
+  ALTER TABLE billables ADD COLUMN message text;
+  ALTER TABLE billables ADD COLUMN request_expiry_seconds integer NOT NULL DEFAULT 259200;
+  ALTER TABLE billables ALTER COLUMN billing_amount TYPE bigint;
+
+  ALTER TABLE payment_requests ALTER COLUMN subscription_id DROP NOT NULL;
+  ALTER TABLE payment_requests ALTER COLUMN url_key DROP NOT NULL;
+  ALTER TABLE payment_requests ADD COLUMN request_json json NOT NULL;
+  ALTER TABLE payment_requests DROP COLUMN request_data;
+
+  ALTER TABLE payments ADD COLUMN payment_json json NOT NULL;
+  ALTER TABLE payments DROP COLUMN payment_data;

@@ -8,12 +8,8 @@ if [ -z "${AFTOK_HOST}" ]; then
   AFTOK_HOST="aftok.com"
 fi
 
-if [ -z "${USER}" ]; then 
-  read -p "Username: " USER
-  echo
-fi
+read -p "Zcash Address: " ZADDR
 
 curl --verbose \
   ${ALLOW_INSECURE} \
-  --user $USER \
-  "https://$AFTOK_HOST/api/login"
+  "https://$AFTOK_HOST/api/validate_zaddr?zaddr=${ZADDR}"

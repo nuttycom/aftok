@@ -12,10 +12,10 @@ read -p "Username: " USER
 read -s -p "Password: " PASS
 echo
 read -p "Email: " EMAIL
-read -p "BTC Address: " BTC_ADDR
 
-curl --verbose --insecure \
-  --request POST --header 'Content-Type: application/json' \
-  --data "{\"username\":\"$USER\", \"password\":\"$PASS\", \"email\":\"$EMAIL\", \"btcAddr\":\"$BTC_ADDR\"}" \
+curl --verbose \
+  ${ALLOW_INSECURE} \
+  --header 'Content-Type: application/json' \
+  --data "{\"username\":\"$USER\", \"password\":\"$PASS\", \"recoveryType\": \"email\", \"recoveryEmail\": \"$EMAIL\", \"captchaToken\":\"FAKE\"}" \
   "https://$AFTOK_HOST/api/register"
 
