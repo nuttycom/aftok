@@ -18,6 +18,15 @@ if [ -z "${PID}" ]; then
   echo
 fi
 
-curl --verbose --insecure --user $USER \
-  --request GET \
-  "https://$AFTOK_HOST/api/projects/$PID/events?after=2020-01-01T00:00:00Z"
+if [ $(uname) == 'Darwin' ]; then
+  after=$(date -v-4y +"%Y-%m-%dT%H:%M:%S%z")
+else
+  after=$(date -Iseconds --date='4 years ago')
+fi
+
+echo "Retrieving your log entries for project ${PID} after ${after}..."
+
+curl --verbose \
+  ${ALLOW_INSECURE} \
+  --user $USER \
+  "https://$AFTOK_HOST/api/user/projects/$PID/events?after=${after}&limit=100"

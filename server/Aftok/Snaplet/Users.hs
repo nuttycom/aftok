@@ -105,6 +105,7 @@ data RegisterError
   = RegParseError String
   | RegCaptchaError [CaptchaError]
   | RegZAddrError (RPCError ZValidateAddressErr)
+  deriving (Show)
 
 instance A.ToJSON RegisterError where
   toJSON = \case
@@ -128,8 +129,8 @@ checkZAddrHandler ops = do
       (listToMaybe =<< M.lookup "zaddr" params)
   zaddrEither <- liftIO $ validateZAddr ops (T.decodeUtf8 zaddrBytes)
   case zaddrEither of
-    Left _ ->
-      snapError 400 "The Z-Address provided for account recovery was invalid."
+    Left err ->
+      snapError 400 $ "The Z-Address provided for account recovery was invalid: " <> show err
     Right zaddr ->
       pure zaddr
 

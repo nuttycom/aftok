@@ -21,7 +21,9 @@ fi
 read -p "Invite: " EMAIL
 echo
 
-curl --verbose --insecure --user $USER \
-  --request POST \
+curl --verbose \
+  ${ALLOW_INSECURE} \
+  --user $USER \
+  --header "Content-Type: application/json" \
   --data '{}' \
   "https://$AFTOK_HOST/api/projects/$PID/invite?email=$EMAIL"

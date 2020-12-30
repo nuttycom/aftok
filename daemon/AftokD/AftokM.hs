@@ -20,8 +20,8 @@ import Aftok.Billing
   )
 import qualified Aftok.Config as AC
 import Aftok.Currency.Bitcoin (Satoshi, _Satoshi)
-import Aftok.Currency.Zcash (Zatoshi(..))
 import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
+import Aftok.Currency.Zcash (Zatoshi (..))
 import qualified Aftok.Database as DB
 import Aftok.Database.PostgreSQL (QDBM (..))
 import qualified Aftok.Payments as P
@@ -49,9 +49,9 @@ import Control.Lens
     makeClassyPrisms,
     makeLenses,
     over,
+    set,
     to,
     traverseOf,
-    set,
   )
 import Control.Monad.Except
   ( MonadError,
@@ -182,8 +182,9 @@ enrichWithUser ::
   AftokM (P.PaymentRequest' (Compose (Subscription' User) (Billable' p u)) a)
 enrichWithUser req = do
   let sub = req ^. P.billable . from _Compose
-  sub' <- maybeT (throwError $ DBErr DB.SubjectNotFound) pure $
-    traverseOf customer DB.findUser sub
+  sub' <-
+    maybeT (throwError $ DBErr DB.SubjectNotFound) pure $
+      traverseOf customer DB.findUser sub
   pure (set P.billable (Compose sub') req)
 
 enrichWithProject ::
@@ -191,8 +192,9 @@ enrichWithProject ::
   AftokM (P.PaymentRequest' (Compose (Subscription' u) (Billable' Project u')) a)
 enrichWithProject req = do
   let sub = req ^. P.billable . from _Compose
-  sub' <- maybeT (throwError $ DBErr DB.SubjectNotFound) pure $
-    traverseOf (B.billable . project) DB.findProject sub
+  sub' <-
+    maybeT (throwError $ DBErr DB.SubjectNotFound) pure $
+      traverseOf (B.billable . project) DB.findProject sub
   pure (set P.billable (Compose sub') req)
 
 buildBip70PaymentRequestEmail ::

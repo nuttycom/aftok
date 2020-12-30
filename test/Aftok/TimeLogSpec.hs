@@ -8,10 +8,10 @@ module Aftok.TimeLogSpec
   )
 where
 
-import Aftok.Types (UserId(..))
-import qualified Aftok.Interval as I
 import Aftok.Generators (genUUID)
+import qualified Aftok.Interval as I
 import Aftok.TimeLog
+import Aftok.Types (UserId (..))
 import Control.Lens ((^.))
 import Data.AffineSpace
 import qualified Data.List.NonEmpty as L

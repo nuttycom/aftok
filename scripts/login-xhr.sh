@@ -19,7 +19,8 @@ if [ -z "${PASS}" ]; then
 fi
 
 curl --verbose \
-  --request POST \
+  ${ALLOW_INSECURE} \
+  --header "Content-Type: application/json" \
   --data "{\"username\": \"${USER}\", \"password\":\"${PASS}\"}" \
   "https://$AFTOK_HOST/api/login"
 

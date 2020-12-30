@@ -2,7 +2,7 @@
 
 module Aftok.Config where
 
-import Aftok.Currency.Bitcoin (NetworkMode, Satoshi(..))
+import Aftok.Currency.Bitcoin (NetworkMode, Satoshi (..))
 import qualified Aftok.Payments.Bitcoin as Bitcoin
 import qualified Bippy.Types as BT
 import Control.Lens

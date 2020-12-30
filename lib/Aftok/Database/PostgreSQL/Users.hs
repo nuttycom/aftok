@@ -37,12 +37,11 @@ import Safe (headMay)
 import Prelude hiding (null)
 
 userParser :: RowParser User
-userParser =
-  User
-    <$> (UserName <$> field)
-    <*> ( (maybe empty pure =<< fmap (RecoverByEmail . Email) <$> field)
-            <|> (maybe empty pure =<< fmap (RecoverByZAddr . Zcash.Address) <$> field)
-        )
+userParser = do
+  uname <- UserName <$> field
+  remail <- fmap (RecoverByEmail . Email) <$> field
+  rzaddr <- fmap (RecoverByZAddr . Zcash.Address) <$> field
+  User uname <$> maybe empty pure (remail <|> rzaddr)
 
 createUser :: User -> DBM UserId
 createUser user' = do

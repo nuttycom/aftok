@@ -13,5 +13,7 @@ if [ -z "${USER}" ]; then
   echo
 fi
 
-curl --insecure --user $USER \
+curl \
+  ${ALLOW_INSECURE} \
+  --user $USER \
   "https://$AFTOK_HOST/api/projects"

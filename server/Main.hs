@@ -68,16 +68,25 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
   pgs <- nestSnaplet "db" db $ pgsInit' (cfg ^. pgsConfig)
   auths <- nestSnaplet "auth" auth $ initPostgresAuth sess pgs
   let nmode = cfg ^. billingConfig . C.networkMode
+      -- login.sh
       loginRoute = method GET requireLogin >> redirect "/app"
+      -- login_xhr.sh
       xhrLoginRoute = void $ method POST requireLoginXHR
+      -- login.sh
       checkLoginRoute = void $ method GET requireUser
+      -- logout.sh
       logoutRoute = method GET (with auth AU.logout)
+      -- check_zaddr.sh
       checkZAddrRoute = void $ method GET (checkZAddrHandler rops)
+      -- create_user.sh
       registerRoute = void $ method POST (registerHandler rops (cfg ^. recaptchaSecret))
+      -- invite.sh
       inviteRoute = void $ method POST (projectInviteHandler cfg)
       acceptInviteRoute = void $ method POST acceptInvitationHandler
+      -- create_project.sh
       projectCreateRoute =
         serveJSON projectIdJSON $ method POST projectCreateHandler
+      -- list_projects.sh
       projectListRoute =
         serveJSON (fmap qdbProjectJSON) $ method GET projectListHandler
       projectRoute = serveJSON projectJSON $ method GET projectGetHandler
@@ -122,20 +131,14 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
       ("login/check", checkLoginRoute),
       ("register", registerRoute),
       ("validate_zaddr", checkZAddrRoute),
-      ( "accept_invitation",
-        acceptInviteRoute
-      ),
+      ("accept_invitation", acceptInviteRoute),
       ("user/projects/:projectId/logStart", logWorkRoute StartWork),
       ("user/projects/:projectId/logEnd", logWorkRoute StopWork),
       ("user/projects/:projectId/events", userEventsRoute),
       ("user/projects/:projectId/workIndex", userWorkIndexRoute),
       ("projects/:projectId/workIndex", projectWorkIndexRoute),
-      ( "projects/:projectId/auctions",
-        auctionCreateRoute
-      ), -- <|> auctionListRoute)
-      ( "projects/:projectId/billables",
-        billableCreateRoute <|> billableListRoute
-      ),
+      ("projects/:projectId/auctions", auctionCreateRoute), -- <|> auctionListRoute)
+      ("projects/:projectId/billables", billableCreateRoute <|> billableListRoute),
       ("projects/:projectId/payouts", projectPayoutsRoute),
       ("projects/:projectId/invite", inviteRoute),
       ("projects/:projectId", projectRoute),
