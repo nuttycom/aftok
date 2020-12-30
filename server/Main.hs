@@ -68,25 +68,16 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
   pgs <- nestSnaplet "db" db $ pgsInit' (cfg ^. pgsConfig)
   auths <- nestSnaplet "auth" auth $ initPostgresAuth sess pgs
   let nmode = cfg ^. billingConfig . C.networkMode
-      -- login.sh
       loginRoute = method GET requireLogin >> redirect "/app"
-      -- login_xhr.sh
       xhrLoginRoute = void $ method POST requireLoginXHR
-      -- login.sh
       checkLoginRoute = void $ method GET requireUser
-      -- logout.sh
       logoutRoute = method GET (with auth AU.logout)
-      -- check_zaddr.sh
       checkZAddrRoute = void $ method GET (checkZAddrHandler rops)
-      -- create_user.sh
       registerRoute = void $ method POST (registerHandler rops (cfg ^. recaptchaSecret))
-      -- invite.sh
       inviteRoute = void $ method POST (projectInviteHandler cfg)
       acceptInviteRoute = void $ method POST acceptInvitationHandler
-      -- create_project.sh
       projectCreateRoute =
         serveJSON projectIdJSON $ method POST projectCreateHandler
-      -- list_projects.sh
       projectListRoute =
         serveJSON (fmap qdbProjectJSON) $ method GET projectListHandler
       projectRoute = serveJSON projectJSON $ method GET projectGetHandler
@@ -125,24 +116,24 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
           method POST (bip70PaymentResponseHandler $ cfg ^. billingConfig)
   addRoutes
     [ ("static", serveDirectory . encodeString $ cfg ^. staticAssetPath),
-      ("login", loginRoute),
-      ("login", xhrLoginRoute),
-      ("logout", logoutRoute),
-      ("login/check", checkLoginRoute),
-      ("register", registerRoute),
-      ("validate_zaddr", checkZAddrRoute),
+      ("login", loginRoute), -- login.sh
+      ("login", xhrLoginRoute), -- login_xhr.sh
+      ("logout", logoutRoute), -- logout.sh
+      ("login/check", checkLoginRoute), -- login.sh
+      ("register", registerRoute), -- create_user.sh
+      ("validate_zaddr", checkZAddrRoute), -- check_zaddr.sh
       ("accept_invitation", acceptInviteRoute),
-      ("user/projects/:projectId/logStart", logWorkRoute StartWork),
-      ("user/projects/:projectId/logEnd", logWorkRoute StopWork),
-      ("user/projects/:projectId/events", userEventsRoute),
-      ("user/projects/:projectId/workIndex", userWorkIndexRoute),
-      ("projects/:projectId/workIndex", projectWorkIndexRoute),
+      ("user/projects/:projectId/logStart", logWorkRoute StartWork), -- log_start.sh
+      ("user/projects/:projectId/logEnd", logWorkRoute StopWork), -- log_end.sh
+      ("user/projects/:projectId/events", userEventsRoute), -- list_user_events.sh
+      ("user/projects/:projectId/workIndex", userWorkIndexRoute), -- list_user_intervals.sh
+      ("projects/:projectId/workIndex", projectWorkIndexRoute), -- list_project_intervals.sh
       ("projects/:projectId/auctions", auctionCreateRoute), -- <|> auctionListRoute)
       ("projects/:projectId/billables", billableCreateRoute <|> billableListRoute),
-      ("projects/:projectId/payouts", projectPayoutsRoute),
-      ("projects/:projectId/invite", inviteRoute),
+      ("projects/:projectId/payouts", projectPayoutsRoute), -- list_project_payouts.sh
+      ("projects/:projectId/invite", inviteRoute), -- invite.sh
       ("projects/:projectId", projectRoute),
-      ("projects", projectCreateRoute <|> projectListRoute),
+      ("projects", projectCreateRoute <|> projectListRoute), --  create_project.sh, list_projects.sh
       ("auctions/:auctionId", auctionRoute),
       ("auctions/:auctionId/bid", auctionBidRoute),
       ("subscribe/:billableId", subscribeRoute),

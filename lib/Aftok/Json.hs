@@ -215,7 +215,7 @@ payoutsJSON (Payouts m) =
   v2 $
     let payoutsRec :: (CreditTo, Rational) -> Value
         payoutsRec (c, r) =
-          object ["creditTo" .= creditToJSON c, "payoutRatio" .= r]
+          object ["creditTo" .= creditToJSON c, "payoutRatio" .= r, "payoutPercentage" .= (fromRational @Double r * 100)]
      in obj $ ["payouts" .= fmap payoutsRec (MS.assocs m)]
 
 parsePayoutsJSON :: Value -> Parser FractionalPayouts
