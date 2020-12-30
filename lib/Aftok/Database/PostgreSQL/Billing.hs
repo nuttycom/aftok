@@ -101,7 +101,8 @@ import Data.Aeson (encode)
 import Data.Aeson.Types (parseEither)
 import qualified Data.Thyme.Clock as C
 import qualified Data.Thyme.Time as C
-import Database.PostgreSQL.Simple (Only (..))
+import Database.PostgreSQL.Simple (Only (..), ResultError (Incompatible))
+import Database.PostgreSQL.Simple.FromField (FieldParser, returnError, typename)
 import Database.PostgreSQL.Simple.FromRow (RowParser, field, fieldWith)
 import Database.PostgreSQL.Simple.SqlQQ (sql)
 import Safe (headMay)
@@ -123,16 +124,23 @@ billableParser =
     <*> field
 
 recurrenceParser :: RowParser Recurrence
-recurrenceParser =
-  let prec :: Text -> RowParser Recurrence
-      prec = \case
-        "annually" -> nullField *> pure Annually
-        "monthly" -> Monthly <$> field
-        --"semimonthly" = nullField *> pure SemiMonthly
-        "weekly" -> Weekly <$> field
-        "onetime" -> nullField *> pure OneTime
-        _ -> empty
-   in field >>= prec
+recurrenceParser = join $ fieldWith recurrenceParser'
+
+recurrenceParser' :: FieldParser (RowParser Recurrence)
+recurrenceParser' f v = do
+  tn <- typename f
+  if tn /= "recurrence_t"
+    then returnError Incompatible f "column was not of type recurrence_t"
+    else maybe empty (pure . parser . decodeUtf8) v
+  where
+    parser :: Text -> RowParser Recurrence
+    parser = \case
+      "annually" -> nullField *> pure Annually
+      "monthly" -> Monthly <$> field
+      --"semimonthly" = nullField *> pure SemiMonthly
+      "weekly" -> Weekly <$> field
+      "onetime" -> nullField *> pure OneTime
+      _ -> empty
 
 subscriptionParser :: RowParser Subscription
 subscriptionParser =
@@ -217,10 +225,11 @@ findBillable bid =
   headMay
     <$> pquery
       billableParser
-      [sql| SELECT b.project_id, e.created_by, b.name, b.description,
+      [sql| SELECT b.project_id, e.created_by,
+                 b.name, b.description, b.message,
                  b.recurrence_type, b.recurrence_count,
                  b.billing_currency, b.billing_amount,
-                 b.grace_period_days,
+                 b.grace_period_days, b.request_expiry_seconds,
                  b.payment_request_email_template, b.payment_request_memo_template
           FROM billables b JOIN aftok_events e ON e.id = b.event_id
           WHERE b.id = ? |]
@@ -230,10 +239,11 @@ findBillables :: ProjectId -> DBM [(BillableId, Billable Amount)]
 findBillables pid =
   pquery
     ((,) <$> idParser BillableId <*> billableParser)
-    [sql| SELECT b.id, b.project_id, e.created_by, b.name, b.description,
+    [sql| SELECT b.id, b.project_id, e.created_by,
+                 b.name, b.description, b.message,
                  b.recurrence_type, b.recurrence_count,
                  b.billing_currency, b.billing_amount,
-                 b.grace_period_days
+                 b.grace_period_days, b.request_expiry_seconds,
                  b.payment_request_email_template, b.payment_request_memo_template
           FROM billables b JOIN aftok_events e ON e.id = b.event_id
           WHERE b.project_id = ? |]

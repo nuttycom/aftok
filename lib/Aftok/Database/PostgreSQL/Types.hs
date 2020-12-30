@@ -173,12 +173,20 @@ zecAmountParser :: RowParser Zatoshi
 zecAmountParser = (Zatoshi . fromInteger) <$> field
 
 currencyAmountParser :: RowParser Amount
-currencyAmountParser = do
-  (currency_t :: Text) <- field
-  case currency_t of
-    "ZEC" -> Amount ZEC <$> zecAmountParser
-    "BTC" -> Amount BTC <$> btcAmountParser
-    _ -> empty
+currencyAmountParser = join $ fieldWith currencyAmountParser'
+
+currencyAmountParser' :: FieldParser (RowParser Amount)
+currencyAmountParser' f v = do
+  tn <- typename f
+  if tn /= "currency_t"
+    then returnError Incompatible f "column was not of type currency_t"
+    else maybe empty (pure . parser . decodeUtf8) v
+  where
+    parser :: Text -> RowParser Amount
+    parser = \case
+      "ZEC" -> Amount ZEC <$> zecAmountParser
+      "BTC" -> Amount BTC <$> btcAmountParser
+      _ -> empty
 
 -- TODO: address validation here?
 zcashAddressParser :: RowParser Zcash.Address

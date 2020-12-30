@@ -58,7 +58,7 @@ zip321PaymentRequest cfg billable billingDay _ = do
       PaymentItem
         { _address = a,
           _label = Nothing,
-          _message = Just $ billable ^. messageText,
+          _message = billable ^. messageText,
           _amount = z,
           _memo = Nothing, -- Just . Memo $ toASCIIBytes (reqid ^. PT._PaymentRequestId),
           _other = []

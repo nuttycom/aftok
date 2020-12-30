@@ -58,6 +58,9 @@ Apply: |
   ALTER TABLE event_credit_to_amendments DROP COLUMN credit_to_address;
 
   ALTER TABLE billables ADD COLUMN billing_currency currency_t NOT NULL;
+  ALTER TABLE billables ADD COLUMN message text;
+  ALTER TABLE billables ADD COLUMN request_expiry_seconds integer NOT NULL DEFAULT 259200;
+  ALTER TABLE billables ALTER COLUMN billing_amount TYPE bigint;
 
   ALTER TABLE payment_requests ALTER COLUMN subscription_id DROP NOT NULL;
   ALTER TABLE payment_requests ALTER COLUMN url_key DROP NOT NULL;

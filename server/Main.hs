@@ -129,7 +129,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
       ("user/projects/:projectId/workIndex", userWorkIndexRoute), -- list_user_intervals.sh
       ("projects/:projectId/workIndex", projectWorkIndexRoute), -- list_project_intervals.sh
       ("projects/:projectId/auctions", auctionCreateRoute), -- <|> auctionListRoute)
-      ("projects/:projectId/billables", billableCreateRoute <|> billableListRoute),
+      ("projects/:projectId/billables", billableCreateRoute <|> billableListRoute), -- create_billable.sh
       ("projects/:projectId/payouts", projectPayoutsRoute), -- list_project_payouts.sh
       ("projects/:projectId/invite", inviteRoute), -- invite.sh
       ("projects/:projectId", projectRoute),
