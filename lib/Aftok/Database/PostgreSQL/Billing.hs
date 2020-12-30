@@ -198,7 +198,7 @@ createBillable eventId _ b = do
           , grace_period_days
           , payment_request_email_template
           , payment_request_memo_template)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id |]
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id |]
     ( b ^. (project . _ProjectId),
       eventId ^. _EventId,
       b ^. name,
