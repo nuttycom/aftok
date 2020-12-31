@@ -24,17 +24,17 @@ The docker-compose setup requires 4 images:
 
 * `aftok/aftok-server:latest`
 * `nginx/nginx:latest`
-* `postgres/postgres:9.4`
-* `electriccoinco/zcashd:v4.0.0`
+* `postgres/postgres:latest`
+* `electriccoinco/zcashd:v4.2.0`
 
 You can obtain these images by running the following. This assumes the use of
 `sudo` under Linux; this may not be necessary on other platforms (e.g. OSX).
 
 ~~~bash
 make build-image # build the aftok-server image(s)
-docker pull nginx/nginx:lates
-docker pull postgres/postgres:9.4
-docker pull electriccoinco/zcashd:v4.0.0
+docker pull nginx/nginx:latest
+docker pull postgres/postgres:latest
+docker pull electriccoinco/zcashd:v4.2.0
 ~~~
 
 If you have problems building the aftok-server image, you can also obtain
