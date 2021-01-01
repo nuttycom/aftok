@@ -11,8 +11,12 @@ services:
       - zcashd
     volumes:
       - type: bind
-        source: ./local/conf/server
+        source: ./local/server/conf
         target: /etc/aftok
+        read_only: true
+      - type: bind
+        source: ./local/server/log
+        target: /opt/aftok/log
     networks:
       - front-tier
       - back-tier
@@ -28,17 +32,24 @@ services:
       - aftok
     volumes:
       - type: bind
-        source: ./local/conf/nginx/
+        source: ./local/nginx/conf
         target: /etc/nginx
+        read_only: true
       - type: bind
-        source: ./local/conf/nginx-certs
+        source: ./local/nginx/certs
         target: /opt/nginx
+        read_only: true
+      - type: bind
+        source: ./local/nginx/log
+        target: /var/log/nginx
       - type: bind
         source: ./aftok.com/dist/
         target: /opt/static/site
+        read_only: true
       - type: bind
         source: ./client/dist/
         target: /opt/static/app
+        read_only: true
     networks:
       - front-tier
 
@@ -58,8 +69,9 @@ services:
         source: aftok-data
         target: /var/lib/postgresql/data
       - type: bind
-        source: ./local/db-dumps
+        source: ./local/postgres/db-dumps
         target: /opt/
+        read_only: true
     networks:
       - back-tier
 
@@ -69,14 +81,15 @@ services:
     expose:
       - "18232"
     ports:
-      - "18232:18232"
+      - "18233:18233"
     volumes:
       - type: bind
-        source: ./local/conf/zcashd/zcash-data
+        source: ./local/zcashd/zcash-data
         target: /srv/zcashd/.zcash
       - type: bind
-        source: ./local/conf/zcashd/zcash-params
+        source: ./local/zcashd/zcash-params
         target: /srv/zcashd/.zcash-params
+        read_only: true
     networks:
       - back-tier
 
