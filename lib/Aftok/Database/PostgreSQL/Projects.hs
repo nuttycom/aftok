@@ -9,6 +9,7 @@ module Aftok.Database.PostgreSQL.Projects
     createInvitation,
     findInvitation,
     acceptInvitation,
+    listProjectContributors,
   )
 where
 
@@ -41,6 +42,7 @@ import Aftok.Types
   ( Email (..),
     ProjectId (..),
     UserId (..),
+    UserName (..),
     _ProjectId,
     _UserId,
   )
@@ -146,3 +148,20 @@ acceptInvitation (UserId uid) ic t = ptransact $ do
           FROM invitations i
           WHERE i.invitation_key = ? |]
       (uid, C.fromThyme t, renderInvCode ic)
+
+contributorParser :: RowParser (UserId, UserName, C.UTCTime)
+contributorParser =
+  (,,) <$> idParser UserId <*> (UserName <$> field) <*> utcParser
+
+listProjectContributors :: ProjectId -> DBM [(UserId, UserName, C.UTCTime)]
+listProjectContributors pid =
+  pquery
+    contributorParser
+    [sql|
+      SELECT DISTINCT u.id, u.handle, p.joined_at
+      FROM users u
+      JOIN project_companions p ON u.id = p.user_id
+      WHERE p.project_id = ?
+      ORDER BY p.joined_at
+    |]
+    (Only $ pid ^. _ProjectId)

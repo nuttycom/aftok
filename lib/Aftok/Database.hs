@@ -69,6 +69,7 @@ data DBOp a where
   ListProjects :: DBOp [ProjectId]
   FindUserProjects :: UserId -> DBOp [(ProjectId, Project)]
   AddUserToProject :: ProjectId -> InvitingUID -> InvitedUID -> DBOp ()
+  ListProjectContributors :: ProjectId -> DBOp [(UserId, UserName, C.UTCTime)]
   CreateInvitation :: ProjectId -> InvitingUID -> Email -> C.UTCTime -> DBOp InvitationCode
   FindInvitation :: InvitationCode -> DBOp (Maybe Invitation)
   AcceptInvitation :: UserId -> InvitationCode -> C.UTCTime -> DBOp ()
@@ -190,6 +191,10 @@ checkProjectAuth pid uid act = do
   if any (\(pid', _) -> pid' == pid) px
     then pure ()
     else void $ raiseOpForbidden uid UserNotProjectMember act
+
+listProjectContributors :: MonadDB m => ProjectId -> UserId -> m [(UserId, UserName, C.UTCTime)]
+listProjectContributors pid uid =
+  withProjectAuth pid uid (ListProjectContributors pid)
 
 addUserToProject ::
   (MonadDB m) => ProjectId -> InvitingUID -> InvitedUID -> m ()

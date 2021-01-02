@@ -76,6 +76,8 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
       registerRoute = void $ method POST (registerHandler rops (cfg ^. recaptchaSecret))
       inviteRoute = void $ method POST (projectInviteHandler cfg)
       acceptInviteRoute = void $ method POST acceptInvitationHandler
+      listContributorsRoute =
+        serveJSON (fmap contributorJSON) $ method GET listContributorsHandler
       projectCreateRoute =
         serveJSON projectIdJSON $ method POST projectCreateHandler
       projectListRoute =
@@ -132,6 +134,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
       ("projects/:projectId/billables", billableCreateRoute <|> billableListRoute), -- create_billable.sh / list_project_billables.sh
       ("projects/:projectId/payouts", projectPayoutsRoute), -- list_project_payouts.sh
       ("projects/:projectId/invite", inviteRoute), -- invite.sh
+      ("projects/:projectId/contributors", listContributorsRoute), -- list_project_contributors.sh
       ("projects/:projectId", projectRoute), -- get_project.sh
       ("projects", projectCreateRoute <|> projectListRoute), --  create_project.sh, list_projects.sh
       ("auctions/:auctionId", auctionRoute),

@@ -6,11 +6,14 @@ module Aftok.Snaplet.Projects
     projectListHandler,
     projectGetHandler,
     projectInviteHandler,
+    listContributorsHandler,
+    contributorJSON,
   )
 where
 
 import Aftok.Config
 import Aftok.Database
+import Aftok.Json (idValue)
 import Aftok.Project
 import Aftok.QConfig as QC
 import Aftok.Snaplet
@@ -18,22 +21,23 @@ import Aftok.Snaplet.Auth
 import Aftok.TimeLog.Serialization (depfFromJSON)
 import Aftok.Types
 import Aftok.Util (fromMaybeT)
-import Control.Lens
+import Control.Lens ((^.))
 import Control.Monad.Trans.Maybe (mapMaybeT)
-import Data.Aeson as A
+import qualified Data.Aeson as A
+import Data.Aeson ((.:), (.=), Value (..), object)
 import Data.Attoparsec.ByteString (takeByteString)
-import Data.Thyme.Clock as C
+import qualified Data.Thyme.Clock as C
 import Filesystem.Path.CurrentOS (encodeString)
 import qualified Filesystem.Path.CurrentOS as F
 import Network.Mail.Mime
-import Network.Mail.SMTP as SMTP
+import qualified Network.Mail.SMTP as SMTP
 import Snap.Core
 import Snap.Snaplet as S
 import Text.StringTemplate
 
 data ProjectCreateRequest = CP {cpn :: Text, cpdepf :: DepreciationFunction}
 
-instance FromJSON ProjectCreateRequest where
+instance A.FromJSON ProjectCreateRequest where
   parseJSON (Object v) =
     CP <$> v .: "projectName" <*> (depfFromJSON =<< v .: "depf")
   parseJSON _ = mzero
@@ -58,6 +62,20 @@ projectGetHandler = do
   fromMaybeT
     (snapError 404 $ "Project not found for id " <> show pid)
     (mapMaybeT snapEval $ findUserProject uid pid)
+
+contributorJSON :: (UserId, UserName, C.UTCTime) -> Value
+contributorJSON (uid, uname, t) =
+  object
+    [ "user_id" .= idValue _UserId uid,
+      "username" .= (uname ^. _UserName),
+      "joined_at" .= t
+    ]
+
+listContributorsHandler :: S.Handler App App [(UserId, UserName, C.UTCTime)]
+listContributorsHandler = do
+  uid <- requireUserId
+  pid <- requireProjectId
+  snapEval $ listProjectContributors pid uid
 
 projectInviteHandler :: QConfig -> S.Handler App App ()
 projectInviteHandler cfg = do
@@ -89,8 +107,8 @@ sendProjectInviteEmail cfg pn fromEmail toEmail invCode =
   let SmtpConfig {..} = cfg ^. QC.smtpConfig
       mailer =
         maybe
-          (sendMailWithLogin _smtpHost)
-          (sendMailWithLogin' _smtpHost)
+          (SMTP.sendMailWithLogin _smtpHost)
+          (SMTP.sendMailWithLogin' _smtpHost)
           _smtpPort
    in buildProjectInviteEmail (cfg ^. templatePath) pn fromEmail toEmail invCode
         >>= (mailer _smtpUser _smtpPass)

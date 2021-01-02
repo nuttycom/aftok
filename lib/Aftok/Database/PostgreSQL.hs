@@ -59,6 +59,7 @@ pgEval =
     (FindAccountZcashIVK aid) -> Q.findAccountZcashIVK aid
     (CreateProject p) -> Q.createProject p
     ListProjects -> Q.listProjects
+    (ListProjectContributors pid) -> Q.listProjectContributors pid
     (FindProject pid) -> Q.findProject pid
     (FindUserProjects uid) -> Q.findUserProjects uid
     (AddUserToProject pid current new) -> Q.addUserToProject pid current new
