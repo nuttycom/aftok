@@ -49,6 +49,7 @@ pgEval =
     (ReadWorkIndex pid) -> Q.readWorkIndex pid
     (CreateAuction auc) -> Q.createAuction auc
     (FindAuction aucId) -> Q.findAuction aucId
+    (ListAuctions pid rq l) -> Q.listAuctions pid rq l
     (CreateBid aucId bid) -> Q.createBid aucId bid
     (FindBids aucId) -> Q.findBids aucId
     (CreateUser user') -> Q.createUser user'

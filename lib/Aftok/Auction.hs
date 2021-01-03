@@ -28,6 +28,8 @@ data Auction
       { _projectId :: ProjectId,
         _initiator :: UserId,
         _createdAt :: C.UTCTime,
+        _name :: Text,
+        _description :: Maybe Text,
         _raiseAmount :: Satoshi,
         _auctionStart :: C.UTCTime,
         _auctionEnd :: C.UTCTime

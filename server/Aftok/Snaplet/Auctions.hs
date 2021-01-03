@@ -65,6 +65,12 @@ auctionCreateHandler = do
       (auctionStart req)
       (auctionEnd req)
 
+auctionListHandler :: S.Handler App App [Auction]
+auctionListHandler = do
+  uid <- requireUserId
+  pid <- requireProjectId
+  snapEval $ listAuctions pid uid
+
 auctionGetHandler :: S.Handler App App Auction
 auctionGetHandler = do
   uid <- requireUserId

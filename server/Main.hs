@@ -96,6 +96,8 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
         serveJSON workIndexJSON $ method GET userWorkIndex
       auctionCreateRoute =
         serveJSON auctionIdJSON $ method POST auctionCreateHandler
+      auctionListRoute =
+        serveJSON (fmap auctionJSON) $ method GET auctionListHandler
       auctionRoute = serveJSON auctionJSON $ method GET auctionGetHandler
       auctionBidRoute = serveJSON bidIdJSON $ method POST auctionBidHandler
       billableCreateRoute =

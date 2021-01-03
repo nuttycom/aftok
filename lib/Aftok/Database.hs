@@ -57,6 +57,8 @@ type InvitingUID = UserId
 
 type InvitedUID = UserId
 
+data Limit = Limit Word32
+
 data DBOp a where
   CreateUser :: User -> DBOp UserId
   FindUser :: UserId -> DBOp (Maybe User)
@@ -76,8 +78,9 @@ data DBOp a where
   CreateEvent :: ProjectId -> UserId -> LogEntry -> DBOp EventId
   AmendEvent :: EventId -> EventAmendment -> DBOp AmendmentId
   FindEvent :: EventId -> DBOp (Maybe KeyedLogEntry)
-  FindEvents :: ProjectId -> UserId -> RangeQuery -> Word32 -> DBOp [LogEntry]
+  FindEvents :: ProjectId -> UserId -> RangeQuery -> Limit -> DBOp [LogEntry]
   ReadWorkIndex :: ProjectId -> DBOp WorkIndex
+  ListAuctions :: ProjectId -> RangeQuery -> Limit -> DBOp [A.Auction]
   CreateAuction :: A.Auction -> DBOp A.AuctionId
   FindAuction :: A.AuctionId -> DBOp (Maybe A.Auction)
   CreateBid :: A.AuctionId -> A.Bid -> DBOp A.BidId
@@ -255,7 +258,7 @@ findEvents ::
   ProjectId ->
   UserId ->
   RangeQuery ->
-  Word32 ->
+  Limit ->
   m [LogEntry]
 findEvents p u i l = liftdb $ FindEvents p u i l
 
@@ -310,6 +313,10 @@ findPayment currency prid = MaybeT $ (fmap snd . headMay) <$> liftdb (FindPaymen
 createAuction :: (MonadDB m) => A.Auction -> m A.AuctionId
 createAuction a = do
   withProjectAuth (a ^. A.projectId) (a ^. A.initiator) $ CreateAuction a
+
+listAuctions :: (MonadDB m) =>  UserId -> ProjectId -> RangeQuery -> Limit -> m [A.Auction]
+listAuctions uid pid rq l = do
+  withProjectAuth pid uid $ ListAuctions pid rq l
 
 findAuction :: (MonadDB m) => A.AuctionId -> UserId -> MaybeT m A.Auction
 findAuction aid uid =

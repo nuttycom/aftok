@@ -23,6 +23,7 @@ import Aftok.Database
         StorePaymentRequest
       ),
     KeyedLogEntry,
+    Limit(..),
   )
 import Aftok.Database.PostgreSQL.Json
   ( nativeRequestJSON,
@@ -182,8 +183,8 @@ findEvent (EventId eid) = do
           WHERE id = ? |]
       (Only eid)
 
-findEvents :: ProjectId -> UserId -> RangeQuery -> Word32 -> DBM [LogEntry]
-findEvents (ProjectId pid) (UserId uid) rquery limit = do
+findEvents :: ProjectId -> UserId -> RangeQuery -> Limit -> DBM [LogEntry]
+findEvents (ProjectId pid) (UserId uid) rquery (Limit limit) = do
   case rquery of
     (Before e) ->
       pquery

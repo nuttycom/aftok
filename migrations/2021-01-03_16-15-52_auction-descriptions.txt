@@ -1,0 +1,6 @@
+Description: (Describe migration here.)
+Created: 2021-01-03 16:16:17.234201601 UTC
+Depends: 2020-11-25_04-22-24_zcash-support 2016-10-29_20-54-44_auction-timestamps 2016-10-13_05-36-55_user-event-log
+Apply: |
+  ALTER TABLE auctions ADD COLUMN name text NOT NULL;
+  ALTER TABLE auctions ADD COLUMN description text;
