@@ -19,32 +19,30 @@ import Aftok.Auction
     BidId (..),
     _AuctionId,
     auctionEnd,
+    auctionStart,
     bidAmount,
     bidSeconds,
     bidTime,
     bidUser,
+    description,
     initiator,
+    name,
     projectId,
     raiseAmount,
-    name,
-    description
   )
--- import           Aftok.Currency                 ( Amount(..) )
-
--- import qualified Aftok.Currency.Bitcoin        as Bitcoin
-import Aftok.Currency.Bitcoin (_Satoshi)
--- import qualified Aftok.Currency.Zcash          as Zcash
-
-import Aftok.Database (Limit(..))
+import Aftok.Currency (Amount (..))
+import Aftok.Database (Limit (..))
 import Aftok.Database.PostgreSQL.Types
   ( DBM,
-    btcAmountParser,
+    currencyAmountParser,
+    currencyType,
+    currencyValue,
     idParser,
     pinsert,
     pquery,
     utcParser,
   )
-import Aftok.Interval (RangeQuery(..))
+import Aftok.Interval (RangeQuery (..))
 import Aftok.Types
   ( ProjectId (..),
     UserId (..),
@@ -61,7 +59,7 @@ import Database.PostgreSQL.Simple.SqlQQ (sql)
 import Safe (headMay)
 import Prelude hiding (null)
 
-auctionParser :: RowParser Auction
+auctionParser :: RowParser (Auction Amount)
 auctionParser =
   Auction
     <$> idParser ProjectId
@@ -69,29 +67,31 @@ auctionParser =
     <*> utcParser
     <*> field
     <*> field
-    <*> btcAmountParser
+    <*> currencyAmountParser
     <*> utcParser
     <*> utcParser
 
-bidParser :: RowParser Bid
+bidParser :: RowParser (Bid Amount)
 bidParser =
-  Bid <$> idParser UserId <*> (Seconds <$> field) <*> btcAmountParser <*> utcParser
+  Bid <$> idParser UserId <*> (Seconds <$> field) <*> currencyAmountParser <*> utcParser
 
-createAuction :: Auction -> DBM AuctionId
+createAuction :: Auction Amount -> DBM AuctionId
 createAuction auc =
   pinsert
     AuctionId
-    [sql| INSERT INTO auctions (project_id, initiator_id, name, description, raise_amount, end_time)
-          VALUES (?, ?, ?, ?) RETURNING id |]
-    ( auc ^. (projectId . _ProjectId),
-      auc ^. (initiator . _UserId),
+    [sql| INSERT INTO auctions (project_id, initiator_id, name, description, currency, raise_amount, start_time, end_time)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id |]
+    ( auc ^. projectId . _ProjectId,
+      auc ^. initiator . _UserId,
       auc ^. name,
       auc ^. description,
-      auc ^. (raiseAmount . _Satoshi),
-      auc ^. (auctionEnd . to C.fromThyme)
+      auc ^. raiseAmount . to currencyType,
+      auc ^. raiseAmount . to currencyValue,
+      auc ^. auctionStart . to C.fromThyme,
+      auc ^. auctionEnd . to C.fromThyme
     )
 
-findAuction :: AuctionId -> DBM (Maybe Auction)
+findAuction :: AuctionId -> DBM (Maybe (Auction Amount))
 findAuction aucId =
   headMay
     <$> pquery
@@ -101,46 +101,46 @@ findAuction aucId =
           WHERE id = ? |]
       (Only (aucId ^. _AuctionId))
 
-listAuctions :: ProjectId -> RangeQuery -> Limit -> DBM [Auction]
+listAuctions :: ProjectId -> RangeQuery -> Limit -> DBM [Auction Amount]
 listAuctions pid rq (Limit limit) =
   case rq of
     (Before e) ->
       pquery
-      auctionParser
-      [sql| SELECT project_id, initiator_id, created_at, name, description, raise_amount, start_time, end_time
+        auctionParser
+        [sql| SELECT project_id, initiator_id, created_at, name, description, raise_amount, start_time, end_time
           FROM auctions
           WHERE project_id = ?
           AND end_time < ?
           LIMIT ? |]
-      (pid ^. _ProjectId, C.fromThyme e, limit)
+        (pid ^. _ProjectId, C.fromThyme e, limit)
     (During s e) ->
       pquery
-      auctionParser
-      [sql| SELECT project_id, initiator_id, created_at, name, description, raise_amount, start_time, end_time
+        auctionParser
+        [sql| SELECT project_id, initiator_id, created_at, name, description, raise_amount, start_time, end_time
           FROM auctions
           WHERE project_id = ?
           AND end_time >= ? AND end_time < ?
           LIMIT ? |]
-      (pid ^. _ProjectId, C.fromThyme s, C.fromThyme e, limit)
+        (pid ^. _ProjectId, C.fromThyme s, C.fromThyme e, limit)
     (After s) ->
       pquery
-      auctionParser
-      [sql| SELECT project_id, initiator_id, created_at, name, description, raise_amount, start_time, end_time
+        auctionParser
+        [sql| SELECT project_id, initiator_id, created_at, name, description, raise_amount, start_time, end_time
           FROM auctions
           WHERE project_id = ?
           AND end_time >= ?
           LIMIT ? |]
-      (pid ^. _ProjectId, C.fromThyme s, limit)
+        (pid ^. _ProjectId, C.fromThyme s, limit)
     Always ->
       pquery
-      auctionParser
-      [sql| SELECT project_id, initiator_id, created_at, name, description, raise_amount, start_time, end_time
+        auctionParser
+        [sql| SELECT project_id, initiator_id, created_at, name, description, raise_amount, start_time, end_time
           FROM auctions
           WHERE project_id = ?
           LIMIT ? |]
-      (pid ^. _ProjectId, limit)
+        (pid ^. _ProjectId, limit)
 
-createBid :: AuctionId -> Bid -> DBM BidId
+createBid :: AuctionId -> Bid Amount -> DBM BidId
 createBid (AuctionId aucId) bid =
   pinsert
     BidId
@@ -150,11 +150,12 @@ createBid (AuctionId aucId) bid =
       bid ^. (bidUser . _UserId),
       case bid ^. bidSeconds of
         (Seconds i) -> i,
-      bid ^. (bidAmount . _Satoshi),
+      bid ^. bidAmount . to currencyType,
+      bid ^. bidAmount . to currencyValue,
       bid ^. (bidTime . to C.fromThyme)
     )
 
-findBids :: AuctionId -> DBM [(BidId, Bid)]
+findBids :: AuctionId -> DBM [(BidId, Bid Amount)]
 findBids aucId =
   pquery
     ((,) <$> idParser BidId <*> bidParser)

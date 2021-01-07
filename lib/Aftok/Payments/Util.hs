@@ -2,7 +2,7 @@
 
 module Aftok.Payments.Util where
 
-import Aftok.Currency (Currency, scaleCurrency)
+import Aftok.Currency (Currency, IsCurrency, cscale)
 import Aftok.Database
   ( DBOp
       ( FindProject,
@@ -39,7 +39,7 @@ getProjectPayoutFractions ptime pid = do
 newtype MinPayout c = MinPayout c
 
 getPayouts ::
-  (MonadDB m, Ord a, Semigroup c, Ord c) =>
+  (MonadDB m, Ord a, IsCurrency c) =>
   -- | time used in computation of payouts when `creditTo` is another project
   C.UTCTime ->
   -- | the currency with which the payment will be made
@@ -56,12 +56,12 @@ getPayouts t currency mp@(MinPayout minAmt) amt payouts =
     then pure mempty
     else do
       -- Multiply the total by each payout fraction. This may fail, so traverse.
-      let scaled frac = note AmountInvalid $ scaleCurrency currency amt frac
+      let scaled frac = note AmountInvalid $ cscale amt frac
       payoutFractions <- except $ traverse scaled (payouts ^. TL._Payouts)
       fromListWith (<>) . join <$> traverse (uncurry (getPayoutAmounts t currency mp)) (assocs payoutFractions)
 
 getPayoutAmounts ::
-  (MonadDB m, Ord a, Semigroup c, Ord c) =>
+  (MonadDB m, Ord a, IsCurrency c) =>
   -- | time used in computation of payouts when `creditTo` is another project
   C.UTCTime ->
   -- | the network on which the payment will be made

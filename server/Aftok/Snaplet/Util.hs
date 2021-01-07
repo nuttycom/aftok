@@ -1,5 +1,6 @@
 module Aftok.Snaplet.Util where
 
+import Aftok.Interval (RangeQuery (..))
 import Data.Attoparsec.ByteString (parseOnly)
 import Data.Attoparsec.ByteString.Char8
   ( decimal,
@@ -15,6 +16,15 @@ timeParam k = runMaybeT $ do
   bs <- MaybeT $ getParam k
   t <- MaybeT . pure . parseISO8601 $ B.unpack bs
   pure $ toThyme t
+
+rangeQueryParam :: MonadSnap m => m RangeQuery
+rangeQueryParam = do
+  endpoints <- (,) <$> timeParam "after" <*> timeParam "before"
+  pure $ case endpoints of
+    (Just s, Just e) -> During s e
+    (Nothing, Just e) -> Before e
+    (Just s, Nothing) -> After s
+    (Nothing, Nothing) -> Always
 
 decimalParam :: (Integral i, MonadSnap m) => ByteString -> m (Maybe i)
 decimalParam k = runMaybeT $ do

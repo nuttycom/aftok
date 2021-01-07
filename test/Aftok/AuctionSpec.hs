@@ -20,7 +20,7 @@ import Test.Hspec
 import Test.QuickCheck
 import Text.Read (read)
 
-genBid :: Gen Bid
+genBid :: Gen (Bid Satoshi)
 genBid =
   Bid
     <$> (UserId <$> genUUID)

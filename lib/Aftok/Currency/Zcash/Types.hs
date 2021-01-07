@@ -38,6 +38,13 @@ instance ToZatoshi Word64 where
 instance Semigroup Zatoshi where
   (Zatoshi a) <> (Zatoshi b) = Zatoshi (a + b)
 
+instance Monoid Zatoshi where
+  mempty = Zatoshi 0
+
+zsub :: Zatoshi -> Zatoshi -> Maybe Zatoshi
+zsub (Zatoshi a) (Zatoshi b) | a > b = Just . Zatoshi $ (a - b)
+zsub _ _ = Nothing
+
 data ZAddrType
   = Sprout
   | Sapling

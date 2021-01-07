@@ -4,3 +4,4 @@ Depends: 2020-11-25_04-22-24_zcash-support 2016-10-29_20-54-44_auction-timestamp
 Apply: |
   ALTER TABLE auctions ADD COLUMN name text NOT NULL;
   ALTER TABLE auctions ADD COLUMN description text;
+  ALTER TABLE auctions ADD COLUMN currency currency_t NOT NULL;

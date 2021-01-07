@@ -38,7 +38,7 @@ import Aftok.Interval
 import Aftok.Types
 import Control.Arrow ((&&&))
 import Control.Lens
-import Data.AdditiveGroup
+import Data.AdditiveGroup ()
 import Data.Aeson as A
 import Data.AffineSpace
 import Data.Either

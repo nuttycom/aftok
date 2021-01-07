@@ -2,35 +2,32 @@
 
 module Aftok.Auction where
 
-import Aftok.Currency.Bitcoin
-  ( _Satoshi,
-    ssub,
+import Aftok.Currency
+  ( IsCurrency (..),
   )
 import Aftok.Types
   ( ProjectId,
     UserId,
   )
-import Bippy.Types (Satoshi (..))
 import Control.Lens
 import Data.Hourglass (Seconds (..))
 import Data.Ratio ((%))
 import Data.Thyme.Clock as C
 import Data.Thyme.Format ()
-import Data.Traversable (for)
 import Data.UUID
 
 newtype AuctionId = AuctionId UUID deriving (Show, Eq)
 
 makePrisms ''AuctionId
 
-data Auction
+data Auction c
   = Auction
       { _projectId :: ProjectId,
         _initiator :: UserId,
         _createdAt :: C.UTCTime,
         _name :: Text,
         _description :: Maybe Text,
-        _raiseAmount :: Satoshi,
+        _raiseAmount :: c,
         _auctionStart :: C.UTCTime,
         _auctionEnd :: C.UTCTime
       }
@@ -41,83 +38,73 @@ newtype BidId = BidId UUID deriving (Show, Eq)
 
 makePrisms ''BidId
 
-data Bid
+data Bid c
   = Bid
       { _bidUser :: UserId,
         _bidSeconds :: Seconds,
-        _bidAmount :: Satoshi,
+        _bidAmount :: c,
         _bidTime :: C.UTCTime
       }
   deriving (Eq, Show)
 
 makeLenses ''Bid
 
-data Commitment
+data Commitment c
   = Commitment
-      { _baseBid :: Bid,
+      { _baseBid :: Bid c,
         _commitmentSeconds :: Seconds,
-        _commitmentAmount :: Satoshi
+        _commitmentAmount :: c
       }
 
-data AuctionResult
-  = WinningBids [Bid]
-  | InsufficientBids Satoshi
+data AuctionResult c
+  = WinningBids [Bid c]
+  | InsufficientBids c
   deriving (Eq)
 
-bidsTotal :: [Bid] -> Satoshi
-bidsTotal bids = foldl' (\s b -> s <> (b ^. bidAmount)) (Satoshi 0) bids
+bidsTotal :: Monoid c => [Bid c] -> c
+bidsTotal = foldMap (view bidAmount)
 
-bidOrder :: Bid -> Bid -> Ordering
-bidOrder = comparing costRatio `mappend` comparing (^. bidTime)
+bidOrder ::
+  forall c.
+  IsCurrency c =>
+  Bid c ->
+  Bid c ->
+  Ordering
+bidOrder = comparing costRatio <> comparing (^. bidTime)
   where
-    secs bid = toRational $ bid ^. bidSeconds
-    btc bid = toRational $ bid ^. bidAmount . _Satoshi
-    costRatio bid = secs bid / btc bid
+    costRatio :: Bid c -> Rational
+    costRatio bid = (toRational $ bid ^. bidSeconds) / (toRational $ bid ^. bidAmount . _Units)
 
 -- lowest bids of seconds/btc win
-runAuction :: Auction -> [Bid] -> AuctionResult
+runAuction :: IsCurrency c => Auction c -> [Bid c] -> AuctionResult c
 runAuction auction = runAuction' (auction ^. raiseAmount)
 
-runAuction' :: Satoshi -> [Bid] -> AuctionResult
+runAuction' ::
+  forall c.
+  IsCurrency c =>
+  c ->
+  [Bid c] ->
+  AuctionResult c
 runAuction' raiseAmount' bids =
-  let takeWinningBids :: Satoshi -> [Bid] -> [Bid]
+  let takeWinningBids :: c -> [Bid c] -> [Bid c]
       takeWinningBids total (bid : xs)
-        | -- if the total is fully within the raise amount
-          total <> (bid ^. bidAmount) < raiseAmount' =
+        | total <> (bid ^. bidAmount) < raiseAmount' =
+          -- if the total is fully within the raise amount
           bid : takeWinningBids (total <> (bid ^. bidAmount)) xs
-        | -- if the last bid will exceed the raise amount, reduce it to fit
-          total < raiseAmount' =
-          let winFraction r = r % (bid ^. bidAmount . _Satoshi)
-              remainderSeconds (Satoshi r) =
+        | total < raiseAmount' =
+          -- if the last bid will exceed the raise amount, reduce it to fit
+          let winFraction r =
+                (r ^. _Units) % (bid ^. bidAmount . _Units)
+              remainderSeconds r =
                 Seconds . round $ winFraction r * fromIntegral (bid ^. bidSeconds)
-              adjustBid r = bid & bidSeconds .~ remainderSeconds r & bidAmount .~ r
-           in toList $ adjustBid <$> raiseAmount' `ssub` total
+              adjustBid r =
+                bid & bidSeconds .~ remainderSeconds r & bidAmount .~ r
+           in toList $ adjustBid <$> raiseAmount' `csub` total
         | otherwise =
           []
       takeWinningBids _ [] = []
       submittedTotal = bidsTotal bids
    in maybe
-        (WinningBids $ takeWinningBids (Satoshi 0) $ sortBy bidOrder bids)
+        (WinningBids $ takeWinningBids mempty $ sortBy bidOrder bids)
         InsufficientBids
-        (raiseAmount' `ssub` submittedTotal)
-
-bidCommitment :: Satoshi -> Bid -> State Satoshi (Maybe Commitment)
-bidCommitment raiseAmount' bid = do
-  raised <- get
-  case raised of
-    -- if the total is fully within the raise amount
-    x
-      | x <> (bid ^. bidAmount) < raiseAmount' ->
-        put (x <> bid ^. bidAmount)
-          >> (pure . Just $ Commitment bid (bid ^. bidSeconds) (bid ^. bidAmount))
-    -- if the last bid will exceed the raise amount, reduce it to fit
-    x
-      | x < raiseAmount' ->
-        let winFraction r = r % (bid ^. bidAmount . _Satoshi)
-            remainderSeconds (Satoshi r) =
-              Seconds . round $ winFraction r * fromIntegral (bid ^. bidSeconds)
-         in for (raiseAmount' `ssub` x) $ \remainder ->
-              put (x <> remainder)
-                *> (pure $ Commitment bid (remainderSeconds remainder) remainder)
-    -- otherwise,
-    _ -> pure Nothing
+        (raiseAmount' `csub` submittedTotal)

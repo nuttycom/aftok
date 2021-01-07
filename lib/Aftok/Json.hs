@@ -21,6 +21,7 @@ import Aftok.Payments.Types
 import qualified Aftok.Project as P
 import Aftok.TimeLog
 import Aftok.Types
+import Control.Error.Util (maybeT)
 import Control.FromSum
   ( fromEitherM,
   )
@@ -41,8 +42,7 @@ import Data.Thyme.Clock as Clock
 import Data.Thyme.Time (Day)
 import Data.UUID as U
 import Haskoin.Address
-  ( Address,
-    textToAddr,
+  ( textToAddr,
   )
 import qualified Language.Haskell.TH as TH
 import Language.Haskell.TH.Quote
@@ -154,13 +154,17 @@ qdbProjectJSON = qdbJSON "project" (_1 . _ProjectId) (_2 . L.to projectJSON)
 auctionIdJSON :: A.AuctionId -> Value
 auctionIdJSON = idJSON "auctionId" A._AuctionId
 
-auctionJSON :: A.Auction -> Value
+auctionJSON :: A.Auction Amount -> Value
 auctionJSON x =
   v1 $
     obj
       [ "projectId" .= idValue (A.projectId . _ProjectId) x,
         "initiator" .= idValue (A.initiator . _UserId) x,
-        "raiseAmount" .= (x ^. (A.raiseAmount . _Satoshi))
+        "name" .= (x ^. A.name),
+        "description" .= (x ^. A.description),
+        "raiseAmount" .= (x ^. (A.raiseAmount . to amountJSON)),
+        "auctionStart" .= (x ^. A.auctionStart),
+        "auctionEnd" .= (x ^. A.auctionEnd)
       ]
 
 bidIdJSON :: A.BidId -> Value
@@ -272,6 +276,14 @@ amountJSON :: Amount -> Value
 amountJSON (Amount currency value) = case currency of
   BTC -> object ["satoshi" .= (value ^. _Satoshi)]
   ZEC -> object ["zatoshi" .= (value ^. _Zatoshi)]
+
+parseAmountJSON :: Value -> Parser Amount
+parseAmountJSON = \case
+  Object o ->
+    maybeT (fail $ "Expected to find one of [\"satoshi\", \"zatoshi\"] as a key.") pure $
+      MaybeT (fmap (Amount BTC . review _Satoshi) <$> o .:? "satoshi")
+        <|> MaybeT (fmap (Amount ZEC . review _Zatoshi) <$> o .:? "zatoshi")
+  val -> fail $ "Value " <> show val <> " is not a JSON object."
 
 billableIdJSON :: B.BillableId -> Value
 billableIdJSON = idJSON "billableId" B._BillableId
@@ -401,5 +413,6 @@ parseRecurrence o =
    in fromMaybe notFound $ parseV o
 
 parseRecurrence' :: Value -> Parser B.Recurrence
-parseRecurrence' (Object o) = parseRecurrence o
-parseRecurrence' val = fail $ "Value " <> show val <> " is not a JSON object."
+parseRecurrence' = \case
+  (Object o) -> parseRecurrence o
+  val -> fail $ "Value " <> show val <> " is not a JSON object."

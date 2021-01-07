@@ -3,7 +3,6 @@
 module Aftok.Snaplet.WorkLog where
 
 import Aftok.Database
-import Aftok.Interval
 import Aftok.Json
 import Aftok.Project
 import Aftok.Snaplet
@@ -61,13 +60,8 @@ userEvents :: S.Handler App App [LogEntry]
 userEvents = do
   uid <- requireUserId
   pid <- requireProjectId
-  endpoints <- (,) <$> timeParam "after" <*> timeParam "before"
-  let ival = case endpoints of
-        (Just s, Just e) -> During s e
-        (Nothing, Just e) -> Before e
-        (Just s, Nothing) -> After s
-        (Nothing, Nothing) -> Always
-  limit <- fromMaybe 1 <$> decimalParam "limit"
+  ival <- rangeQueryParam
+  limit <- Limit . fromMaybe 1 <$> decimalParam "limit"
   snapEval $ findEvents pid uid ival limit
 
 userWorkIndex :: S.Handler App App WorkIndex

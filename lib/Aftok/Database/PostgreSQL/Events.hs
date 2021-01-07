@@ -23,7 +23,7 @@ import Aftok.Database
         StorePaymentRequest
       ),
     KeyedLogEntry,
-    Limit(..),
+    Limit (..),
   )
 import Aftok.Database.PostgreSQL.Json
   ( nativeRequestJSON,

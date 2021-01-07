@@ -10,16 +10,18 @@ module Aftok.Currency.Bitcoin
     renderNetworkMode,
     parseNetworkMode,
     getNetwork,
+    H.Address,
   )
 where
 
 import Bippy.Types (Satoshi (..))
 import Control.Lens
 import qualified Data.Configurator.Types as C
+import qualified Haskoin.Address as H
 import Haskoin.Constants
 
-_Satoshi :: Lens' Satoshi Word64
-_Satoshi inj (Satoshi value) = Satoshi <$> inj value
+_Satoshi :: Iso' Satoshi Word64
+_Satoshi = iso (\(Satoshi w) -> w) (Satoshi)
 
 ssub :: Satoshi -> Satoshi -> Maybe Satoshi
 ssub (Satoshi a) (Satoshi b) | a > b = Just . Satoshi $ (a - b)

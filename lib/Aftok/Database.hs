@@ -80,11 +80,11 @@ data DBOp a where
   FindEvent :: EventId -> DBOp (Maybe KeyedLogEntry)
   FindEvents :: ProjectId -> UserId -> RangeQuery -> Limit -> DBOp [LogEntry]
   ReadWorkIndex :: ProjectId -> DBOp WorkIndex
-  ListAuctions :: ProjectId -> RangeQuery -> Limit -> DBOp [A.Auction]
-  CreateAuction :: A.Auction -> DBOp A.AuctionId
-  FindAuction :: A.AuctionId -> DBOp (Maybe A.Auction)
-  CreateBid :: A.AuctionId -> A.Bid -> DBOp A.BidId
-  FindBids :: A.AuctionId -> DBOp [(A.BidId, A.Bid)]
+  ListAuctions :: ProjectId -> RangeQuery -> Limit -> DBOp [A.Auction Amount]
+  CreateAuction :: A.Auction Amount -> DBOp A.AuctionId
+  FindAuction :: A.AuctionId -> DBOp (Maybe (A.Auction Amount))
+  CreateBid :: A.AuctionId -> A.Bid Amount -> DBOp A.BidId
+  FindBids :: A.AuctionId -> DBOp [(A.BidId, A.Bid Amount)]
   CreateBillable :: UserId -> Billable Amount -> DBOp BillableId
   FindBillable :: BillableId -> DBOp (Maybe (Billable Amount))
   FindBillables :: ProjectId -> DBOp [(BillableId, Billable Amount)]
@@ -310,15 +310,15 @@ findPayment currency prid = MaybeT $ (fmap snd . headMay) <$> liftdb (FindPaymen
 
 -- Auction ops
 
-createAuction :: (MonadDB m) => A.Auction -> m A.AuctionId
+createAuction :: (MonadDB m) => A.Auction Amount -> m A.AuctionId
 createAuction a = do
   withProjectAuth (a ^. A.projectId) (a ^. A.initiator) $ CreateAuction a
 
-listAuctions :: (MonadDB m) =>  UserId -> ProjectId -> RangeQuery -> Limit -> m [A.Auction]
+listAuctions :: (MonadDB m) => UserId -> ProjectId -> RangeQuery -> Limit -> m [A.Auction Amount]
 listAuctions uid pid rq l = do
   withProjectAuth pid uid $ ListAuctions pid rq l
 
-findAuction :: (MonadDB m) => A.AuctionId -> UserId -> MaybeT m A.Auction
+findAuction :: (MonadDB m) => A.AuctionId -> UserId -> MaybeT m (A.Auction Amount)
 findAuction aid uid =
   let findOp = FindAuction aid
    in do
@@ -326,7 +326,7 @@ findAuction aid uid =
         _ <- lift $ checkProjectAuth (auc ^. A.projectId) uid findOp
         pure auc
 
-findAuction' :: (MonadDB m) => A.AuctionId -> UserId -> m A.Auction
+findAuction' :: (MonadDB m) => A.AuctionId -> UserId -> m (A.Auction Amount)
 findAuction' aid uid =
   let findOp = FindAuction aid
    in do
@@ -337,7 +337,7 @@ findAuction' aid uid =
             maybeAuc
         maybe (raiseSubjectNotFound findOp) pure maybeAuc
 
-createBid :: (MonadDB m) => A.AuctionId -> UserId -> A.Bid -> m A.BidId
+createBid :: (MonadDB m) => A.AuctionId -> UserId -> A.Bid Amount -> m A.BidId
 createBid aid uid bid =
   let createOp = CreateBid aid bid
    in do

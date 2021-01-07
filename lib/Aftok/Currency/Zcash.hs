@@ -11,6 +11,7 @@ module Aftok.Currency.Zcash
     Z.Zatoshi (..),
     Z._Zatoshi,
     Z.ToZatoshi (..),
+    Z.zsub,
     rpcAddViewingKey,
     rpcValidateZAddr,
     getUserDiversifiedAddress,
