@@ -26,7 +26,9 @@ Substitute your own values for the tokens in the script below, then run it!
 Also, if you'd prefer that a different email address be associated with your
 account, change that as well.
 
-curl -k -v -H 'Content-Type: application/json' -d '{"username":"USER", "password":"PASS", "email":"$to_email$", "btcAddr":"BTC_ADDR", "invitation_codes":["$inv_code$"]}' 'https://aftok.com/register'
+curl --header 'Content-Type: application/json' \\
+     --data '{"username":"USER", "password":"PASS", "recoveryType": "email", "recoveryEmail":"$to_email$", "invitation_codes":["$inv_code$"]}' \\
+     'https://aftok.com/api/register'
 
 For an existing account:
 

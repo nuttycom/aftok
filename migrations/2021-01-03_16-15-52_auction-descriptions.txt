@@ -5,3 +5,4 @@ Apply: |
   ALTER TABLE auctions ADD COLUMN name text NOT NULL;
   ALTER TABLE auctions ADD COLUMN description text;
   ALTER TABLE auctions ADD COLUMN currency currency_t NOT NULL;
+  ALTER TABLE bids ADD COLUMN currency currency_t NOT NULL;

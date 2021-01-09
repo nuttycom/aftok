@@ -15,7 +15,7 @@ where
 
 import qualified Aftok.Currency.Zcash as Zcash
 import Aftok.Currency.Zcash (RPCError, ZValidateAddressErr)
-import Aftok.Database (acceptInvitation, createUser)
+import Aftok.Database (acceptInvitation, createUser, findCurrentInvitation)
 import Aftok.Project (InvitationCode, parseInvCode)
 import Aftok.Snaplet
 import Aftok.Snaplet.Auth
@@ -36,8 +36,8 @@ import Data.Aeson
   )
 import qualified Data.Aeson as A
 import qualified Data.Map.Strict as M
-import Data.Text as T
-import Data.Text.Encoding as T
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import Data.Thyme.Clock as C
 import Network.HTTP.Client
   ( httpLbs,
@@ -73,7 +73,7 @@ data RegisterRequest
   = RegisterRequest
       { _regUser :: RegUser,
         _password :: ByteString,
-        _captchaToken :: Text,
+        _captchaToken :: Maybe Text,
         _invitationCodes :: [InvitationCode]
       }
 
@@ -91,8 +91,8 @@ instance A.FromJSON RegisterRequest where
         <*> pure recovery
     RegisterRequest user
       <$> (fromString <$> v .: "password")
-      <*> (v .: "captchaToken")
-      <*> (parseInvitationCodes . maybeToList =<< v .:? "invitation_codes")
+      <*> (v .:? "captchaToken")
+      <*> (parseInvitationCodes . join . maybeToList =<< v .:? "invitation_codes")
     where
       parseInvitationCodes c =
         either
@@ -138,12 +138,11 @@ registerHandler :: RegisterOps IO -> CaptchaConfig -> S.Handler App App UserId
 registerHandler ops cfg = do
   rbody <- S.readRequestBody 4096
   userData <- fromMaybeM (snapError 400 "Could not parse user data") (A.decode rbody)
-  captchaResult <- liftIO $ checkCaptcha cfg (userData ^. captchaToken)
-  case captchaResult of
-    Left err ->
-      let cmsg = "Captcha check failed, please try again."
-       in snapErrorJS 400 cmsg (RegCaptchaError err)
-    Right _ -> pure ()
+  now <- liftIO C.getCurrentTime
+  (_, invs) <- partitionEithers <$> snapEval (traverse (findCurrentInvitation now) (userData ^. invitationCodes))
+  if null invs
+    then checkCaptcha' (userData ^. captchaToken)
+    else pure () -- skip the captcha check with a valid invitation code
   acctRecovery <- case (userData ^. regUser . userAccountRecovery) of
     RecoverByEmail e -> do
       liftIO $ sendConfirmationEmail ops e
@@ -156,7 +155,6 @@ registerHandler ops cfg = do
            in snapErrorJS 400 msg (RegZAddrError err)
         Right r ->
           pure $ RecoverByZAddr r
-  now <- liftIO C.getCurrentTime
   let uname = userData ^. (regUser . username)
       createSUser = AU.createUser (uname ^. _UserName) (userData ^. password)
       createQUser = snapEval $ do
@@ -165,6 +163,18 @@ registerHandler ops cfg = do
         pure userId
   authUser <- S.with auth createSUser
   either throwDenied (\_ -> createQUser) authUser
+  where
+    checkCaptcha' = \case
+      Just ct -> do
+        captchaResult <- liftIO $ checkCaptcha cfg ct
+        case captchaResult of
+          Left err ->
+            let cmsg = "Captcha check failed, please try again."
+             in snapErrorJS 400 cmsg (RegCaptchaError err)
+          Right _ -> pure ()
+      Nothing ->
+        let cmsg = "Captcha token or invitation code required."
+         in snapErrorJS 400 cmsg ()
 
 acceptInvitationHandler :: S.Handler App App ()
 acceptInvitationHandler = do

@@ -101,12 +101,17 @@ data DBOp a where
   FindPayments :: Currency a c -> PaymentRequestId -> DBOp [(PaymentId, Payment c)]
   RaiseDBError :: forall x y. DBError -> DBOp x -> DBOp y
 
+data InvitationError
+  = InvitationExpired
+  | InvitationAlreadyAccepted
+  | InvitationNotFound
+  deriving (Eq, Show)
+
 data OpForbiddenReason
   = UserNotProjectMember
   | UserNotEventLogger
   | UserNotSubscriber SubscriptionId
-  | InvitationExpired
-  | InvitationAlreadyAccepted
+  | InvitationError InvitationError
   | AuctionEnded
   deriving (Eq, Show, Typeable)
 
@@ -214,22 +219,24 @@ createInvitation ::
 createInvitation pid current email t =
   withProjectAuth pid current $ CreateInvitation pid current email t
 
-findInvitation :: (MonadDB m) => InvitationCode -> m (Maybe Invitation)
-findInvitation ic = liftdb $ FindInvitation ic
+findCurrentInvitation :: (MonadDB m) => C.UTCTime -> InvitationCode -> m (Either InvitationError Invitation)
+findCurrentInvitation t ic =
+  maybe (Left InvitationNotFound) checkInvitation <$> liftdb (FindInvitation ic)
+  where
+    checkInvitation i
+      | t .-. (i ^. invitationTime) > fromSeconds (60 * 60 * 72 :: Int) = Left InvitationExpired
+      | isJust (i ^. acceptanceTime) = Left InvitationAlreadyAccepted
+      | otherwise = Right i
 
 acceptInvitation :: (MonadDB m) => UserId -> C.UTCTime -> InvitationCode -> m ()
 acceptInvitation uid t ic = do
-  inv <- findInvitation ic
+  inv <- findCurrentInvitation t ic
   let act = AcceptInvitation uid ic t
   case inv of
-    Nothing -> raiseSubjectNotFound act
-    Just i
-      | t .-. (i ^. invitationTime) > fromSeconds (60 * 60 * 72 :: Int) ->
-        raiseOpForbidden uid InvitationExpired act
-    Just i
-      | isJust (i ^. acceptanceTime) ->
-        raiseOpForbidden uid InvitationAlreadyAccepted act
-    Just i -> withProjectAuth (i ^. P.projectId) (i ^. P.invitingUser) act
+    Left InvitationNotFound -> raiseSubjectNotFound act
+    Left InvitationExpired -> raiseOpForbidden uid (InvitationError InvitationExpired) act
+    Left InvitationAlreadyAccepted -> raiseOpForbidden uid (InvitationError InvitationAlreadyAccepted) act
+    Right i -> withProjectAuth (i ^. P.projectId) (i ^. P.invitingUser) act
 
 -- Log ops
 
