@@ -1,16 +1,17 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Aftok.TimeLog
   ( LogEntry (..),
-    creditTo,
-    event,
-    eventMeta,
+    HasLogEntry (..),
     CreditTo (..),
     _CreditToAccount,
     _CreditToUser,
     _CreditToProject,
     LogEvent (..),
+    _StartWork,
+    _StopWork,
     eventName,
     nameEvent,
     eventTime,
@@ -36,44 +37,16 @@ where
 
 import Aftok.Interval
 import Aftok.Types
-import Control.Arrow ((&&&))
 import Control.Lens
 import Data.AdditiveGroup ()
 import Data.Aeson as A
 import Data.AffineSpace
-import Data.Either
-  ( Either (..),
-    rights,
-  )
-import Data.Eq
-  ( (==),
-    Eq,
-  )
 import Data.Foldable as F
-import Data.Function
-  ( ($),
-    (.),
-    id,
-  )
-import Data.Functor (fmap)
-import Data.Heap as H
-import Data.List.NonEmpty as L
-import Data.Map.Strict as MS
-import Data.Maybe (Maybe (..))
-import Data.Ord
-  ( Ord (..),
-    Ordering (..),
-  )
-import Data.Ratio (Rational)
-import Data.Text (Text)
+import qualified Data.Map.Strict as MS
 import Data.Thyme.Clock as C
-import Data.UUID
-import Data.VectorSpace
-import Text.Show (Show)
-import Prelude
-  ( (*),
-    (/),
-  )
+import Data.UUID (UUID)
+import Data.VectorSpace ((*^), Sum (..), (^+^), (^-^), getSum, zeroV)
+import Prelude hiding (Sum, getSum)
 
 type NDT = C.NominalDiffTime
 
@@ -81,12 +54,14 @@ type NDT = C.NominalDiffTime
 -- - The depreciation function should return a value between 0 and 1;
 -- - this result is multiplied by the length of an interval of work to determine
 -- - the depreciated value of the work.
-type DepF = C.UTCTime -> Interval -> NDT
+type DepF = C.UTCTime -> Interval C.UTCTime -> NDT
 
 data LogEvent
   = StartWork {_eventTime :: !C.UTCTime}
   | StopWork {_eventTime :: !C.UTCTime}
   deriving (Show, Eq)
+
+makePrisms ''LogEvent
 
 makeLenses ''LogEvent
 
@@ -115,14 +90,14 @@ data LogEntry
       }
   deriving (Show, Eq)
 
-makeLenses ''LogEntry
+makeClassy ''LogEntry
 
 instance Ord LogEntry where
   compare a b =
     let ordElems e = (e ^. event, e ^. creditTo)
      in ordElems a `compare` ordElems b
 
-newtype EventId = EventId UUID deriving (Show, Eq)
+newtype EventId = EventId UUID deriving (Show, Eq, Ord)
 
 makePrisms ''EventId
 
@@ -135,7 +110,7 @@ data EventAmendment
   | CreditToChange !ModTime !CreditTo
   | MetadataChange !ModTime !A.Value
 
-newtype AmendmentId = AmendmentId UUID deriving (Show, Eq)
+newtype AmendmentId = AmendmentId UUID deriving (Show, Eq, Ord)
 
 makePrisms ''AmendmentId
 
@@ -145,7 +120,7 @@ makePrisms ''Payouts
 
 type FractionalPayouts = Payouts Rational
 
-newtype WorkIndex = WorkIndex (Map CreditTo (NonEmpty Interval)) deriving (Show, Eq)
+newtype WorkIndex t = WorkIndex (Map CreditTo (NonEmpty (Interval t))) deriving (Show, Eq)
 
 makePrisms ''WorkIndex
 
@@ -156,30 +131,30 @@ toDepF (LinearDepreciation undepLength depLength) =
 -- |
 -- - Given a depreciation function, the "current" time, and a foldable functor of log intervals,
 -- - produce the total, depreciated length of work to be credited to an address.
-workCredit :: (Foldable f) => DepF -> C.UTCTime -> f Interval -> NDT
-workCredit df ptime ivals = getSum $ F.foldMap (Sum . df ptime) ivals
+workCredit :: (Foldable f, HasLogEntry le) => DepF -> C.UTCTime -> f (Interval le) -> NDT
+workCredit df ptime ivals = getSum $ F.foldMap (Sum . df ptime . fmap (view $ event . eventTime)) ivals
 
 -- |
 -- - Payouts are determined by computing a depreciated duration value for
 -- - each work interval. This function computes the percentage of the total
 -- - work allocated to each unique CreditTo.
-payouts :: DepF -> C.UTCTime -> WorkIndex -> FractionalPayouts
+payouts :: forall le. (HasLogEntry le) => DepF -> C.UTCTime -> WorkIndex le -> FractionalPayouts
 payouts dep ptime (WorkIndex widx) =
-  let addIntervalDiff :: (Foldable f) => NDT -> f Interval -> (NDT, NDT)
+  let addIntervalDiff :: (Foldable f) => NDT -> f (Interval le) -> (NDT, NDT)
       addIntervalDiff total ivals =
         (^+^ total) &&& id $ workCredit dep ptime ivals
       (totalTime, keyTimes) = MS.mapAccum addIntervalDiff zeroV widx
    in Payouts $ fmap ((/ toSeconds totalTime) . toSeconds) keyTimes
 
-workIndex :: Foldable f => f LogEntry -> WorkIndex
-workIndex logEntries =
-  let sortedEntries = F.foldr H.insert H.empty logEntries
+workIndex :: (Foldable f, HasLogEntry le, Ord o) => (le -> o) -> f le -> WorkIndex le
+workIndex cmp logEntries =
+  let sortedEntries = sortWith cmp $ toList logEntries
       rawIndex = F.foldl' appendLogEntry MS.empty sortedEntries
       accum ::
         CreditTo ->
-        [Either LogEvent Interval] ->
-        Map CreditTo (NonEmpty Interval) ->
-        Map CreditTo (NonEmpty Interval)
+        [Either le (Interval le)] ->
+        Map CreditTo (NonEmpty (Interval le)) ->
+        Map CreditTo (NonEmpty (Interval le))
       accum k l m = case nonEmpty (rights l) of
         Just l' -> MS.insert k l' m
         Nothing -> m
@@ -189,31 +164,42 @@ workIndex logEntries =
 -- - The values of the raw index map are either complete intervals (which may be
 -- - extended if a new start is encountered at the same instant as the end of the
 -- - interval) or start events awaiting completion.
-type RawIndex = Map CreditTo [Either LogEvent Interval]
+type RawIndex le = Map CreditTo [Either le (Interval le)]
 
-appendLogEntry :: RawIndex -> LogEntry -> RawIndex
-appendLogEntry idx (LogEntry k ev _) =
-  let combine :: LogEvent -> LogEvent -> Either LogEvent Interval
-      combine (StartWork t) (StopWork t') | t' > t = Right $ Interval t t'
-      combine (e1@(StartWork _)) (e2@(StartWork _)) = Left $ max e1 e2 -- ignore redundant starts
-      combine (e1@(StopWork _)) (e2@(StopWork _)) = Left $ min e1 e2 -- ignore redundant ends
-      combine _ e2 = Left e2
-      -- if the interval includes the timestamp of a start event, then allow the extension of the interval
-      extension :: Interval -> LogEvent -> Maybe LogEvent
-      extension ival (StartWork t)
-        | containsInclusive t ival =
-          Just $ StartWork (ival ^. start)
-      extension _ _ = Nothing
+appendLogEntry ::
+  forall le.
+  HasLogEntry le =>
+  RawIndex le ->
+  le ->
+  RawIndex le
+appendLogEntry idx logEvent =
+  let k = logEvent ^. logEntry . creditTo
       ivals = case MS.lookup k idx of
         -- if it is possible to extend an interval at the top of the stack
         -- because the end of that interval is the same
-        Just (Right ival : xs) -> case extension ival ev of
-          Just e' -> Left e' : xs
-          Nothing -> Left ev : Right ival : xs
+        Just (Right ival : xs) ->
+          case extension (view (event . eventTime) <$> ival) logEvent of
+            Just e' -> Left e' : xs
+            Nothing -> Left logEvent : Right ival : xs
         -- if the top element of the stack is not an interval
-        Just (Left ev' : xs) -> combine ev' ev : xs
-        _ -> [Left ev]
+        Just (Left ev' : xs) ->
+          combine ev' logEvent : xs
+        _ -> [Left logEvent]
    in MS.insert k ivals idx
+  where
+    combine :: le -> le -> Either le (Interval le)
+    combine e e' = case (e ^. event, e' ^. event) of
+      (StartWork t, StopWork t') | t' > t -> Right $ Interval e e' -- complete interval found
+      (StartWork t, StartWork t') -> Left $ if t > t' then e else e' -- ignore redundant starts
+      (StopWork t, StopWork t') -> Left $ if t <= t' then e else e' -- ignore redundant ends
+      _ -> Left e'
+    -- if the interval includes the timestamp of a start event, then allow the extension of the interval
+    extension :: (Interval C.UTCTime) -> le -> Maybe le
+    extension ival newEvent@(view event -> StartWork t)
+      | containsInclusive t ival =
+        Just newEvent -- replace the end of the interval with the new event
+    extension _ _ =
+      Nothing
 
 -- |
 -- - A very simple linear function for calculating depreciation.

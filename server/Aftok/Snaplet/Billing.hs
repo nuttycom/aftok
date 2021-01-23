@@ -7,7 +7,7 @@ module Aftok.Snaplet.Billing
   )
 where
 
-import Aftok.Billing
+import Aftok.Billing as B
 import Aftok.Currency (Amount (..), Currency (..))
 import Aftok.Currency.Bitcoin (Satoshi (..))
 import Aftok.Currency.Zcash (Zatoshi (..))
@@ -24,6 +24,7 @@ import Aftok.Types
 import Control.Lens ((^.))
 import Data.Aeson
 import Data.Aeson.Types
+import qualified Data.HashMap.Strict as O
 import Data.Thyme.Clock as C
 import Data.Thyme.Time.Core (toThyme)
 import Snap.Snaplet as S
@@ -72,3 +73,45 @@ subscribeHandler = do
   bid <- requireId "billableId" BillableId
   t <- liftIO C.getCurrentTime
   snapEval . liftdb $ CreateSubscription uid bid (t ^. C._utctDay)
+
+-- subscriptionJSON :: B.Subscription -> Value
+-- subscriptionJSON = v1 . obj . subscriptionKV
+--
+-- subscriptionKV :: (KeyValue kv) => B.Subscription -> [kv]
+-- subscriptionKV sub =
+--   [ "user_id" .= idValue (B.customer . _UserId) sub,
+--     "billable_id" .= idValue (B.billable . B._BillableId) sub,
+--     "start_time" .= view B.startTime sub,
+--     "end_time" .= view B.endTime sub
+--   ]
+
+-- paymentRequestDetailsJSON :: [PaymentRequestDetail Amount] -> Value
+-- paymentRequestDetailsJSON r = v1 $ obj ["payment_requests" .= fmap paymentRequestDetailJSON r]
+--
+-- paymentRequestDetailJSON :: PaymentRequestDetail Amount -> Object
+-- paymentRequestDetailJSON r = obj $ concat
+--   [ ["payment_request_id" .= view () r]
+--   , paymentRequestKV $ view _2 r
+--   , subscriptionKV $ view _3 r
+--   , billableKV $ view _4 r
+--   ]
+
+parseRecurrence :: Object -> Parser B.Recurrence
+parseRecurrence o =
+  let parseAnnually o' = const (pure B.Annually) <$> O.lookup "annually" o'
+      parseMonthly o' = fmap B.Monthly . parseJSON <$> O.lookup "monthly" o'
+      parseWeekly o' = fmap B.Weekly . parseJSON <$> O.lookup "weekly" o'
+      parseOneTime o' = const (pure B.OneTime) <$> O.lookup "one-time" o'
+      notFound =
+        fail $ "Value " <> show o <> " does not represent a Recurrence value."
+      parseV val =
+        parseAnnually val
+          <|> parseMonthly val
+          <|> parseWeekly val
+          <|> parseOneTime val
+   in fromMaybe notFound $ parseV o
+
+parseRecurrence' :: Value -> Parser B.Recurrence
+parseRecurrence' = \case
+  (Object o) -> parseRecurrence o
+  val -> fail $ "Value " <> show val <> " is not a JSON object."

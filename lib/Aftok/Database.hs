@@ -22,12 +22,14 @@ import Aftok.Payments.Types
     SomePaymentRequestDetail,
   )
 import Aftok.Project as P
+import qualified Aftok.TimeLog as TL
 import Aftok.TimeLog
   ( AmendmentId,
     EventAmendment,
     EventId,
     LogEntry,
     WorkIndex,
+    HasLogEntry,
   )
 import Aftok.Types
   ( AccountId,
@@ -40,6 +42,7 @@ import Aftok.Types
 import Aftok.Util (Program, fc, fromMaybeT)
 import Control.Lens
   ( (^.),
+    makeClassy,
     makeClassyPrisms,
     traverseOf,
     view,
@@ -51,7 +54,15 @@ import Data.Thyme.Time as T
   )
 import Safe (headMay)
 
-type KeyedLogEntry = (ProjectId, UserId, LogEntry)
+data KeyedLogEntry = KeyedLogEntry {
+    _workId :: !EventId,
+    _logEntry :: !LogEntry
+  }
+
+makeClassy ''KeyedLogEntry
+
+instance HasLogEntry KeyedLogEntry where
+  logEntry = Aftok.Database.logEntry
 
 type InvitingUID = UserId
 
@@ -76,10 +87,10 @@ data DBOp a where
   FindInvitation :: InvitationCode -> DBOp (Maybe Invitation)
   AcceptInvitation :: UserId -> InvitationCode -> C.UTCTime -> DBOp ()
   CreateEvent :: ProjectId -> UserId -> LogEntry -> DBOp EventId
-  AmendEvent :: EventId -> EventAmendment -> DBOp AmendmentId
-  FindEvent :: EventId -> DBOp (Maybe KeyedLogEntry)
-  FindEvents :: ProjectId -> UserId -> RangeQuery -> Limit -> DBOp [LogEntry]
-  ReadWorkIndex :: ProjectId -> DBOp WorkIndex
+  AmendEvent :: ProjectId -> UserId -> KeyedLogEntry -> EventAmendment -> DBOp (EventId, AmendmentId)
+  FindEvent :: EventId -> DBOp (Maybe (ProjectId, UserId, KeyedLogEntry))
+  FindEvents :: ProjectId -> UserId -> RangeQuery -> Limit -> DBOp [KeyedLogEntry]
+  ReadWorkIndex :: ProjectId -> DBOp (WorkIndex KeyedLogEntry)
   ListAuctions :: ProjectId -> RangeQuery -> Limit -> DBOp [A.Auction Amount]
   CreateAuction :: A.Auction Amount -> DBOp A.AuctionId
   FindAuction :: A.AuctionId -> DBOp (Maybe (A.Auction Amount))
@@ -246,18 +257,19 @@ createEvent ::
 createEvent p u l = withProjectAuth p u $ CreateEvent p u l
 
 amendEvent ::
-  (MonadDB m) => UserId -> EventId -> EventAmendment -> m AmendmentId
+  (MonadDB m) => UserId -> EventId -> EventAmendment -> m (EventId, AmendmentId)
 amendEvent uid eid a = do
-  ev <- findEvent eid
-  let act = AmendEvent eid a
-      forbidden = raiseOpForbidden uid UserNotEventLogger act
-      missing = raiseSubjectNotFound act
-  maybe
-    missing
-    (\(_, uid', _) -> if uid' == uid then liftdb act else forbidden)
-    ev
+  evMay <- findEvent eid
+  maybe missing saveAmendment evMay
+  where
+    missing = raiseSubjectNotFound (FindEvent eid)
+    saveAmendment (pid, uid', le) =
+      let act = AmendEvent pid uid le a
+      in if uid' == uid
+        then liftdb act
+        else raiseOpForbidden uid UserNotEventLogger act
 
-findEvent :: (MonadDB m) => EventId -> m (Maybe KeyedLogEntry)
+findEvent :: (MonadDB m) => EventId -> m (Maybe (ProjectId, UserId, KeyedLogEntry))
 findEvent = liftdb . FindEvent
 
 findEvents ::
@@ -266,10 +278,10 @@ findEvents ::
   UserId ->
   RangeQuery ->
   Limit ->
-  m [LogEntry]
+  m [KeyedLogEntry]
 findEvents p u i l = liftdb $ FindEvents p u i l
 
-readWorkIndex :: (MonadDB m) => ProjectId -> UserId -> m WorkIndex
+readWorkIndex :: (MonadDB m) => ProjectId -> UserId -> m (WorkIndex KeyedLogEntry)
 readWorkIndex pid uid = withProjectAuth pid uid $ ReadWorkIndex pid
 
 -- Billing ops

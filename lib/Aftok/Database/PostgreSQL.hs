@@ -45,7 +45,7 @@ pgEval =
     (CreateEvent pid uid lentry) -> Q.createEvent pid uid lentry
     (FindEvent eid) -> Q.findEvent eid
     (FindEvents pid uid rquery limit) -> Q.findEvents pid uid rquery limit
-    (AmendEvent eid amendment) -> Q.amendEvent eid amendment
+    (AmendEvent pid uid kle amendment) -> Q.amendEvent pid uid kle amendment
     (ReadWorkIndex pid) -> Q.readWorkIndex pid
     (CreateAuction auc) -> Q.createAuction auc
     (FindAuction aucId) -> Q.findAuction aucId

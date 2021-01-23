@@ -2,20 +2,25 @@
 
 module Main where
 
+import Aftok.Auction (_AuctionId)
+import Aftok.Billing (_BillableId, _SubscriptionId)
 import qualified Aftok.Config as C
 import Aftok.Currency.Bitcoin.Payments (_bip70Request)
 import Aftok.Currency.Zcash (rpcValidateZAddr)
 import Aftok.Json
+import Aftok.Payments.Types (_PaymentId)
 import Aftok.QConfig as Q
 import Aftok.Snaplet
 import Aftok.Snaplet.Auctions
 import Aftok.Snaplet.Auth
 import Aftok.Snaplet.Billing
+import Aftok.Snaplet.Json (idJSON)
 import Aftok.Snaplet.Payments
 import Aftok.Snaplet.Projects
 import Aftok.Snaplet.Users
 import Aftok.Snaplet.WorkLog
 import Aftok.TimeLog
+import Aftok.Types (_ProjectId)
 import Control.Exception (try)
 import Control.Lens
   ( (^.),
@@ -79,33 +84,33 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
       listContributorsRoute =
         serveJSON (fmap contributorJSON) $ method GET listContributorsHandler
       projectCreateRoute =
-        serveJSON projectIdJSON $ method POST projectCreateHandler
+        serveJSON (idJSON "projectId" _ProjectId) $ method POST projectCreateHandler
       projectListRoute =
         serveJSON (fmap qdbProjectJSON) $ method GET projectListHandler
       projectRoute = serveJSON projectJSON $ method GET projectGetHandler
       projectWorkIndexRoute =
-        serveJSON workIndexJSON $ method GET projectWorkIndex
+        serveJSON (workIndexJSON keyedLogEntryJSON) $ method GET projectWorkIndex
       projectPayoutsRoute =
         serveJSON payoutsJSON $ method GET payoutsHandler
       logWorkRoute f =
-        serveJSON keyedLogEntryJSON $ method POST (logWorkHandler f)
-      amendEventRoute = serveJSON amendmentIdJSON $ method PUT amendEventHandler
+        serveJSON extendedLogEntryJSON $ method POST (logWorkHandler f)
+      amendEventRoute = serveJSON amendEventResultJSON $ method PUT amendEventHandler
       userEventsRoute =
-        serveJSON (fmap logEntryJSON) $ method GET userEvents
+        serveJSON (fmap keyedLogEntryJSON) $ method GET userEvents
       userWorkIndexRoute =
-        serveJSON workIndexJSON $ method GET userWorkIndex
+        serveJSON (workIndexJSON keyedLogEntryJSON) $ method GET userWorkIndex
       auctionCreateRoute =
-        serveJSON auctionIdJSON $ method POST auctionCreateHandler
+        serveJSON (idJSON "auctionId" _AuctionId) $ method POST auctionCreateHandler
       auctionListRoute =
         serveJSON (fmap auctionJSON) $ method GET auctionListHandler
       auctionRoute = serveJSON auctionJSON $ method GET auctionGetHandler
       auctionBidRoute = serveJSON bidIdJSON $ method POST auctionBidHandler
       billableCreateRoute =
-        serveJSON billableIdJSON $ method POST billableCreateHandler
+        serveJSON (idJSON "billableId" _BillableId) $ method POST billableCreateHandler
       billableListRoute =
         serveJSON (fmap qdbBillableJSON) $ method GET billableListHandler
       subscribeRoute =
-        serveJSON subscriptionIdJSON $ method POST subscribeHandler
+        serveJSON (idJSON "subscriptionId" _SubscriptionId) $ method POST subscribeHandler
       -- payableRequestsRoute =
       --   serveJSON billDetailsJSON $ method GET listPayableRequestsHandler
       getBip70PaymentRequestRoute =
@@ -116,7 +121,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
           . snd
           =<< method GET getBip70PaymentRequestHandler
       submitBip70PaymentRoute =
-        serveJSON paymentIdJSON $
+        serveJSON (idJSON "paymentId" _PaymentId) $
           method POST (bip70PaymentResponseHandler $ cfg ^. billingConfig)
   addRoutes
     [ ("static", serveDirectory . encodeString $ cfg ^. staticAssetPath),

@@ -1,3 +1,6 @@
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Aftok.Interval
@@ -27,12 +30,12 @@ import Data.Thyme.Clock as C
 import Data.Thyme.Format.Aeson ()
 import Data.Thyme.LocalTime ()
 
-data Interval
+data Interval t
   = Interval
-      { _start :: C.UTCTime,
-        _end :: C.UTCTime
+      { _start :: t,
+        _end :: t
       }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 makeLenses ''Interval
 
@@ -44,21 +47,21 @@ data RangeQuery
 
 makeLenses ''RangeQuery
 
-interval :: C.UTCTime -> C.UTCTime -> Interval
+interval :: Ord t => t -> t -> Interval t
 interval s e = if s < e then Interval s e else Interval e s
 
 rangeQuery :: C.UTCTime -> C.UTCTime -> RangeQuery
 rangeQuery s e = if s < e then During s e else During e s
 
-containsInclusive :: C.UTCTime -> Interval -> Bool
+containsInclusive :: Ord t => t -> Interval t -> Bool
 containsInclusive t (Interval s e) = t >= s && t <= e
 
-ilen :: Interval -> C.NominalDiffTime
+ilen :: Interval C.UTCTime -> C.NominalDiffTime
 ilen i = _end i .-. _start i
 
-intervalJSON :: Interval -> Value
-intervalJSON ival = object ["start" .= (ival ^. start), "end" .= (ival ^. end)]
+intervalJSON :: (t -> Value) -> Interval t -> Value
+intervalJSON f ival = object ["start" .= f (ival ^. start), "end" .= f (ival ^. end)]
 
-parseIntervalJSON :: Value -> Parser Interval
+parseIntervalJSON :: (Ord t, FromJSON t) => Value -> Parser (Interval t)
 parseIntervalJSON (Object v) = interval <$> v .: "start" <*> v .: "end"
 parseIntervalJSON _ = mzero

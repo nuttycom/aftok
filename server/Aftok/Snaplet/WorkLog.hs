@@ -1,39 +1,71 @@
+{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Aftok.Snaplet.WorkLog where
 
 import Aftok.Database
+import Aftok.Interval
+  ( Interval (..),
+    intervalJSON,
+  )
 import Aftok.Json
 import Aftok.Project
 import Aftok.Snaplet
 import Aftok.Snaplet.Auth
 import Aftok.Snaplet.Util
 import Aftok.TimeLog
+  ( AmendmentId,
+    EventAmendment (..),
+    EventId (..),
+    FractionalPayouts,
+    LogEntry (LogEntry),
+    LogEvent,
+    ModTime (..),
+    Payouts (..),
+    WorkIndex (..),
+    _AmendmentId,
+    _EventId,
+    eventName,
+    eventTime,
+    payouts,
+    toDepF,
+    workIndex,
+  )
 import Aftok.Types
-  ( _ProjectId,
+  ( CreditTo (..),
+    UserId,
+    ProjectId,
+    _ProjectId,
     _UserId,
   )
 import Aftok.Util (fromMaybeT)
-import Control.Lens ((^.))
+import Control.Lens ((^.), view)
 import Control.Monad.Trans.Maybe (mapMaybeT)
-import Data.Aeson ((.=))
-import qualified Data.Aeson as A
-import qualified Data.Aeson.Types as A
+import Data.Aeson ((.:), (.=), Value (Object), eitherDecode, object)
+import Data.Aeson.Types (Pair, Parser, parseEither)
+import qualified Data.List.NonEmpty as L
+import qualified Data.Map.Strict as MS
 import qualified Data.Text as T
 import Data.Thyme.Clock as C
 import Data.UUID as U
 import Snap.Core
 import Snap.Snaplet as S
 
+----------------------
+-- Handlers
+----------------------
+
 logWorkHandler ::
   (C.UTCTime -> LogEvent) ->
-  S.Handler App App (EventId, KeyedLogEntry)
+  S.Handler App App (ProjectId, UserId, KeyedLogEntry)
 logWorkHandler evCtr = do
   uid <- requireUserId
   pid <- requireProjectId
   requestBody <- readRequestBody 4096
   timestamp <- liftIO C.getCurrentTime
-  case (A.eitherDecode requestBody >>= A.parseEither (parseLogEntry uid evCtr)) of
+  case (eitherDecode requestBody >>= parseEither (parseLogEntry uid evCtr)) of
     Left err ->
       snapError 400 $
         "Unable to parse log entry "
@@ -47,39 +79,10 @@ logWorkHandler evCtr = do
         ( snapError 500 $
             "An error occured retrieving the newly created event record."
         )
-        (pure . (eid,))
+        pure
         ev
 
-projectWorkIndex :: S.Handler App App WorkIndex
-projectWorkIndex = do
-  uid <- requireUserId
-  pid <- requireProjectId
-  snapEval $ readWorkIndex pid uid
-
-userEvents :: S.Handler App App [LogEntry]
-userEvents = do
-  uid <- requireUserId
-  pid <- requireProjectId
-  ival <- rangeQueryParam
-  limit <- Limit . fromMaybe 1 <$> decimalParam "limit"
-  snapEval $ findEvents pid uid ival limit
-
-userWorkIndex :: S.Handler App App WorkIndex
-userWorkIndex = workIndex <$> userEvents
-
-payoutsHandler :: S.Handler App App FractionalPayouts
-payoutsHandler = do
-  uid <- requireUserId
-  pid <- requireProjectId
-  project <-
-    fromMaybeT
-      (snapError 400 $ "Project not found for id " <> show pid)
-      (mapMaybeT snapEval $ findUserProject uid pid)
-  widx <- snapEval $ readWorkIndex pid uid
-  ptime <- liftIO $ C.getCurrentTime
-  pure $ payouts (toDepF $ project ^. depf) ptime widx
-
-amendEventHandler :: S.Handler App App AmendmentId
+amendEventHandler :: S.Handler App App (EventId, AmendmentId)
 amendEventHandler = do
   uid <- requireUserId
   eventIdBytes <- getParam "eventId"
@@ -93,14 +96,115 @@ amendEventHandler = do
   either
     (snapError 400 . T.pack)
     (snapEval . amendEvent uid eventId)
-    (A.parseEither (parseEventAmendment modTime) requestJSON)
+    (parseEither (parseEventAmendment modTime) requestJSON)
 
-keyedLogEntryJSON :: (EventId, KeyedLogEntry) -> A.Value
-keyedLogEntryJSON (eid, (pid, uid, ev)) =
-  v2
+projectWorkIndex :: S.Handler App App (WorkIndex KeyedLogEntry)
+projectWorkIndex = do
+  uid <- requireUserId
+  pid <- requireProjectId
+  snapEval $ readWorkIndex pid uid
+
+userEvents :: S.Handler App App [KeyedLogEntry]
+userEvents = do
+  uid <- requireUserId
+  pid <- requireProjectId
+  ival <- rangeQueryParam
+  limit <- Limit . fromMaybe 1 <$> decimalParam "limit"
+  snapEval $ findEvents pid uid ival limit
+
+userWorkIndex :: S.Handler App App (WorkIndex KeyedLogEntry)
+userWorkIndex = workIndex (view logEntry) <$> userEvents
+
+payoutsHandler :: S.Handler App App FractionalPayouts
+payoutsHandler = do
+  uid <- requireUserId
+  pid <- requireProjectId
+  project <-
+    fromMaybeT
+      (snapError 400 $ "Project not found for id " <> show pid)
+      (mapMaybeT snapEval $ findUserProject uid pid)
+  widx <- snapEval $ readWorkIndex pid uid
+  ptime <- liftIO $ C.getCurrentTime
+  pure $ payouts (toDepF $ project ^. depf) ptime widx
+
+----------------------
+-- Parsing
+----------------------
+
+parseEventAmendment ::
+  ModTime ->
+  Value ->
+  Parser EventAmendment
+parseEventAmendment t = \case
+  Object o ->
+    let parseA :: Text -> Parser EventAmendment
+        parseA "timeChange" = TimeChange t <$> o .: "eventTime"
+        parseA "creditToChange" = CreditToChange t <$> parseCreditToV2 o
+        parseA "metadataChange" = MetadataChange t <$> o .: "eventMeta"
+        parseA tid =
+          fail . T.unpack $ "Amendment type " <> tid <> " not recognized."
+     in o .: "amendment" >>= parseA
+  val ->
+    fail $ "Value " <> show val <> " is not a JSON object."
+
+----------------------
+-- Rendering
+----------------------
+
+logEventJSON :: LogEvent -> Value
+logEventJSON ev =
+  object [eventName ev .= object ["eventTime" .= (ev ^. eventTime)]]
+
+logEntryFields :: LogEntry -> [Pair]
+logEntryFields (LogEntry c ev m) =
+  [ "creditTo" .= creditToJSON c,
+    "event" .= logEventJSON ev,
+    "eventMeta" .= m
+  ]
+
+keyedLogEntryFields :: KeyedLogEntry -> [Pair]
+keyedLogEntryFields (KeyedLogEntry eid le) =
+  ["eventId" .= idValue _EventId eid] <> logEntryFields le
+
+keyedLogEntryJSON :: KeyedLogEntry -> Value
+keyedLogEntryJSON kle =
+  object (keyedLogEntryFields kle)
+
+extendedLogEntryJSON :: (ProjectId, UserId, KeyedLogEntry) -> Value
+extendedLogEntryJSON (pid, uid, le) =
+  v1
     . obj
-    $ [ "eventId" .= idValue _EventId eid,
-        "projectId" .= idValue _ProjectId pid,
+    $ [ "projectId" .= idValue _ProjectId pid,
         "loggedBy" .= idValue _UserId uid
       ]
-      <> logEntryFields ev
+      <> keyedLogEntryFields le
+
+payoutsJSON :: FractionalPayouts -> Value
+payoutsJSON (Payouts m) =
+  v1 $
+    let payoutsRec :: (CreditTo, Rational) -> Value
+        payoutsRec (c, r) =
+          object ["creditTo" .= creditToJSON c,
+          "payoutRatio" .= r,
+          "payoutPercentage" .= (fromRational @Double r * 100)]
+     in obj $ ["payouts" .= fmap payoutsRec (MS.assocs m)]
+
+workIndexJSON :: forall t. (t -> Value) -> WorkIndex t -> Value
+workIndexJSON leJSON (WorkIndex widx) =
+  v1 $
+    obj ["workIndex" .= fmap widxRec (MS.assocs widx)]
+  where
+    widxRec :: (CreditTo, NonEmpty (Interval t)) -> Value
+    widxRec (c, l) =
+      object
+        [ "creditTo" .= creditToJSON c,
+          "intervals" .= (intervalJSON leJSON <$> L.toList l)
+        ]
+
+amendEventResultJSON :: (EventId, AmendmentId) -> Value
+amendEventResultJSON (eid, aid) =
+  object
+    [ "replacement_event" .= idValue _EventId eid,
+      "amendment_id" .= idValue _AmendmentId aid
+    ]
+

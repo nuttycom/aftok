@@ -8,7 +8,6 @@ services:
       - "8000"
     depends_on:
       - aftokdb
-      - zcashd
     volumes:
       - type: bind
         source: ./local/server/conf
@@ -21,6 +20,15 @@ services:
       - front-tier
       - back-tier
     init: true
+
+  aftok-client:
+    image: aftok/aftok-client:latest
+    container_name: aftok-client
+    entrypoint: /opt/aftok/aftok-client-cp.sh
+    volumes:
+      - type: volume
+        source: v_aftok-client
+        target: /opt/aftok/client/dist-volume
 
   nginx:
     image: nginx:latest
@@ -47,9 +55,13 @@ services:
         target: /opt/static/site
         read_only: true
       - type: bind
-        source: ./client/dist/
+        source: ./client/dist
         target: /opt/static/app
         read_only: true
+        # - type: volume
+        #   source: v_aftok-client
+        #   target: /opt/static/app
+        #   read_only: true
     networks:
       - front-tier
 
@@ -75,26 +87,27 @@ services:
     networks:
       - back-tier
 
-  zcashd:
-    image: electriccoinco/zcashd:v4.0.0
-    container_name: aftok-zcashd
-    expose:
-      - "18232"
-    ports:
-      - "18233:18233"
-    volumes:
-      - type: bind
-        source: ./local/zcashd/zcash-data
-        target: /srv/zcashd/.zcash
-      - type: bind
-        source: ./local/zcashd/zcash-params
-        target: /srv/zcashd/.zcash-params
-        read_only: true
-    networks:
-      - back-tier
+#  zcashd:
+#    image: electriccoinco/zcashd:v4.0.0
+#    container_name: aftok-zcashd
+#    expose:
+#      - "18232"
+#    ports:
+#      - "18233:18233"
+#    volumes:
+#      - type: bind
+#        source: ./local/zcashd/zcash-data
+#        target: /srv/zcashd/.zcash
+#      - type: bind
+#        source: ./local/zcashd/zcash-params
+#        target: /srv/zcashd/.zcash-params
+#        read_only: true
+#    networks:
+#      - back-tier
 
 volumes:
   aftok-data:
+  v_aftok-client:
 
 networks:
   front-tier:

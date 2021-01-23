@@ -1,0 +1,8 @@
+Description: (Describe migration here.)
+Created: 2021-01-16 05:04:54.586280477 UTC
+Depends: 2017-06-08_04-37-31_event-metadata-ids 2016-10-14_02-49-36_event-amendments
+Apply: |
+  CREATE TYPE amendment_t AS ENUM ('amend_event_time', 'amend_credit_to', 'amend_metadata');
+  ALTER TABLE work_events ADD COLUMN replacement_id uuid REFERENCES work_events(id);
+  ALTER TABLE work_events ADD COLUMN amended_by_type amendment_t;
+  ALTER TABLE work_events ADD COLUMN amended_by_id uuid;

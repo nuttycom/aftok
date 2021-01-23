@@ -8,12 +8,14 @@ module Aftok.Snaplet.Projects
     projectInviteHandler,
     listContributorsHandler,
     contributorJSON,
+    projectJSON,
+    qdbProjectJSON,
   )
 where
 
 import Aftok.Config
 import Aftok.Database
-import Aftok.Json (idValue)
+import Aftok.Json (idValue, identifiedJSON, obj, v1)
 import Aftok.Project
 import Aftok.QConfig as QC
 import Aftok.Snaplet
@@ -21,7 +23,7 @@ import Aftok.Snaplet.Auth
 import Aftok.TimeLog.Serialization (depfFromJSON)
 import Aftok.Types
 import Aftok.Util (fromMaybeT)
-import Control.Lens ((^.))
+import Control.Lens ((^.), _1, _2, to)
 import Control.Monad.Trans.Maybe (mapMaybeT)
 import qualified Data.Aeson as A
 import Data.Aeson ((.:), (.=), Value (..), object)
@@ -135,3 +137,15 @@ buildProjectInviteEmail tpath pn fromEmail toEmail invCode = do
           subject = "Welcome to the " <> pn <> " Aftok!"
           body = plainPart . render $ setAttrs template
        in pure $ SMTP.simpleMail fromAddr [toAddr] [] [] subject [body]
+
+projectJSON :: Project -> Value
+projectJSON p =
+  v1 $
+    obj
+      [ "projectName" .= (p ^. projectName),
+        "inceptionDate" .= (p ^. inceptionDate),
+        "initiator" .= (p ^. initiator . _UserId)
+      ]
+
+qdbProjectJSON :: (ProjectId, Project) -> Value
+qdbProjectJSON = identifiedJSON "project" (_1 . _ProjectId) (_2 . to projectJSON)

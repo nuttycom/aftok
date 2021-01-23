@@ -5,14 +5,24 @@ module Aftok.Snaplet.Auctions
     auctionGetHandler,
     auctionBidHandler,
     auctionListHandler,
+    auctionJSON,
+    bidIdJSON,
   )
 where
 
 import Aftok.Auction
-  ( Auction (..),
+  ( Auction (Auction),
     AuctionId,
-    Bid (..),
+    Bid (Bid),
     BidId,
+    _BidId,
+    auctionEnd,
+    auctionStart,
+    description,
+    initiator,
+    name,
+    projectId,
+    raiseAmount,
   )
 import Aftok.Currency (Amount)
 import Aftok.Database
@@ -26,8 +36,9 @@ import Aftok.Json
 import Aftok.Snaplet
 import Aftok.Snaplet.Auth
 import Aftok.Snaplet.Util (decimalParam, rangeQueryParam)
-import Aftok.Types (UserId)
+import Aftok.Types (UserId, _ProjectId, _UserId)
 import Aftok.Util (fromMaybeT)
+import Control.Lens ((^.), to)
 import Control.Monad.Trans.Maybe (mapMaybeT)
 import Data.Aeson
 import Data.Aeson.Types
@@ -37,11 +48,11 @@ import Snap.Snaplet as S
 
 data AuctionCreateRequest
   = CA
-      { name :: Text,
-        description :: Maybe Text,
-        raiseAmount :: Amount,
-        auctionStart :: C.UTCTime,
-        auctionEnd :: C.UTCTime
+      { acrName :: Text,
+        acrDescription :: Maybe Text,
+        acrRaiseAmount :: Amount,
+        acrAuctionStart :: C.UTCTime,
+        acrAuctionEnd :: C.UTCTime
       }
 
 auctionCreateParser :: Value -> Parser AuctionCreateRequest
@@ -78,11 +89,11 @@ auctionCreateHandler = do
       pid
       uid
       now
-      (name req)
-      (description req)
-      (raiseAmount $ req)
-      (auctionStart req)
-      (auctionEnd req)
+      (acrName req)
+      (acrDescription req)
+      (acrRaiseAmount $ req)
+      (acrAuctionStart req)
+      (acrAuctionEnd req)
 
 auctionListHandler :: S.Handler App App [Auction Amount]
 auctionListHandler = do
@@ -110,3 +121,19 @@ auctionBidHandler = do
     either (snapError 400 . show) pure $
       parseEither (bidCreateParser uid timestamp) requestBody
   snapEval $ createBid aid uid bid
+
+auctionJSON :: Auction Amount -> Value
+auctionJSON x =
+  v1 $
+    obj
+      [ "projectId" .= idValue (projectId . _ProjectId) x,
+        "initiator" .= idValue (initiator . _UserId) x,
+        "name" .= (x ^. name),
+        "description" .= (x ^. description),
+        "raiseAmount" .= (x ^. (raiseAmount . to amountJSON)),
+        "auctionStart" .= (x ^. auctionStart),
+        "auctionEnd" .= (x ^. auctionEnd)
+      ]
+
+bidIdJSON :: BidId -> Value
+bidIdJSON pid = v1 $ obj ["bidId" .= (pid ^. _BidId)]

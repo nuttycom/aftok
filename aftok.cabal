@@ -160,6 +160,7 @@ Executable aftok-server
                , Aftok.Snaplet.Auctions
                , Aftok.Snaplet.Auth
                , Aftok.Snaplet.Billing
+               , Aftok.Snaplet.Json
                , Aftok.Snaplet.Payments
                , Aftok.Snaplet.Projects
                , Aftok.Snaplet.Users
@@ -205,6 +206,7 @@ Executable aftok-server
     , text
     , thyme
     , transformers
+    , unordered-containers
     , uuid                
     , wreq        
     , x509

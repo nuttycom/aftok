@@ -8,17 +8,10 @@
 
 module Aftok.Json where
 
-import qualified Aftok.Auction as A
 import qualified Aftok.Billing as B
 import Aftok.Currency (Amount (..), Currency (..))
 import Aftok.Currency.Bitcoin
 import Aftok.Currency.Zcash (_Zatoshi)
-import Aftok.Interval
-import Aftok.Payments.Types
-  ( PaymentId,
-    _PaymentId,
-  )
-import qualified Aftok.Project as P
 import Aftok.TimeLog
 import Aftok.Types
 import Control.Error.Util (maybeT)
@@ -26,20 +19,15 @@ import Control.FromSum
   ( fromEitherM,
   )
 import Control.Lens hiding ((.=))
-import qualified Control.Lens as L
 import Data.Aeson
 import Data.Aeson.Types
 import qualified Data.Attoparsec.ByteString.Char8 as PC
 import qualified Data.ByteString.Char8 as C
 import Data.Data
 import Data.HashMap.Strict as O
-import Data.List.NonEmpty as L
-import Data.Map.Strict as MS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import Data.Thyme.Calendar (showGregorian)
 import Data.Thyme.Clock as Clock
-import Data.Thyme.Time (Day)
 import Data.UUID as U
 import Haskoin.Address
   ( textToAddr,
@@ -64,8 +52,8 @@ printVersion Version {..} =
 versionParser :: PC.Parser Version
 versionParser = Version <$> PC.decimal <*> (PC.char '.' >> PC.decimal)
 
-version :: MonadFail m => ByteString -> m Version
-version = fromEitherM fail . PC.parseOnly versionParser
+parseVersion :: MonadFail m => ByteString -> m Version
+parseVersion = fromEitherM fail . PC.parseOnly versionParser
 
 v :: QuasiQuoter
 v =
@@ -79,7 +67,7 @@ v =
 -- TODO: Include source location information, and implement quote patterns.
 quoteVersionExp :: String -> TH.Q TH.Exp
 quoteVersionExp s = do
-  ver <- version $ C.pack s
+  ver <- parseVersion $ C.pack s
   dataToExpQ (const Nothing) ver
 
 versioned :: Version -> Object -> Value
@@ -129,46 +117,9 @@ obj = O.fromList
 idValue :: forall a. Getter a UUID -> a -> Value
 idValue l a = toJSON . U.toText $ view l a
 
-idJSON :: forall a. Text -> Getter a UUID -> a -> Value
-idJSON t l a = v1 $ obj [t .= idValue l a]
-
-qdbJSON :: Text -> Getter a UUID -> Getter a Value -> a -> Value
-qdbJSON name _id _value x =
-  v1 $ obj [(name <> "Id") .= idValue _id x, name .= (x ^. _value)]
-
-projectIdJSON :: ProjectId -> Value
-projectIdJSON = idJSON "projectId" _ProjectId
-
-projectJSON :: P.Project -> Value
-projectJSON p =
-  v1 $
-    obj
-      [ "projectName" .= (p ^. P.projectName),
-        "inceptionDate" .= (p ^. P.inceptionDate),
-        "initiator" .= (p ^. P.initiator . _UserId)
-      ]
-
-qdbProjectJSON :: (ProjectId, P.Project) -> Value
-qdbProjectJSON = qdbJSON "project" (_1 . _ProjectId) (_2 . L.to projectJSON)
-
-auctionIdJSON :: A.AuctionId -> Value
-auctionIdJSON = idJSON "auctionId" A._AuctionId
-
-auctionJSON :: A.Auction Amount -> Value
-auctionJSON x =
-  v1 $
-    obj
-      [ "projectId" .= idValue (A.projectId . _ProjectId) x,
-        "initiator" .= idValue (A.initiator . _UserId) x,
-        "name" .= (x ^. A.name),
-        "description" .= (x ^. A.description),
-        "raiseAmount" .= (x ^. (A.raiseAmount . to amountJSON)),
-        "auctionStart" .= (x ^. A.auctionStart),
-        "auctionEnd" .= (x ^. A.auctionEnd)
-      ]
-
-bidIdJSON :: A.BidId -> Value
-bidIdJSON pid = v1 $ obj ["bidId" .= (pid ^. A._BidId)]
+identifiedJSON :: Text -> Getter a UUID -> Getter a Value -> a -> Value
+identifiedJSON name _id _value x =
+  object [(name <> "Id") .= idValue _id x, name .= (x ^. _value)]
 
 --
 -- CreditTo
@@ -176,16 +127,11 @@ bidIdJSON pid = v1 $ obj ["bidId" .= (pid ^. A._BidId)]
 
 creditToJSON :: CreditTo -> Value
 creditToJSON (CreditToAccount accountId) =
-  v2 $ obj ["creditToAccount" .= idValue _AccountId accountId]
+  object ["creditToAccount" .= idValue _AccountId accountId]
 creditToJSON (CreditToUser uid) =
-  v2 $ obj ["creditToUser" .= idValue _UserId uid]
+  object ["creditToUser" .= idValue _UserId uid]
 creditToJSON (CreditToProject pid) =
-  v2 $ obj ["creditToProject" .= projectIdJSON pid]
-
-parseCreditTo :: Value -> Parser CreditTo
-parseCreditTo = unversion "CreditTo" $ \case
-  (Version 2 0) -> parseCreditToV2
-  ver -> badVersion "EventAmendment" ver
+  object ["creditToProject" .= idValue _ProjectId pid]
 
 parseBtcAddr ::
   NetworkMode -> Text -> Parser Address
@@ -211,66 +157,8 @@ parseCreditToV2 o =
         <|> notFound
 
 --
--- Payouts
---
-
-payoutsJSON :: FractionalPayouts -> Value
-payoutsJSON (Payouts m) =
-  v2 $
-    let payoutsRec :: (CreditTo, Rational) -> Value
-        payoutsRec (c, r) =
-          object ["creditTo" .= creditToJSON c, "payoutRatio" .= r, "payoutPercentage" .= (fromRational @Double r * 100)]
-     in obj $ ["payouts" .= fmap payoutsRec (MS.assocs m)]
-
-parsePayoutsJSON :: Value -> Parser FractionalPayouts
-parsePayoutsJSON = unversion "Payouts" $ p
-  where
-    p :: Version -> Object -> Parser FractionalPayouts
-    p (Version 2 0) val =
-      let parsePayoutRecord x =
-            (,)
-              <$> (parseCreditToV2 =<< (x .: "creditTo"))
-              <*> (x .: "payoutRatio")
-       in Payouts
-            . MS.fromList
-            <$> (traverse parsePayoutRecord =<< parseJSON (Object val))
-    p ver x = badVersion "Payouts" ver x
-
---
 -- WorkIndex
 --
-
-workIndexJSON :: WorkIndex -> Value
-workIndexJSON (WorkIndex widx) =
-  v2 $
-    obj ["workIndex" .= fmap widxRec (MS.assocs widx)]
-  where
-    widxRec :: (CreditTo, NonEmpty Interval) -> Value
-    widxRec (c, l) =
-      object
-        [ "creditTo" .= creditToJSON c,
-          "intervals" .= (intervalJSON <$> L.toList l)
-        ]
-
-eventIdJSON :: EventId -> Value
-eventIdJSON = idJSON "eventId" _EventId
-
-logEventJSON' :: LogEvent -> Value
-logEventJSON' ev =
-  object [eventName ev .= object ["eventTime" .= (ev ^. eventTime)]]
-
-logEntryJSON :: LogEntry -> Value
-logEntryJSON le = v2 $ obj (logEntryFields le)
-
-logEntryFields :: LogEntry -> [Pair]
-logEntryFields (LogEntry c ev m) =
-  [ "creditTo" .= creditToJSON c,
-    "event" .= logEventJSON' ev,
-    "eventMeta" .= m
-  ]
-
-amendmentIdJSON :: AmendmentId -> Value
-amendmentIdJSON = idJSON "amendmentId" _AmendmentId
 
 amountJSON :: Amount -> Value
 amountJSON (Amount currency value) = case currency of
@@ -284,9 +172,6 @@ parseAmountJSON = \case
       MaybeT (fmap (Amount BTC . review _Satoshi) <$> o .:? "satoshi")
         <|> MaybeT (fmap (Amount ZEC . review _Zatoshi) <$> o .:? "zatoshi")
   val -> fail $ "Value " <> show val <> " is not a JSON object."
-
-billableIdJSON :: B.BillableId -> Value
-billableIdJSON = idJSON "billableId" B._BillableId
 
 billableJSON :: B.Billable Amount -> Value
 billableJSON = v1 . obj . billableKV
@@ -304,7 +189,7 @@ billableKV b =
 
 qdbBillableJSON :: (B.BillableId, B.Billable Amount) -> Value
 qdbBillableJSON =
-  qdbJSON "billable" (_1 . B._BillableId) (_2 . to billableJSON)
+  identifiedJSON "billable" (_1 . B._BillableId) (_2 . to billableJSON)
 
 recurrenceJSON' :: B.Recurrence -> Value
 recurrenceJSON' B.Annually = object ["annually" .= Null]
@@ -312,43 +197,6 @@ recurrenceJSON' (B.Monthly i) = object ["monthly " .= object ["months" .= i]]
 --recurrenceJSON' B.SemiMonthly = object [ "semimonthly" .= Null ]
 recurrenceJSON' (B.Weekly i) = object ["weekly " .= object ["weeks" .= i]]
 recurrenceJSON' B.OneTime = object ["onetime" .= Null]
-
-createSubscriptionJSON :: UserId -> B.BillableId -> Day -> Value
-createSubscriptionJSON uid bid d =
-  v1 $
-    obj
-      [ "user_id" .= idValue _UserId uid,
-        "billable_id" .= idValue B._BillableId bid,
-        "start_date" .= showGregorian d
-      ]
-
-subscriptionJSON :: B.Subscription -> Value
-subscriptionJSON = v1 . obj . subscriptionKV
-
-subscriptionKV :: (KeyValue kv) => B.Subscription -> [kv]
-subscriptionKV sub =
-  [ "user_id" .= idValue (B.customer . _UserId) sub,
-    "billable_id" .= idValue (B.billable . B._BillableId) sub,
-    "start_time" .= view B.startTime sub,
-    "end_time" .= view B.endTime sub
-  ]
-
-subscriptionIdJSON :: B.SubscriptionId -> Value
-subscriptionIdJSON = idJSON "subscriptionId" B._SubscriptionId
-
--- paymentRequestDetailsJSON :: [PaymentRequestDetail Amount] -> Value
--- paymentRequestDetailsJSON r = v1 $ obj ["payment_requests" .= fmap paymentRequestDetailJSON r]
---
--- paymentRequestDetailJSON :: PaymentRequestDetail Amount -> Object
--- paymentRequestDetailJSON r = obj $ concat
---   [ ["payment_request_id" .= view () r]
---   , paymentRequestKV $ view _2 r
---   , subscriptionKV $ view _3 r
---   , billableKV $ view _4 r
---   ]
-
-paymentIdJSON :: PaymentId -> Value
-paymentIdJSON = idJSON "paymentId" _PaymentId
 
 -------------
 -- Parsers --
@@ -362,57 +210,14 @@ parseUUID val = do
 parseId :: forall a. Prism' a UUID -> Value -> Parser a
 parseId p = fmap (review p) . parseUUID
 
-parseEventAmendment ::
-  ModTime ->
-  Value ->
-  Parser EventAmendment
-parseEventAmendment t = unversion "EventAmendment" $ p
-  where
-    p (Version 2 0) = parseEventAmendmentV2 t
-    p ver = badVersion "EventAmendment" ver
-
-parseEventAmendmentV2 ::
-  ModTime ->
-  Object ->
-  Parser EventAmendment
-parseEventAmendmentV2 t o =
-  let parseA :: Text -> Parser EventAmendment
-      parseA "timeChange" = TimeChange t <$> o .: "eventTime"
-      parseA "creditToChange" = CreditToChange t <$> parseCreditToV2 o
-      parseA "metadataChange" = MetadataChange t <$> o .: "eventMeta"
-      parseA tid =
-        fail . T.unpack $ "Amendment type " <> tid <> " not recognized."
-   in o .: "amendment" >>= parseA
-
 parseLogEntry ::
   UserId ->
   (UTCTime -> LogEvent) ->
   Value ->
   Parser (UTCTime -> LogEntry)
-parseLogEntry uid f = unversion "LogEntry" p
+parseLogEntry uid f = withObject "LogEntry" p
   where
-    p (Version 2 0) o = do
+    p o = do
       creditTo' <- o .:? "creditTo" >>= maybe (pure $ CreditToUser uid) (parseCreditToV2)
       eventMeta' <- o .:? "eventMeta"
       pure $ \t -> LogEntry creditTo' (f t) eventMeta'
-    p ver o = badVersion "LogEntry" ver o
-
-parseRecurrence :: Object -> Parser B.Recurrence
-parseRecurrence o =
-  let parseAnnually o' = const (pure B.Annually) <$> O.lookup "annually" o'
-      parseMonthly o' = fmap B.Monthly . parseJSON <$> O.lookup "monthly" o'
-      parseWeekly o' = fmap B.Weekly . parseJSON <$> O.lookup "weekly" o'
-      parseOneTime o' = const (pure B.OneTime) <$> O.lookup "one-time" o'
-      notFound =
-        fail $ "Value " <> show o <> " does not represent a Recurrence value."
-      parseV val =
-        parseAnnually val
-          <|> parseMonthly val
-          <|> parseWeekly val
-          <|> parseOneTime val
-   in fromMaybe notFound $ parseV o
-
-parseRecurrence' :: Value -> Parser B.Recurrence
-parseRecurrence' = \case
-  (Object o) -> parseRecurrence o
-  val -> fail $ "Value " <> show val <> " is not a JSON object."

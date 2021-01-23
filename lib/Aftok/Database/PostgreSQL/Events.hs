@@ -14,6 +14,7 @@ module Aftok.Database.PostgreSQL.Events
   )
 where
 
+import qualified Aftok.Billing as B
 import Aftok.Database
   ( DBError (EventStorageFailed),
     DBOp
@@ -22,8 +23,10 @@ import Aftok.Database
         CreateSubscription,
         StorePaymentRequest
       ),
-    KeyedLogEntry,
+    KeyedLogEntry(KeyedLogEntry),
     Limit (..),
+    logEntry,
+    workId,
   )
 import Aftok.Database.PostgreSQL.Json
   ( nativeRequestJSON,
@@ -34,22 +37,44 @@ import Aftok.Database.PostgreSQL.Types
     creditToName,
     creditToParser,
     idParser,
+    pexec,
     pinsert,
     pquery,
+    ptransact,
     utcParser,
   )
 import Aftok.Interval
 import Aftok.Json
   ( billableJSON,
-    createSubscriptionJSON,
+    idValue,
+    obj,
+    v1,
   )
 import Aftok.Payments.Types
-import Aftok.TimeLog
+import Aftok.TimeLog (
+  WorkIndex,
+  LogEntry(LogEntry),
+  LogEvent(..),
+  EventId(..),
+  EventAmendment(..),
+  AmendmentId(..),
+  eventMeta,
+  _ModTime,
+  _EventId,
+  _AmendmentId,
+  creditTo,
+  eventTime,
+  event,
+  workIndex,
+  eventName,
+  nameEvent,
+  )
 import Aftok.Types
-import Control.Lens ((^.), _Just, preview)
+import Control.Lens ((^.), _Just, preview, set, view)
 import Control.Monad.Trans.Except (throwE)
 import Data.Aeson
-  ( Value,
+  ( (.=),
+    Value,
   )
 import Data.Thyme.Clock as C
 import Data.Thyme.Time
@@ -85,7 +110,7 @@ logEntryParser =
 
 keyedLogEntryParser :: RowParser KeyedLogEntry
 keyedLogEntryParser =
-  (,,) <$> idParser ProjectId <*> idParser UserId <*> logEntryParser
+  KeyedLogEntry <$> idParser EventId <*> logEntryParser
 
 storeEvent :: DBOp a -> Maybe (DBM EventId)
 storeEvent = \case
@@ -110,6 +135,15 @@ storeEvent' :: DBOp a -> DBM EventId
 storeEvent' = maybe (lift $ throwE EventStorageFailed) id . storeEvent
 
 type EventType = Text
+
+createSubscriptionJSON :: UserId -> B.BillableId -> Day -> Value
+createSubscriptionJSON uid bid d =
+  v1 $
+    obj
+      [ "user_id" .= idValue _UserId uid,
+        "billable_id" .= idValue B._BillableId bid,
+        "start_date" .= showGregorian d
+      ]
 
 storeEventJSON :: Maybe UserId -> EventType -> Value -> DBM EventId
 storeEventJSON uid etype v = do
@@ -172,118 +206,146 @@ createEvent (ProjectId pid) (UserId uid) (LogEntry c e m) = case c of
         m
       )
 
-findEvent :: EventId -> DBM (Maybe KeyedLogEntry)
+findEvent :: EventId -> DBM (Maybe (ProjectId, UserId, KeyedLogEntry))
 findEvent (EventId eid) = do
   headMay
     <$> pquery
-      keyedLogEntryParser
-      [sql| SELECT project_id, user_id,
+      ((,,) <$> idParser ProjectId <*> idParser UserId <*> keyedLogEntryParser)
+      [sql| SELECT project_id, user_id, id,
                  credit_to_type, credit_to_account, credit_to_user_id, credit_to_project_id,
-                 event_type, event_time, event_metadata FROM work_events
-          WHERE id = ? |]
+                 event_type, event_time, event_metadata
+            FROM work_events
+            WHERE id = ?
+            AND replacement_id IS NULL
+            |]
       (Only eid)
 
-findEvents :: ProjectId -> UserId -> RangeQuery -> Limit -> DBM [LogEntry]
+findEvents :: ProjectId -> UserId -> RangeQuery -> Limit -> DBM [KeyedLogEntry]
 findEvents (ProjectId pid) (UserId uid) rquery (Limit limit) = do
   case rquery of
     (Before e) ->
       pquery
-        logEntryParser
-        [sql| SELECT credit_to_type,
-                   credit_to_account, credit_to_user_id, credit_to_project_id,
-                   event_type, event_time,
-                   event_metadata
-            FROM work_events
-            WHERE project_id = ? AND user_id = ? AND event_time <= ?
-            ORDER BY event_time DESC
-            LIMIT ?
-            |]
+        keyedLogEntryParser
+        [sql| SELECT id, credit_to_type,
+                     credit_to_account, credit_to_user_id, credit_to_project_id,
+                     event_type, event_time,
+                     event_metadata
+              FROM work_events
+              WHERE project_id = ? AND user_id = ? AND event_time <= ?
+              AND replacement_id IS NULL
+              ORDER BY event_time DESC
+              LIMIT ?
+              |]
         (pid, uid, fromThyme e, limit)
     (During s e) ->
       pquery
-        logEntryParser
-        [sql| SELECT credit_to_type,
-                   credit_to_account, credit_to_user_id, credit_to_project_id,
-                   event_type, event_time, event_metadata
-            FROM work_events
-            WHERE project_id = ? AND user_id = ?
-            AND event_time >= ? AND event_time <= ?
-            ORDER BY event_time DESC
-            LIMIT ?
-            |]
+        keyedLogEntryParser
+        [sql| SELECT id, credit_to_type,
+                     credit_to_account, credit_to_user_id, credit_to_project_id,
+                     event_type, event_time, event_metadata
+              FROM work_events
+              WHERE project_id = ? AND user_id = ?
+              AND replacement_id IS NULL
+              AND event_time >= ? AND event_time <= ?
+              ORDER BY event_time DESC
+              LIMIT ?
+              |]
         (pid, uid, fromThyme s, fromThyme e, limit)
     (After s) ->
       pquery
-        logEntryParser
-        [sql| SELECT credit_to_type,
-                   credit_to_account, credit_to_user_id, credit_to_project_id,
-                   event_type, event_time, event_metadata
-            FROM work_events
-            WHERE project_id = ? AND user_id = ? AND event_time >= ?
-            ORDER BY event_time DESC
-            LIMIT ?
-            |]
+        keyedLogEntryParser
+        [sql| SELECT id, credit_to_type,
+                     credit_to_account, credit_to_user_id, credit_to_project_id,
+                     event_type, event_time, event_metadata
+              FROM work_events
+              WHERE project_id = ? AND user_id = ? AND event_time >= ?
+              AND replacement_id IS NULL
+              ORDER BY event_time DESC
+              LIMIT ?
+              |]
         (pid, uid, fromThyme s, limit)
     (Always) ->
       pquery
-        logEntryParser
-        [sql| SELECT credit_to_type,
-                   credit_to_account, credit_to_user_id, credit_to_project_id,
-                   event_type, event_time, event_metadata
-            FROM work_events
-            WHERE project_id = ? AND user_id = ?
-            ORDER BY event_time DESC
-            LIMIT ?
-            |]
+        keyedLogEntryParser
+        [sql| SELECT id, credit_to_type,
+                     credit_to_account, credit_to_user_id, credit_to_project_id,
+                     event_type, event_time, event_metadata
+              FROM work_events
+              WHERE project_id = ? AND user_id = ?
+              AND replacement_id IS NULL
+              ORDER BY event_time DESC
+              LIMIT ?
+              |]
         (pid, uid, limit)
 
-amendEvent :: EventId -> EventAmendment -> DBM AmendmentId
-amendEvent (EventId eid) = \case
-  (TimeChange mt t) ->
-    pinsert
-      AmendmentId
-      [sql| INSERT INTO event_time_amendments
-              (event_id, amended_at, event_time)
-              VALUES (?, ?, ?) RETURNING id |]
-      (eid, fromThyme $ mt ^. _ModTime, fromThyme t)
-  (CreditToChange mt c@(CreditToAccount acctId)) ->
-    pinsert
-      AmendmentId
-      [sql| INSERT INTO event_credit_to_amendments
-            (event_id, amended_at, credit_to_type, credit_to_account)
-            VALUES (?, ?, ?, ?) RETURNING id |]
-      (eid, fromThyme $ mt ^. _ModTime, creditToName c, acctId ^. _AccountId)
-  (CreditToChange mt c@(CreditToProject pid)) ->
-    pinsert
-      AmendmentId
-      [sql| INSERT INTO event_credit_to_amendments
-              (event_id, amended_at, credit_to_type, credit_to_project_id)
-              VALUES (?, ?, ?, ?) RETURNING id |]
-      (eid, fromThyme $ mt ^. _ModTime, creditToName c, pid ^. _ProjectId)
-  (CreditToChange mt c@(CreditToUser uid)) ->
-    pinsert
-      AmendmentId
-      [sql| INSERT INTO event_credit_to_amendments
-              (event_id, amended_at, credit_to_type, credit_to_user_id)
-              VALUES (?, ?, ?, ?) RETURNING id |]
-      (eid, fromThyme $ mt ^. _ModTime, creditToName c, uid ^. _UserId)
-  (MetadataChange mt v) ->
-    pinsert
-      AmendmentId
-      [sql| INSERT INTO event_metadata_amendments
-              (event_id, amended_at, event_metadata)
-              VALUES (?, ?, ?) RETURNING id |]
-      (eid, fromThyme $ mt ^. _ModTime, v)
-
-readWorkIndex :: ProjectId -> DBM WorkIndex
+readWorkIndex :: ProjectId -> DBM (WorkIndex KeyedLogEntry)
 readWorkIndex (ProjectId pid) = do
   logEntries <-
     pquery
-      logEntryParser
-      [sql| SELECT credit_to_type,
+      keyedLogEntryParser
+      [sql| SELECT id, credit_to_type,
                  credit_to_account, credit_to_user_id, credit_to_project_id,
                  event_type, event_time, event_metadata
           FROM work_events
           WHERE project_id = ? |]
       (Only pid)
-  pure $ workIndex logEntries
+  pure $ workIndex (view logEntry) logEntries
+
+amendEvent :: ProjectId -> UserId -> KeyedLogEntry -> EventAmendment -> DBM (EventId, AmendmentId)
+amendEvent pid uid kle amendment = ptransact $ do
+  (amendId, replacement, amend_t :: Text) <- amend
+  newEventId <- createEvent pid uid (replacement ^. logEntry)
+  void $
+    pexec
+      [sql| UPDATE work_events
+          SET replacement_id = ?, amended_by_id = ?, amended_by_type = ?
+          WHERE id = ? |]
+      (newEventId ^. _EventId, amendId ^. _AmendmentId, amend_t, kle ^. workId . _EventId)
+  pure (newEventId, amendId)
+  where
+    amend = case amendment of
+      (TimeChange mt t) -> do
+        aid <-
+          pinsert
+            AmendmentId
+            [sql| INSERT INTO event_time_amendments
+                  (work_event_id, amended_at, event_time)
+                  VALUES (?, ?, ?) RETURNING id |]
+            (kle ^. workId . _EventId, fromThyme $ mt ^. _ModTime, fromThyme t)
+        pure (aid, set (logEntry . event . eventTime) t kle, "amend_event_time")
+      (CreditToChange mt c@(CreditToAccount acctId)) -> do
+        aid <-
+          pinsert
+            AmendmentId
+            [sql| INSERT INTO event_credit_to_amendments
+                  (work_event_id, amended_at, credit_to_type, credit_to_account)
+                  VALUES (?, ?, ?, ?) RETURNING id |]
+            (kle ^. workId . _EventId, fromThyme $ mt ^. _ModTime, creditToName c, acctId ^. _AccountId)
+        pure (aid, set (logEntry . creditTo) c kle, "amend_credit_to")
+      (CreditToChange mt c@(CreditToProject cpid)) -> do
+        aid <-
+          pinsert
+            AmendmentId
+            [sql| INSERT INTO event_credit_to_amendments
+                  (work_event_id, amended_at, credit_to_type, credit_to_project_id)
+                  VALUES (?, ?, ?, ?) RETURNING id |]
+            (kle ^. workId . _EventId, fromThyme $ mt ^. _ModTime, creditToName c, cpid ^. _ProjectId)
+        pure (aid, set (logEntry . creditTo) c kle, "amend_credit_to")
+      (CreditToChange mt c@(CreditToUser cuid)) -> do
+        aid <-
+          pinsert
+            AmendmentId
+            [sql| INSERT INTO event_credit_to_amendments
+                  (work_event_id, amended_at, credit_to_type, credit_to_user_id)
+                  VALUES (?, ?, ?, ?) RETURNING id |]
+            (kle ^. workId . _EventId, fromThyme $ mt ^. _ModTime, creditToName c, cuid ^. _UserId)
+        pure (aid, set (logEntry . creditTo) c kle, "amend_credit_to")
+      (MetadataChange mt v) -> do
+        aid <-
+          pinsert
+            AmendmentId
+            [sql| INSERT INTO event_metadata_amendments
+                  (work_event_id, amended_at, event_metadata)
+                  VALUES (?, ?, ?) RETURNING id |]
+            (kle ^. workId . _EventId, fromThyme $ mt ^. _ModTime, v)
+        pure (aid, set (logEntry . eventMeta) (Just v) kle, "amend_metadata")
