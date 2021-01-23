@@ -8,13 +8,14 @@ services:
       - "8000"
     depends_on:
       - aftokdb
+      - zcashd
     volumes:
       - type: bind
-        source: ./local/server/conf
+        source: /opt/aftok/aftok-server
         target: /etc/aftok
         read_only: true
       - type: bind
-        source: ./local/server/log
+        source: /opt/aftok/aftok-server-logs
         target: /opt/aftok/log
     networks:
       - front-tier
@@ -34,30 +35,30 @@ services:
     image: nginx:latest
     container_name: aftok-nginx
     ports:
-      - "8080:80"
-      - "8443:443"
+      - "80:80"
+      - "443:443"
     depends_on:
       - aftok
     volumes:
       - type: bind
-        source: ./local/nginx/conf
+        source: /opt/aftok/nginx-logs
+        target: /var/log/nginx
+      - type: bind
+        source: /opt/aftok/nginx
         target: /etc/nginx
         read_only: true
       - type: bind
-        source: ./local/nginx/certs
-        target: /opt/nginx
+        source: /opt/aftok/letsencrypt/etc/letsencrypt
+        target: /etc/letsencrypt
         read_only: true
       - type: bind
-        source: ./local/nginx/log
-        target: /var/log/nginx
+        source: /opt/aftok/letsencrypt/data/letsencrypt
+        target: /opt/letsencrypt
+        read_only: true
       - type: bind
-        source: ./aftok.com/dist/
+        source: /opt/aftok/static/aftok.com/
         target: /opt/static/site
         read_only: true
-        # - type: bind
-        #   source: ./client/dist
-        #   target: /opt/static/app
-        #   read_only: true
       - type: volume
         source: v_aftok-client
         target: /opt/static/app
@@ -66,40 +67,34 @@ services:
       - front-tier
 
   aftokdb:
-    image: postgres:9.4
+    image: postgres:latest
     container_name: aftok-db
     expose:
       - "5432"
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_DB: "postgres"
-      POSTGRES_USER: "postgres"
-      POSTGRES_PASSWORD: "postgres"
     volumes:
       - type: volume
         source: aftok-data
         target: /var/lib/postgresql/data
       - type: bind
-        source: ./local/postgres/db-dumps
+        source: /opt/aftok/postgres/dumps
         target: /opt/
         read_only: true
     networks:
       - back-tier
 
   zcashd:
-    image: electriccoinco/zcashd:v4.0.0
+    image: electriccoinco/zcashd:v4.2.0
     container_name: aftok-zcashd
     expose:
-      - "18232"
+      - "8232"
     ports:
-      - "18233:18233"
+      - "8233:8233"
     volumes:
       - type: bind
-        source: ./local/zcashd/zcash-data
+        source: /opt/aftok/zcashd/zcash-data
         target: /srv/zcashd/.zcash
       - type: bind
-        source: ./local/zcashd/zcash-params
+        source: /opt/aftok/zcashd/zcash-params
         target: /srv/zcashd/.zcash-params
         read_only: true
     networks:
@@ -111,4 +106,5 @@ volumes:
 
 networks:
   front-tier:
+    driver: bridge
   back-tier:
