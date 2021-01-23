@@ -9,6 +9,9 @@ build-server-image:
 build-client-image:
 	docker build -t aftok/aftok-client:latest -f ./client/Dockerfile .
 
+build-reactclient-image:
+	docker build -t aftok/aftok-reactclient:latest -f ./docker/Dockerfile-reactclient .
+
 build-images: build-server-image build-client-image
 
 deploy-images: build-server-image build-client-image

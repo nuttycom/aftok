@@ -25,7 +25,7 @@ services:
   aftok-client:
     image: aftok/aftok-client:latest
     container_name: aftok-client
-    entrypoint: /opt/aftok/aftok-client-cp.sh
+    entrypoint: /opt/aftok/aftok-client-cp.sh dist
     volumes:
       - type: volume
         source: v_aftok-client
