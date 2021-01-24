@@ -13,7 +13,7 @@ import Effect.Class (liftEffect)
 import Effect.Aff (launchAff_)
 
 import Halogen as H
-import Halogen.Aff as HA
+import Halogen.Aff (runHalogenAff, awaitBody)
 import Halogen.VDom.Driver (runUI)
 
 import Halogen.HTML.Core (ClassName(..))
@@ -25,22 +25,24 @@ import Routing (match)
 import Routing.Hash (matchesWith)
 import Routing.Match (Match, lit)
 
-import Aftok.Types (System, liveSystem)
+import Aftok.Types (System, Project, ProjectEvent(..), liveSystem)
 import Aftok.Login as Login
 import Aftok.Api.Account as Acc
 import Aftok.Signup as Signup
 import Aftok.Timeline as Timeline
+import Aftok.Overview as Overview
 import Aftok.Project as Project
 
 main :: Effect Unit
-main = HA.runHalogenAff do
-  body <- HA.awaitBody
+main = runHalogenAff do
+  body <- awaitBody
   let --login = Login.mockCapability
       login = Login.apiCapability
       signup = Signup.apiCapability
       timeline = Timeline.apiCapability
       project = Project.apiCapability
-      mainComponent = component liveSystem login signup timeline project
+      overview = Overview.apiCapability
+      mainComponent = component liveSystem login signup timeline project overview
   halogenIO <- runUI mainComponent unit body
 
   void $ liftEffect $ matchesWith (match mainRoute) \oldMay new -> 
@@ -51,12 +53,14 @@ data View
   = VLoading
   | VSignup
   | VLogin
+  | VOverview
   | VTimeline 
 
 mainRoute :: Match View
 mainRoute = oneOf
   [ VSignup <$ lit "signup"
   , VLogin <$ lit "login"
+  , VOverview <$ lit "overview"
   , VTimeline <$ lit "timeline"
   ]
 
@@ -65,6 +69,7 @@ routeHash = case _ of
   VSignup -> "signup"
   VLogin -> "login"
   VTimeline -> "timeline"
+  VOverview -> "overview"
   VLoading -> ""
 
 -- derive instance genericView :: Generic View _
@@ -76,22 +81,26 @@ data MainQuery a = Navigate View a
 type MainState =
   { view :: View
   , config :: Signup.Config
+  , selectedProject :: Maybe Project
   }
 
 data MainAction
   = Initialize
   | LoginAction Login.LoginResult
   | SignupAction Signup.SignupResult
+  | ProjectAction ProjectEvent
   | LogoutAction
 
 type Slots = 
   ( login :: Login.Slot Unit
   , signup :: Signup.Slot Unit
+  , overview :: Overview.Slot Unit
   , timeline :: Timeline.Slot Unit
   )
 
 _login = SProxy :: SProxy "login"
 _signup = SProxy :: SProxy "signup"
+_overview = SProxy :: SProxy "overview"
 _timeline = SProxy :: SProxy "timeline"
 
 component 
@@ -102,8 +111,9 @@ component
   -> Signup.Capability m
   -> Timeline.Capability m
   -> Project.Capability m
+  -> Overview.Capability m
   -> H.Component HH.HTML MainQuery input output m
-component system loginCap signupCap tlCap pCap = H.mkComponent 
+component system loginCap signupCap tlCap pCap ovCap = H.mkComponent 
   { initialState
   , render 
   , eval: H.mkEval $ H.defaultEval 
@@ -117,6 +127,7 @@ component system loginCap signupCap tlCap pCap = H.mkComponent
     initialState _ = 
       { view: VLoading
       , config: { recaptchaKey: "6LdiA78ZAAAAAGGvDId_JmDbhalduIDZSqbuikfq" } 
+      , selectedProject: Nothing
       }
 
     render :: MainState -> H.ComponentHTML MainAction Slots m
@@ -132,9 +143,13 @@ component system loginCap signupCap tlCap pCap = H.mkComponent
         HH.div_ 
           [ HH.slot _login unit (Login.component system loginCap) unit (Just <<< LoginAction) ]
 
+      VOverview ->
+        HH.div_ 
+          [ HH.slot _overview unit (Overview.component system ovCap pCap) st.selectedProject (Just <<< ProjectAction) ]
+
       VTimeline -> 
         withNavBar $ HH.div_ 
-          [ HH.slot _timeline unit (Timeline.component system tlCap pCap) unit absurd ]
+          [ HH.slot _timeline unit (Timeline.component system tlCap pCap) unit (Just <<< ProjectAction) ]
 
     handleAction :: MainAction -> H.HalogenM MainState MainAction Slots output m Unit
     handleAction = case _ of
@@ -151,18 +166,22 @@ component system loginCap signupCap tlCap pCap = H.mkComponent
                 _ -> pure VTimeline
         navigate nextView
 
-      LoginAction (Login.LoginComplete _) -> 
-        navigate VTimeline
-
       SignupAction (Signup.SignupComplete _) ->
         navigate VTimeline
 
       SignupAction (Signup.SigninNav) ->
         navigate VLogin
 
+      LoginAction (Login.LoginComplete _) -> 
+        navigate VTimeline
+
       LogoutAction -> do
         lift loginCap.logout
         navigate VLogin
+
+      ProjectAction (ProjectChange p) ->
+        H.modify_ (_ { selectedProject = Just p })
+        
 
     handleQuery :: forall a. MainQuery a -> H.HalogenM MainState MainAction Slots output m (Maybe a)
     handleQuery = case _ of
@@ -183,10 +202,18 @@ withNavBar body =
       [P.classes (ClassName <$> ["navbar", "navbar-expand-lg", "navbar-light", "bg-white"])]
       [HH.div
         [P.classes (ClassName <$> ["container-fluid"])]
-        [brand, logout]
+        [ brand
+        , HH.ul [P.classes (ClassName <$> ["navbar-nav", "ml-auto"])] (map navItem nav)
+        , logout
+        ]
       ]
     ,body 
     ]      
+
+nav :: Array NavItem
+nav = [ { label: "Overview", path: "overview" }
+      , { label: "Timeline", path: "timeline" }
+      ]
 
 brand :: forall a s m. H.ComponentHTML a s m
 brand = HH.div
@@ -203,3 +230,23 @@ logout = HH.button
   ]
   [HH.text "Logout"]
 
+type NavTop = 
+  { label :: String
+  , items :: Array NavItem
+  }
+
+type NavItem = 
+  { label :: String
+  , path :: String 
+  }
+
+navItem :: forall a s m. NavItem -> H.ComponentHTML a s m
+navItem ni = 
+  HH.li
+    [P.classes (ClassName <$> ["nav-item"]) ]
+    [ HH.a
+      [ P.classes (ClassName <$> ["nav-link"])
+      , P.href ("#" <> ni.path)
+      ]
+      [ HH.text ni.label ]
+    ]

@@ -59,8 +59,13 @@ import Aftok.Api.Timeline
     event, eventTime, keyedEvent
     )
 import Aftok.Project as Project
-import Aftok.Project (Project, Project'(..), ProjectId) --, pidStr)
-import Aftok.Types (System)
+import Aftok.Types 
+  ( System, 
+    ProjectEvent(..), 
+    Project, 
+    Project'(..), 
+    ProjectId
+    )
 
 type TimelineLimits =
   { bounds  :: TimeInterval
@@ -97,12 +102,12 @@ type TimelineState =
 
 data TimelineAction
   = Initialize
-  | ProjectSelected Project.Project
+  | ProjectSelected Project
   | Start
   | Stop
   | Refresh
 
-type Slot id = forall query. H.Slot query Void id
+type Slot id = forall query. H.Slot query ProjectEvent id
 
 type Slots =
   ( projectList :: Project.ProjectListSlot Unit
@@ -119,12 +124,12 @@ type Capability m =
   }
 
 component
-  :: forall query input output m
+  :: forall query input m
   .  Monad m
   => System m
   -> Capability m
   -> Project.Capability m
-  -> H.Component HH.HTML query input output m
+  -> H.Component HH.HTML query input ProjectEvent m
 component system caps pcaps = H.mkComponent
   { initialState
   , render
@@ -176,7 +181,7 @@ component system caps pcaps = H.mkComponent
           ]
         ]
 
-    eval :: TimelineAction -> H.HalogenM TimelineState TimelineAction Slots output m Unit
+    eval :: TimelineAction -> H.HalogenM TimelineState TimelineAction Slots ProjectEvent m Unit
     eval action = do
       case action of
         Initialize -> do
@@ -187,8 +192,9 @@ component system caps pcaps = H.mkComponent
           currentProject <- H.gets (_.selectedProject)
           
           -- End any active intervals when switching projects.
-          when (oldActive && any (\p' -> (unwrap p').projectId /= (unwrap p).projectId) currentProject)
-               (traverse_ logEnd currentProject)
+          when (oldActive && any (\p' -> (unwrap p').projectId /= (unwrap p).projectId) currentProject) $ do
+            H.raise (ProjectChange p) 
+            (traverse_ logEnd currentProject)
 
           timeSpan <- TL.Before <$> lift system.nowDateTime -- FIXME, should come from a form control
           intervals' <- lift $ caps.listIntervals (unwrap p).projectId timeSpan
@@ -239,14 +245,14 @@ component system caps pcaps = H.mkComponent
       activeHistory <- lift <<< map (fromMaybe M.empty) <<< runMaybeT $ toHistory system (U.fromMaybe active)
       H.modify_ (_ { activeHistory = activeHistory })
 
-    logStart :: Project -> H.HalogenM TimelineState TimelineAction Slots output m Unit
+    logStart :: Project -> H.HalogenM TimelineState TimelineAction Slots ProjectEvent m Unit
     logStart (Project' p) = do
       logged <- lift $ caps.logStart p.projectId
       case logged of
         Left err -> lift <<< system.log $ "Failed to start timer: " <> show err
         Right t -> H.modify_ (updateStart t)
 
-    logEnd :: Project -> H.HalogenM TimelineState TimelineAction Slots output m Unit
+    logEnd :: Project -> H.HalogenM TimelineState TimelineAction Slots ProjectEvent m Unit
     logEnd (Project' p) = do
       logged <- lift $ caps.logEnd p.projectId
       case logged of

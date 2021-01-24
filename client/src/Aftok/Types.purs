@@ -7,7 +7,7 @@ import Control.Monad.Except.Trans (ExceptT, except, withExceptT)
 import Control.Monad.Trans.Class (lift)
 
 import Data.Argonaut.Core (Json, stringify)
-import Data.Argonaut.Decode (class DecodeJson, decodeJson)
+import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.:))
 import Data.Date (Date)
 import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant, fromDateTime)
@@ -19,6 +19,7 @@ import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap, over)
 import Data.Traversable (class Traversable, traverse)
 import Data.Tuple (Tuple(..))
+import Data.UUID (UUID, toString, parseUUID)
 
 import Effect (Effect)
 import Effect.Aff (Aff)
@@ -100,6 +101,40 @@ instance showAPIError :: Show APIError where
     Forbidden -> "Forbidden"
     ParseFailure js e -> "ParseFailure (" <> show (stringify js) <> ") " <> show e 
     Error r -> "Error { status: " <> show r.status <> ", message: " <> r.message <> "}"
+
+newtype ProjectId = ProjectId UUID
+derive instance projectIdEq :: Eq ProjectId
+derive instance projectIdNewtype :: Newtype ProjectId _
+
+pidStr :: ProjectId -> String
+pidStr (ProjectId uuid) = toString uuid
+
+newtype Project' date = Project'
+  { projectId :: ProjectId
+  , projectName :: String
+  , inceptionDate :: date
+  , initiator :: UUID
+  }
+derive instance newtypeProject :: Newtype (Project' a) _
+
+type Project = Project' DateTime
+
+data ProjectEvent
+  = ProjectChange Project
+
+instance decodeJsonProject :: DecodeJson (Project' String) where
+  decodeJson json = do
+    x <- decodeJson json
+    project <- x .: "project"
+
+    projectIdStr <- x .: "projectId"
+    projectId    <- ProjectId <$> (note "Failed to decode project UUID" $ parseUUID projectIdStr)
+
+    projectName   <- project .: "projectName"
+    inceptionDate <- project .: "inceptionDate"
+    initiatorStr  <- project .: "initiator"
+    initiator     <- note "Failed to decode initiator UUID" $ parseUUID initiatorStr
+    pure $ Project' { projectId, projectName, inceptionDate, initiator }
 
 newtype JsonCompose f g a = JsonCompose (Compose f g a)
 derive instance jsonComposeNewtype :: Newtype (JsonCompose f g a) _

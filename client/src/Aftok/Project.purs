@@ -8,14 +8,11 @@ import Control.Monad.Error.Class (throwError)
 
 import Data.Array (index)
 import Data.Argonaut.Core (Json)
-import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.:))
+import Data.Argonaut.Decode (decodeJson)
 import Data.Bifunctor (lmap)
-import Data.DateTime (DateTime)
-import Data.Either (Either(..), note)
+import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
-import Data.Newtype (class Newtype)
 import Data.Traversable (traverse, traverse_)
-import Data.UUID (UUID, parseUUID, toString)
 
 import Effect (Effect)
 import Effect.Aff (Aff)
@@ -24,30 +21,20 @@ import Affjax (get, printError)
 import Affjax.StatusCode (StatusCode(..))
 import Affjax.ResponseFormat as RF
 
-import Aftok.Types (APIError(..), System, parseDate)
+import Aftok.Types 
+  ( APIError(..)
+  , System
+  , parseDate
+  , pidStr
+  , Project'(..)
+  , Project
+  )
 
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Core (ClassName(..))
 import Halogen.HTML.Events as E
 import Halogen.HTML.Properties as P
-
-newtype ProjectId = ProjectId UUID
-derive instance projectIdEq :: Eq ProjectId
-derive instance projectIdNewtype :: Newtype ProjectId _
-
-pidStr :: ProjectId -> String
-pidStr (ProjectId uuid) = toString uuid
-
-newtype Project' date = Project'
-  { projectId :: ProjectId
-  , projectName :: String
-  , inceptionDate :: date
-  , initiator :: UUID
-  }
-derive instance newtypeProject :: Newtype (Project' a) _
-
-type Project = Project' DateTime
 
 type ProjectCState =
   { projects :: Array Project
@@ -113,20 +100,6 @@ projectListComponent console caps = H.mkComponent
         projects <- H.gets (_.projects)
         lift <<< console.log $ "Selected project index " <> show i
         traverse_ H.raise (index projects (i - 1))
-
-instance decodeJsonProject :: DecodeJson (Project' String) where
-  decodeJson json = do
-    x <- decodeJson json
-    project <- x .: "project"
-
-    projectIdStr <- x .: "projectId"
-    projectId    <- ProjectId <$> (note "Failed to decode project UUID" $ parseUUID projectIdStr)
-
-    projectName   <- project .: "projectName"
-    inceptionDate <- project .: "inceptionDate"
-    initiatorStr  <- project .: "initiator"
-    initiator     <- note "Failed to decode initiator UUID" $ parseUUID initiatorStr
-    pure $ Project' { projectId, projectName, inceptionDate, initiator }
 
 listProjects :: Aff (Either APIError (Array Project))
 listProjects = do
