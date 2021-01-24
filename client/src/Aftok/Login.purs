@@ -145,7 +145,7 @@ component system caps = H.mkComponent
                 [ P.classes (ClassName <$> ["mb-0", "font-size-sm", "text-center", "text-muted"]) ]
                 [ HH.text "Need an account? " 
                 , HH.a 
-                  [ P.href "./#signup" ]
+                  [ P.href "#signup" ]
                   [ HH.text "Sign up" ]
                 ]
             ]

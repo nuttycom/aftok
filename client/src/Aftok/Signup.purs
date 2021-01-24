@@ -187,9 +187,9 @@ component system caps conf = H.mkComponent
                 ]
               , HH.p  
                 [ P.classes (ClassName <$> ["mb-0", "font-size-sm", "text-center", "text-muted"]) ]
-                [ HH.text "Alreay have an account? " 
+                [ HH.text "Already have an account? " 
                 , HH.a 
-                  [ P.href "#", E.onClick (Just <<< Signin) ]
+                  [ P.href "#login" ]
                   [ HH.text "Sign in" ]
                 ]
               ]

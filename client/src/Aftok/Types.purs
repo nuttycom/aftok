@@ -37,6 +37,7 @@ type System m =
   , error :: String -> m Unit
   , now :: m Instant
   , getHash :: m String
+  , setHash :: String -> m Unit
   , nowDateTime :: m DateTime
   , preventDefault :: WE.Event -> m Unit
   , dateFFI :: DateFFI m
@@ -48,6 +49,7 @@ liveSystem =
   , error: liftEffect <<< C.error
   , now: liftEffect now
   , getHash: liftEffect H.getHash
+  , setHash: liftEffect <<< H.setHash
   , nowDateTime: liftEffect nowDateTime
   , preventDefault: liftEffect <<< WE.preventDefault
   , dateFFI: hoistDateFFI liftEffect jsDateFFI

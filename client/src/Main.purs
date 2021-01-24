@@ -4,10 +4,13 @@ import Prelude
 
 import Control.Monad.Trans.Class (lift)
 
+import Data.Foldable (oneOf)
 import Data.Maybe (Maybe(..))
 import Data.Symbol (SProxy(..))
 
 import Effect (Effect)
+import Effect.Class (liftEffect)
+import Effect.Aff (launchAff_)
 
 import Halogen as H
 import Halogen.Aff as HA
@@ -18,6 +21,9 @@ import Halogen.HTML as HH
 -- import Halogen.HTML.CSS as CSS
 import Halogen.HTML.Events as E
 import Halogen.HTML.Properties as P
+import Routing (match)
+import Routing.Hash (matchesWith)
+import Routing.Match (Match, lit)
 
 import Aftok.Types (System, liveSystem)
 import Aftok.Login as Login
@@ -35,16 +41,40 @@ main = HA.runHalogenAff do
       timeline = Timeline.apiCapability
       project = Project.apiCapability
       mainComponent = component liveSystem login signup timeline project
-  runUI mainComponent unit body
+  halogenIO <- runUI mainComponent unit body
 
-data MainView 
+  void $ liftEffect $ matchesWith (match mainRoute) \oldMay new -> 
+    when (oldMay /= Just new) do
+      launchAff_ <<< halogenIO.query <<< H.tell $ Navigate new
+
+data View 
   = VLoading
   | VSignup
   | VLogin
   | VTimeline 
 
+mainRoute :: Match View
+mainRoute = oneOf
+  [ VSignup <$ lit "signup"
+  , VLogin <$ lit "login"
+  , VTimeline <$ lit "timeline"
+  ]
+
+routeHash :: View -> String
+routeHash = case _ of
+  VSignup -> "signup"
+  VLogin -> "login"
+  VTimeline -> "timeline"
+  VLoading -> ""
+
+-- derive instance genericView :: Generic View _
+derive instance eqView :: Eq View
+derive instance ordView :: Ord View
+
+data MainQuery a = Navigate View a
+
 type MainState =
-  { view :: MainView
+  { view :: View
   , config :: Signup.Config
   }
 
@@ -65,22 +95,24 @@ _signup = SProxy :: SProxy "signup"
 _timeline = SProxy :: SProxy "timeline"
 
 component 
-  :: forall query input output m
+  :: forall input output m
   .  Monad m
   => System m
   -> Login.Capability m
   -> Signup.Capability m
   -> Timeline.Capability m
   -> Project.Capability m
-  -> H.Component HH.HTML query input output m
+  -> H.Component HH.HTML MainQuery input output m
 component system loginCap signupCap tlCap pCap = H.mkComponent 
   { initialState
   , render 
   , eval: H.mkEval $ H.defaultEval 
-      { handleAction = eval 
+      { handleAction = handleAction 
+      , handleQuery = handleQuery
       , initialize = Just Initialize 
       }
-  } where
+  }
+  where
     initialState :: input -> MainState
     initialState _ = 
       { view: VLoading
@@ -104,8 +136,8 @@ component system loginCap signupCap tlCap pCap = H.mkComponent
         withNavBar $ HH.div_ 
           [ HH.slot _timeline unit (Timeline.component system tlCap pCap) unit absurd ]
 
-    eval :: MainAction -> H.HalogenM MainState MainAction Slots output m Unit
-    eval action = case action of
+    handleAction :: MainAction -> H.HalogenM MainState MainAction Slots output m Unit
+    handleAction = case _ of
       Initialize -> do
         route <- lift system.getHash
         nextView <- case route of 
@@ -117,21 +149,32 @@ component system loginCap signupCap tlCap pCap = H.mkComponent
                 Acc.LoginForbidden -> pure VLogin
                 Acc.LoginError _ -> pure VLogin
                 _ -> pure VTimeline
-        H.modify_ (_ { view = nextView })
+        navigate nextView
 
       LoginAction (Login.LoginComplete _) -> 
-        H.modify_ (_ { view = VTimeline })
+        navigate VTimeline
 
       SignupAction (Signup.SignupComplete _) ->
-        H.modify_ (_ { view = VTimeline })
+        navigate VTimeline
 
       SignupAction (Signup.SigninNav) ->
-        H.modify_ (_ { view = VLogin })
+        navigate VLogin
 
       LogoutAction -> do
         lift loginCap.logout
-        H.modify_ (_ { view = VLogin })
+        navigate VLogin
 
+    handleQuery :: forall a. MainQuery a -> H.HalogenM MainState MainAction Slots output m (Maybe a)
+    handleQuery = case _ of
+      Navigate view a -> do
+        currentView <- H.gets _.view
+        when (currentView /= view) $ navigate view
+        pure (Just a)
+
+    navigate :: View -> H.HalogenM MainState MainAction Slots output m Unit
+    navigate view = do
+      lift $ system.setHash (routeHash view)
+      H.modify_ (_ { view = view })
 
 withNavBar :: forall s m. H.ComponentHTML MainAction s m -> H.ComponentHTML MainAction s m
 withNavBar body =

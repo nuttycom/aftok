@@ -63,14 +63,14 @@ services:
         source: ./aftok.com/dist/
         target: /opt/static/site
         read_only: true
-        # - type: bind
-        #   source: ./client/dist
-        #   target: /opt/static/app
-        #   read_only: true
-      - type: volume
-        source: v_aftok-client
+      - type: bind
+        source: ./client/dist
         target: /opt/static/app
         read_only: true
+        # - type: volume
+        #   source: v_aftok-client
+        #   target: /opt/static/app
+        #   read_only: true
       - type: volume
         source: v_aftok-reactclient
         target: /opt/static/app2
