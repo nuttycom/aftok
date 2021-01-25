@@ -1,7 +1,6 @@
 module Landkit.Modal where
 
 import Prelude
-
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Core (ClassName(..))
@@ -14,7 +13,7 @@ component ::
   H.ComponentHTML action slots m
 component children =
   HH.div
-    [ P.classes (ClassName <$> ["modal", "fade"])
+    [ P.classes (ClassName <$> [ "modal", "fade" ])
     , P.id_ "modalSigninHorizontal" -- TODO: is this needed? is this bootstrap magic?
     , P.tabIndex (-1)
     -- , P.role "dialog"
@@ -22,11 +21,11 @@ component children =
     -- , P.ariaHidden "true"
     ]
     [ HH.div
-      [ P.classes (ClassName <$> ["modal-dialog", "modal-lg", "modal-dialog-centered"])
-      -- , P.role "document"
-      ]
-      [ HH.div
-        [ P.classes (ClassName <$> ["modal-content"])]
-        children
-      ]
+        [ P.classes (ClassName <$> [ "modal-dialog", "modal-lg", "modal-dialog-centered" ])
+        -- , P.role "document"
+        ]
+        [ HH.div
+            [ P.classes (ClassName <$> [ "modal-content" ]) ]
+            children
+        ]
     ]

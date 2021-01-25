@@ -1,11 +1,9 @@
 module Aftok.Types where
 
 import Prelude
-
 import Control.Monad.Error.Class (throwError)
 import Control.Monad.Except.Trans (ExceptT, except, withExceptT)
 import Control.Monad.Trans.Class (lift)
-
 import Data.Argonaut.Core (Json, stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.:))
 import Data.Date (Date)
@@ -20,7 +18,6 @@ import Data.Newtype (class Newtype, unwrap, over)
 import Data.Traversable (class Traversable, traverse)
 import Data.Tuple (Tuple(..))
 import Data.UUID (UUID, toString, parseUUID)
-
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
@@ -28,24 +25,23 @@ import Effect.Now (now, nowDateTime)
 import Affjax as AJAX
 import Affjax (Response, printError)
 import Affjax.StatusCode (StatusCode(..))
-
 import Effect.Class.Console as C
 import Web.Event.Event as WE
 import Routing.Hash as H
 
-type System m =
-  { log :: String -> m Unit
-  , error :: String -> m Unit
-  , now :: m Instant
-  , getHash :: m String
-  , setHash :: String -> m Unit
-  , nowDateTime :: m DateTime
-  , preventDefault :: WE.Event -> m Unit
-  , dateFFI :: DateFFI m
-  }
+type System m
+  = { log :: String -> m Unit
+    , error :: String -> m Unit
+    , now :: m Instant
+    , getHash :: m String
+    , setHash :: String -> m Unit
+    , nowDateTime :: m DateTime
+    , preventDefault :: WE.Event -> m Unit
+    , dateFFI :: DateFFI m
+    }
 
 liveSystem :: System Aff
-liveSystem = 
+liveSystem =
   { log: liftEffect <<< C.log
   , error: liftEffect <<< C.error
   , now: liftEffect now
@@ -56,42 +52,45 @@ liveSystem =
   , dateFFI: hoistDateFFI liftEffect jsDateFFI
   }
 
-type DateFFI m =
-  { midnightLocal :: Instant -> m (Maybe (Tuple Date Instant))
-  }
+type DateFFI m
+  = { midnightLocal :: Instant -> m (Maybe (Tuple Date Instant))
+    }
 
 jsDateFFI :: DateFFI Effect
-jsDateFFI = 
+jsDateFFI =
   { midnightLocal
   }
 
 midnightLocal :: Instant -> Effect (Maybe (Tuple Date Instant))
 midnightLocal i = do
-  let jsDate = JD.fromInstant i
-  year  <- JD.getFullYear jsDate
+  let
+    jsDate = JD.fromInstant i
+  year <- JD.getFullYear jsDate
   month <- JD.getMonth jsDate
-  day   <- JD.getDate jsDate
+  day <- JD.getDate jsDate
   jsMidnight <- midnightLocalJS year month day
-  let date = JD.toDate jsMidnight
+  let
+    date = JD.toDate jsMidnight
   pure $ Tuple <$> date <*> JD.toInstant jsMidnight
 
 midnightLocalJS :: Number -> Number -> Number -> Effect JD.JSDate
-midnightLocalJS year month day = JD.jsdateLocal
-  { year
-  , month
-  , day
-  , hour: 0.0
-  , minute: 0.0
-  , second: 0.0
-  , millisecond: 0.0
-  }
-
-hoistDateFFI :: forall m n. (forall a. m a -> n a) -> DateFFI m -> DateFFI n
-hoistDateFFI nt ffi = 
-    { midnightLocal: \i -> nt (ffi.midnightLocal i)
+midnightLocalJS year month day =
+  JD.jsdateLocal
+    { year
+    , month
+    , day
+    , hour: 0.0
+    , minute: 0.0
+    , second: 0.0
+    , millisecond: 0.0
     }
 
-data APIError 
+hoistDateFFI :: forall m n. (forall a. m a -> n a) -> DateFFI m -> DateFFI n
+hoistDateFFI nt ffi =
+  { midnightLocal: \i -> nt (ffi.midnightLocal i)
+  }
+
+data APIError
   = Forbidden
   | ParseFailure Json String
   | Error { status :: Maybe StatusCode, message :: String }
@@ -99,25 +98,31 @@ data APIError
 instance showAPIError :: Show APIError where
   show = case _ of
     Forbidden -> "Forbidden"
-    ParseFailure js e -> "ParseFailure (" <> show (stringify js) <> ") " <> show e 
+    ParseFailure js e -> "ParseFailure (" <> show (stringify js) <> ") " <> show e
     Error r -> "Error { status: " <> show r.status <> ", message: " <> r.message <> "}"
 
-newtype ProjectId = ProjectId UUID
+newtype ProjectId
+  = ProjectId UUID
+
 derive instance projectIdEq :: Eq ProjectId
+
 derive instance projectIdNewtype :: Newtype ProjectId _
 
 pidStr :: ProjectId -> String
 pidStr (ProjectId uuid) = toString uuid
 
-newtype Project' date = Project'
+newtype Project' date
+  = Project'
   { projectId :: ProjectId
   , projectName :: String
   , inceptionDate :: date
   , initiator :: UUID
   }
+
 derive instance newtypeProject :: Newtype (Project' a) _
 
-type Project = Project' DateTime
+type Project
+  = Project' DateTime
 
 data ProjectEvent
   = ProjectChange Project
@@ -126,17 +131,17 @@ instance decodeJsonProject :: DecodeJson (Project' String) where
   decodeJson json = do
     x <- decodeJson json
     project <- x .: "project"
-
     projectIdStr <- x .: "projectId"
-    projectId    <- ProjectId <$> (note "Failed to decode project UUID" $ parseUUID projectIdStr)
-
-    projectName   <- project .: "projectName"
+    projectId <- ProjectId <$> (note "Failed to decode project UUID" $ parseUUID projectIdStr)
+    projectName <- project .: "projectName"
     inceptionDate <- project .: "inceptionDate"
-    initiatorStr  <- project .: "initiator"
-    initiator     <- note "Failed to decode initiator UUID" $ parseUUID initiatorStr
+    initiatorStr <- project .: "initiator"
+    initiator <- note "Failed to decode initiator UUID" $ parseUUID initiatorStr
     pure $ Project' { projectId, projectName, inceptionDate, initiator }
 
-newtype JsonCompose f g a = JsonCompose (Compose f g a)
+newtype JsonCompose f g a
+  = JsonCompose (Compose f g a)
+
 derive instance jsonComposeNewtype :: Newtype (JsonCompose f g a) _
 
 instance jsonComposeFunctor :: (Functor f, Functor g) => Functor (JsonCompose f g) where
@@ -159,34 +164,30 @@ decompose (JsonCompose (Compose fga)) = fga
 
 parseJsonDate :: Json -> ExceptT String Effect DateTime
 parseJsonDate json = do
-  str    <- except $ decodeJson json
+  str <- except $ decodeJson json
   parseDate str
 
 parseDate :: String -> ExceptT String Effect DateTime
 parseDate str = do
   jsDate <- lift $ JD.parse str
-  except $ note ("Unable to convert date " <> show jsDate <> " to a valid DateTime value.") 
-                (JD.toDateTime jsDate)
+  except
+    $ note ("Unable to convert date " <> show jsDate <> " to a valid DateTime value.")
+        (JD.toDateTime jsDate)
 
 decodeDatedJson :: forall t. Traversable t => DecodeJson (t String) => Json -> ExceptT String Effect (t DateTime)
 decodeDatedJson json = do
   decoded <- except $ decodeJson json
   traverse parseDate decoded
 
-parseDatedResponse 
-  :: forall t
-  .  Traversable t
-  => DecodeJson (t String) 
-  => Either AJAX.Error (Response Json) 
-  -> ExceptT APIError Effect (t Instant)
+parseDatedResponse ::
+  forall t.
+  Traversable t =>
+  DecodeJson (t String) =>
+  Either AJAX.Error (Response Json) ->
+  ExceptT APIError Effect (t Instant)
 parseDatedResponse = case _ of
-  Left err -> 
-    throwError $ Error { status: Nothing, message: printError err }
+  Left err -> throwError $ Error { status: Nothing, message: printError err }
   Right r -> case r.status of
-    StatusCode 403 -> 
-      throwError $ Forbidden
-    StatusCode 200 -> 
-      withExceptT (ParseFailure r.body) $ map fromDateTime <$> decodeDatedJson r.body
-    other -> 
-      throwError $ Error { status: Just other, message: r.statusText }
-
+    StatusCode 403 -> throwError $ Forbidden
+    StatusCode 200 -> withExceptT (ParseFailure r.body) $ map fromDateTime <$> decodeDatedJson r.body
+    other -> throwError $ Error { status: Just other, message: r.statusText }

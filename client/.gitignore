@@ -9,5 +9,6 @@
 /.psa*
 /.spago
 /.cache/
+.nvimrc
 /dist/
 /prod/*

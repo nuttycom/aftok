@@ -1,4 +1,4 @@
-module Aftok.Api.Recaptcha 
+module Aftok.Api.Recaptcha
   ( getRecaptchaResponse
   ) where
 
@@ -10,7 +10,7 @@ getRecaptchaResponse :: Maybe String -> Effect (Maybe String)
 getRecaptchaResponse elemId = do
   resp <- case elemId of
     Just eid -> getRecaptchaResponseInternal true eid
-    Nothing  -> getRecaptchaResponseInternal false ""
+    Nothing -> getRecaptchaResponseInternal false ""
   pure $ if resp == "" then Nothing else Just resp
 
 foreign import getRecaptchaResponseInternal :: Boolean -> String -> Effect String

@@ -1,7 +1,6 @@
 module Landkit.Card where
 
 import Prelude
-
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Core (ClassName(..))
@@ -13,5 +12,5 @@ component ::
   H.ComponentHTML action slots m
 component child =
   HH.div
-    [ P.classes (ClassName <$> ["card", "card-row"]) ]
+    [ P.classes (ClassName <$> [ "card", "card-row" ]) ]
     [ child ]
