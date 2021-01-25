@@ -144,12 +144,12 @@ component system loginCap signupCap tlCap pCap ovCap = H.mkComponent
           [ HH.slot _login unit (Login.component system loginCap) unit (Just <<< LoginAction) ]
 
       VOverview ->
-        HH.div_ 
+        withNavBar $ HH.div_ 
           [ HH.slot _overview unit (Overview.component system ovCap pCap) st.selectedProject (Just <<< ProjectAction) ]
 
       VTimeline -> 
         withNavBar $ HH.div_ 
-          [ HH.slot _timeline unit (Timeline.component system tlCap pCap) unit (Just <<< ProjectAction) ]
+          [ HH.slot _timeline unit (Timeline.component system tlCap pCap) st.selectedProject (Just <<< ProjectAction) ]
 
     handleAction :: MainAction -> H.HalogenM MainState MainAction Slots output m Unit
     handleAction = case _ of

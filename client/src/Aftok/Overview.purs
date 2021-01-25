@@ -15,7 +15,7 @@ import Prelude
 -- import Data.DateTime.Instant (Instant, unInstant, fromDateTime, toDateTime)
 -- import Data.Either (Either(..))
 -- import Data.Enum (fromEnum)
-import Data.Foldable (any)
+import Data.Foldable (all)
 -- import Data.Map as M
 import Data.Maybe (Maybe(..), isNothing)
 import Data.Newtype (unwrap)
@@ -123,7 +123,7 @@ component system caps pcaps = H.mkComponent
             [P.classes (ClassName <$> ["col-md-5", "text-muted", "text-center", "mx-auto"])]
             [HH.text "Your project timeline"]
           ,HH.div_
-            [HH.slot _projectList unit (Project.projectListComponent system pcaps) unit (Just <<< ProjectSelected)]
+            [HH.slot _projectList unit (Project.projectListComponent system pcaps) st.selectedProject (Just <<< ProjectSelected)]
           ,HH.div
             [P.classes (ClassName <$> if isNothing st.selectedProject then ["collapse"] else [])]
             []
@@ -142,7 +142,7 @@ component system caps pcaps = H.mkComponent
         ProjectSelected p -> do
           currentProject <- H.gets (_.selectedProject)
           
-          when (any (\p' -> (unwrap p').projectId /= (unwrap p).projectId) currentProject) $ do
+          when (all (\p' -> (unwrap p').projectId /= (unwrap p).projectId) currentProject) $ do
             H.raise (ProjectChange p) 
             H.modify_ (_ { selectedProject = Just p })
 

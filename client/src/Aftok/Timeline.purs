@@ -93,6 +93,8 @@ type DayIntervals =
 
 type History = M.Map Date DayIntervals
 
+type TimelineInput = Maybe Project
+
 type TimelineState =
   { selectedProject :: Maybe Project
   , history :: M.Map Date DayIntervals
@@ -124,12 +126,12 @@ type Capability m =
   }
 
 component
-  :: forall query input m
+  :: forall query m
   .  Monad m
   => System m
   -> Capability m
   -> Project.Capability m
-  -> H.Component HH.HTML query input ProjectEvent m
+  -> H.Component HH.HTML query TimelineInput ProjectEvent m
 component system caps pcaps = H.mkComponent
   { initialState
   , render
@@ -138,9 +140,9 @@ component system caps pcaps = H.mkComponent
       , initialize = Just Initialize
       }
   } where
-    initialState :: input -> TimelineState
-    initialState _ =
-      { selectedProject: Nothing
+    initialState :: TimelineInput -> TimelineState
+    initialState input =
+      { selectedProject: input
       , history: M.empty
       , active: Nothing
       , activeHistory: M.empty
@@ -159,7 +161,7 @@ component system caps pcaps = H.mkComponent
             [P.classes (ClassName <$> ["col-md-5", "text-muted", "text-center", "mx-auto"])]
             [HH.text "Your project timeline"]
           ,HH.div_
-            [HH.slot _projectList unit (Project.projectListComponent system pcaps) unit (Just <<< ProjectSelected)]
+            [HH.slot _projectList unit (Project.projectListComponent system pcaps) st.selectedProject (Just <<< ProjectSelected)]
           ,HH.div
             [P.classes (ClassName <$> if isNothing st.selectedProject then ["collapse"] else [])]
             ([HH.div_
@@ -186,6 +188,8 @@ component system caps pcaps = H.mkComponent
       case action of
         Initialize -> do
           void $ H.subscribe caps.timer
+          currentProject <- H.gets (_.selectedProject)
+          traverse_ setStateForProject currentProject
 
         ProjectSelected p -> do
           oldActive <- isJust <$> H.gets (_.active)
@@ -193,40 +197,10 @@ component system caps pcaps = H.mkComponent
           
           -- End any active intervals when switching projects.
           when (oldActive && any (\p' -> (unwrap p').projectId /= (unwrap p).projectId) currentProject) $ do
-            H.raise (ProjectChange p) 
             (traverse_ logEnd currentProject)
 
-          timeSpan <- TL.Before <$> lift system.nowDateTime -- FIXME, should come from a form control
-          intervals' <- lift $ caps.listIntervals (unwrap p).projectId timeSpan
-          intervals <- lift $ case intervals' of
-                Left err -> 
-                  (system.log $ "Error occurred listing intervals" <> show err ) *>
-                  pure [] 
-                Right ivals -> 
-                  pure $ map (map LoggedEvent) ivals
-
-          history' <- lift <<< runMaybeT $ toHistory system intervals
-          hist <- case history' of
-              Nothing -> lift $ system.log "Project history was empty." *> pure M.empty
-              Just h -> pure h
-
-          latestEventResponse <- lift $ caps.getLatestEvent (unwrap p).projectId
-          now <- lift $ system.now
-          active <- lift $ case latestEventResponse of
-              Left err -> 
-                (system.log $ "Error occurred retrieving the latest event: " <> show err) *>
-                pure Nothing
-              Right latestEvent -> do
-                let activeInterval :: TL.KeyedEvent Instant -> m (Maybe (Interval TimelineEvent))
-                    activeInterval ev = case event ev of
-                      TL.StartEvent i -> 
-                        (system.log $ "Project has an open active interval starting " <> show i) *>
-                        (Just <<< interval (LoggedEvent ev) <<< PhantomEvent <$> system.now)
-                      TL.StopEvent _  -> 
-                        pure Nothing
-                join <$> traverse activeInterval latestEvent 
-
-          H.modify_ (_ { selectedProject = Just p, history = hist, active = active })
+          H.raise (ProjectChange p) 
+          setStateForProject p
 
         Start   -> do
           project <- H.gets (_.selectedProject)
@@ -261,6 +235,41 @@ component system caps pcaps = H.mkComponent
           currentState <- H.get
           updatedState <- lift $ updateStop system t currentState
           H.put updatedState
+
+    setStateForProject :: Project -> H.HalogenM TimelineState TimelineAction Slots ProjectEvent m Unit
+    setStateForProject p = do
+      timeSpan <- TL.Before <$> lift system.nowDateTime -- FIXME, should come from a form control
+      intervals' <- lift $ caps.listIntervals (unwrap p).projectId timeSpan
+      intervals <- lift $ case intervals' of
+            Left err -> 
+              (system.log $ "Error occurred listing intervals" <> show err ) *>
+              pure [] 
+            Right ivals -> 
+              pure $ map (map LoggedEvent) ivals
+
+      history' <- lift <<< runMaybeT $ toHistory system intervals
+      hist <- case history' of
+          Nothing -> lift $ system.log "Project history was empty." *> pure M.empty
+          Just h -> pure h
+
+      latestEventResponse <- lift $ caps.getLatestEvent (unwrap p).projectId
+      now <- lift $ system.now
+      active <- lift $ case latestEventResponse of
+          Left err -> 
+            (system.log $ "Error occurred retrieving the latest event: " <> show err) *>
+            pure Nothing
+          Right latestEvent -> do
+            let activeInterval :: TL.KeyedEvent Instant -> m (Maybe (Interval TimelineEvent))
+                activeInterval ev = case event ev of
+                  TL.StartEvent i -> 
+                    (system.log $ "Project has an open active interval starting " <> show i) *>
+                    (Just <<< interval (LoggedEvent ev) <<< PhantomEvent <$> system.now)
+                  TL.StopEvent _  -> 
+                    pure Nothing
+            join <$> traverse activeInterval latestEvent 
+
+      H.modify_ (_ { selectedProject = Just p, history = hist, active = active })
+
 
 historyLine 
   :: forall w i

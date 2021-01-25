@@ -11,7 +11,8 @@ import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (decodeJson)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(..))
+import Data.Foldable (any)
+import Data.Maybe (Maybe(..), isNothing)
 import Data.Traversable (traverse, traverse_)
 
 import Effect (Effect)
@@ -36,8 +37,11 @@ import Halogen.HTML.Core (ClassName(..))
 import Halogen.HTML.Events as E
 import Halogen.HTML.Properties as P
 
+type ProjectInput = Maybe Project
+
 type ProjectCState =
-  { projects :: Array Project
+  { selectedProject :: Maybe Project
+  , projects :: Array Project
   }
 
 data ProjectAction 
@@ -55,7 +59,7 @@ projectListComponent
   .  Monad m
   => System m
   -> Capability m 
-  -> H.Component HH.HTML query input Project m
+  -> H.Component HH.HTML query ProjectInput Project m
 projectListComponent console caps = H.mkComponent
   { initialState
   , render
@@ -65,27 +69,34 @@ projectListComponent console caps = H.mkComponent
       }
   } where
 
-    initialState :: input -> ProjectCState
-    initialState _ = { projects: [] }
+    initialState :: ProjectInput -> ProjectCState
+    initialState input = { selectedProject: input, projects: [] }
 
     render :: forall slots. ProjectCState -> H.ComponentHTML ProjectAction slots m
     render st = 
-     let renderOption (Project' p) =
-           HH.option [P.value $ pidStr p.projectId] [HH.text p.projectName]
-      in HH.div
-           [P.classes (ClassName <$> ["form-group"])]
-           [HH.label
-             [ P.classes (ClassName <$> ["sr-only"])
-             , P.for "projectSelect"
-             ]
-             [ HH.text "Project" ]
-           ,HH.select
-             [P.classes (ClassName <$> ["form-control"])
-             ,P.id_ "projectSelect"
-             ,E.onSelectedIndexChange (Just <<< Select)
-             ]
-             ([HH.option [P.selected true, P.disabled true] [HH.text "Select a project"]] <> map renderOption st.projects)
-           ]
+      HH.div
+        [P.classes (ClassName <$> ["form-group"])]
+        [ HH.label
+          [ P.classes (ClassName <$> ["sr-only"])
+          , P.for "projectSelect"
+          ]
+          [ HH.text "Project" ]
+        , HH.select
+          [P.classes (ClassName <$> ["form-control"])
+          ,P.id_ "projectSelect"
+          ,E.onSelectedIndexChange (Just <<< Select)
+          ]
+          ( [HH.option [P.selected (isNothing st.selectedProject), P.disabled true] [HH.text "Select a project"]] 
+            <> map renderOption st.projects
+          )
+        ]
+      where
+        renderOption (Project' p) =
+          HH.option 
+            [ P.selected (any (\(Project' p') -> p'.projectId == p.projectId) st.selectedProject)
+            , P.value $ pidStr p.projectId
+            ]
+            [HH.text p.projectName]
 
 
     eval :: ProjectAction -> H.HalogenM ProjectCState ProjectAction () Project m Unit
