@@ -7,6 +7,7 @@
     , "affjax"
     , "halogen-css"
     , "argonaut-codecs" 
+    , "rationals"
     , "routing"
     , "uuid"
     , "validation"

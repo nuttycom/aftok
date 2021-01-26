@@ -19,13 +19,14 @@ import Halogen.HTML.Properties as P
 import Routing (match)
 import Routing.Hash (matchesWith)
 import Routing.Match (Match, lit)
-import Aftok.Types (System, Project, ProjectEvent(..), liveSystem)
+import Aftok.Types (System, liveSystem)
 import Aftok.Login as Login
 import Aftok.Api.Account as Acc
+import Aftok.Api.Project (Project, ProjectEvent(ProjectChange))
 import Aftok.Signup as Signup
 import Aftok.Timeline as Timeline
 import Aftok.Overview as Overview
-import Aftok.Project as Project
+import Aftok.ProjectList as ProjectList
 
 main :: Effect Unit
 main =
@@ -38,7 +39,7 @@ main =
 
       timeline = Timeline.apiCapability
 
-      project = Project.apiCapability
+      project = ProjectList.apiCapability
 
       overview = Overview.apiCapability
 
@@ -116,7 +117,7 @@ component ::
   Login.Capability m ->
   Signup.Capability m ->
   Timeline.Capability m ->
-  Project.Capability m ->
+  ProjectList.Capability m ->
   Overview.Capability m ->
   H.Component HH.HTML MainQuery input output m
 component system loginCap signupCap tlCap pCap ovCap =

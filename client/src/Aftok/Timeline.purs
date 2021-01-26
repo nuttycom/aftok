@@ -55,13 +55,15 @@ import Aftok.Api.Timeline
   , eventTime
   , keyedEvent
   )
-import Aftok.Project as Project
+import Aftok.ProjectList as ProjectList
 import Aftok.Types
   ( System
-  , ProjectEvent(..)
-  , Project
-  , Project'(..)
   , ProjectId
+  )
+import Aftok.Api.Project
+  ( Project
+  , Project'(..)
+  , ProjectEvent(..)
   )
 
 type TimelineLimits
@@ -91,7 +93,7 @@ type DayIntervals
 type History
   = M.Map Date DayIntervals
 
-type TimelineInput
+type Input
   = Maybe Project
 
 type TimelineState
@@ -112,7 +114,7 @@ type Slot id
   = forall query. H.Slot query ProjectEvent id
 
 type Slots
-  = ( projectList :: Project.ProjectListSlot Unit
+  = ( projectList :: ProjectList.Slot Unit
     )
 
 _projectList = SProxy :: SProxy "projectList"
@@ -130,8 +132,8 @@ component ::
   Monad m =>
   System m ->
   Capability m ->
-  Project.Capability m ->
-  H.Component HH.HTML query TimelineInput ProjectEvent m
+  ProjectList.Capability m ->
+  H.Component HH.HTML query Input ProjectEvent m
 component system caps pcaps =
   H.mkComponent
     { initialState
@@ -144,7 +146,7 @@ component system caps pcaps =
               }
     }
   where
-  initialState :: TimelineInput -> TimelineState
+  initialState :: Input -> TimelineState
   initialState input =
     { selectedProject: input
     , history: M.empty
@@ -165,7 +167,7 @@ component system caps pcaps =
               [ P.classes (ClassName <$> [ "col-md-5", "text-muted", "text-center", "mx-auto" ]) ]
               [ HH.text "Your project timeline" ]
           , HH.div_
-              [ HH.slot _projectList unit (Project.projectListComponent system pcaps) st.selectedProject (Just <<< ProjectSelected) ]
+              [ HH.slot _projectList unit (ProjectList.component system pcaps) st.selectedProject (Just <<< ProjectSelected) ]
           , HH.div
               [ P.classes (ClassName <$> if isNothing st.selectedProject then [ "collapse" ] else []) ]
               ( [ HH.div_

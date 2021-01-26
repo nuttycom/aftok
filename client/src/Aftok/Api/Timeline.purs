@@ -25,7 +25,9 @@ import Affjax (get, post)
 import Affjax.RequestBody as RB
 import Affjax.ResponseFormat as RF
 import Data.Argonaut.Encode (encodeJson)
-import Aftok.Types (APIError, decompose, parseDatedResponse, ProjectId(..), pidStr)
+import Aftok.Types (ProjectId(..), pidStr)
+import Aftok.Api.Types (APIError)
+import Aftok.Api.Json (decompose, parseDatedResponse)
 
 data TimelineError
   = LogFailure (APIError)

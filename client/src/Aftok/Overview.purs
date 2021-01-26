@@ -11,7 +11,7 @@ import Prelude
 -- import Data.Date (Date, year, month, day)
 -- import Data.DateTime as DT
 -- import Data.DateTime (DateTime(..), date)
--- import Data.DateTime.Instant (Instant, unInstant, fromDateTime, toDateTime)
+import Data.DateTime.Instant (Instant)
 -- import Data.Either (Either(..))
 -- import Data.Enum (fromEnum)
 import Data.Foldable (all)
@@ -52,9 +52,10 @@ import Halogen.HTML.Properties as P
 --     start, end, interval,
 --     event, eventTime, keyedEvent
 --     )
-import Aftok.Project as Project
+import Aftok.ProjectList as ProjectList
 -- import Aftok.Project (Project, Project'(..), ProjectId) --, pidStr)
-import Aftok.Types (System, Project, ProjectEvent(..))
+import Aftok.Types (System, ProjectId)
+import Aftok.Api.Project (Project, ProjectEvent(..), Member')
 
 type OverviewInput
   = Maybe Project
@@ -76,13 +77,13 @@ type Slot id
   = forall query. H.Slot query ProjectEvent id
 
 type Slots
-  = ( projectList :: Project.ProjectListSlot Unit
+  = ( projectList :: ProjectList.Slot Unit
     )
 
 _projectList = SProxy :: SProxy "projectList"
 
 type Capability (m :: Type -> Type)
-  = {
+  = { getProjectMembers :: ProjectId -> m (Array (Member' Instant))
     }
 
 component ::
@@ -90,7 +91,7 @@ component ::
   Monad m =>
   System m ->
   Capability m ->
-  Project.Capability m ->
+  ProjectList.Capability m ->
   H.Component HH.HTML query OverviewInput ProjectEvent m
 component system caps pcaps =
   H.mkComponent
@@ -120,9 +121,9 @@ component system caps pcaps =
               [ HH.text "Project Overview" ]
           , HH.p
               [ P.classes (ClassName <$> [ "col-md-5", "text-muted", "text-center", "mx-auto" ]) ]
-              [ HH.text "Your project timeline" ]
+              [ HH.text "Your project details" ]
           , HH.div_
-              [ HH.slot _projectList unit (Project.projectListComponent system pcaps) st.selectedProject (Just <<< ProjectSelected) ]
+              [ HH.slot _projectList unit (ProjectList.component system pcaps) st.selectedProject (Just <<< ProjectSelected) ]
           , HH.div
               [ P.classes (ClassName <$> if isNothing st.selectedProject then [ "collapse" ] else []) ]
               []
@@ -144,7 +145,11 @@ component system caps pcaps =
               H.modify_ (_ { selectedProject = Just p })
 
 apiCapability :: Capability Aff
-apiCapability = {}
+apiCapability = 
+  { getProjectMembers: \_ -> pure []
+  }
 
 mockCapability :: Capability Aff
-mockCapability = {}
+mockCapability = 
+  { getProjectMembers: \_ -> pure []
+  }
