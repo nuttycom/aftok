@@ -9,11 +9,12 @@ import Data.Bifunctor (lmap)
 import Data.DateTime (DateTime)
 import Data.Either (Either(..), note)
 import Data.Maybe (Maybe(..))
+import Data.Map as M
 import Data.Newtype (class Newtype)
 import Data.Rational (Rational)
-import Data.Time.Duration (Hours)
+import Data.Time.Duration (Hours, Days)
 import Data.Traversable (traverse)
-import Data.UUID (UUID, parseUUID)
+import Data.UUID (parseUUID)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class as EC
@@ -21,7 +22,7 @@ import Affjax (get, printError)
 import Affjax.StatusCode (StatusCode(..))
 import Affjax.ResponseFormat as RF
 import Aftok.Types
-  ( UserId
+  ( UserId(..)
   , ProjectId(..)
   )
 import Aftok.Api.Types
@@ -33,13 +34,33 @@ newtype Project' date
   { projectId :: ProjectId
   , projectName :: String
   , inceptionDate :: date
-  , initiator :: UUID
+  , initiator :: UserId
   }
 
 derive instance newtypeProject :: Newtype (Project' a) _
 
 type Project
   = Project' DateTime
+
+data DepreciationFn
+  = LinearDepreciation { undep :: Days, dep :: Days }
+
+newtype ProjectUserData' date 
+  = ProjectUserData'
+  { userName :: String
+  , joinedOn :: date
+  , totalContribution :: Hours
+  , currentPayoutRatio :: Rational
+  }
+
+newtype ProjectDetail' date
+  = ProjectDetail'
+  { project :: Project' date
+  , depreciation :: DepreciationFn
+  , contributors :: M.Map UserId (ProjectUserData' date)
+  }
+
+type ProjectDetail = ProjectDetail' DateTime
 
 data ProjectEvent
   = ProjectChange Project
@@ -53,7 +74,7 @@ instance decodeJsonProject :: DecodeJson (Project' String) where
     projectName <- project .: "projectName"
     inceptionDate <- project .: "inceptionDate"
     initiatorStr <- project .: "initiator"
-    initiator <- note "Failed to decode initiator UUID" $ parseUUID initiatorStr
+    initiator <- UserId <$> (note "Failed to decode initiator UUID" $ parseUUID initiatorStr)
     pure $ Project' { projectId, projectName, inceptionDate, initiator }
 
 newtype Member' date

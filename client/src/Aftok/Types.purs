@@ -82,6 +82,7 @@ newtype UserId
   = UserId UUID
 
 derive instance userIdEq :: Eq UserId 
+derive instance userIdOrd :: Ord UserId 
 
 derive instance userIdNewtype :: Newtype UserId _
 
