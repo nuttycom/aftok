@@ -7,12 +7,11 @@ import Control.Monad.State (State, put, get, evalState)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Maybe.Trans (MaybeT(..), runMaybeT)
 import Data.Array (reverse, cons)
-import Data.Date (Date, year, month, day)
+import Data.Date (Date)
 import Data.DateTime as DT
 import Data.DateTime (DateTime(..), date)
 import Data.DateTime.Instant (Instant, unInstant, fromDateTime, toDateTime)
 import Data.Either (Either(..))
-import Data.Enum (fromEnum)
 import Data.Foldable (any, length)
 import Data.Map as M
 import Data.Maybe (Maybe(..), maybe, isJust, isNothing, fromMaybe)
@@ -59,6 +58,7 @@ import Aftok.ProjectList as ProjectList
 import Aftok.Types
   ( System
   , ProjectId
+  , dateStr
   )
 import Aftok.Api.Project
   ( Project
@@ -301,13 +301,6 @@ datedLine d dateBounds xs =
     ]
   where
   px5 = px 5.0
-
-dateStr :: Date -> String
-dateStr d =
-  (show <<< fromEnum $ year d) <> "-"
-    <> (show <<< fromEnum $ month d)
-    <> "-"
-    <> (show <<< fromEnum $ day d)
 
 intervalHtml ::
   forall w i.

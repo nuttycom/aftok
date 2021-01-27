@@ -1,9 +1,10 @@
 module Aftok.Types where
 
 import Prelude
-import Data.Date (Date)
+import Data.Date (Date, year, month, day)
 import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant)
+import Data.Enum (fromEnum)
 import Data.JSDate as JD
 import Data.Maybe (Maybe)
 import Data.Newtype (class Newtype)
@@ -95,4 +96,11 @@ derive instance projectIdNewtype :: Newtype ProjectId _
 
 pidStr :: ProjectId -> String
 pidStr (ProjectId uuid) = toString uuid
+
+dateStr :: Date -> String
+dateStr d =
+  (show <<< fromEnum $ year d) <> "-"
+    <> (show <<< fromEnum $ month d)
+    <> "-"
+    <> (show <<< fromEnum $ day d)
 

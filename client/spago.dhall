@@ -13,6 +13,8 @@
     , "validation"
     , "js-date"
     , "format"
+    , "formatters"
+    , "fixed-precision"
     ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]

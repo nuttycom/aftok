@@ -8,16 +8,22 @@ import Prelude
 -- import Control.Monad.Maybe.Trans (MaybeT(..), runMaybeT)
 --
 -- import Data.Array (reverse, cons)
--- import Data.Date (Date, year, month, day)
--- import Data.DateTime as DT
--- import Data.DateTime (DateTime(..), date)
+import Data.Enum (toEnum)
+import Data.Date (canonicalDate)
+-- import Data.Date.Component (Year(..), Month(..), Day(..))
+import Data.List as L
+import Data.DateTime (DateTime(..), date)
 import Data.DateTime.Instant (Instant)
+import Data.Time.Duration (Hours(..), Days(..))
 -- import Data.Either (Either(..))
 -- import Data.Enum (fromEnum)
+import Data.Fixed as F
 import Data.Foldable (all)
+-- import Data.Formatters.DateTime
+import Data.Rational as R
 import Data.Map as M
-import Data.Maybe (Maybe(..), isNothing)
-import Data.Unfoldable (fromMaybe)
+import Data.Maybe (Maybe(..), maybe, isNothing, fromMaybe)
+import Data.Unfoldable as U
 import Data.Newtype (unwrap)
 import Data.Symbol (SProxy(..))
 -- import Data.Traversable (traverse_, traverse)
@@ -54,11 +60,12 @@ import Halogen.HTML.Properties as P
 --     )
 import Aftok.ProjectList as ProjectList
 -- import Aftok.Project (Project, Project'(..), ProjectId) --, pidStr)
-import Aftok.Types (System, ProjectId)
+import Aftok.Types (System, ProjectId, dateStr)
 import Aftok.Api.Project 
   (Project, Project'(..), ProjectEvent(..), Member', ProjectDetail, ProjectDetail'(..)
   , DepreciationFn(..)
   , ProjectUserData'(..)
+  , ProjectUserData
   )
 
 type OverviewInput
@@ -113,7 +120,19 @@ component system caps pcaps =
   initialState :: OverviewInput -> OverviewState
   initialState input =
     { selectedProject: input
-    , projectDetail: Nothing
+    , projectDetail: case input of
+        Nothing -> Nothing
+        Just p -> Just $ ProjectDetail' 
+          { project: p
+          , depreciation: LinearDepreciation { undep: Days 30.0, dep: Days 300.0 }
+          , contributors: M.singleton (unwrap p).initiator $ ProjectUserData' 
+            { userName: "Joe"
+            , joinedOn: DateTime (fromMaybe bottom $ canonicalDate <$> (toEnum 2021) <*>  (toEnum 1) <*>  (toEnum 26)) bottom
+            , totalContribution: Hours 100.0
+            , currentPayoutRatio: 55 R.% 100
+            }
+          
+          }
     }
 
   render :: OverviewState -> H.ComponentHTML OverviewAction Slots m
@@ -132,7 +151,7 @@ component system caps pcaps =
           [ HH.slot _projectList unit (ProjectList.component system pcaps) st.selectedProject (Just <<< ProjectSelected) ]
         , HH.div
           [ P.classes (ClassName <$> if isNothing st.selectedProject then [ "collapse" ] else []) ]
-          (fromMaybe $ projectDetail <$> st.projectDetail)
+          (U.fromMaybe $ projectDetail <$> st.projectDetail)
         ]
       ]
 
@@ -146,110 +165,56 @@ component system caps pcaps =
         [ HH.div
           -- header
           [ P.classes (ClassName <$> ["row", "pt-3", "font-weight-bold" ]) ]
-          [ colmd2 Nothing
-          , colmd2 (Just "Project Name")
+          [ colmd2 (Just "Project Name")
           , colmd2 (Just "Undepreciated Period")
           , colmd2 (Just "Depreciation Duration")
           , colmd2 (Just "Originator")
           , colmd2 (Just "Origination Date")
           ]
         , HH.div
-          [ P.classes (ClassName <$> ["row", "pt-3", "font-weight-bold" ]) ]
-          ([ colmd2 Nothing, colmd2 (Just project.projectName)] <>
+          [ P.classes (ClassName <$> ["row", "pt-3"]) ]
+          ([ colmd2 (Just project.projectName) ] <>
            depreciationCols detail.depreciation <>
            [ colmd2 ((\(ProjectUserData' p) -> p.userName) <$> M.lookup project.initiator detail.contributors)
-           , colmd2 (Just $ show project.inceptionDate)
+           , colmd2 (Just $ dateStr (date project.inceptionDate))
            ])
         ]
+      , HH.section
+        [ P.id_ "contributors" ]
+        ([ HH.div
+          -- header
+          [ P.classes (ClassName <$> ["row", "pt-3", "font-weight-bold" ]) ]
+          [ colmd2 (Just "Contributor")
+          , colmd2 (Just "Joined")
+          , colmd2 (Just "Contributed Hours")
+          , colmd2 (Just "Current Revenue Share")
+          ]
+        ] <> 
+          (contributorCols <$> (L.toUnfoldable $ M.values detail.contributors))
+        )
       ]
 
   depreciationCols :: DepreciationFn -> Array (H.ComponentHTML OverviewAction Slots m)
   depreciationCols = case _ of
     LinearDepreciation obj ->
-      [ colmd2 (Just $ show obj.undep <> " days")
-      , colmd2 (Just $ show obj.dep <> " days")
+      [ colmd2 (Just $ show (unwrap obj.undep) <> " days")
+      , colmd2 (Just $ show (unwrap obj.dep) <> " days")
+      ]
+
+  contributorCols :: ProjectUserData -> H.ComponentHTML OverviewAction Slots m
+  contributorCols (ProjectUserData' pud) = 
+    let pct = maybe "N/A" (\f -> F.toString (f * F.fromInt 100)) (F.fromNumber (R.toNumber pud.currentPayoutRatio) :: Maybe (F.Fixed F.P10000)) 
+     in HH.div
+      [ P.classes (ClassName <$> ["row", "pt-3", "pb-2" ]) ]
+      [ colmd2 (Just pud.userName)
+      , colmd2 (Just $ dateStr (date pud.joinedOn))
+      , colmd2 (Just $ show (unwrap pud.totalContribution))
+      , colmd2 (Just $ pct <> "%")
       ]
 
   colmd2 :: Maybe String -> H.ComponentHTML OverviewAction Slots m
-  colmd2 xs = HH.div [ P.classes (ClassName <$> ["col-md-2"]) ] (fromMaybe $ HH.text <$> xs)
+  colmd2 xs = HH.div [ P.classes (ClassName <$> ["col-md-2"]) ] (U.fromMaybe $ HH.text <$> xs)
 
---         <section id="associates">
---             <div class="row pt-3 font-weight-bold">
---                 <div class="col-md-2">
---                 </div>
---                 <div class="col-md-2">
---                     Associate
---                 </div>
---                 <div class="col-md-2">
---                     Joined
---                 </div>
---                 <div class="col-md-2">
---                     Hrs / %
---                 </div>
---                 <div class="col-md-2">
---                 </div>
---             </div>
---
---             <div class="row pt-3 pb-2 stripe">
---                 <div class="col-md-2">
---                 </div>
---                 <div class="col-md-2">
---                     Freuline Fred
---                 </div>
---                 <div class="col-md-2">
---                     Oct 2020
---                 </div>
---                 <div class="col-md-2">
---                     24hrs / 2.4%
---                 </div>
---                 <div class="col-md-2">
---                 </div>
---             </div>
---             <div class="row pt-3 pb-2 stripe">
---                 <div class="col-md-2">
---                 </div>
---                 <div class="col-md-2">
---                     Goobie Works A Lot
---                 </div>
---                 <div class="col-md-2">
---                     Jan 2020
---                 </div>
---                 <div class="col-md-2">
---                     500 / 50%
---                 </div>
---                 <div class="col-md-2">
---                 </div>
---             </div>
---             <div class="row pt-3 pb-2 stripe">
---                 <div class="col-md-2">
---                 </div>
---                 <div class="col-md-2">
---                     Average Fella
---                 </div>
---                 <div class="col-md-2">
---                     May 2020
---                 </div>
---                 <div class="col-md-2">
---                     250 hrs / 25%
---                 </div>
---                 <div class="col-md-2">
---                 </div>
---             </div>
---             <div class="row pt-3 pb-2 stripe">
---                 <div class="col-md-2">
---                 </div>
---                 <div class="col-md-2">
---                     Cool Kid
---                 </div>
---                 <div class="col-md-2">
---                     April 2020
---                 </div>
---                 <div class="col-md-2">
---                     226 hrs 22.6%
---                 </div>
---                 <div class="col-md-2">
---                 </div>
---             </div>
 --         </section>
 --              <!-- Map payouts -->
 --              <div class="row font-weight-bold">

@@ -53,6 +53,8 @@ newtype ProjectUserData' date
   , currentPayoutRatio :: Rational
   }
 
+type ProjectUserData = ProjectUserData' DateTime
+
 newtype ProjectDetail' date
   = ProjectDetail'
   { project :: Project' date
