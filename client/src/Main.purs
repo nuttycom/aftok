@@ -41,7 +41,7 @@ main =
 
       project = ProjectList.apiCapability
 
-      overview = Overview.apiCapability
+      overview = Overview.mockCapability
 
       mainComponent = component liveSystem login signup timeline project overview
     halogenIO <- runUI mainComponent unit body
@@ -167,10 +167,12 @@ component system loginCap signupCap tlCap pCap ovCap =
         "signup" -> pure VSignup
         other -> do
           result <- lift loginCap.checkLogin
-          case result of
-            Acc.LoginForbidden -> pure VLogin
-            Acc.LoginError _ -> pure VLogin
-            _ -> pure VTimeline
+          pure $ case result of
+            Acc.LoginForbidden -> VLogin
+            Acc.LoginError _ -> VLogin
+            _ -> case other of
+              "timeline" -> VTimeline
+              _ -> VOverview
       navigate nextView
     SignupAction (Signup.SignupComplete _) -> navigate VTimeline
     SignupAction (Signup.SigninNav) -> navigate VLogin

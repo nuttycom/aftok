@@ -4,16 +4,13 @@ import Prelude
 -- import Control.Alt ((<|>))
 -- import Control.Monad.Rec.Class (forever)
 -- import Control.Monad.State (State, put, get, evalState)
--- import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Class (lift)
 -- import Control.Monad.Maybe.Trans (MaybeT(..), runMaybeT)
 --
 -- import Data.Array (reverse, cons)
-import Data.Enum (toEnum)
-import Data.Date (canonicalDate)
 -- import Data.Date.Component (Year(..), Month(..), Day(..))
 import Data.List as L
-import Data.DateTime (DateTime(..), date)
-import Data.DateTime.Instant (Instant)
+import Data.DateTime (date)
 import Data.Time.Duration (Hours(..), Days(..))
 -- import Data.Either (Either(..))
 -- import Data.Enum (fromEnum)
@@ -22,19 +19,21 @@ import Data.Foldable (all)
 -- import Data.Formatters.DateTime
 import Data.Rational as R
 import Data.Map as M
-import Data.Maybe (Maybe(..), maybe, isNothing, fromMaybe)
+import Data.Maybe (Maybe(..), maybe, isNothing)
 import Data.Unfoldable as U
 import Data.Newtype (unwrap)
 import Data.Symbol (SProxy(..))
--- import Data.Traversable (traverse_, traverse)
+import Data.Traversable (traverse_)
 -- import Data.Tuple (Tuple(..))
 -- import Data.Unfoldable as U
 -- -- import Text.Format as F -- (format, zeroFill, width)
+import Data.UUID (genUUID)
 -- import Effect.Aff as Aff
 import Effect.Aff (Aff)
--- import Effect.Class (liftEffect)
+import Effect.Class (liftEffect)
 -- import Effect.Exception (error)
 -- import Effect.Now (now)
+import Effect.Now (nowDateTime)
 import Halogen as H
 -- import Halogen.Query.EventSource (EventSource)
 -- import Halogen.Query.EventSource as EventSource
@@ -59,10 +58,9 @@ import Halogen.HTML.Properties as P
 --     event, eventTime, keyedEvent
 --     )
 import Aftok.ProjectList as ProjectList
--- import Aftok.Project (Project, Project'(..), ProjectId) --, pidStr)
-import Aftok.Types (System, ProjectId, dateStr)
+import Aftok.Types (System, ProjectId, UserId(..), dateStr)
 import Aftok.Api.Project 
-  (Project, Project'(..), ProjectEvent(..), Member', ProjectDetail, ProjectDetail'(..)
+  (Project, Project'(..), ProjectEvent(..), ProjectDetail, ProjectDetail'(..)
   , DepreciationFn(..)
   , ProjectUserData'(..)
   , ProjectUserData
@@ -95,7 +93,7 @@ type Slots
 _projectList = SProxy :: SProxy "projectList"
 
 type Capability (m :: Type -> Type)
-  = { getProjectMembers :: ProjectId -> m (Array (Member' Instant))
+  = { getProjectDetail :: ProjectId -> m (Maybe ProjectDetail)
     }
 
 component ::
@@ -120,19 +118,7 @@ component system caps pcaps =
   initialState :: OverviewInput -> OverviewState
   initialState input =
     { selectedProject: input
-    , projectDetail: case input of
-        Nothing -> Nothing
-        Just p -> Just $ ProjectDetail' 
-          { project: p
-          , depreciation: LinearDepreciation { undep: Days 30.0, dep: Days 300.0 }
-          , contributors: M.singleton (unwrap p).initiator $ ProjectUserData' 
-            { userName: "Joe"
-            , joinedOn: DateTime (fromMaybe bottom $ canonicalDate <$> (toEnum 2021) <*>  (toEnum 1) <*>  (toEnum 26)) bottom
-            , totalContribution: Hours 100.0
-            , currentPayoutRatio: 55 R.% 100
-            }
-          
-          }
+    , projectDetail: Nothing
     }
 
   render :: OverviewState -> H.ComponentHTML OverviewAction Slots m
@@ -349,7 +335,8 @@ component system caps pcaps =
   eval action = do
     case action of
       Initialize -> do
-        pure unit
+        currentProject <- H.gets (_.selectedProject)
+        traverse_ (setProjectDetail <<< (\p -> (unwrap p).projectId)) currentProject
       Invite _ -> do
         pure unit
       ProjectSelected p -> do
@@ -358,13 +345,36 @@ component system caps pcaps =
           $ do
               H.raise (ProjectChange p)
               H.modify_ (_ { selectedProject = Just p })
+              setProjectDetail (unwrap p).projectId
+
+  setProjectDetail :: ProjectId -> H.HalogenM OverviewState OverviewAction Slots ProjectEvent m Unit
+  setProjectDetail pid = do
+      detail <- lift $ caps.getProjectDetail pid
+      H.modify_ (_ { projectDetail = detail })
 
 apiCapability :: Capability Aff
 apiCapability =
-  { getProjectMembers: \_ -> pure []
+  { getProjectDetail: \_ -> pure Nothing
   }
 
 mockCapability :: Capability Aff
 mockCapability =
-  { getProjectMembers: \_ -> pure []
+  { getProjectDetail: \pid -> do
+      t <- liftEffect nowDateTime      
+      uid <- UserId <$> liftEffect genUUID
+      pure <<< Just $ ProjectDetail' 
+        { project: Project'
+          { projectId: pid
+          , projectName: "Fake Project"
+          , inceptionDate: t
+          , initiator: uid
+          }
+        , depreciation: LinearDepreciation { undep: Days 30.0, dep: Days 300.0 }
+        , contributors: M.singleton uid $ ProjectUserData' 
+          { userName: "Joe"
+          , joinedOn: t
+          , totalContribution: Hours 100.0
+          , currentPayoutRatio: 55 R.% 100
+          }
+        }
   }
