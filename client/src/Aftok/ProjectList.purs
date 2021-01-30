@@ -30,11 +30,11 @@ import Halogen.HTML.Properties as P
 type Input
   = Maybe Project
 
-type Output 
-  = Project
+data Event
+  = ProjectChange Project
 
 type Slot id
-  = forall query. H.Slot query Project id
+  = forall query. H.Slot query Event id
 
 type CState
   = { selectedProject :: Maybe Project
@@ -54,7 +54,7 @@ component ::
   Monad m =>
   System m ->
   Capability m ->
-  H.Component HH.HTML query Input Output m
+  H.Component HH.HTML query Input Event m
 component console caps =
   H.mkComponent
     { initialState
@@ -96,7 +96,7 @@ component console caps =
         ]
         [ HH.text p.projectName ]
 
-  eval :: Action -> H.HalogenM CState Action () Project m Unit
+  eval :: Action -> H.HalogenM CState Action () Event m Unit
   eval = case _ of
     Initialize -> do
       res <- lift caps.listProjects
@@ -106,7 +106,7 @@ component console caps =
     Select i -> do
       projects <- H.gets (_.projects)
       lift <<< console.log $ "Selected project index " <> show i
-      traverse_ H.raise (index projects (i - 1))
+      traverse_ (H.raise <<< ProjectChange) (index projects (i - 1))
 
 apiCapability :: Capability Aff
 apiCapability = { listProjects }

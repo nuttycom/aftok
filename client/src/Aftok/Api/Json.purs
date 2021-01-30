@@ -73,3 +73,17 @@ parseDatedResponse = case _ of
     StatusCode 403 -> throwError $ Forbidden
     StatusCode 200 -> withExceptT (ParseFailure r.body) $ map fromDateTime <$> decodeDatedJson r.body
     other -> throwError $ Error { status: Just other, message: r.statusText }
+
+parseDatedResponseMay ::
+  forall t.
+  Traversable t =>
+  DecodeJson (t String) =>
+  Either AJAX.Error (Response Json) ->
+  ExceptT APIError Effect (Maybe (t Instant))
+parseDatedResponseMay = case _ of
+  Left err -> throwError $ Error { status: Nothing, message: printError err }
+  Right r -> case r.status of
+    StatusCode 403 -> throwError $ Forbidden
+    StatusCode 404 -> pure Nothing
+    StatusCode 200 -> withExceptT (ParseFailure r.body) $ Just <<< map fromDateTime <$> decodeDatedJson r.body
+    other -> throwError $ Error { status: Just other, message: r.statusText }

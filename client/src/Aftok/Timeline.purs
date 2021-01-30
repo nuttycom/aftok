@@ -63,7 +63,6 @@ import Aftok.Types
 import Aftok.Api.Project
   ( Project
   , Project'(..)
-  , ProjectEvent(..)
   )
 
 type TimelineLimits
@@ -111,7 +110,7 @@ data TimelineAction
   | Refresh
 
 type Slot id
-  = forall query. H.Slot query ProjectEvent id
+  = forall query. H.Slot query ProjectList.Event id
 
 type Slots
   = ( projectList :: ProjectList.Slot Unit
@@ -133,7 +132,7 @@ component ::
   System m ->
   Capability m ->
   ProjectList.Capability m ->
-  H.Component HH.HTML query Input ProjectEvent m
+  H.Component HH.HTML query Input ProjectList.Event m
 component system caps pcaps =
   H.mkComponent
     { initialState
@@ -167,7 +166,13 @@ component system caps pcaps =
               [ P.classes (ClassName <$> [ "col-md-5", "text-muted", "text-center", "mx-auto" ]) ]
               [ HH.text "Your project timeline" ]
           , HH.div_
-              [ HH.slot _projectList unit (ProjectList.component system pcaps) st.selectedProject (Just <<< ProjectSelected) ]
+              [ HH.slot 
+                  _projectList 
+                  unit 
+                  (ProjectList.component system pcaps) 
+                  st.selectedProject 
+                  (Just <<< (\(ProjectList.ProjectChange p) -> ProjectSelected p)) 
+              ]
           , HH.div
               [ P.classes (ClassName <$> if isNothing st.selectedProject then [ "collapse" ] else []) ]
               ( [ HH.div_
@@ -190,7 +195,7 @@ component system caps pcaps =
           ]
       ]
 
-  eval :: TimelineAction -> H.HalogenM TimelineState TimelineAction Slots ProjectEvent m Unit
+  eval :: TimelineAction -> H.HalogenM TimelineState TimelineAction Slots ProjectList.Event m Unit
   eval action = do
     case action of
       Initialize -> do
@@ -204,7 +209,7 @@ component system caps pcaps =
         when (oldActive && any (\p' -> (unwrap p').projectId /= (unwrap p).projectId) currentProject)
           $ do
               (traverse_ logEnd currentProject)
-        H.raise (ProjectChange p)
+        H.raise (ProjectList.ProjectChange p)
         setStateForProject p
       Start -> do
         project <- H.gets (_.selectedProject)
@@ -220,14 +225,14 @@ component system caps pcaps =
     activeHistory <- lift <<< map (fromMaybe M.empty) <<< runMaybeT $ toHistory system (U.fromMaybe active)
     H.modify_ (_ { activeHistory = activeHistory })
 
-  logStart :: Project -> H.HalogenM TimelineState TimelineAction Slots ProjectEvent m Unit
+  logStart :: Project -> H.HalogenM TimelineState TimelineAction Slots ProjectList.Event m Unit
   logStart (Project' p) = do
     logged <- lift $ caps.logStart p.projectId
     case logged of
       Left err -> lift <<< system.log $ "Failed to start timer: " <> show err
       Right t -> H.modify_ (updateStart t)
 
-  logEnd :: Project -> H.HalogenM TimelineState TimelineAction Slots ProjectEvent m Unit
+  logEnd :: Project -> H.HalogenM TimelineState TimelineAction Slots ProjectList.Event m Unit
   logEnd (Project' p) = do
     logged <- lift $ caps.logEnd p.projectId
     case logged of
@@ -237,7 +242,7 @@ component system caps pcaps =
         updatedState <- lift $ updateStop system t currentState
         H.put updatedState
 
-  setStateForProject :: Project -> H.HalogenM TimelineState TimelineAction Slots ProjectEvent m Unit
+  setStateForProject :: Project -> H.HalogenM TimelineState TimelineAction Slots ProjectList.Event m Unit
   setStateForProject p = do
     timeSpan <- TL.Before <$> lift system.nowDateTime -- FIXME, should come from a form control
     intervals' <- lift $ caps.listIntervals (unwrap p).projectId timeSpan

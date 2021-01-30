@@ -22,7 +22,7 @@ import Routing.Match (Match, lit)
 import Aftok.Types (System, liveSystem)
 import Aftok.Login as Login
 import Aftok.Api.Account as Acc
-import Aftok.Api.Project (Project, ProjectEvent(ProjectChange))
+import Aftok.Api.Project (Project)
 import Aftok.Signup as Signup
 import Aftok.Timeline as Timeline
 import Aftok.Overview as Overview
@@ -92,7 +92,7 @@ data MainAction
   = Initialize
   | LoginAction Login.LoginResult
   | SignupAction Signup.SignupResult
-  | ProjectAction ProjectEvent
+  | ProjectAction ProjectList.Event
   | LogoutAction
 
 type Slots
@@ -180,7 +180,7 @@ component system loginCap signupCap tlCap pCap ovCap =
     LogoutAction -> do
       lift loginCap.logout
       navigate VLogin
-    ProjectAction (ProjectChange p) -> H.modify_ (_ { selectedProject = Just p })
+    ProjectAction (ProjectList.ProjectChange p) -> H.modify_ (_ { selectedProject = Just p })
 
   handleQuery :: forall a. MainQuery a -> H.HalogenM MainState MainAction Slots output m (Maybe a)
   handleQuery = case _ of

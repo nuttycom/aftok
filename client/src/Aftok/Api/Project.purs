@@ -1,33 +1,51 @@
 module Aftok.Api.Project where
 
 import Prelude
-import Control.Monad.Except.Trans (ExceptT, runExceptT, except, withExceptT)
-import Control.Monad.Error.Class (throwError)
-import Data.Argonaut.Core (Json)
+import Control.Monad.Except.Trans (runExceptT)
+-- import Control.Monad.Except.Trans (ExceptT, runExceptT, except, withExceptT)
+-- import Control.Monad.Error.Class (throwError)
+-- import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.:))
-import Data.Bifunctor (lmap)
+-- import Data.Bifunctor (lmap)
 import Data.DateTime (DateTime)
-import Data.Either (Either(..), note)
-import Data.Maybe (Maybe(..))
+import Data.DateTime.Instant (toDateTime)
+import Data.Either (Either(..))
+import Data.Foldable (class Foldable, foldMapDefaultR)
 import Data.Map as M
 import Data.Newtype (class Newtype)
-import Data.Rational (Rational)
-import Data.Time.Duration (Hours, Days)
-import Data.Traversable (traverse)
-import Data.UUID (parseUUID)
-import Effect (Effect)
+import Data.Rational (Rational, (%))
+import Data.Time.Duration (Hours(..), Days(..))
+import Data.Traversable (class Traversable, traverse)
+-- import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class as EC
-import Affjax (get, printError)
-import Affjax.StatusCode (StatusCode(..))
+import Affjax (get)
 import Affjax.ResponseFormat as RF
 import Aftok.Types
-  ( UserId(..)
-  , ProjectId(..)
+  ( UserId
+  , ProjectId
   )
 import Aftok.Api.Types
-  ( APIError(..) )
-import Aftok.Api.Json (parseDate)
+  ( APIError )
+import Aftok.Api.Json 
+  ( decompose
+  , parseDatedResponse
+  )
+
+data DepreciationFn
+  = LinearDepreciation { undep :: Days, dep :: Days }
+
+instance decodeDepreciationFn :: DecodeJson DepreciationFn where
+  decodeJson json = do
+    x <- decodeJson json
+    dtype <- x .: "type"
+    args <- x .: "arguments"
+    case dtype of
+      "LinearDepreciation" -> do
+        undep <- Days <$> args .: "undep"
+        dep <- Days <$> args .: "dep"
+        pure $ LinearDepreciation { undep, dep }
+      other -> Left $ "Unrecognized depreciation function: " <> other
 
 newtype Project' date
   = Project'
@@ -35,75 +53,95 @@ newtype Project' date
   , projectName :: String
   , inceptionDate :: date
   , initiator :: UserId
+  , depFn :: DepreciationFn
   }
 
-derive instance newtypeProject :: Newtype (Project' a) _
+derive instance projectNewtype :: Newtype (Project' a) _
+
+derive instance projectFunctor :: Functor Project'
+
+instance projectFoldable :: Foldable Project' where
+  foldr f b (Project' p) = f (p.inceptionDate) b
+  foldl f b (Project' p) = f b (p.inceptionDate)
+  foldMap = foldMapDefaultR
+
+instance projectTraversable :: Traversable Project' where
+  traverse f (Project' p) = Project' <<< (\b -> p { inceptionDate = b }) <$> f (p.inceptionDate)
+  sequence = traverse identity
 
 type Project
   = Project' DateTime
-
-data DepreciationFn
-  = LinearDepreciation { undep :: Days, dep :: Days }
-
-newtype ProjectUserData' date 
-  = ProjectUserData'
-  { userName :: String
-  , joinedOn :: date
-  , totalContribution :: Hours
-  , currentPayoutRatio :: Rational
-  }
-
-type ProjectUserData = ProjectUserData' DateTime
-
-newtype ProjectDetail' date
-  = ProjectDetail'
-  { project :: Project' date
-  , depreciation :: DepreciationFn
-  , contributors :: M.Map UserId (ProjectUserData' date)
-  }
-
-type ProjectDetail = ProjectDetail' DateTime
-
-data ProjectEvent
-  = ProjectChange Project
 
 instance decodeJsonProject :: DecodeJson (Project' String) where
   decodeJson json = do
     x <- decodeJson json
     project <- x .: "project"
-    projectIdStr <- x .: "projectId"
-    projectId <- ProjectId <$> (note "Failed to decode project UUID" $ parseUUID projectIdStr)
+    projectId <- x .: "projectId"
     projectName <- project .: "projectName"
     inceptionDate <- project .: "inceptionDate"
-    initiatorStr <- project .: "initiator"
-    initiator <- UserId <$> (note "Failed to decode initiator UUID" $ parseUUID initiatorStr)
-    pure $ Project' { projectId, projectName, inceptionDate, initiator }
+    initiator <- project .: "initiator"
+    depFn <- project .: "depreciationFn"
+    pure $ Project' { projectId, projectName, inceptionDate, initiator, depFn }
 
-newtype Member' date
-  = Member'
+newtype Contributor' date
+  = Contributor'
   { userId :: UserId
   , handle :: String
   , joinedOn :: date
   , timeDevoted :: Hours
-  , revShareFrac :: Rational
+  , revShare :: Rational
   }
+
+instance decodeJsonContributor :: DecodeJson (Contributor' String) where
+  decodeJson json = do
+    x <- decodeJson json
+    userId <- x .: "userId"
+    handle <- x .: "username"
+    joinedOn <- x .: "joinedOn"
+    timeDevoted <- Hours <$> x .: "timeDevoted"
+    revShareObj <- x .: "revenueShare"
+    num <- revShareObj .: "numerator"
+    den <- revShareObj .: "denominator"
+    let revShare = num % den
+    pure $ Contributor' { userId, handle, joinedOn, timeDevoted, revShare }
+
+newtype ProjectDetail' date
+  = ProjectDetail'
+  { project :: Project' date
+  , contributors :: M.Map UserId (Contributor' date)
+  }
+
+type ProjectDetail = ProjectDetail' DateTime
+
+type ProjectDetailJson date = 
+  { project :: Project' date
+  , contributors :: Array (Contributor' date)
+  }
+
+instance decodeJsonProjectDetail :: DecodeJson (ProjectDetail' String) where
+  decodeJson json = do
+    x <- decodeJson json
+    project <- x .: "project"
+    contributors <- x .: "contributors"
+    pure $ ProjectDetail' { project, contributors }
 
 listProjects :: Aff (Either APIError (Array Project))
 listProjects = do
-  result <- get RF.json "/api/projects"
-  EC.liftEffect <<< runExceptT
-    $ case result of
-        Left err -> throwError $ Error { status: Nothing, message: printError err }
-        Right r -> case r.status of
-          StatusCode 403 -> throwError Forbidden
-          StatusCode 200 -> do
-            records <- except $ lmap (ParseFailure r.body) (decodeJson r.body)
-            traverse parseProject records
-          other -> throwError $ Error { status: Just other, message: r.statusText }
+  response <- get RF.json "/api/projects"
+  EC.liftEffect 
+    <<< runExceptT
+    <<< map decompose
+    <<< map (map toDateTime)
+    $ parseDatedResponse response
 
-parseProject :: Json -> ExceptT APIError Effect Project
-parseProject json = do
-  Project' p <- except <<< lmap (ParseFailure json) $ decodeJson json
-  pdate <- withExceptT (ParseFailure json) $ parseDate p.inceptionDate
-  pure $ Project' (p { inceptionDate = pdate })
+-- getProjectDetail :: ProjectId -> Aff (Maybe ProjectDetail)
+-- getProjectDetail pid = do
+--   response <- get RF.json ("/api/user/projects/" <> pidStr pid)
+--   EC.liftEffect
+--    <<< map (\dt -> ProjectDetail' { 
+--              project: dt.project, 
+--              contributors: M.fromFoldable $ map (\c -> (Tuple c.userId c)) dt.contributors
+--            })
+--    $ parsed
+
 

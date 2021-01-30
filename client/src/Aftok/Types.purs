@@ -1,15 +1,17 @@
 module Aftok.Types where
 
 import Prelude
+import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Date (Date, year, month, day)
 import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant)
+import Data.Either (note)
 import Data.Enum (fromEnum)
 import Data.JSDate as JD
 import Data.Maybe (Maybe)
 import Data.Newtype (class Newtype)
 import Data.Tuple (Tuple(..))
-import Data.UUID (UUID, toString)
+import Data.UUID (UUID, toString, parseUUID)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
@@ -84,15 +86,25 @@ newtype UserId
 
 derive instance userIdEq :: Eq UserId 
 derive instance userIdOrd :: Ord UserId 
-
 derive instance userIdNewtype :: Newtype UserId _
+
+instance userIdDecodeJson :: DecodeJson UserId where
+  decodeJson json = do
+    uuidStr <- decodeJson json 
+    UserId <$> (note "Failed to decode user UUID" $ parseUUID uuidStr)
 
 newtype ProjectId
   = ProjectId UUID
 
 derive instance projectIdEq :: Eq ProjectId
-
+derive instance projectIdOrd :: Ord ProjectId
 derive instance projectIdNewtype :: Newtype ProjectId _
+
+instance projectIdDecodeJson :: DecodeJson ProjectId where
+  decodeJson json = do
+    uuidStr <- decodeJson json 
+    ProjectId <$> (note "Failed to decode project UUID" $ parseUUID uuidStr)
+
 
 pidStr :: ProjectId -> String
 pidStr (ProjectId uuid) = toString uuid

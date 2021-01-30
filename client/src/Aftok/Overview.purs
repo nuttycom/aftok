@@ -10,7 +10,7 @@ import Control.Monad.Trans.Class (lift)
 -- import Data.Array (reverse, cons)
 -- import Data.Date.Component (Year(..), Month(..), Day(..))
 import Data.List as L
-import Data.DateTime (date)
+import Data.DateTime (DateTime, date)
 import Data.Time.Duration (Hours(..), Days(..))
 -- import Data.Either (Either(..))
 -- import Data.Enum (fromEnum)
@@ -60,10 +60,9 @@ import Halogen.HTML.Properties as P
 import Aftok.ProjectList as ProjectList
 import Aftok.Types (System, ProjectId, UserId(..), dateStr)
 import Aftok.Api.Project 
-  (Project, Project'(..), ProjectEvent(..), ProjectDetail, ProjectDetail'(..)
+  (Project, Project'(..), ProjectDetail, ProjectDetail'(..)
   , DepreciationFn(..)
-  , ProjectUserData'(..)
-  , ProjectUserData
+  , Contributor'(..)
   )
 
 type OverviewInput
@@ -84,7 +83,7 @@ data OverviewAction
   | Invite Invitation
 
 type Slot id
-  = forall query. H.Slot query ProjectEvent id
+  = forall query. H.Slot query ProjectList.Event id
 
 type Slots
   = ( projectList :: ProjectList.Slot Unit
@@ -102,7 +101,7 @@ component ::
   System m ->
   Capability m ->
   ProjectList.Capability m ->
-  H.Component HH.HTML query OverviewInput ProjectEvent m
+  H.Component HH.HTML query OverviewInput ProjectList.Event m
 component system caps pcaps =
   H.mkComponent
     { initialState
@@ -134,7 +133,13 @@ component system caps pcaps =
           [ P.classes (ClassName <$> [ "col-md-5", "text-muted", "text-center", "mx-auto" ]) ]
           [ HH.text "Your project details" ]
         , HH.div_
-          [ HH.slot _projectList unit (ProjectList.component system pcaps) st.selectedProject (Just <<< ProjectSelected) ]
+          [ HH.slot 
+              _projectList 
+              unit 
+              (ProjectList.component system pcaps) 
+              st.selectedProject 
+              (Just <<< (\(ProjectList.ProjectChange p) -> ProjectSelected p)) 
+          ]
         , HH.div
           [ P.classes (ClassName <$> if isNothing st.selectedProject then [ "collapse" ] else []) ]
           (U.fromMaybe $ projectDetail <$> st.projectDetail)
@@ -160,8 +165,8 @@ component system caps pcaps =
         , HH.div
           [ P.classes (ClassName <$> ["row", "pt-3"]) ]
           ([ colmd2 (Just project.projectName) ] <>
-           depreciationCols detail.depreciation <>
-           [ colmd2 ((\(ProjectUserData' p) -> p.userName) <$> M.lookup project.initiator detail.contributors)
+           depreciationCols project.depFn <>
+           [ colmd2 ((\(Contributor' p) -> p.handle) <$> M.lookup project.initiator detail.contributors)
            , colmd2 (Just $ dateStr (date project.inceptionDate))
            ])
         ]
@@ -187,14 +192,14 @@ component system caps pcaps =
       , colmd2 (Just $ show (unwrap obj.dep) <> " days")
       ]
 
-  contributorCols :: ProjectUserData -> H.ComponentHTML OverviewAction Slots m
-  contributorCols (ProjectUserData' pud) = 
-    let pct = maybe "N/A" (\f -> F.toString (f * F.fromInt 100)) (F.fromNumber (R.toNumber pud.currentPayoutRatio) :: Maybe (F.Fixed F.P10000)) 
+  contributorCols :: Contributor' DateTime -> H.ComponentHTML OverviewAction Slots m
+  contributorCols (Contributor' pud) = 
+    let pct = maybe "N/A" (\f -> F.toString (f * F.fromInt 100)) (F.fromNumber (R.toNumber pud.revShare) :: Maybe (F.Fixed F.P10000)) 
      in HH.div
       [ P.classes (ClassName <$> ["row", "pt-3", "pb-2" ]) ]
-      [ colmd2 (Just pud.userName)
+      [ colmd2 (Just pud.handle)
       , colmd2 (Just $ dateStr (date pud.joinedOn))
-      , colmd2 (Just $ show (unwrap pud.totalContribution))
+      , colmd2 (Just $ show (unwrap pud.timeDevoted))
       , colmd2 (Just $ pct <> "%")
       ]
 
@@ -331,7 +336,7 @@ component system caps pcaps =
 --
 --         </section>
 
-  eval :: OverviewAction -> H.HalogenM OverviewState OverviewAction Slots ProjectEvent m Unit
+  eval :: OverviewAction -> H.HalogenM OverviewState OverviewAction Slots ProjectList.Event m Unit
   eval action = do
     case action of
       Initialize -> do
@@ -343,11 +348,11 @@ component system caps pcaps =
         currentProject <- H.gets (_.selectedProject)
         when (all (\p' -> (unwrap p').projectId /= (unwrap p).projectId) currentProject)
           $ do
-              H.raise (ProjectChange p)
+              H.raise (ProjectList.ProjectChange p)
               H.modify_ (_ { selectedProject = Just p })
               setProjectDetail (unwrap p).projectId
 
-  setProjectDetail :: ProjectId -> H.HalogenM OverviewState OverviewAction Slots ProjectEvent m Unit
+  setProjectDetail :: ProjectId -> H.HalogenM OverviewState OverviewAction Slots ProjectList.Event m Unit
   setProjectDetail pid = do
       detail <- lift $ caps.getProjectDetail pid
       H.modify_ (_ { projectDetail = detail })
@@ -368,13 +373,14 @@ mockCapability =
           , projectName: "Fake Project"
           , inceptionDate: t
           , initiator: uid
+          , depFn: LinearDepreciation { undep: Days 30.0, dep: Days 300.0 }
           }
-        , depreciation: LinearDepreciation { undep: Days 30.0, dep: Days 300.0 }
-        , contributors: M.singleton uid $ ProjectUserData' 
-          { userName: "Joe"
+        , contributors: M.singleton uid $ Contributor' 
+          { userId: uid
+          , handle: "Joe"
           , joinedOn: t
-          , totalContribution: Hours 100.0
-          , currentPayoutRatio: 55 R.% 100
+          , timeDevoted: Hours 100.0
+          , revShare: 55 R.% 100
           }
         }
   }
