@@ -1,22 +1,24 @@
 module Aftok.Api.Project where
 
 import Prelude
-import Control.Monad.Except.Trans (runExceptT)
+import Control.Monad.Except.Trans (ExceptT, runExceptT)
 -- import Control.Monad.Except.Trans (ExceptT, runExceptT, except, withExceptT)
 -- import Control.Monad.Error.Class (throwError)
 -- import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.:))
 -- import Data.Bifunctor (lmap)
 import Data.DateTime (DateTime)
-import Data.DateTime.Instant (toDateTime)
+import Data.DateTime.Instant (Instant, toDateTime)
 import Data.Either (Either(..))
-import Data.Foldable (class Foldable, foldMapDefaultR)
+import Data.Foldable (class Foldable, foldr, foldl, foldMapDefaultR)
+import Data.Functor.Compose (Compose(..))
 import Data.Map as M
-import Data.Newtype (class Newtype)
+import Data.Maybe (Maybe)
+import Data.Newtype (class Newtype, unwrap)
 import Data.Rational (Rational, (%))
 import Data.Time.Duration (Hours(..), Days(..))
 import Data.Traversable (class Traversable, traverse)
--- import Effect (Effect)
+import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class as EC
 import Affjax (get)
@@ -24,12 +26,14 @@ import Affjax.ResponseFormat as RF
 import Aftok.Types
   ( UserId
   , ProjectId
+  , pidStr
   )
 import Aftok.Api.Types
   ( APIError )
 import Aftok.Api.Json 
   ( decompose
   , parseDatedResponse
+  , parseDatedResponseMay
   )
 
 data DepreciationFn
@@ -53,7 +57,7 @@ newtype Project' date
   , projectName :: String
   , inceptionDate :: date
   , initiator :: UserId
-  , depFn :: DepreciationFn
+  , depf :: DepreciationFn
   }
 
 derive instance projectNewtype :: Newtype (Project' a) _
@@ -80,8 +84,8 @@ instance decodeJsonProject :: DecodeJson (Project' String) where
     projectName <- project .: "projectName"
     inceptionDate <- project .: "inceptionDate"
     initiator <- project .: "initiator"
-    depFn <- project .: "depreciationFn"
-    pure $ Project' { projectId, projectName, inceptionDate, initiator, depFn }
+    depf <- project .: "depf"
+    pure $ Project' { projectId, projectName, inceptionDate, initiator, depf }
 
 newtype Contributor' date
   = Contributor'
@@ -91,6 +95,20 @@ newtype Contributor' date
   , timeDevoted :: Hours
   , revShare :: Rational
   }
+
+derive instance contributorNewtype :: Newtype (Contributor' a) _
+
+derive instance contributorFunctor :: Functor Contributor'
+
+instance contributorFoldable :: Foldable Contributor' where
+  foldr f b (Contributor' p) = f (p.joinedOn) b
+  foldl f b (Contributor' p) = f b (p.joinedOn)
+  foldMap = foldMapDefaultR
+
+instance contributorTraversable :: Traversable Contributor' where
+  traverse f (Contributor' p) = 
+    Contributor' <<< (\b -> p { joinedOn = b }) <$> f (p.joinedOn)
+  sequence = traverse identity
 
 instance decodeJsonContributor :: DecodeJson (Contributor' String) where
   decodeJson json = do
@@ -111,12 +129,30 @@ newtype ProjectDetail' date
   , contributors :: M.Map UserId (Contributor' date)
   }
 
+projectDetail :: 
+  forall date. 
+  Project' date -> 
+  M.Map UserId (Contributor' date) -> 
+  ProjectDetail' date
+projectDetail project contributors = 
+  ProjectDetail' { project, contributors }
+
 type ProjectDetail = ProjectDetail' DateTime
 
-type ProjectDetailJson date = 
-  { project :: Project' date
-  , contributors :: Array (Contributor' date)
-  }
+derive instance projectDetailNewtype :: Newtype (ProjectDetail' a) _
+
+derive instance projectDetailFunctor :: Functor ProjectDetail'
+
+instance projectDetailFoldable :: Foldable ProjectDetail' where
+  foldr f b (ProjectDetail' p) = foldr f (foldr f b (p.project)) (Compose p.contributors)
+  foldl f b (ProjectDetail' p) = foldl f (foldl f b (p.project)) (Compose p.contributors)
+  foldMap = foldMapDefaultR
+
+instance projectDetailTraversable :: Traversable ProjectDetail' where
+  traverse f (ProjectDetail' p) = 
+    projectDetail <$> traverse f p.project 
+                  <*> (map unwrap $ traverse f (Compose p.contributors))
+  sequence = traverse identity
 
 instance decodeJsonProjectDetail :: DecodeJson (ProjectDetail' String) where
   decodeJson json = do
@@ -134,14 +170,14 @@ listProjects = do
     <<< map (map toDateTime)
     $ parseDatedResponse response
 
--- getProjectDetail :: ProjectId -> Aff (Maybe ProjectDetail)
--- getProjectDetail pid = do
---   response <- get RF.json ("/api/user/projects/" <> pidStr pid)
---   EC.liftEffect
---    <<< map (\dt -> ProjectDetail' { 
---              project: dt.project, 
---              contributors: M.fromFoldable $ map (\c -> (Tuple c.userId c)) dt.contributors
---            })
---    $ parsed
+getProjectDetail :: ProjectId -> Aff (Either APIError (Maybe ProjectDetail))
+getProjectDetail pid = do
+  response <- get RF.json ("/api/user/projects/" <> pidStr pid <> "/detail")
+  let parsed :: ExceptT APIError Effect (Maybe (ProjectDetail' Instant))
+      parsed = parseDatedResponseMay response
+  EC.liftEffect 
+    <<< runExceptT
+    <<< map (map (map toDateTime))
+    $ parsed
 
 

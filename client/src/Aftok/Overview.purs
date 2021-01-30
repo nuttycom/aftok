@@ -165,7 +165,7 @@ component system caps pcaps =
         , HH.div
           [ P.classes (ClassName <$> ["row", "pt-3"]) ]
           ([ colmd2 (Just project.projectName) ] <>
-           depreciationCols project.depFn <>
+           depreciationCols project.depf <>
            [ colmd2 ((\(Contributor' p) -> p.handle) <$> M.lookup project.initiator detail.contributors)
            , colmd2 (Just $ dateStr (date project.inceptionDate))
            ])
@@ -373,7 +373,7 @@ mockCapability =
           , projectName: "Fake Project"
           , inceptionDate: t
           , initiator: uid
-          , depFn: LinearDepreciation { undep: Days 30.0, dep: Days 300.0 }
+          , depf: LinearDepreciation { undep: Days 30.0, dep: Days 300.0 }
           }
         , contributors: M.singleton uid $ Contributor' 
           { userId: uid
