@@ -12,7 +12,7 @@ import Control.Monad.Trans.Class (lift)
 import Data.List as L
 import Data.DateTime (DateTime, date)
 import Data.Time.Duration (Hours(..), Days(..))
--- import Data.Either (Either(..))
+import Data.Either (Either(..))
 -- import Data.Enum (fromEnum)
 import Data.Fixed as F
 import Data.Foldable (all)
@@ -59,10 +59,12 @@ import Halogen.HTML.Properties as P
 --     )
 import Aftok.ProjectList as ProjectList
 import Aftok.Types (System, ProjectId, UserId(..), dateStr)
+import Aftok.Api.Types (APIError)
 import Aftok.Api.Project 
   (Project, Project'(..), ProjectDetail, ProjectDetail'(..)
   , DepreciationFn(..)
   , Contributor'(..)
+  , getProjectDetail
   )
 
 type OverviewInput
@@ -92,7 +94,7 @@ type Slots
 _projectList = SProxy :: SProxy "projectList"
 
 type Capability (m :: Type -> Type)
-  = { getProjectDetail :: ProjectId -> m (Maybe ProjectDetail)
+  = { getProjectDetail :: ProjectId -> m (Either APIError (Maybe ProjectDetail))
     }
 
 component ::
@@ -355,11 +357,13 @@ component system caps pcaps =
   setProjectDetail :: ProjectId -> H.HalogenM OverviewState OverviewAction Slots ProjectList.Event m Unit
   setProjectDetail pid = do
       detail <- lift $ caps.getProjectDetail pid
-      H.modify_ (_ { projectDetail = detail })
+      case detail of
+         Left err -> lift $ system.error (show err)
+         Right d -> H.modify_ (_ { projectDetail = d })
 
 apiCapability :: Capability Aff
 apiCapability =
-  { getProjectDetail: \_ -> pure Nothing
+  { getProjectDetail: getProjectDetail
   }
 
 mockCapability :: Capability Aff
@@ -367,7 +371,7 @@ mockCapability =
   { getProjectDetail: \pid -> do
       t <- liftEffect nowDateTime      
       uid <- UserId <$> liftEffect genUUID
-      pure <<< Just $ ProjectDetail' 
+      pure <<< Right <<< Just $ ProjectDetail' 
         { project: Project'
           { projectId: pid
           , projectName: "Fake Project"
