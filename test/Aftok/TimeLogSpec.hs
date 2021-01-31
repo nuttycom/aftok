@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wwarn -fno-warn-orphans #-}
 
@@ -8,12 +9,16 @@ module Aftok.TimeLogSpec
   )
 where
 
+import Prelude hiding (head, tail)
 import Aftok.Generators (genUUID)
 import qualified Aftok.Interval as I
 import Aftok.TimeLog
-import Aftok.Types (UserId (..))
-import Control.Lens ((^.))
+import Aftok.Types (UserId (..), DepreciationFunction(..))
+import Control.Lens ((^.), view, to)
 import Data.AffineSpace
+import Data.Maybe (fromJust)
+import Data.List (head, tail)
+import Data.Ratio ((%))
 import qualified Data.List.NonEmpty as L
 import qualified Data.Map.Strict as M
 import Data.Thyme.Time as T
@@ -27,12 +32,12 @@ import Test.QuickCheck
 --   delta     <- arbitrary :: Gen (Positive T.NominalDiffTime)
 --   pure $ I.interval startTime (startTime .+^ getPositive delta)
 
-genIntervals :: Gen (L.NonEmpty I.Interval)
+genIntervals :: Gen (L.NonEmpty (I.Interval T.UTCTime))
 genIntervals =
   let deltas =
         fmap T.fromSeconds
           <$> ((listOf $ choose (0, 72 * 60 * 60)) :: Gen [Int])
-      buildIntervals :: T.UTCTime -> [NominalDiffTime] -> [I.Interval]
+      buildIntervals :: T.UTCTime -> [NominalDiffTime] -> [I.Interval T.UTCTime]
       buildIntervals t (d : s : dx)
         | d > 0 =
           let ival = I.interval t (t .+^ d)
@@ -43,9 +48,9 @@ genIntervals =
         intervals <- suchThat (buildIntervals startTime <$> deltas) (not . null)
         pure $ L.fromList intervals
 
-genWorkIndex :: Gen WorkIndex
+genWorkIndex :: Gen (WorkIndex T.UTCTime)
 genWorkIndex =
-  let recordGen :: Gen (CreditTo, L.NonEmpty I.Interval)
+  let recordGen :: Gen (CreditTo, L.NonEmpty (I.Interval T.UTCTime))
       recordGen = do
         uid <- UserId <$> genUUID
         ivals <- genIntervals
@@ -69,18 +74,24 @@ spec = do
                 [ parseISO8601 "2014-01-01T00:11:59Z",
                   parseISO8601 "2014-01-01T00:18:00Z"
                 ]
-          testIntervals :: [(CreditTo, I.Interval)]
+
+          testIntervals :: [(CreditTo, I.Interval T.UTCTime)]
           testIntervals = do
             user <- testUsers
             (start', end') <- zip starts ends
             pure $ (CreditToUser user, I.interval start' end')
+
           testLogEntries :: [LogEntry]
           testLogEntries = do
             (addr, I.Interval start' end') <- testIntervals
             LogEntry addr <$> [StartWork start', StopWork end'] <*> [Nothing]
+
           expected' = M.fromListWith (<>) $ fmap (second pure) testIntervals
           expected = WorkIndex $ fmap (L.reverse . L.sort) expected'
-      (workIndex testLogEntries) `shouldBe` expected
+
+          actual = view eventTime <$> workIndex id testLogEntries
+      actual `shouldBe` expected
+
     it "recovers a work index from events"
       $ forAll genWorkIndex
       $ \(WorkIndex widx) ->
@@ -98,8 +109,36 @@ spec = do
                 (L.fromList . mergeAdjacent . sortOn I._start . L.toList)
                 widx
             logEntries = M.foldrWithKey acc [] widx
-         in workIndex logEntries
-              `shouldBe` (WorkIndex $ fmap (L.reverse . L.sort) widx')
+            expected = (WorkIndex $ fmap (L.reverse . L.sort) widx')
+            actual = view eventTime <$> workIndex id logEntries
+         in actual `shouldBe` expected
+
+    it "computes correct work shares" $ do
+      [u0, u1, u2] <- fmap CreditToUser . take 3 <$> sample' (UserId <$> genUUID)
+      let initTime = toThyme . fromJust $ parseISO8601 "2014-01-01T00:08:00Z"
+          len = fromInteger @NominalDiffTime 360
+          timestamps = iterate (addUTCTime len) initTime
+          intervals =
+            fmap (uncurry I.Interval . snd)
+            . filter (\i -> fst i `mod` 2 == 0)
+            $ ([(0 :: Int)..] `zip` (timestamps `zip` tail timestamps))
+
+          widx = WorkIndex $ M.fromList
+            [ (u0, L.fromList $ take 10 intervals)
+            , (u1, L.fromList $ take 30 intervals)
+            , (u2, L.fromList $ take 120 intervals)
+            ]
+
+          -- for this test we'll be entirely within undepreciated period
+          depf = toDepF $ LinearDepreciation 180 1800
+          evalTime = I._start . head $ drop 120 intervals
+
+          shares = payouts depf evalTime widx
+      (shares ^. loggedTotal `shouldBe` (fromInteger @NominalDiffTime (360 * 160)))
+      (shares ^. creditToShares . to (fromJust . M.lookup u0) . wsShare) `shouldBe` (10 % 160)
+      (shares ^. creditToShares . to (fromJust . M.lookup u1) . wsShare) `shouldBe` (30 % 160)
+      (shares ^. creditToShares . to (fromJust . M.lookup u2) . wsShare) `shouldBe` (120 % 160)
+
 
 main :: IO ()
 main = hspec spec

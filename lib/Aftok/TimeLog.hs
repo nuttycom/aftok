@@ -1,6 +1,8 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Aftok.TimeLog
   ( module Aftok.TimeLog,
@@ -19,7 +21,7 @@ import Aftok.Types
     _CreditToProject,
     _CreditToUser,
   )
-import Control.Lens ((.~), (^.), makeClassy, makeLenses, makePrisms, view)
+import Control.Lens (Lens', (.~), (^.), makeClassy, makeLenses, makePrisms, view)
 import Data.Aeson as A
 import Data.AffineSpace ((.-.))
 import qualified Data.Foldable as F
@@ -32,6 +34,12 @@ import Prelude hiding (Sum, getSum)
 
 type NDT = C.NominalDiffTime
 
+class HasEventTime a where
+  eventTime :: Lens' a C.UTCTime
+
+instance HasEventTime C.UTCTime where
+  eventTime = id
+
 -- |
 -- - The depreciation function should return a value between 0 and 1;
 -- - this result is multiplied by the length of an interval of work to determine
@@ -39,13 +47,15 @@ type NDT = C.NominalDiffTime
 type DepF = C.UTCTime -> Interval C.UTCTime -> NDT
 
 data LogEvent
-  = StartWork {_eventTime :: !C.UTCTime}
-  | StopWork {_eventTime :: !C.UTCTime}
+  = StartWork {_leEventTime :: !C.UTCTime}
+  | StopWork {_leEventTime :: !C.UTCTime}
   deriving (Show, Eq)
 
 makePrisms ''LogEvent
-
 makeLenses ''LogEvent
+
+instance HasEventTime LogEvent where
+  eventTime = leEventTime
 
 instance Ord LogEvent where
   compare (StartWork t0) (StopWork t1) = if t0 == t1 then GT else compare t0 t1
@@ -78,6 +88,10 @@ instance Ord LogEntry where
   compare a b =
     let ordElems e = (e ^. event, e ^. creditTo)
      in ordElems a `compare` ordElems b
+
+
+instance {-# OVERLAPPABLE #-} HasLogEntry a => HasEventTime a where
+  eventTime = event . leEventTime
 
 newtype EventId = EventId UUID deriving (Show, Eq, Ord)
 
@@ -113,7 +127,8 @@ data WorkShares
 
 makeLenses ''WorkShares
 
-newtype WorkIndex t = WorkIndex (Map CreditTo (NonEmpty (Interval t))) deriving (Show, Eq)
+newtype WorkIndex t = WorkIndex (Map CreditTo (NonEmpty (Interval t)))
+  deriving (Show, Eq, Functor)
 
 makePrisms ''WorkIndex
 
@@ -124,15 +139,15 @@ toDepF (LinearDepreciation undepLength depLength) =
 -- |
 -- - Given a depreciation function, the "current" time, and a foldable functor of log intervals,
 -- - produce the total length and depreciated length of work to be credited to an recipient.
-workCredit :: (Foldable f, HasLogEntry le) => DepF -> C.UTCTime -> f (Interval le) -> (NDT, NDT)
+workCredit :: (Foldable f, HasEventTime le) => DepF -> C.UTCTime -> f (Interval le) -> (NDT, NDT)
 workCredit depf ptime ivals =
-  bimap getSum getSum $ F.foldMap ((Sum . ilen &&& Sum . depf ptime) . fmap (view $ event . eventTime)) ivals
+  bimap getSum getSum $ F.foldMap ((Sum . ilen &&& Sum . depf ptime) . fmap (view eventTime)) ivals
 
 -- |
 -- - Payouts are determined by computing a depreciated duration value for
 -- - each work interval. This function computes the percentage of the total
 -- - work allocated to each unique CreditTo.
-payouts :: forall le. (HasLogEntry le) => DepF -> C.UTCTime -> WorkIndex le -> WorkShares
+payouts :: forall le. (HasEventTime le) => DepF -> C.UTCTime -> WorkIndex le -> WorkShares
 payouts dep ptime (WorkIndex widx) =
   let addIntervalDiff :: (Foldable f) => NDT -> f (Interval le) -> (NDT, WorkShare ())
       addIntervalDiff total ivals =
@@ -174,7 +189,7 @@ appendLogEntry idx logEvent =
         -- if it is possible to extend an interval at the top of the stack
         -- because the end of that interval is the same
         Just (Right ival : xs) ->
-          case extension (view (event . eventTime) <$> ival) logEvent of
+          case extension (view (event . leEventTime) <$> ival) logEvent of
             Just e' -> Left e' : xs
             Nothing -> Left logEvent : Right ival : xs
         -- if the top element of the stack is not an interval

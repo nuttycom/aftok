@@ -65,7 +65,7 @@ import Aftok.TimeLog
     event,
     eventMeta,
     eventName,
-    eventTime,
+    leEventTime,
     nameEvent,
     workIndex,
   )
@@ -170,7 +170,7 @@ createEvent (ProjectId pid) (UserId uid) (LogEntry c e m) = case c of
         creditToName c,
         aid' ^. _AccountId,
         eventName e,
-        fromThyme $ e ^. eventTime,
+        fromThyme $ e ^. leEventTime,
         m
       )
   CreditToProject pid' ->
@@ -186,7 +186,7 @@ createEvent (ProjectId pid) (UserId uid) (LogEntry c e m) = case c of
         creditToName c,
         pid' ^. _ProjectId,
         eventName e,
-        fromThyme $ e ^. eventTime,
+        fromThyme $ e ^. leEventTime,
         m
       )
   CreditToUser uid' ->
@@ -202,7 +202,7 @@ createEvent (ProjectId pid) (UserId uid) (LogEntry c e m) = case c of
         creditToName c,
         uid' ^. _UserId,
         eventName e,
-        fromThyme $ e ^. eventTime,
+        fromThyme $ e ^. leEventTime,
         m
       )
 
@@ -312,7 +312,7 @@ amendEvent pid uid kle amendment = ptransact $ do
                   (work_event_id, amended_at, event_time)
                   VALUES (?, ?, ?) RETURNING id |]
             (kle ^. workId . _EventId, fromThyme $ mt ^. _ModTime, fromThyme t)
-        pure (aid, set (logEntry . event . eventTime) t kle, "amend_event_time")
+        pure (aid, set (logEntry . event . leEventTime) t kle, "amend_event_time")
       (CreditToChange mt c@(CreditToAccount acctId)) -> do
         aid <-
           pinsert
