@@ -116,7 +116,7 @@ projectDetailGetHandler = do
           (user, joinedOn') <-
             fromMaybeT
               (snapError 500 $ "No user record found for logged-in user.")
-              (mapMaybeT snapEval $ findUserProjectDetail uid pid)
+              (mapMaybeT snapEval $ findUserProjectDetail uid' pid)
           pure . Just . (uid',) $
             Contributor
               { _userId = uid',
