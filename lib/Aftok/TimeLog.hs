@@ -17,6 +17,7 @@ import Aftok.Interval
 import Aftok.Types
   ( CreditTo (..),
     DepreciationFunction (..),
+    DepreciationRules(..),
     _CreditToAccount,
     _CreditToProject,
     _CreditToUser,
@@ -135,11 +136,11 @@ makePrisms ''WorkIndex
 --  * date of first revenue (if applicable)
 --  * date on which the depreciated value is being computed
 --  *
-type DepF = Maybe C.UTCTime -> C.UTCTime -> Interval C.UTCTime -> NDT
+type DepF = C.UTCTime -> Interval C.UTCTime -> NDT
 
-toDepF :: DepreciationFunction -> DepF
-toDepF (LinearDepreciation undepLength depLength) =
-  linearDepreciation undepLength depLength
+toDepF :: DepreciationRules -> DepF
+toDepF (DepreciationRules (LinearDepreciation undepLength depLength) firstRevenue)  =
+  linearDepreciation firstRevenue undepLength depLength
 
 daysToNDT :: C.Days -> NDT
 daysToNDT d = C.fromSeconds $ 60 * 60 * 24 * d
@@ -147,13 +148,15 @@ daysToNDT d = C.fromSeconds $ 60 * 60 * 24 * d
 -- |
 -- - A very simple linear function for calculating depreciation.
 linearDepreciation ::
+  -- | The date of first revenue, if applicable
+  Maybe C.UTCTime ->
   -- | The number of initial days during which no depreciation occurs
   C.Days ->
   -- | The number of days over which each logged interval will be depreciated
   C.Days ->
   -- | The resulting configured depreciation function.
   DepF
-linearDepreciation undepDays depDays =
+linearDepreciation firstRevenue undepDays depDays =
   let -- length of a number of days as NominalDiffTime
       undepLength = daysToNDT undepDays
       depLength = daysToNDT depDays
@@ -164,7 +167,7 @@ linearDepreciation undepDays depDays =
         if intervalAge < undepLength
           then 1
           else max 0 (1 - (C.toSeconds (intervalAge ^-^ undepLength) / C.toSeconds depLength))
-   in \firstRevenue payoutDate ival ->
+   in \payoutDate ival ->
         let ivalEnd = case firstRevenue of
               -- if the end of the interval was before first revenue, count it as
               -- having ended at the first revenue date for the purpose of depreciation
@@ -177,7 +180,7 @@ linearDepreciation undepDays depDays =
 -- - produce the total length and depreciated length of work to be credited to an recipient.
 workCredit :: (Foldable f, HasEventTime le) => DepF -> C.UTCTime -> f (Interval le) -> (NDT, NDT)
 workCredit depf payoutDate ivals =
-  let intervalCredit ival = (Sum . ilen &&& Sum . depf Nothing payoutDate) $ fmap (view eventTime) ival
+  let intervalCredit ival = (Sum . ilen &&& Sum . depf payoutDate) $ fmap (view eventTime) ival
    in bimap getSum getSum $ F.foldMap intervalCredit ivals
 
 -- |

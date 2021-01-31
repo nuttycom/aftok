@@ -31,7 +31,7 @@ import Aftok.Project
   ( Invitation (..),
     InvitationCode (..),
     Project (..),
-    depf,
+    depRules,
     inceptionDate,
     initiator,
     projectName,
@@ -45,6 +45,8 @@ import Aftok.Types
     UserName (..),
     _ProjectId,
     _UserId,
+    DepreciationRules(..),
+    depf
   )
 import Control.Lens
 import Data.Aeson (toJSON)
@@ -62,7 +64,11 @@ projectParser =
     <$> field
     <*> utcParser
     <*> idParser UserId
-    <*> (unSerDepFunction <$> fieldWith fromJSONField)
+    <*> (
+      DepreciationRules
+        <$> (unSerDepFunction <$> fieldWith fromJSONField)
+        <*> (fmap C.toThyme <$> field)
+        )
 
 invitationParser :: RowParser Invitation
 invitationParser =
@@ -82,7 +88,7 @@ createProject p =
     ( p ^. projectName,
       p ^. (inceptionDate . to C.fromThyme),
       p ^. (initiator . _UserId),
-      toJSON $ p ^. depf . to SerDepFunction
+      toJSON $ p ^. depRules . depf . to SerDepFunction
     )
 
 listProjects :: DBM [ProjectId]
@@ -94,7 +100,8 @@ findProject (ProjectId pid) =
   headMay
     <$> pquery
       projectParser
-      [sql| SELECT project_name, inception_date, initiator_id, depreciation_fn FROM projects WHERE id = ? |]
+      [sql| SELECT project_name, inception_date, initiator_id, depreciation_fn, first_revenue_date
+            FROM projects WHERE id = ? |]
       (Only pid)
 
 findUserProjects :: UserId -> DBM [(ProjectId, Project)]
@@ -102,7 +109,7 @@ findUserProjects (UserId uid) =
   pquery
     ((,) <$> idParser ProjectId <*> projectParser)
     [sql| SELECT DISTINCT ON (p.inception_date, p.id)
-          p.id, p.project_name, p.inception_date, p.initiator_id, p.depreciation_fn
+          p.id, p.project_name, p.inception_date, p.initiator_id, p.depreciation_fn, p.first_revenue_date
           FROM projects p LEFT OUTER JOIN project_companions pc ON pc.project_id = p.id
           WHERE pc.user_id = ?
           OR p.initiator_id = ?

@@ -85,7 +85,7 @@ projectCreateHandler = do
   requestBody <- readRequestBody 4096
   cp <- either (snapError 400 . show) pure $ A.eitherDecode requestBody
   t <- liftIO C.getCurrentTime
-  snapEval . createProject $ Project (cpn cp) t uid (cpdepf cp)
+  snapEval . createProject $ Project (cpn cp) t uid (DepreciationRules (cpdepf cp) Nothing)
 
 projectListHandler :: S.Handler App App [(ProjectId, Project)]
 projectListHandler = do
@@ -110,7 +110,7 @@ projectDetailGetHandler = do
       (mapMaybeT snapEval $ findUserProject uid pid)
   widx <- snapEval $ readWorkIndex pid uid
   ptime <- liftIO $ C.getCurrentTime
-  let p = payouts (toDepF $ project ^. depf) ptime widx
+  let p = payouts (toDepF $ project ^. depRules) ptime widx
       toContributorRecord = \case
         (CreditToUser uid', ws) -> do
           (user, joinedOn') <-
@@ -146,7 +146,7 @@ payoutsHandler = do
       (mapMaybeT snapEval $ findUserProject uid pid)
   widx <- snapEval $ readWorkIndex pid uid
   ptime <- liftIO $ C.getCurrentTime
-  pure $ payouts (toDepF $ project ^. depf) ptime widx
+  pure $ payouts (toDepF $ project ^. depRules) ptime widx
 
 projectInviteHandler :: QConfig -> S.Handler App App ()
 projectInviteHandler cfg = do
@@ -221,7 +221,7 @@ projectJSON p =
     [ "projectName" .= (p ^. projectName),
       "inceptionDate" .= (p ^. inceptionDate),
       "initiator" .= (p ^. initiator . _UserId),
-      "depf" .= depfToJSON (p ^. depf)
+      "depf" .= depfToJSON (p ^. depRules . depf)
     ]
 
 qdbProjectJSON :: (ProjectId, Project) -> Value

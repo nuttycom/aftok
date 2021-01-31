@@ -22,7 +22,7 @@ data Project
       { _projectName :: ProjectName,
         _inceptionDate :: C.UTCTime,
         _initiator :: UserId,
-        _depf :: DepreciationFunction
+        _depRules :: DepreciationRules
       }
 
 makeLenses ''Project

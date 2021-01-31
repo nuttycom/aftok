@@ -1,0 +1,5 @@
+Description: (Describe migration here.)
+Created: 2021-01-31 23:40:52.022174268 UTC
+Depends: 2016-10-13_05-36-55_user-event-log
+Apply: |
+  alter table projects add column first_revenue_date timestamp with time zone; 

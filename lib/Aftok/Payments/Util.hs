@@ -15,7 +15,7 @@ import Aftok.Database
     raiseSubjectNotFound,
   )
 import Aftok.Payments.Types (PaymentRequestError (..))
-import Aftok.Project (depf)
+import Aftok.Project (depRules)
 import qualified Aftok.TimeLog as TL
 import Aftok.Types (ProjectId)
 import Control.Error.Util (note)
@@ -34,7 +34,7 @@ getProjectPayoutFractions ptime pid = do
     let projectOp = FindProject pid
      in maybe (raiseSubjectNotFound projectOp) pure =<< liftdb projectOp
   widx <- liftdb $ ReadWorkIndex pid
-  pure $ TL.payouts (TL.toDepF $ project' ^. depf) ptime widx
+  pure $ TL.payouts (TL.toDepF $ project' ^. depRules) ptime widx
 
 newtype MinPayout c = MinPayout c
 
