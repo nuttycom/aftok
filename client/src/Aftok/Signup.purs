@@ -6,6 +6,8 @@ import Data.Foldable (any)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Either (Either(..), note)
 import Data.Validation.Semigroup (V(..), toEither, andThen, invalid)
+import Data.Map as M
+import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 -- import Affjax (post, get, printError)
@@ -17,7 +19,6 @@ import Halogen.HTML.Core (AttrName(..), ClassName(..))
 import Halogen.HTML as HH
 import Halogen.HTML.CSS as CSS
 import Halogen.HTML.Events as E
-import Web.UIEvent.MouseEvent as ME
 import Web.Event.Event as WE
 import Halogen.HTML.Properties as P
 -- import CSS (backgroundImage, url)
@@ -40,6 +41,19 @@ data SignupError
   | CaptchaError
   | APIError { status :: Maybe StatusCode, message :: String }
 
+data SignupField
+  = UsernameField
+  | PasswordField
+  | ConfirmField
+  | EmailField
+  | ZAddrField
+  | CaptchaField
+  | ErrField
+
+derive instance signupFieldEq :: Eq SignupField
+
+derive instance signupFieldOrd :: Ord SignupField
+
 data RecoveryType
   = RecoveryEmail
   | RecoveryZAddr
@@ -53,7 +67,7 @@ type SignupState
     , recoveryType :: RecoveryType
     , recoveryEmail :: Maybe String
     , recoveryZAddr :: Maybe String
-    , signupErrors :: Array SignupError
+    , signupErrors :: M.Map SignupField SignupError
     }
 
 data SignupAction
@@ -63,7 +77,6 @@ data SignupAction
   | SetRecoveryType RecoveryType
   | SetRecoveryEmail String
   | SetRecoveryZAddr String
-  | Signin ME.MouseEvent
   | Signup WE.Event
 
 data SignupResult
@@ -106,7 +119,7 @@ component system caps conf =
     , recoveryType: RecoveryEmail
     , recoveryEmail: Nothing
     , recoveryZAddr: Nothing
-    , signupErrors: []
+    , signupErrors: M.empty
     }
 
   render :: forall slots. SignupState -> H.ComponentHTML SignupAction slots m
@@ -122,7 +135,7 @@ component system caps conf =
                   [ HH.text "Sign up" ]
               , HH.p
                   [ P.classes (ClassName <$> [ "text-center", "text-muted", "col-md-5", "mx-auto" ]) ]
-                  [ HH.text "You can use either an email address or zcash payment address for account recovery." ]
+                  [ HH.text "You can use either an email address or shielded zcash address for account recovery." ]
               ]
           , HH.div
               [ P.classes (ClassName <$> [ "row", "align-items-center", "justify-content-center", "no-gutters" ]) ]
@@ -134,40 +147,44 @@ component system caps conf =
                       ]
                       [ HH.div
                           [ P.classes (ClassName <$> [ "form-group" ]) ]
-                          [ HH.label [ P.for "username" ] [ HH.text "Username" ]
-                          , HH.input
-                              [ P.type_ P.InputText
-                              , P.classes (ClassName <$> [ "form-control" ])
-                              , P.id_ "username"
-                              , P.placeholder "Choose a handle (username)"
-                              , P.required true
-                              , P.autofocus true
-                              , P.value (fromMaybe "" st.username)
-                              , E.onValueInput (Just <<< SetUsername)
-                              ]
-                          ]
+                          $ [ HH.label [ P.for "username" ] [ HH.text "Username" ]
+                            , HH.input
+                                [ P.type_ P.InputText
+                                , P.classes (ClassName <$> [ "form-control" ])
+                                , P.id_ "username"
+                                , P.placeholder "Choose a handle (username)"
+                                , P.required true
+                                , P.autofocus true
+                                , P.value (fromMaybe "" st.username)
+                                , E.onValueInput (Just <<< SetUsername)
+                                ]
+                            ]
+                          <> signupErrors UsernameField st
                       , HH.div
                           [ P.classes (ClassName <$> [ "form-group" ]) ]
-                          [ HH.label [ P.for "password" ] [ HH.text "Password" ]
-                          , HH.input
-                              [ P.type_ P.InputPassword
-                              , P.classes (ClassName <$> [ "form-control" ])
-                              , P.id_ "password"
-                              , P.placeholder "Enter a unique password"
-                              , P.required true
-                              , P.value (fromMaybe "" st.password)
-                              , E.onValueInput (Just <<< SetPassword)
-                              ]
-                          , HH.input
-                              [ P.type_ P.InputPassword
-                              , P.classes (ClassName <$> [ "form-control" ])
-                              , P.id_ "passwordConfirm"
-                              , P.placeholder "Enter a unique password"
-                              , P.required true
-                              , P.value (fromMaybe "" st.passwordConfirm)
-                              , E.onValueInput (Just <<< ConfirmPassword)
-                              ]
-                          ]
+                          $ [ HH.label [ P.for "password" ] [ HH.text "Password" ]
+                            , HH.input
+                                [ P.type_ P.InputPassword
+                                , P.classes (ClassName <$> [ "form-control" ])
+                                , P.id_ "password"
+                                , P.placeholder "Enter a unique password"
+                                , P.required true
+                                , P.value (fromMaybe "" st.password)
+                                , E.onValueInput (Just <<< SetPassword)
+                                ]
+                            ]
+                          <> signupErrors PasswordField st
+                          <> [ HH.input
+                                [ P.type_ P.InputPassword
+                                , P.classes (ClassName <$> [ "form-control" ])
+                                , P.id_ "passwordConfirm"
+                                , P.placeholder "Enter a unique password"
+                                , P.required true
+                                , P.value (fromMaybe "" st.passwordConfirm)
+                                , E.onValueInput (Just <<< ConfirmPassword)
+                                ]
+                            ]
+                          <> signupErrors ConfirmField st
                       , recoverySwitch st.recoveryType
                       , recoveryField st
                       , HH.div
@@ -200,29 +217,33 @@ component system caps conf =
       ures <- lift $ caps.checkUsername user
       H.modify_ (_ { username = Just user })
       case ures of
-        Acc.UsernameCheckOK -> pure unit
-        Acc.UsernameCheckTaken -> H.modify_ (_ { signupErrors = [ UsernameTaken ] })
+        Acc.UsernameCheckOK -> H.modify_ (\st -> st { signupErrors = M.delete UsernameField st.signupErrors })
+        Acc.UsernameCheckTaken -> H.modify_ (\st -> st { signupErrors = M.insert UsernameField UsernameTaken st.signupErrors })
     SetPassword pass -> do
       H.modify_ (_ { password = Just pass })
       confirm <- H.gets (_.passwordConfirm)
-      when (any (notEq pass) confirm) (H.modify_ (_ { signupErrors = [ PasswordMismatch ] }))
+      if (any (notEq pass) confirm) then
+        (H.modify_ (\st -> st { signupErrors = M.insert ConfirmField PasswordMismatch st.signupErrors }))
+      else
+        (H.modify_ (\st -> st { signupErrors = M.delete ConfirmField st.signupErrors }))
     ConfirmPassword confirm -> do
       H.modify_ (_ { passwordConfirm = Just confirm })
-      password <- H.gets (_.password)
-      when (any (notEq confirm) password) (H.modify_ (_ { signupErrors = [ PasswordMismatch ] }))
+      pass <- H.gets (_.password)
+      if (any (notEq confirm) pass) then
+        (H.modify_ (\st -> st { signupErrors = M.insert ConfirmField PasswordMismatch st.signupErrors }))
+      else
+        (H.modify_ (\st -> st { signupErrors = M.delete ConfirmField st.signupErrors }))
     SetRecoveryType t -> H.modify_ (_ { recoveryType = t })
     SetRecoveryEmail email -> H.modify_ (_ { recoveryEmail = Just email })
-    SetRecoveryZAddr addr -> do
-      lift $ system.log "Switching to signin..."
-      zres <- lift $ caps.checkZAddr addr
-      H.modify_ (_ { recoveryZAddr = Just addr })
-      case zres of
-        Acc.ZAddrCheckValid -> pure unit
-        Acc.ZAddrCheckInvalid -> H.modify_ (_ { signupErrors = [ ZAddrInvalid ] })
-    Signin ev -> do
-      lift $ system.log "Switching to signin..."
-      lift $ system.preventDefault (ME.toEvent ev)
-      H.raise SigninNav
+    SetRecoveryZAddr addr ->
+      --lift $ system.log "Switching to signin..."
+      when (addr /= "")
+        $ do
+            zres <- lift $ caps.checkZAddr addr
+            H.modify_ (_ { recoveryZAddr = Just addr })
+            case zres of
+              Acc.ZAddrCheckValid -> H.modify_ (\st -> st { signupErrors = M.delete ZAddrField st.signupErrors })
+              Acc.ZAddrCheckInvalid -> H.modify_ (\st -> st { signupErrors = M.insert ZAddrField ZAddrInvalid st.signupErrors })
     Signup ev -> do
       lift $ system.preventDefault ev
       recType <- H.gets (_.recoveryType)
@@ -234,7 +255,7 @@ component system caps conf =
         RecoveryEmail -> V <<< note [ EmailRequired ] <<< map Acc.RecoverByEmail <$> H.gets (_.recoveryEmail)
         RecoveryZAddr -> V <<< note [ ZAddrRequired ] <<< map Acc.RecoverByZAddr <$> H.gets (_.recoveryZAddr)
       recapV <- lift $ V <<< note [ CaptchaError ] <$> caps.getRecaptchaResponse Nothing
-      lift $ system.log "Sending signup request..."
+      --lift $ system.log "Sending signup request..."
       let
         reqV :: V (Array SignupError) Acc.SignupRequest
         reqV =
@@ -247,17 +268,47 @@ component system caps conf =
             <*> recapV
       case toEither reqV of
         Left errors -> do
-          lift $ system.log "Got signup HTTP error."
-          H.modify_ (_ { signupErrors = errors })
+          let
+            errMap = M.fromFoldable $ map (\e -> Tuple (errField e) e) errors
+          --lift $ system.log "Got signup HTTP error."
+          H.modify_ (_ { signupErrors = errMap })
         Right req -> do
           response <- lift (caps.signup req)
-          lift <<< system.log $ "Got signup response " <> show response
+          --lift <<< system.log $ "Got signup response " <> show response
           case response of
             Acc.SignupOK -> H.raise (SignupComplete $ req.username)
-            Acc.CaptchaInvalid -> H.modify_ (_ { signupErrors = [ CaptchaError ] })
-            Acc.ZAddrInvalid -> H.modify_ (_ { signupErrors = [ ZAddrInvalid ] })
-            Acc.UsernameTaken -> H.modify_ (_ { signupErrors = [ UsernameTaken ] })
-            Acc.ServiceError c m -> H.modify_ (_ { signupErrors = [ APIError { status: c, message: m } ] })
+            Acc.CaptchaInvalid -> H.modify_ (_ { signupErrors = M.singleton CaptchaField CaptchaError })
+            Acc.ZAddrInvalid -> H.modify_ (_ { signupErrors = M.singleton ZAddrField ZAddrInvalid })
+            Acc.UsernameTaken -> H.modify_ (_ { signupErrors = M.singleton UsernameField UsernameTaken })
+            Acc.ServiceError c m -> H.modify_ (_ { signupErrors = M.singleton ErrField (APIError { status: c, message: m }) })
+
+errField :: SignupError -> SignupField
+errField = case _ of
+  UsernameRequired -> UsernameField
+  UsernameTaken -> UsernameField
+  PasswordRequired -> PasswordField
+  ConfirmRequired -> ConfirmField
+  PasswordMismatch -> ConfirmField
+  EmailRequired -> EmailField
+  ZAddrRequired -> ZAddrField
+  ZAddrInvalid -> ZAddrField
+  CaptchaError -> CaptchaField
+  APIError _ -> ErrField
+
+signupErrors :: forall i a. SignupField -> SignupState -> Array (HH.HTML i a)
+signupErrors field st = case M.lookup field st.signupErrors of
+  (Just UsernameRequired) -> err "Username is required"
+  (Just UsernameTaken) -> err "Username is already taken"
+  (Just PasswordRequired) -> err "Password is required"
+  (Just ConfirmRequired) -> err "Confirm your password"
+  (Just PasswordMismatch) -> err "Passwords do not match"
+  (Just EmailRequired) -> err "Email address is required"
+  (Just ZAddrRequired) -> err "Zcash address is required"
+  (Just ZAddrInvalid) -> err "Not a valid Zcash address"
+  (Just CaptchaError) -> err "Captcha failed; please try again"
+  _ -> []
+  where
+  err str = [ HH.div_ [ HH.span [ P.classes (ClassName <$> [ "badge", "badge-danger-soft" ]) ] [ HH.text str ] ] ]
 
 recoverySwitch :: forall i. RecoveryType -> HH.HTML i SignupAction
 recoverySwitch rt =
@@ -274,7 +325,7 @@ recoverySwitch rt =
         ]
         [ HH.span
             [ P.classes (ClassName <$> [ if rt == RecoveryEmail then "text-success" else "text-muted" ]) ]
-            [ HH.text "Email" ]
+            $ [ HH.text "Email" ]
         , HH.div
             [ P.classes (ClassName <$> [ "custom-control", "custom-switch", "custom-switch-light", "mx-3" ]) ]
             [ HH.input
@@ -296,42 +347,44 @@ recoveryField st = case st.recoveryType of
   RecoveryEmail ->
     HH.div
       [ P.id_ "recoveryEmail" ]
-      [ HH.label [ P.for "email" ] [ HH.text "Email Address" ]
-      , HH.input
-          [ P.type_ P.InputEmail
-          , P.classes (ClassName <$> [ "form-control" ])
-          , P.id_ "email"
-          , P.placeholder "name@address.com"
-          , P.value (fromMaybe "" st.recoveryEmail)
-          , E.onValueInput (Just <<< SetRecoveryEmail)
-          ]
-      ]
+      $ [ HH.label [ P.for "email" ] [ HH.text "Email Address" ]
+        , HH.input
+            [ P.type_ P.InputEmail
+            , P.classes (ClassName <$> [ "form-control" ])
+            , P.id_ "email"
+            , P.placeholder "name@address.com"
+            , P.value (fromMaybe "" st.recoveryEmail)
+            , E.onValueInput (Just <<< SetRecoveryEmail)
+            ]
+        ]
+      <> signupErrors EmailField st
   RecoveryZAddr ->
     HH.div
       [ P.id_ "recoveryZAddr" ]
-      [ HH.label
-          [ P.for "zaddr" ]
-          [ HH.text "Zcash Shielded Address"
-          , HH.a
-              [ P.attr (AttrName "data-toggle") "modal"
-              , P.href "#modalAboutZAddr"
-              ]
-              [ HH.img [ P.src "/assets/img/icons/duotone-icons/Code/Info-circle.svg" ]
-              ]
-          ]
-      , HH.input
-          [ P.type_ P.InputText
-          , P.classes (ClassName <$> [ "form-control" ])
-          , P.id_ "email"
-          , P.placeholder "Enter a Zcash shielded address"
-          , P.value (fromMaybe "" st.recoveryZAddr)
-          , E.onValueInput (Just <<< SetRecoveryZAddr)
-          ]
-      ]
+      $ [ HH.label
+            [ P.for "zaddr" ]
+            [ HH.text "Zcash Shielded Address"
+            , HH.a
+                [ P.attr (AttrName "data-toggle") "modal"
+                , P.href "#modalAboutZAddr"
+                ]
+                [ HH.img [ P.src "/assets/img/icons/duotone-icons/Code/Info-circle.svg" ]
+                ]
+            ]
+        , HH.input
+            [ P.type_ P.InputText
+            , P.classes (ClassName <$> [ "form-control" ])
+            , P.id_ "email"
+            , P.placeholder "Enter a Zcash shielded address"
+            , P.value (fromMaybe "" st.recoveryZAddr)
+            , E.onValueInput (Just <<< SetRecoveryZAddr)
+            ]
+        ]
+      <> signupErrors ZAddrField st
 
 apiCapability :: Capability Aff
 apiCapability =
-  { checkUsername: \_ -> pure Acc.UsernameCheckOK
+  { checkUsername: Acc.checkUsername
   , checkZAddr: Acc.checkZAddr
   , signup: Acc.signup
   , getRecaptchaResponse: liftEffect <<< getRecaptchaResponse

@@ -21,4 +21,4 @@ fi
 curl --verbose \
   ${ALLOW_INSECURE} \
   --user $USER \
-  "https://$AFTOK_HOST/api/projects/$PID/contributors"
+  "https://$AFTOK_HOST/api/projects/$PID/detail"

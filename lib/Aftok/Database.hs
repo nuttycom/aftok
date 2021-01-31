@@ -27,9 +27,9 @@ import Aftok.TimeLog
   ( AmendmentId,
     EventAmendment,
     EventId,
+    HasLogEntry,
     LogEntry,
     WorkIndex,
-    HasLogEntry,
   )
 import Aftok.Types
   ( AccountId,
@@ -54,10 +54,11 @@ import Data.Thyme.Time as T
   )
 import Safe (headMay)
 
-data KeyedLogEntry = KeyedLogEntry {
-    _workId :: !EventId,
-    _logEntry :: !LogEntry
-  }
+data KeyedLogEntry
+  = KeyedLogEntry
+      { _workId :: !EventId,
+        _logEntry :: !LogEntry
+      }
 
 makeClassy ''KeyedLogEntry
 
@@ -73,6 +74,7 @@ data Limit = Limit Word32
 data DBOp a where
   CreateUser :: User -> DBOp UserId
   FindUser :: UserId -> DBOp (Maybe User)
+  FindUserProjectDetail :: UserId -> ProjectId -> DBOp (Maybe (User, C.UTCTime))
   FindUserByName :: UserName -> DBOp (Maybe (UserId, User))
   FindUserPaymentAddress :: UserId -> Currency a c -> DBOp (Maybe a)
   FindAccountPaymentAddress :: AccountId -> Currency a c -> DBOp (Maybe a)
@@ -158,6 +160,9 @@ createUser = liftdb . CreateUser
 
 findUser :: (MonadDB m) => UserId -> MaybeT m User
 findUser = MaybeT . liftdb . FindUser
+
+findUserProjectDetail :: (MonadDB m) => UserId -> ProjectId -> MaybeT m (User, C.UTCTime)
+findUserProjectDetail uid pid = MaybeT . liftdb $ FindUserProjectDetail uid pid
 
 findUserByName :: (MonadDB m) => UserName -> MaybeT m (UserId, User)
 findUserByName = MaybeT . liftdb . FindUserByName
@@ -265,9 +270,9 @@ amendEvent uid eid a = do
     missing = raiseSubjectNotFound (FindEvent eid)
     saveAmendment (pid, uid', le) =
       let act = AmendEvent pid uid le a
-      in if uid' == uid
-        then liftdb act
-        else raiseOpForbidden uid UserNotEventLogger act
+       in if uid' == uid
+            then liftdb act
+            else raiseOpForbidden uid UserNotEventLogger act
 
 findEvent :: (MonadDB m) => EventId -> m (Maybe (ProjectId, UserId, KeyedLogEntry))
 findEvent = liftdb . FindEvent

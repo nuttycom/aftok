@@ -23,7 +23,7 @@ import Aftok.Database
         CreateSubscription,
         StorePaymentRequest
       ),
-    KeyedLogEntry(KeyedLogEntry),
+    KeyedLogEntry (KeyedLogEntry),
     Limit (..),
     logEntry,
     workId,
@@ -51,23 +51,23 @@ import Aftok.Json
     v1,
   )
 import Aftok.Payments.Types
-import Aftok.TimeLog (
-  WorkIndex,
-  LogEntry(LogEntry),
-  LogEvent(..),
-  EventId(..),
-  EventAmendment(..),
-  AmendmentId(..),
-  eventMeta,
-  _ModTime,
-  _EventId,
-  _AmendmentId,
-  creditTo,
-  eventTime,
-  event,
-  workIndex,
-  eventName,
-  nameEvent,
+import Aftok.TimeLog
+  ( AmendmentId (..),
+    EventAmendment (..),
+    EventId (..),
+    LogEntry (LogEntry),
+    LogEvent (..),
+    WorkIndex,
+    _AmendmentId,
+    _EventId,
+    _ModTime,
+    creditTo,
+    event,
+    eventMeta,
+    eventName,
+    eventTime,
+    nameEvent,
+    workIndex,
   )
 import Aftok.Types
 import Control.Lens ((^.), _Just, preview, set, view)

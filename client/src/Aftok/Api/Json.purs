@@ -56,34 +56,41 @@ parseDate str = do
     $ note ("Unable to convert date " <> show jsDate <> " to a valid DateTime value.")
         (JD.toDateTime jsDate)
 
-decodeDatedJson :: forall t. Traversable t => DecodeJson (t String) => Json -> ExceptT String Effect (t DateTime)
-decodeDatedJson json = do
-  decoded <- except $ decodeJson json
+type Decode a
+  = Json -> Either String a
+
+decodeDatedJson :: forall t. Traversable t => Decode (t String) -> Json -> ExceptT String Effect (t DateTime)
+decodeDatedJson decode json = do
+  decoded <- except $ decode json
   traverse parseDate decoded
 
 parseDatedResponse ::
   forall t.
   Traversable t =>
-  DecodeJson (t String) =>
+  Decode (t String) ->
   Either AJAX.Error (Response Json) ->
   ExceptT APIError Effect (t Instant)
-parseDatedResponse = case _ of
+parseDatedResponse decode = case _ of
   Left err -> throwError $ Error { status: Nothing, message: printError err }
   Right r -> case r.status of
     StatusCode 403 -> throwError $ Forbidden
-    StatusCode 200 -> withExceptT (ParseFailure r.body) $ map fromDateTime <$> decodeDatedJson r.body
+    StatusCode 200 -> withExceptT (ParseFailure r.body) $ map fromDateTime <$> decodeDatedJson decode r.body
     other -> throwError $ Error { status: Just other, message: r.statusText }
 
 parseDatedResponseMay ::
   forall t.
   Traversable t =>
-  DecodeJson (t String) =>
+  Decode (t String) ->
   Either AJAX.Error (Response Json) ->
   ExceptT APIError Effect (Maybe (t Instant))
-parseDatedResponseMay = case _ of
+parseDatedResponseMay decode = case _ of
   Left err -> throwError $ Error { status: Nothing, message: printError err }
   Right r -> case r.status of
     StatusCode 403 -> throwError $ Forbidden
     StatusCode 404 -> pure Nothing
-    StatusCode 200 -> withExceptT (ParseFailure r.body) $ Just <<< map fromDateTime <$> decodeDatedJson r.body
+    StatusCode 200 ->
+      withExceptT (ParseFailure r.body)
+        $ Just
+        <<< map fromDateTime
+        <$> decodeDatedJson decode r.body
     other -> throwError $ Error { status: Just other, message: r.statusText }

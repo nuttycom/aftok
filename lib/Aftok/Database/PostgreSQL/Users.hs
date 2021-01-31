@@ -8,6 +8,7 @@ module Aftok.Database.PostgreSQL.Users
     findUser,
     findUserByName,
     findUserPaymentAddress,
+    findUserProjectDetail,
     findAccountPaymentAddress,
     findAccountZcashIVK,
   )
@@ -23,11 +24,13 @@ import Aftok.Database.PostgreSQL.Types
     idParser,
     pinsert,
     pquery,
+    utcParser,
     zcashAddressParser,
     zcashIvkParser,
   )
 import Aftok.Types
 import Control.Lens
+import qualified Data.Thyme.Clock as C
 import Database.PostgreSQL.Simple
 import Database.PostgreSQL.Simple.FromRow
 import Database.PostgreSQL.Simple.SqlQQ
@@ -61,6 +64,17 @@ findUser (UserId uid) = do
       userParser
       [sql| SELECT handle, recovery_email, recovery_zaddr FROM users WHERE id = ? |]
       (Only uid)
+
+findUserProjectDetail :: UserId -> ProjectId -> DBM (Maybe (User, C.UTCTime))
+findUserProjectDetail (UserId uid) (ProjectId pid) = do
+  headMay
+    <$> pquery
+      ((,) <$> userParser <*> utcParser)
+      [sql| SELECT u.handle, u.recovery_email, u.recovery_zaddr, p.joined_at
+            FROM users u
+            JOIN project_companions p on p.user_id = u.id
+            WHERE u.id = ? AND p.project_id = ? |]
+      (uid, pid)
 
 findUserByName :: UserName -> DBM (Maybe (UserId, User))
 findUserByName (UserName h) = do

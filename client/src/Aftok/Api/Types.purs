@@ -15,4 +15,3 @@ instance showAPIError :: Show APIError where
     Forbidden -> "Forbidden"
     ParseFailure js e -> "ParseFailure (" <> show (stringify js) <> ") " <> show e
     Error r -> "Error { status: " <> show r.status <> ", message: " <> r.message <> "}"
-

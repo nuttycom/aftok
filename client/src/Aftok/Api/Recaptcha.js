@@ -7,3 +7,10 @@ exports.getRecaptchaResponseInternal = useElemId => elemId => () => {
     return grecaptcha.getResponse();
   }
 }
+
+exports.recaptchaRenderInternal = siteKey => elemId => () => {
+  grecaptcha.render(
+    document.getElementById(elemId), 
+    { 'sitekey': siteKey }
+  );
+}

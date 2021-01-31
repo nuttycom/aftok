@@ -11,7 +11,6 @@ import Aftok.Interval
     intervalJSON,
   )
 import Aftok.Json
-import Aftok.Project
 import Aftok.Snaplet
 import Aftok.Snaplet.Auth
 import Aftok.Snaplet.Util
@@ -19,30 +18,24 @@ import Aftok.TimeLog
   ( AmendmentId,
     EventAmendment (..),
     EventId (..),
-    FractionalPayouts,
     LogEntry (LogEntry),
     LogEvent,
     ModTime (..),
-    Payouts (..),
     WorkIndex (..),
     _AmendmentId,
     _EventId,
     eventName,
     eventTime,
-    payouts,
-    toDepF,
     workIndex,
   )
 import Aftok.Types
   ( CreditTo (..),
-    UserId,
     ProjectId,
+    UserId,
     _ProjectId,
     _UserId,
   )
-import Aftok.Util (fromMaybeT)
 import Control.Lens ((^.), view)
-import Control.Monad.Trans.Maybe (mapMaybeT)
 import Data.Aeson ((.:), (.=), Value (Object), eitherDecode, object)
 import Data.Aeson.Types (Pair, Parser, parseEither)
 import qualified Data.List.NonEmpty as L
@@ -115,18 +108,6 @@ userEvents = do
 userWorkIndex :: S.Handler App App (WorkIndex KeyedLogEntry)
 userWorkIndex = workIndex (view logEntry) <$> userEvents
 
-payoutsHandler :: S.Handler App App FractionalPayouts
-payoutsHandler = do
-  uid <- requireUserId
-  pid <- requireProjectId
-  project <-
-    fromMaybeT
-      (snapError 400 $ "Project not found for id " <> show pid)
-      (mapMaybeT snapEval $ findUserProject uid pid)
-  widx <- snapEval $ readWorkIndex pid uid
-  ptime <- liftIO $ C.getCurrentTime
-  pure $ payouts (toDepF $ project ^. depf) ptime widx
-
 ----------------------
 -- Parsing
 ----------------------
@@ -179,16 +160,6 @@ extendedLogEntryJSON (pid, uid, le) =
       ]
       <> keyedLogEntryFields le
 
-payoutsJSON :: FractionalPayouts -> Value
-payoutsJSON (Payouts m) =
-  v1 $
-    let payoutsRec :: (CreditTo, Rational) -> Value
-        payoutsRec (c, r) =
-          object ["creditTo" .= creditToJSON c,
-          "payoutRatio" .= r,
-          "payoutPercentage" .= (fromRational @Double r * 100)]
-     in obj $ ["payouts" .= fmap payoutsRec (MS.assocs m)]
-
 workIndexJSON :: forall t. (t -> Value) -> WorkIndex t -> Value
 workIndexJSON leJSON (WorkIndex widx) =
   v1 $
@@ -207,4 +178,3 @@ amendEventResultJSON (eid, aid) =
     [ "replacement_event" .= idValue _EventId eid,
       "amendment_id" .= idValue _AmendmentId aid
     ]
-

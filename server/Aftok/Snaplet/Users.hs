@@ -5,6 +5,7 @@
 module Aftok.Snaplet.Users
   ( acceptInvitationHandler,
     checkZAddrHandler,
+    checkUsernameHandler,
     registerHandler,
     CaptchaConfig (..),
     CaptchaError (..),
@@ -15,7 +16,12 @@ where
 
 import qualified Aftok.Currency.Zcash as Zcash
 import Aftok.Currency.Zcash (RPCError, ZValidateAddressErr)
-import Aftok.Database (acceptInvitation, createUser, findCurrentInvitation)
+import Aftok.Database
+  ( acceptInvitation,
+    createUser,
+    findCurrentInvitation,
+    findUserByName,
+  )
 import Aftok.Project (InvitationCode, parseInvCode)
 import Aftok.Snaplet
 import Aftok.Snaplet.Auth
@@ -118,6 +124,19 @@ instance A.ToJSON RegisterError where
     RegZAddrError zerr ->
       A.object
         ["zaddrError" .= (show zerr :: Text)]
+
+checkUsernameHandler :: S.Handler App App ()
+checkUsernameHandler = do
+  params <- S.getParams
+  uname <-
+    maybe
+      (snapError 400 "username parameter is required")
+      (either (const $ snapError 400 "username must be valid UTF-8") (pure . UserName) . decodeUtf8')
+      (listToMaybe =<< M.lookup "username" params)
+  found <- snapEval (runMaybeT $ findUserByName uname)
+  case found of
+    Nothing -> pure ()
+    Just _ -> snapError 400 "username is already taken"
 
 checkZAddrHandler :: RegisterOps IO -> S.Handler App App Zcash.Address
 checkZAddrHandler ops = do

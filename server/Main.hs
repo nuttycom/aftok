@@ -77,12 +77,13 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
       xhrLoginRoute = void $ method POST requireLoginXHR
       checkLoginRoute = void $ method GET requireUser
       logoutRoute = method GET (with auth AU.logout)
+      checkUsernameRoute = void $ method GET checkUsernameHandler
       checkZAddrRoute = void $ method GET (checkZAddrHandler rops)
       registerRoute = void $ method POST (registerHandler rops (cfg ^. recaptchaSecret))
       inviteRoute = void $ method POST (projectInviteHandler cfg)
       acceptInviteRoute = void $ method POST acceptInvitationHandler
-      listContributorsRoute =
-        serveJSON (fmap contributorJSON) $ method GET listContributorsHandler
+      projectDetailRoute =
+        serveJSON (v1 . projectDetailJSON) $ method GET projectDetailGetHandler
       projectCreateRoute =
         serveJSON (idJSON "projectId" _ProjectId) $ method POST projectCreateHandler
       projectListRoute =
@@ -130,6 +131,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
       ("logout", logoutRoute), -- logout.sh
       ("login/check", checkLoginRoute), -- login.sh
       ("register", registerRoute), -- create_user.sh
+      ("validate_username", checkUsernameRoute), -- check_username.sh
       ("validate_zaddr", checkZAddrRoute), -- check_zaddr.sh
       ("accept_invitation", acceptInviteRoute),
       ("user/projects/:projectId/logStart", logWorkRoute StartWork), -- log_start.sh
@@ -141,7 +143,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
       ("projects/:projectId/billables", billableCreateRoute <|> billableListRoute), -- create_billable.sh / list_project_billables.sh
       ("projects/:projectId/payouts", projectPayoutsRoute), -- list_project_payouts.sh
       ("projects/:projectId/invite", inviteRoute), -- invite.sh
-      ("projects/:projectId/contributors", listContributorsRoute), -- list_project_contributors.sh
+      ("projects/:projectId/detail", projectDetailRoute), -- list_project_contributors.sh
       ("projects/:projectId", projectRoute), -- get_project.sh
       ("projects", projectCreateRoute <|> projectListRoute), --  create_project.sh, list_projects.sh
       ("auctions/:auctionId", auctionRoute),

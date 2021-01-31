@@ -28,7 +28,7 @@ getProjectPayoutFractions ::
   (MonadDB m) =>
   C.UTCTime ->
   ProjectId ->
-  m TL.FractionalPayouts
+  m TL.WorkShares
 getProjectPayoutFractions ptime pid = do
   project' <-
     let projectOp = FindProject pid
@@ -49,16 +49,17 @@ getPayouts ::
   -- | the amount to pay in total
   c ->
   -- | the fractions of the total payout to pay to each recipient
-  TL.FractionalPayouts ->
+  TL.WorkShares ->
   ExceptT PaymentRequestError m (Map a c)
 getPayouts t currency mp@(MinPayout minAmt) amt payouts =
   if amt <= minAmt
     then pure mempty
     else do
       -- Multiply the total by each payout fraction. This may fail, so traverse.
-      let scaled frac = note AmountInvalid $ cscale amt frac
-      payoutFractions <- except $ traverse scaled (payouts ^. TL._Payouts)
-      fromListWith (<>) . join <$> traverse (uncurry (getPayoutAmounts t currency mp)) (assocs payoutFractions)
+      let scaled ws = note AmountInvalid $ cscale amt (ws ^. TL.wsShare)
+      payoutFractions <- except $ traverse scaled (payouts ^. TL.creditToShares)
+      fromListWith (<>) . join
+        <$> traverse (uncurry (getPayoutAmounts t currency mp)) (assocs payoutFractions)
 
 getPayoutAmounts ::
   (MonadDB m, Ord a, IsCurrency c) =>

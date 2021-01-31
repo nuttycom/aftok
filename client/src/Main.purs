@@ -41,7 +41,7 @@ main =
 
       project = ProjectList.apiCapability
 
-      overview = Overview.mockCapability
+      overview = Overview.apiCapability
 
       mainComponent = component liveSystem login signup timeline project overview
     halogenIO <- runUI mainComponent unit body
@@ -167,16 +167,17 @@ component system loginCap signupCap tlCap pCap ovCap =
         "signup" -> pure VSignup
         other -> do
           result <- lift loginCap.checkLogin
-          pure $ case result of
-            Acc.LoginForbidden -> VLogin
-            Acc.LoginError _ -> VLogin
-            _ -> case other of
-              "timeline" -> VTimeline
-              _ -> VOverview
+          pure
+            $ case result of
+                Acc.LoginForbidden -> VLogin
+                Acc.LoginError _ -> VLogin
+                _ -> case other of
+                  "timeline" -> VTimeline
+                  _ -> VOverview
       navigate nextView
-    SignupAction (Signup.SignupComplete _) -> navigate VTimeline
+    SignupAction (Signup.SignupComplete _) -> navigate VOverview
     SignupAction (Signup.SigninNav) -> navigate VLogin
-    LoginAction (Login.LoginComplete _) -> navigate VTimeline
+    LoginAction (Login.LoginComplete _) -> navigate VOverview
     LogoutAction -> do
       lift loginCap.logout
       navigate VLogin
@@ -221,7 +222,7 @@ brand =
     [ P.classes (ClassName <$> [ "navbar-brand" ]) ]
     [ HH.h4
         [ P.classes (ClassName <$> [ "font-weight-bold" ]) ]
-        [ HH.text "Aftok" ]
+        [ HH.a [ P.href "/" ] [ HH.text "Aftok" ] ]
     ]
 
 logout :: forall s m. H.ComponentHTML MainAction s m

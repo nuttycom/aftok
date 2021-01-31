@@ -30,15 +30,6 @@ services:
         source: v_aftok-client
         target: /opt/aftok/client/dist-volume
 
-  aftok-reactclient:
-    image: aftok/aftok-reactclient:latest
-    container_name: aftok-reactclient
-    entrypoint: /opt/aftok/aftok-client-cp.sh build
-    volumes:
-      - type: volume
-        source: v_aftok-reactclient
-        target: /opt/aftok/client/dist-volume
-
   nginx:
     image: nginx:latest
     container_name: aftok-nginx
@@ -71,10 +62,6 @@ services:
         #   source: v_aftok-client
         #   target: /opt/static/app
         #   read_only: true
-      - type: volume
-        source: v_aftok-reactclient
-        target: /opt/static/app2
-        read_only: true
     networks:
       - front-tier
 
@@ -121,7 +108,6 @@ services:
 volumes:
   aftok-data:
   v_aftok-client:
-  v_aftok-reactclient:
 
 networks:
   front-tier:

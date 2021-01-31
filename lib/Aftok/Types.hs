@@ -7,12 +7,8 @@ import Control.Lens
   ( makeLenses,
     makePrisms,
   )
-import Data.Eq (Eq)
-import Data.Ord (Ord)
-import Data.Text (Text)
+import qualified Data.Thyme.Time as C
 import Data.UUID (UUID)
-import Text.Show (Show)
-import Prelude (Integer)
 
 newtype UserId = UserId UUID deriving (Show, Eq, Ord)
 
@@ -64,8 +60,5 @@ data CreditTo
 
 makePrisms ''CreditTo
 
-data DepreciationFunction = LinearDepreciation Months Months
-  deriving (Eq, Show)
-
-newtype Months = Months Integer
+data DepreciationFunction = LinearDepreciation C.Days C.Days
   deriving (Eq, Show)

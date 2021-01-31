@@ -188,7 +188,7 @@ apiLogStart (ProjectId pid) = do
   response <- post RF.json ("/api/user/projects/" <> UUID.toString pid <> "/logStart") requestBody
   liftEffect <<< runExceptT
     $ do
-        kev <- withExceptT LogFailure $ parseDatedResponse response
+        kev <- withExceptT LogFailure $ parseDatedResponse decodeJson response
         case event kev of
           StartEvent _ -> pure kev
           StopEvent _ -> throwError <<< Unexpected $ "Expected start event, got stop."
@@ -200,7 +200,7 @@ apiLogEnd (ProjectId pid) = do
   response <- post RF.json ("/api/user/projects/" <> UUID.toString pid <> "/logEnd") requestBody
   liftEffect <<< runExceptT
     $ do
-        kev <- withExceptT LogFailure $ parseDatedResponse response
+        kev <- withExceptT LogFailure $ parseDatedResponse decodeJson response
         case event kev of
           StartEvent _ -> throwError <<< Unexpected $ "Expected stop event, got start."
           StopEvent _ -> pure kev
@@ -244,7 +244,7 @@ apiListIntervals pid ts = do
     <<< map (\(ListIntervalsResponse r) -> r.workIndex >>= (_.intervals))
     <<< map (map decompose <<< decompose)
     <<< withExceptT LogFailure
-    $ parseDatedResponse response
+    $ parseDatedResponse decodeJson response
 
 apiLatestEvent :: ProjectId -> Aff (Either TimelineError (Maybe (KeyedEvent Instant)))
 apiLatestEvent pid = do
@@ -254,4 +254,4 @@ apiLatestEvent pid = do
     <<< map head
     <<< map decompose
     <<< withExceptT LogFailure
-    $ parseDatedResponse response
+    $ parseDatedResponse decodeJson response

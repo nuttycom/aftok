@@ -166,12 +166,12 @@ component system caps pcaps =
               [ P.classes (ClassName <$> [ "col-md-5", "text-muted", "text-center", "mx-auto" ]) ]
               [ HH.text "Your project timeline" ]
           , HH.div_
-              [ HH.slot 
-                  _projectList 
-                  unit 
-                  (ProjectList.component system pcaps) 
-                  st.selectedProject 
-                  (Just <<< (\(ProjectList.ProjectChange p) -> ProjectSelected p)) 
+              [ HH.slot
+                  _projectList
+                  unit
+                  (ProjectList.component system pcaps)
+                  st.selectedProject
+                  (Just <<< (\(ProjectList.ProjectChange p) -> ProjectSelected p))
               ]
           , HH.div
               [ P.classes (ClassName <$> if isNothing st.selectedProject then [ "collapse" ] else []) ]

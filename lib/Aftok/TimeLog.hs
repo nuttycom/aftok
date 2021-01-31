@@ -3,47 +3,29 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Aftok.TimeLog
-  ( LogEntry (..),
-    HasLogEntry (..),
+  ( module Aftok.TimeLog,
     CreditTo (..),
     _CreditToAccount,
     _CreditToUser,
     _CreditToProject,
-    LogEvent (..),
-    _StartWork,
-    _StopWork,
-    eventName,
-    nameEvent,
-    eventTime,
-    WorkIndex (WorkIndex),
-    _WorkIndex,
-    workIndex,
-    DepF,
-    toDepF,
-    EventId (EventId),
-    _EventId,
-    ModTime (ModTime),
-    _ModTime,
-    EventAmendment (..),
-    AmendmentId (AmendmentId),
-    _AmendmentId,
-    Payouts (..),
-    _Payouts,
-    FractionalPayouts,
-    payouts,
-    linearDepreciation,
   )
 where
 
 import Aftok.Interval
 import Aftok.Types
-import Control.Lens
-import Data.AdditiveGroup ()
+  ( CreditTo (..),
+    DepreciationFunction (..),
+    _CreditToAccount,
+    _CreditToProject,
+    _CreditToUser,
+  )
+import Control.Lens ((.~), (^.), makeClassy, makeLenses, makePrisms, view)
 import Data.Aeson as A
-import Data.AffineSpace
-import Data.Foldable as F
+import Data.AffineSpace ((.-.))
+import qualified Data.Foldable as F
 import qualified Data.Map.Strict as MS
-import Data.Thyme.Clock as C
+import qualified Data.Thyme.Clock as C
+import qualified Data.Thyme.Time as C
 import Data.UUID (UUID)
 import Data.VectorSpace ((*^), Sum (..), (^+^), (^-^), getSum, zeroV)
 import Prelude hiding (Sum, getSum)
@@ -114,11 +96,22 @@ newtype AmendmentId = AmendmentId UUID deriving (Show, Eq, Ord)
 
 makePrisms ''AmendmentId
 
-newtype Payouts a = Payouts (Map CreditTo a)
+data WorkShare a
+  = WorkShare
+      { _wsLogged :: NDT,
+        _wsDepreciated :: NDT,
+        _wsShare :: a
+      }
 
-makePrisms ''Payouts
+makeLenses ''WorkShare
 
-type FractionalPayouts = Payouts Rational
+data WorkShares
+  = WorkShares
+      { _loggedTotal :: NDT,
+        _creditToShares :: Map CreditTo (WorkShare Rational)
+      }
+
+makeLenses ''WorkShares
 
 newtype WorkIndex t = WorkIndex (Map CreditTo (NonEmpty (Interval t))) deriving (Show, Eq)
 
@@ -130,21 +123,24 @@ toDepF (LinearDepreciation undepLength depLength) =
 
 -- |
 -- - Given a depreciation function, the "current" time, and a foldable functor of log intervals,
--- - produce the total, depreciated length of work to be credited to an address.
-workCredit :: (Foldable f, HasLogEntry le) => DepF -> C.UTCTime -> f (Interval le) -> NDT
-workCredit df ptime ivals = getSum $ F.foldMap (Sum . df ptime . fmap (view $ event . eventTime)) ivals
+-- - produce the total length and depreciated length of work to be credited to an recipient.
+workCredit :: (Foldable f, HasLogEntry le) => DepF -> C.UTCTime -> f (Interval le) -> (NDT, NDT)
+workCredit depf ptime ivals =
+  bimap getSum getSum $ F.foldMap ((Sum . ilen &&& Sum . depf ptime) . fmap (view $ event . eventTime)) ivals
 
 -- |
 -- - Payouts are determined by computing a depreciated duration value for
 -- - each work interval. This function computes the percentage of the total
 -- - work allocated to each unique CreditTo.
-payouts :: forall le. (HasLogEntry le) => DepF -> C.UTCTime -> WorkIndex le -> FractionalPayouts
+payouts :: forall le. (HasLogEntry le) => DepF -> C.UTCTime -> WorkIndex le -> WorkShares
 payouts dep ptime (WorkIndex widx) =
-  let addIntervalDiff :: (Foldable f) => NDT -> f (Interval le) -> (NDT, NDT)
+  let addIntervalDiff :: (Foldable f) => NDT -> f (Interval le) -> (NDT, WorkShare ())
       addIntervalDiff total ivals =
-        (^+^ total) &&& id $ workCredit dep ptime ivals
+        let (logged, depreciated) = workCredit dep ptime ivals
+         in (total ^+^ depreciated, WorkShare logged depreciated ())
       (totalTime, keyTimes) = MS.mapAccum addIntervalDiff zeroV widx
-   in Payouts $ fmap ((/ toSeconds totalTime) . toSeconds) keyTimes
+      withShareFraction t = t & wsShare .~ (C.toSeconds (t ^. wsDepreciated) / C.toSeconds totalTime)
+   in WorkShares totalTime (fmap withShareFraction keyTimes)
 
 workIndex :: (Foldable f, HasLogEntry le, Ord o) => (le -> o) -> f le -> WorkIndex le
 workIndex cmp logEntries =
@@ -204,24 +200,24 @@ appendLogEntry idx logEvent =
 -- |
 -- - A very simple linear function for calculating depreciation.
 linearDepreciation ::
-  -- | The number of initial months during which no depreciation occurs
-  Months ->
-  -- | The number of months over which each logged interval will be depreciated
-  Months ->
+  -- | The number of initial days during which no depreciation occurs
+  C.Days ->
+  -- | The number of days over which each logged interval will be depreciated
+  C.Days ->
   -- | The resulting configured depreciation function.
   DepF
 linearDepreciation undepLength depLength =
-  let monthsLength :: Months -> NDT
-      monthsLength (Months i) = fromSeconds $ 60 * 60 * 24 * 30 * i
+  let daysLength :: C.Days -> NDT
+      daysLength d = C.fromSeconds $ 60 * 60 * 24 * d
       maxDepreciable :: NDT
-      maxDepreciable = monthsLength undepLength ^+^ monthsLength depLength
+      maxDepreciable = daysLength undepLength ^+^ daysLength depLength
       depPct :: NDT -> Rational
       depPct dt =
-        if dt < monthsLength undepLength
+        if dt < daysLength undepLength
           then 1
           else
-            toSeconds (max zeroV (maxDepreciable ^-^ dt))
-              / toSeconds maxDepreciable
+            C.toSeconds (max zeroV (maxDepreciable ^-^ dt))
+              / C.toSeconds maxDepreciable
    in \ptime ival ->
         let depreciation = depPct $ ptime .-. (ival ^. end)
          in depreciation *^ ilen ival

@@ -54,6 +54,7 @@ pgEval =
     (FindBids aucId) -> Q.findBids aucId
     (CreateUser user') -> Q.createUser user'
     (FindUser uid) -> Q.findUser uid
+    (FindUserProjectDetail uid pid) -> Q.findUserProjectDetail uid pid
     (FindUserByName n) -> Q.findUserByName n
     (FindUserPaymentAddress uid currency) -> Q.findUserPaymentAddress uid currency
     (FindAccountPaymentAddress aid currency) -> Q.findAccountPaymentAddress aid currency

@@ -18,10 +18,10 @@ import Data.Text (unpack)
 
 depfToJSON :: DepreciationFunction -> Value
 depfToJSON = \case
-  LinearDepreciation (Months up) (Months dp) ->
+  LinearDepreciation undep dep ->
     object
       [ "type" .= ("LinearDepreciation" :: Text),
-        "arguments" .= object ["undep" .= up, "dep" .= dp]
+        "arguments" .= object ["undep" .= undep, "dep" .= dep]
       ]
 
 depfFromJSON :: Value -> Parser DepreciationFunction
@@ -31,8 +31,8 @@ depfFromJSON = \case
     args <- v .: "arguments"
     case unpack t of
       "LinearDepreciation" ->
-        let undep = Months <$> (args .: "undep")
-            dep = Months <$> (args .: "dep")
+        let undep = (args .: "undep")
+            dep = (args .: "dep")
          in LinearDepreciation <$> undep <*> dep
       x -> fail $ "No depreciation function recognized for type " <> x
   _ -> fail $ "Cannot interpret non-object value as a depreciation function."

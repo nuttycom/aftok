@@ -90,21 +90,23 @@ data ZAddrCheckResponse
 
 checkUsername :: String -> Aff UsernameCheckResponse
 checkUsername uname = do
-  pure UsernameCheckOK
+  result <- get RF.ignore ("/api/validate_username?username=" <> uname)
+  pure
+    $ case result of
+        Left err -> UsernameCheckTaken
+        Right r
+          | r.status == StatusCode 200 -> UsernameCheckOK
+        Right r -> UsernameCheckTaken
 
 checkZAddr :: String -> Aff ZAddrCheckResponse
 checkZAddr zaddr = do
   result <- get RF.ignore ("/api/validate_zaddr?zaddr=" <> zaddr)
-  case result of
-    Left err -> do
-      log ("ZAddr validation failed: " <> printError err)
-      pure ZAddrCheckInvalid
-    Right r
-      | r.status == StatusCode 200 -> do
-        pure ZAddrCheckValid
-    Right r -> do
-      log ("ZAddr was determined to be invalid: " <> r.statusText)
-      pure ZAddrCheckInvalid
+  pure
+    $ case result of
+        Left err -> ZAddrCheckInvalid
+        Right r
+          | r.status == StatusCode 200 -> ZAddrCheckValid
+        Right r -> ZAddrCheckInvalid
 
 signup :: SignupRequest -> Aff SignupResponse
 signup req = do

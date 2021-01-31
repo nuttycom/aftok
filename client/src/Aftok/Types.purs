@@ -84,27 +84,30 @@ hoistDateFFI nt ffi =
 newtype UserId
   = UserId UUID
 
-derive instance userIdEq :: Eq UserId 
-derive instance userIdOrd :: Ord UserId 
+derive instance userIdEq :: Eq UserId
+
+derive instance userIdOrd :: Ord UserId
+
 derive instance userIdNewtype :: Newtype UserId _
 
 instance userIdDecodeJson :: DecodeJson UserId where
   decodeJson json = do
-    uuidStr <- decodeJson json 
+    uuidStr <- decodeJson json
     UserId <$> (note "Failed to decode user UUID" $ parseUUID uuidStr)
 
 newtype ProjectId
   = ProjectId UUID
 
 derive instance projectIdEq :: Eq ProjectId
+
 derive instance projectIdOrd :: Ord ProjectId
+
 derive instance projectIdNewtype :: Newtype ProjectId _
 
 instance projectIdDecodeJson :: DecodeJson ProjectId where
   decodeJson json = do
-    uuidStr <- decodeJson json 
+    uuidStr <- decodeJson json
     ProjectId <$> (note "Failed to decode project UUID" $ parseUUID uuidStr)
-
 
 pidStr :: ProjectId -> String
 pidStr (ProjectId uuid) = toString uuid
@@ -115,4 +118,3 @@ dateStr d =
     <> (show <<< fromEnum $ month d)
     <> "-"
     <> (show <<< fromEnum $ day d)
-

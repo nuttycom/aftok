@@ -7,9 +7,9 @@ module Aftok.Billing where
 
 import Aftok.Types (Email, ProjectId, UserId)
 import Control.Lens (_Just, makeLenses, makePrisms, preview, view)
-import Data.Thyme.Clock as C
-import Data.Thyme.Time as T
-import Data.UUID
+import qualified Data.Thyme.Clock as C
+import qualified Data.Thyme.Time as T
+import Data.UUID (UUID)
 
 data Recurrence
   = Annually
@@ -59,8 +59,8 @@ data Billable' p u currency
         _messageText :: Maybe Text,
         _recurrence :: Recurrence,
         _amount :: currency,
-        _gracePeriod :: Days,
-        _requestExpiryPeriod :: NominalDiffTime,
+        _gracePeriod :: T.Days,
+        _requestExpiryPeriod :: T.NominalDiffTime,
         _paymentRequestEmailTemplate :: Maybe Text,
         _paymentRequestMemoTemplate :: Maybe Text
       }
@@ -84,8 +84,8 @@ data Subscription' u b
       { _customer :: u,
         _billable :: b,
         _contactChannel :: ContactChannel,
-        _startTime :: UTCTime,
-        _endTime :: Maybe UTCTime
+        _startTime :: C.UTCTime,
+        _endTime :: Maybe C.UTCTime
       }
 
 makeLenses ''Subscription'

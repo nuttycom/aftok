@@ -2,7 +2,7 @@ module Aftok.Api.Recaptcha
   ( getRecaptchaResponse
   ) where
 
-import Prelude (bind, (==), ($), pure)
+import Prelude (bind, (==), ($), pure, Unit)
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
 
@@ -13,4 +13,9 @@ getRecaptchaResponse elemId = do
     Nothing -> getRecaptchaResponseInternal false ""
   pure $ if resp == "" then Nothing else Just resp
 
+recaptchaRender :: String -> String -> Effect Unit
+recaptchaRender = recaptchaRenderInternal
+
 foreign import getRecaptchaResponseInternal :: Boolean -> String -> Effect String
+
+foreign import recaptchaRenderInternal :: String -> String -> Effect Unit
