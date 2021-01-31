@@ -1,6 +1,3 @@
 [submodule "aftok.com"]
 	path = aftok.com
 	url = git@github.com:aftok/aftok.com.git
-[submodule "reactclient"]
-	path = reactclient
-	url = git@github.com:MarcoEzekiel/Aftok-React.git

@@ -40,12 +40,6 @@ class HasEventTime a where
 instance HasEventTime C.UTCTime where
   eventTime = id
 
--- |
--- - The depreciation function should return a value between 0 and 1;
--- - this result is multiplied by the length of an interval of work to determine
--- - the depreciated value of the work.
-type DepF = C.UTCTime -> Interval C.UTCTime -> NDT
-
 data LogEvent
   = StartWork {_leEventTime :: !C.UTCTime}
   | StopWork {_leEventTime :: !C.UTCTime}
@@ -132,16 +126,58 @@ newtype WorkIndex t = WorkIndex (Map CreditTo (NonEmpty (Interval t)))
 
 makePrisms ''WorkIndex
 
+-- |
+-- - The depreciation function should return a value between 0 and 1;
+-- - this result is multiplied by the length of an interval of work to determine
+-- - the depreciated value of the work.
+--
+-- arguments:
+--  * date of first revenue (if applicable)
+--  * date on which the depreciated value is being computed
+--  *
+type DepF = Maybe C.UTCTime -> C.UTCTime -> Interval C.UTCTime -> NDT
+
 toDepF :: DepreciationFunction -> DepF
 toDepF (LinearDepreciation undepLength depLength) =
   linearDepreciation undepLength depLength
 
+daysToNDT :: C.Days -> NDT
+daysToNDT d = C.fromSeconds $ 60 * 60 * 24 * d
+
+-- |
+-- - A very simple linear function for calculating depreciation.
+linearDepreciation ::
+  -- | The number of initial days during which no depreciation occurs
+  C.Days ->
+  -- | The number of days over which each logged interval will be depreciated
+  C.Days ->
+  -- | The resulting configured depreciation function.
+  DepF
+linearDepreciation undepDays depDays =
+  let -- length of a number of days as NominalDiffTime
+      undepLength = daysToNDT undepDays
+      depLength = daysToNDT depDays
+      -- The percentage of the depreciation period that the end of the interval
+      -- represents.
+      depPercentage :: NDT -> Rational
+      depPercentage intervalAge =
+        if intervalAge < undepLength
+          then 1
+          else max 0 (1 - (C.toSeconds (intervalAge ^-^ undepLength) / C.toSeconds depLength))
+   in \firstRevenue payoutDate ival ->
+        let ivalEnd = case firstRevenue of
+              -- if the end of the interval was before first revenue, count it as
+              -- having ended at the first revenue date for the purpose of depreciation
+              Just dt -> max dt (ival ^. end)
+              Nothing -> ival ^. end
+         in depPercentage (payoutDate .-. ivalEnd) *^ ilen ival
 -- |
 -- - Given a depreciation function, the "current" time, and a foldable functor of log intervals,
 -- - produce the total length and depreciated length of work to be credited to an recipient.
 workCredit :: (Foldable f, HasEventTime le) => DepF -> C.UTCTime -> f (Interval le) -> (NDT, NDT)
 workCredit depf ptime ivals =
-  bimap getSum getSum $ F.foldMap ((Sum . ilen &&& Sum . depf ptime) . fmap (view eventTime)) ivals
+  let intervalCredit ival = (Sum . ilen &&& Sum . depf Nothing ptime) $ fmap (view eventTime) ival
+   in bimap getSum getSum $ F.foldMap intervalCredit ivals
 
 -- |
 -- - Payouts are determined by computing a depreciated duration value for
@@ -211,28 +247,3 @@ appendLogEntry idx logEvent =
         Just newEvent -- replace the end of the interval with the new event
     extension _ _ =
       Nothing
-
--- |
--- - A very simple linear function for calculating depreciation.
-linearDepreciation ::
-  -- | The number of initial days during which no depreciation occurs
-  C.Days ->
-  -- | The number of days over which each logged interval will be depreciated
-  C.Days ->
-  -- | The resulting configured depreciation function.
-  DepF
-linearDepreciation undepLength depLength =
-  let daysLength :: C.Days -> NDT
-      daysLength d = C.fromSeconds $ 60 * 60 * 24 * d
-      maxDepreciable :: NDT
-      maxDepreciable = daysLength undepLength ^+^ daysLength depLength
-      depPct :: NDT -> Rational
-      depPct dt =
-        if dt < daysLength undepLength
-          then 1
-          else
-            C.toSeconds (max zeroV (maxDepreciable ^-^ dt))
-              / C.toSeconds maxDepreciable
-   in \ptime ival ->
-        let depreciation = depPct $ ptime .-. (ival ^. end)
-         in depreciation *^ ilen ival

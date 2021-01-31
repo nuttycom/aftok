@@ -15,29 +15,31 @@ import qualified Aftok.Interval as I
 import Aftok.TimeLog
 import Aftok.Types (UserId (..), DepreciationFunction(..))
 import Control.Lens ((^.), view, to)
-import Data.AffineSpace
+import Data.AffineSpace ((.-.), (.+^))
+import Data.VectorSpace ((*^), Sum (..), (^+^), (^-^), getSum, zeroV)
 import Data.Maybe (fromJust)
 import Data.List (head, tail)
 import Data.Ratio ((%))
 import qualified Data.List.NonEmpty as L
 import qualified Data.Map.Strict as M
-import Data.Thyme.Time as T
+import qualified Data.Thyme.Clock as C
+import qualified Data.Thyme.Time as C
 import Data.Time.ISO8601
 import Test.Hspec
-import Test.QuickCheck
+import Test.QuickCheck (Gen, forAll, sample', listOf, suchThat, arbitrary, choose)
 
 -- genInterval :: Gen I.Interval
 -- genInterval = do
 --   startTime <- arbitrary
---   delta     <- arbitrary :: Gen (Positive T.NominalDiffTime)
+--   delta     <- arbitrary :: Gen (Positive C.NominalDiffTime)
 --   pure $ I.interval startTime (startTime .+^ getPositive delta)
 
-genIntervals :: Gen (L.NonEmpty (I.Interval T.UTCTime))
+genIntervals :: Gen (L.NonEmpty (I.Interval C.UTCTime))
 genIntervals =
   let deltas =
-        fmap T.fromSeconds
+        fmap C.fromSeconds
           <$> ((listOf $ choose (0, 72 * 60 * 60)) :: Gen [Int])
-      buildIntervals :: T.UTCTime -> [NominalDiffTime] -> [I.Interval T.UTCTime]
+      buildIntervals :: C.UTCTime -> [C.NominalDiffTime] -> [I.Interval C.UTCTime]
       buildIntervals t (d : s : dx)
         | d > 0 =
           let ival = I.interval t (t .+^ d)
@@ -48,9 +50,9 @@ genIntervals =
         intervals <- suchThat (buildIntervals startTime <$> deltas) (not . null)
         pure $ L.fromList intervals
 
-genWorkIndex :: Gen (WorkIndex T.UTCTime)
+genWorkIndex :: Gen (WorkIndex C.UTCTime)
 genWorkIndex =
-  let recordGen :: Gen (CreditTo, L.NonEmpty (I.Interval T.UTCTime))
+  let recordGen :: Gen (CreditTo, L.NonEmpty (I.Interval C.UTCTime))
       recordGen = do
         uid <- UserId <$> genUUID
         ivals <- genIntervals
@@ -63,19 +65,19 @@ spec = do
     it "reduces a log to a work index" $ do
       testUsers <- take 3 <$> sample' (UserId <$> genUUID)
       let starts =
-            toThyme
+            C.toThyme
               <$> catMaybes
                 [ parseISO8601 "2014-01-01T00:08:00Z",
                   parseISO8601 "2014-01-01T00:12:00Z"
                 ]
           ends =
-            toThyme
+            C.toThyme
               <$> catMaybes
                 [ parseISO8601 "2014-01-01T00:11:59Z",
                   parseISO8601 "2014-01-01T00:18:00Z"
                 ]
 
-          testIntervals :: [(CreditTo, I.Interval T.UTCTime)]
+          testIntervals :: [(CreditTo, I.Interval C.UTCTime)]
           testIntervals = do
             user <- testUsers
             (start', end') <- zip starts ends
@@ -115,9 +117,9 @@ spec = do
 
     it "computes correct work shares" $ do
       [u0, u1, u2] <- fmap CreditToUser . take 3 <$> sample' (UserId <$> genUUID)
-      let initTime = toThyme . fromJust $ parseISO8601 "2014-01-01T00:08:00Z"
-          len = fromInteger @NominalDiffTime 360
-          timestamps = iterate (addUTCTime len) initTime
+      let initTime = C.toThyme . fromJust $ parseISO8601 "2014-01-01T00:08:00Z"
+          len = fromInteger @C.NominalDiffTime 360
+          timestamps = iterate (.+^ len) initTime
           intervals =
             fmap (uncurry I.Interval . snd)
             . filter (\i -> fst i `mod` 2 == 0)
@@ -134,10 +136,43 @@ spec = do
           evalTime = I._start . head $ drop 120 intervals
 
           shares = payouts depf evalTime widx
-      (shares ^. loggedTotal `shouldBe` (fromInteger @NominalDiffTime (360 * 160)))
+      (shares ^. loggedTotal `shouldBe` (fromInteger @C.NominalDiffTime (360 * 160)))
       (shares ^. creditToShares . to (fromJust . M.lookup u0) . wsShare) `shouldBe` (10 % 160)
       (shares ^. creditToShares . to (fromJust . M.lookup u1) . wsShare) `shouldBe` (30 % 160)
       (shares ^. creditToShares . to (fromJust . M.lookup u2) . wsShare) `shouldBe` (120 % 160)
+
+  describe "depreciation functions" $ do
+    it "computes linear depreciation" $ do
+      let depf = linearDepreciation 10 100
+          hour = fromInteger (60 * 60)
+          t0 :: C.UTCTime = C.toThyme . fromJust $ parseISO8601 "2014-01-01T00:08:00Z"
+          ival = I.Interval (t0 .+^ negate hour) t0
+          t1 = t0 .+^ daysToNDT 5
+          t2 = t0 .+^ daysToNDT 10
+          t3 = t0 .+^ daysToNDT 20
+          t4 = t0 .+^ daysToNDT 60
+          t5 = t0 .+^ daysToNDT 110
+      daysToNDT 1 `shouldBe` (60 * 60 * 24)
+      -- undepreciated; within the first 10 days
+      depf Nothing t1 ival `shouldBe` 3600
+      -- still undepreciated if it ends at the last depreciation moment
+      depf Nothing t2 ival `shouldBe` 3600
+      -- depreciated by 10% of its value
+      depf Nothing t3 ival `shouldBe` 3240
+      -- depreciated by 50% of its value
+      depf Nothing t4 ival `shouldBe` 1800
+      -- depreciated by 100% of its value
+      depf Nothing t5 ival `shouldBe` 0
+      -- undepreciated - before first revenue
+      depf (Just t3) t1 ival `shouldBe` 3600
+      -- undepreciated - before first revenue
+      depf (Just t3) t2 ival `shouldBe` 3600
+      -- depreciated by 10% of its value
+      depf (Just t3) t3 ival `shouldBe` 3600
+      -- depreciated by 30% of its value
+      depf (Just t3) t4 ival `shouldBe` 2520
+      -- depreciated by 80% of its value
+      depf (Just t3) t5 ival `shouldBe` 720
 
 
 main :: IO ()
