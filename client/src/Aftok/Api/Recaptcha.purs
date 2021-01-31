@@ -1,5 +1,6 @@
 module Aftok.Api.Recaptcha
   ( getRecaptchaResponse
+  , recaptchaRender
   ) where
 
 import Prelude (bind, (==), ($), pure, Unit)

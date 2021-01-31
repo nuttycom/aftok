@@ -27,7 +27,7 @@ import CSS.Flexbox (flexFlow, row, nowrap)
 import Aftok.Types (System)
 import Aftok.Api.Account as Acc
 import Aftok.Api.Account (SignupRequest, SignupResponse, signupRequest)
-import Aftok.Api.Recaptcha (getRecaptchaResponse)
+import Aftok.Api.Recaptcha (getRecaptchaResponse, recaptchaRender)
 
 data SignupError
   = UsernameRequired
@@ -71,7 +71,8 @@ type SignupState
     }
 
 data SignupAction
-  = SetUsername String
+  = Initialize
+  | SetUsername String
   | SetPassword String
   | ConfirmPassword String
   | SetRecoveryType RecoveryType
@@ -91,6 +92,7 @@ type Capability m
     , checkZAddr :: String -> m Acc.ZAddrCheckResponse
     , signup :: SignupRequest -> m SignupResponse
     , getRecaptchaResponse :: Maybe String -> m (Maybe String)
+    , recaptchaRender :: String -> String -> m Unit
     }
 
 type Config
@@ -108,7 +110,7 @@ component system caps conf =
   H.mkComponent
     { initialState
     , render
-    , eval: H.mkEval $ H.defaultEval { handleAction = eval }
+    , eval: H.mkEval $ H.defaultEval { handleAction = eval, initialize = Just Initialize }
     }
   where
   initialState :: input -> SignupState
@@ -189,12 +191,7 @@ component system caps conf =
                       , recoveryField st
                       , HH.div
                           [ P.classes (ClassName <$> [ "form-group", "mb-3" ]) ]
-                          [ HH.div
-                              [ P.classes (ClassName <$> [ "g-recaptcha", "mx-auto" ])
-                              , P.attr (AttrName "data-sitekey") conf.recaptchaKey
-                              ]
-                              []
-                          ]
+                          [ HH.div [ P.id_ "grecaptcha" ] [] ]
                       , HH.button
                           [ P.classes (ClassName <$> [ "btn", "btn-block", "btn-primary" ]) ]
                           [ HH.text "Sign up" ]
@@ -213,12 +210,16 @@ component system caps conf =
 
   eval :: SignupAction -> H.HalogenM SignupState SignupAction () SignupResult m Unit
   eval = case _ of
+    Initialize -> do
+      lift $ caps.recaptchaRender conf.recaptchaKey "grecaptcha"
     SetUsername user -> do
       ures <- lift $ caps.checkUsername user
       H.modify_ (_ { username = Just user })
       case ures of
-        Acc.UsernameCheckOK -> H.modify_ (\st -> st { signupErrors = M.delete UsernameField st.signupErrors })
-        Acc.UsernameCheckTaken -> H.modify_ (\st -> st { signupErrors = M.insert UsernameField UsernameTaken st.signupErrors })
+        Acc.UsernameCheckOK -> 
+          H.modify_ (\st -> st { signupErrors = M.delete UsernameField st.signupErrors })
+        Acc.UsernameCheckTaken -> 
+          H.modify_ (\st -> st { signupErrors = M.insert UsernameField UsernameTaken st.signupErrors })
     SetPassword pass -> do
       H.modify_ (_ { password = Just pass })
       confirm <- H.gets (_.passwordConfirm)
@@ -242,8 +243,10 @@ component system caps conf =
             zres <- lift $ caps.checkZAddr addr
             H.modify_ (_ { recoveryZAddr = Just addr })
             case zres of
-              Acc.ZAddrCheckValid -> H.modify_ (\st -> st { signupErrors = M.delete ZAddrField st.signupErrors })
-              Acc.ZAddrCheckInvalid -> H.modify_ (\st -> st { signupErrors = M.insert ZAddrField ZAddrInvalid st.signupErrors })
+              Acc.ZAddrCheckValid -> 
+                H.modify_ (\st -> st { signupErrors = M.delete ZAddrField st.signupErrors })
+              Acc.ZAddrCheckInvalid -> 
+                H.modify_ (\st -> st { signupErrors = M.insert ZAddrField ZAddrInvalid st.signupErrors })
     Signup ev -> do
       lift $ system.preventDefault ev
       recType <- H.gets (_.recoveryType)
@@ -388,6 +391,7 @@ apiCapability =
   , checkZAddr: Acc.checkZAddr
   , signup: Acc.signup
   , getRecaptchaResponse: liftEffect <<< getRecaptchaResponse
+  , recaptchaRender: \siteKey elemId -> liftEffect $ recaptchaRender siteKey elemId
   }
 
 mockCapability :: Capability Aff
@@ -396,4 +400,5 @@ mockCapability =
   , checkZAddr: \_ -> pure Acc.ZAddrCheckValid
   , signup: \_ -> pure Acc.SignupOK
   , getRecaptchaResponse: liftEffect <<< getRecaptchaResponse
+  , recaptchaRender: \siteKey elemId -> liftEffect $ recaptchaRender siteKey elemId
   }
