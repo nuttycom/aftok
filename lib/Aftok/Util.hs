@@ -7,6 +7,7 @@ import Control.Error.Util (maybeT)
 import Control.Monad.Free.Church
 import Data.Functor.Coyoneda
 import Data.Map.Strict as M
+import qualified Debug.Trace as T
 
 newtype Program (f :: * -> *) (a :: *)
   = Program
@@ -28,3 +29,6 @@ traverseKeys f m =
 
 fromMaybeT :: (Monad m) => m a -> MaybeT m a -> m a
 fromMaybeT a m = maybeT a pure m
+
+traceWith :: Show b => (a -> b) -> a -> a
+traceWith f a = T.trace (show $ f a) a

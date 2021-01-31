@@ -1,8 +1,8 @@
 {-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Aftok.TimeLog
   ( module Aftok.TimeLog,
@@ -21,7 +21,7 @@ import Aftok.Types
     _CreditToProject,
     _CreditToUser,
   )
-import Control.Lens (Lens', (.~), (^.), makeClassy, makeLenses, makePrisms, view)
+import Control.Lens ((.~), Lens', (^.), makeClassy, makeLenses, makePrisms, view)
 import Data.Aeson as A
 import Data.AffineSpace ((.-.))
 import qualified Data.Foldable as F
@@ -46,6 +46,7 @@ data LogEvent
   deriving (Show, Eq)
 
 makePrisms ''LogEvent
+
 makeLenses ''LogEvent
 
 instance HasEventTime LogEvent where
@@ -82,7 +83,6 @@ instance Ord LogEntry where
   compare a b =
     let ordElems e = (e ^. event, e ^. creditTo)
      in ordElems a `compare` ordElems b
-
 
 instance {-# OVERLAPPABLE #-} HasLogEntry a => HasEventTime a where
   eventTime = event . leEventTime
@@ -171,12 +171,13 @@ linearDepreciation undepDays depDays =
               Just dt -> max dt (ival ^. end)
               Nothing -> ival ^. end
          in depPercentage (payoutDate .-. ivalEnd) *^ ilen ival
+
 -- |
 -- - Given a depreciation function, the "current" time, and a foldable functor of log intervals,
 -- - produce the total length and depreciated length of work to be credited to an recipient.
 workCredit :: (Foldable f, HasEventTime le) => DepF -> C.UTCTime -> f (Interval le) -> (NDT, NDT)
-workCredit depf ptime ivals =
-  let intervalCredit ival = (Sum . ilen &&& Sum . depf Nothing ptime) $ fmap (view eventTime) ival
+workCredit depf payoutDate ivals =
+  let intervalCredit ival = (Sum . ilen &&& Sum . depf Nothing payoutDate) $ fmap (view eventTime) ival
    in bimap getSum getSum $ F.foldMap intervalCredit ivals
 
 -- |
@@ -184,10 +185,10 @@ workCredit depf ptime ivals =
 -- - each work interval. This function computes the percentage of the total
 -- - work allocated to each unique CreditTo.
 payouts :: forall le. (HasEventTime le) => DepF -> C.UTCTime -> WorkIndex le -> WorkShares
-payouts dep ptime (WorkIndex widx) =
+payouts depf payoutDate (WorkIndex widx) =
   let addIntervalDiff :: (Foldable f) => NDT -> f (Interval le) -> (NDT, WorkShare ())
       addIntervalDiff total ivals =
-        let (logged, depreciated) = workCredit dep ptime ivals
+        let (logged, depreciated) = workCredit depf payoutDate ivals
          in (total ^+^ depreciated, WorkShare logged depreciated ())
       (totalTime, keyTimes) = MS.mapAccum addIntervalDiff zeroV widx
       withShareFraction t = t & wsShare .~ (C.toSeconds (t ^. wsDepreciated) / C.toSeconds totalTime)
@@ -236,9 +237,16 @@ appendLogEntry idx logEvent =
   where
     combine :: le -> le -> Either le (Interval le)
     combine e e' = case (e ^. event, e' ^. event) of
-      (StartWork t, StopWork t') | t' > t -> Right $ Interval e e' -- complete interval found
-      (StartWork t, StartWork t') -> Left $ if t > t' then e else e' -- ignore redundant starts
-      (StopWork t, StopWork t') -> Left $ if t <= t' then e else e' -- ignore redundant ends
+      (StartWork t, StopWork t')
+        | t' > t ->
+          -- complete interval found
+          Right $ Interval e e'
+      (StartWork t, StartWork t') ->
+        -- ignore redundant starts
+        Left $ if t > t' then e else e'
+      (StopWork t, StopWork t') ->
+        -- ignore redundant ends
+        Left $ if t <= t' then e else e'
       _ -> Left e'
     -- if the interval includes the timestamp of a start event, then allow the extension of the interval
     extension :: (Interval C.UTCTime) -> le -> Maybe le

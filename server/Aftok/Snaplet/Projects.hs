@@ -122,7 +122,7 @@ projectDetailGetHandler = do
               { _userId = uid',
                 _handle = user ^. username,
                 _joinedOn = joinedOn',
-                _timeDevoted = Hours . (`div` 360) . round . C.toSeconds' $ ws ^. wsLogged,
+                _timeDevoted = Hours . (`div` 3600) . round . C.toSeconds' $ ws ^. wsLogged,
                 _revenueShare = ws ^. wsShare
               }
         _ -> pure Nothing
