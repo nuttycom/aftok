@@ -1,22 +1,13 @@
 module Aftok.Overview where
 
 import Prelude
--- import Control.Alt ((<|>))
--- import Control.Monad.Rec.Class (forever)
--- import Control.Monad.State (State, put, get, evalState)
 import Control.Monad.Trans.Class (lift)
--- import Control.Monad.Maybe.Trans (MaybeT(..), runMaybeT)
---
--- import Data.Array (reverse, cons)
--- import Data.Date.Component (Year(..), Month(..), Day(..))
 import Data.List as L
 import Data.DateTime (DateTime, date)
 import Data.Time.Duration (Hours(..), Days(..))
 import Data.Either (Either(..))
--- import Data.Enum (fromEnum)
 import Data.Fixed as F
 import Data.Foldable (all)
--- import Data.Formatters.DateTime
 import Data.Ratio as R
 import Data.Map as M
 import Data.Maybe (Maybe(..), maybe, isNothing)
@@ -24,39 +15,14 @@ import Data.Unfoldable as U
 import Data.Newtype (unwrap)
 import Data.Symbol (SProxy(..))
 import Data.Traversable (traverse_)
--- import Data.Tuple (Tuple(..))
--- import Data.Unfoldable as U
--- -- import Text.Format as F -- (format, zeroFill, width)
 import Data.UUID (genUUID)
--- import Effect.Aff as Aff
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
--- import Effect.Exception (error)
--- import Effect.Now (now)
 import Effect.Now (nowDateTime)
 import Halogen as H
--- import Halogen.Query.EventSource (EventSource)
--- import Halogen.Query.EventSource as EventSource
 import Halogen.HTML.Core (ClassName(..))
 import Halogen.HTML as HH
--- import Halogen.HTML.CSS as CSS
--- import Halogen.HTML.Events as E
 import Halogen.HTML.Properties as P
--- import CSS (backgroundColor, clear, clearBoth, border, rgb, solid, borderRadius, marginLeft)
--- import CSS.Display (display, flex)
--- import CSS.Geometry (width, height)
--- import CSS.Size (px, pct)
--- import Aftok.Api.Overview as TL
--- import Aftok.Api.Overview
---   ( OverviewError,
---     Event(..),
---     Interval(..),
---     TimeInterval,
---     KeyedEvent,
---     TimeSpan,
---     start, end, interval,
---     event, eventTime, keyedEvent
---     )
 import Aftok.ProjectList as ProjectList
 import Aftok.Types (System, ProjectId, UserId(..), dateStr)
 import Aftok.Api.Types (APIError)
