@@ -8,6 +8,7 @@ import Control.Monad.Except.Trans (ExceptT, runExceptT)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.:))
 import Data.DateTime (DateTime)
 -- import Data.DateTime.Instant (Instant, toDateTime)
+import Data.Interval.Duration (Duration)
 import Data.Either (Either(..), note)
 -- import Data.Foldable (class Foldable, foldr, foldl, foldMapDefaultR)
 -- import Data.Functor.Compose (Compose(..))
@@ -27,6 +28,8 @@ import Effect.Aff (Aff)
 -- import Affjax.ResponseFormat as RF
 import Aftok.Types
   ( ProjectId )
+import Aftok.Zcash
+  ( Zatoshi )
 import Aftok.Api.Types
   (APIError(..))
 -- import Aftok.Api.Json
@@ -50,8 +53,19 @@ instance billableIdDecodeJson :: DecodeJson BillableId where
     uuidStr <- decodeJson json
     BillableId <$> (note "Failed to decode billable UUID" $ parseUUID uuidStr)
 
+data Recurrence
+  = Annually
+  | Monthly Int
+  | Weekly Int
+  | OneTime
+
 newtype Billable' t = Billable
-  {
+  { name :: String
+  , description :: String
+  , recurrence :: Recurrence
+  , amount :: Zatoshi
+  , gracePeriod :: Duration
+  , expiryPeriod :: Duration
   }
 
 type Billable = Billable' DateTime

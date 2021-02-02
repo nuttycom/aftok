@@ -99,7 +99,7 @@ component system caps pcaps =
               [ HH.text "Billing" ]
           , HH.p
               [ P.classes (ClassName <$> [ "col-md-5", "text-muted", "text-center", "mx-auto" ]) ]
-              [ HH.text "Your project's payment requests &amp; payments" ]
+              [ HH.text "Your project's payment requests & payments" ]
           , HH.div_
               [ HH.slot
                   _projectList
