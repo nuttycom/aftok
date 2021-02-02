@@ -1,11 +1,14 @@
 module Aftok.Api.Billing where
 
 import Prelude
-import Control.Monad.Except.Trans (ExceptT, runExceptT)
+import Control.Monad.Error.Class (throwError)
+import Control.Monad.Except.Trans (runExceptT, except, withExceptT)
 -- import Control.Monad.Except.Trans (ExceptT, runExceptT, except, withExceptT)
 -- import Control.Monad.Error.Class (throwError)
--- import Data.Argonaut.Core (Json)
-import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.:))
+import Data.Argonaut.Core (Json)
+import Data.Argonaut.Decode (class DecodeJson, decodeJson)
+import Data.Argonaut.Encode (encodeJson)
+import Data.BigInt (toNumber)
 import Data.DateTime (DateTime)
 -- import Data.DateTime.Instant (Instant, toDateTime)
 import Data.Interval.Duration (Duration)
@@ -13,21 +16,23 @@ import Data.Either (Either(..), note)
 -- import Data.Foldable (class Foldable, foldr, foldl, foldMapDefaultR)
 -- import Data.Functor.Compose (Compose(..))
 -- import Data.Map as M
-import Data.Maybe (Maybe)
+import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap)
 -- import Data.Ratio (Ratio, (%))
 -- import Data.Time.Duration (Hours(..), Days(..))
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple)
 -- import Data.Traversable (class Traversable, traverse)
 import Data.UUID (UUID, parseUUID)
 -- import Effect (Effect)
 import Effect.Aff (Aff)
 -- import Effect.Class as EC
 -- import Foreign.Object (Object)
--- import Affjax (get)
--- import Affjax.ResponseFormat as RF
+import Affjax (post, printError)
+import Affjax.RequestBody as RB
+import Affjax.ResponseFormat as RF
+import Affjax.StatusCode (StatusCode(..))
 import Aftok.Types
-  ( ProjectId )
+  ( ProjectId, pidStr )
 import Aftok.Zcash
   ( Zatoshi )
 import Aftok.Api.Types
@@ -59,16 +64,33 @@ data Recurrence
   | Weekly Int
   | OneTime
 
-newtype Billable' t = Billable
+recurrenceJSON :: Recurrence -> Json
+recurrenceJSON = case _ of
+  Annually -> encodeJson $ { annually: {} }
+  Monthly i -> encodeJson $ { monthly: i }
+  Weekly i -> encodeJson $ { weekly: i }
+  OneTime -> encodeJson $ { onetime: {} }
+
+type Billable = 
   { name :: String
   , description :: String
+  , message :: String
   , recurrence :: Recurrence
   , amount :: Zatoshi
   , gracePeriod :: Duration
   , expiryPeriod :: Duration
   }
 
-type Billable = Billable' DateTime
+billableJSON :: Billable -> Json
+billableJSON b = encodeJson $
+  { name: b.name
+  , description: b.description
+  , message: b.message
+  , recurrence: recurrenceJSON b.recurrence
+  , currency: "ZEC"
+  , amount: toNumber (unwrap b.amount)
+  }
+
 
 newtype PaymentRequestId
   = PaymentRequestId UUID
@@ -91,7 +113,15 @@ newtype PaymentRequest' t = PaymentRequest
 type PaymentRequest = PaymentRequest' DateTime
 
 createBillable :: ProjectId -> Billable -> Aff (Either APIError BillableId)
-createBillable pid bid = pure $ Left Forbidden
+createBillable pid billable = do
+  let body = RB.json $ billableJSON billable
+  response <- post RF.json ("/api/projects/" <> pidStr pid <> "/billables") (Just body)
+  runExceptT $ case response of 
+    Left err -> throwError $ Error { status: Nothing, message: printError err }
+    Right r -> case r.status of
+      StatusCode 403 -> throwError $ Forbidden
+      StatusCode 200 -> withExceptT (ParseFailure r.body) <<< except $ decodeJson r.body
+      other -> throwError $ Error { status: Just other, message: r.statusText }
 
 listProjectBillables :: ProjectId -> Aff (Either APIError (Array (Tuple BillableId Billable)))
 listProjectBillables pid = pure $ Left Forbidden

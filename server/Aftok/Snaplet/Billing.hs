@@ -101,7 +101,7 @@ parseRecurrence o =
   let parseAnnually o' = const (pure B.Annually) <$> O.lookup "annually" o'
       parseMonthly o' = fmap B.Monthly . parseJSON <$> O.lookup "monthly" o'
       parseWeekly o' = fmap B.Weekly . parseJSON <$> O.lookup "weekly" o'
-      parseOneTime o' = const (pure B.OneTime) <$> O.lookup "one-time" o'
+      parseOneTime o' = const (pure B.OneTime) <$> O.lookup "onetime" o'
       notFound =
         fail $ "Value " <> show o <> " does not represent a Recurrence value."
       parseV val =
