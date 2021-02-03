@@ -9,6 +9,7 @@ import Data.Maybe (Maybe(..), isNothing)
 -- import Data.Unfoldable as U
 import Data.Newtype (unwrap)
 import Data.Symbol (SProxy(..))
+import Data.Time.Duration (Hours(..))
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple)
 import Effect.Aff (Aff)
@@ -17,7 +18,9 @@ import Effect.Aff (Aff)
 import Halogen as H
 import Halogen.HTML.Core (ClassName(..))
 import Halogen.HTML as HH
+import Halogen.HTML.Events as E
 import Halogen.HTML.Properties as P
+import Aftok.Billing.Create as Create
 import Aftok.ProjectList as ProjectList
 import Aftok.Types (System, ProjectId)
 import Aftok.Api.Types (APIError(..))
@@ -45,21 +48,25 @@ type BillingState
 data BillingAction
   = Initialize
   | ProjectSelected Project
+  | BillableCreated (Tuple BillableId Billable)
 
 type Slot id
   = forall query. H.Slot query ProjectList.Event id
 
 type Slots
   = ( projectList :: ProjectList.Slot Unit
+    , createBillable :: Create.Slot Unit
     )
 
 _projectList = SProxy :: SProxy "projectList"
+_createBillable = SProxy :: SProxy "createBillable"
 
 type Capability (m :: Type -> Type)
-  = { createBillable :: ProjectId -> Billable -> m (Either APIError BillableId)
+  = { createBillable :: Create.Capability m
     , listProjectBillables :: ProjectId -> m (Either APIError (Array (Tuple BillableId Billable)))
     , listUnpaidPaymentRequests :: BillableId -> m (Either APIError (Array (Tuple PaymentRequestId PaymentRequest)))
     }
+
 
 component ::
   forall query m.
@@ -110,14 +117,21 @@ component system caps pcaps =
               ]
           , HH.div
               [ P.classes (ClassName <$> if isNothing st.selectedProject then [ "collapse" ] else []) ]
-              [ billingDetail st ]
+              case st.selectedProject of
+                Just p -> 
+                  [ HH.slot
+                      _createBillable
+                      unit
+                      (Create.component system caps.createBillable)
+                      (unwrap p).projectId
+                      (Just <<< BillableCreated)
+                  ]
+                Nothing -> []
+                    
+              
           ]
       ]
 
-  billingDetail :: BillingState -> H.ComponentHTML BillingAction Slots m
-  billingDetail st = do
-    HH.div [] []
-  
   eval :: BillingAction -> H.HalogenM BillingState BillingAction Slots ProjectList.Event m Unit
   eval action = do
     case action of
@@ -135,18 +149,19 @@ component system caps pcaps =
           $ do
               H.raise (ProjectList.ProjectChange p)
               H.modify_ (_ { selectedProject = Just p })
+      BillableCreated _ ->
+        pure unit
 
 apiCapability :: Capability Aff
 apiCapability =
-  { createBillable: createBillable
+  { createBillable: { createBillable: createBillable }
   , listProjectBillables: listProjectBillables
   , listUnpaidPaymentRequests: listUnpaidPaymentRequests
   }
 
 mockCapability :: Capability Aff
 mockCapability =
-  { createBillable: \_ _ -> pure $ Left Forbidden
+  { createBillable: { createBillable: \_ _ -> pure $ Left Forbidden }
   , listProjectBillables: \_ -> pure $ Left Forbidden
   , listUnpaidPaymentRequests: \_ -> pure $ Left Forbidden
   }
-

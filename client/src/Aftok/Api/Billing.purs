@@ -19,7 +19,7 @@ import Data.Either (Either(..), note)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap)
 -- import Data.Ratio (Ratio, (%))
--- import Data.Time.Duration (Hours(..), Days(..))
+import Data.Time.Duration (Hours(..), Days(..))
 import Data.Tuple (Tuple)
 -- import Data.Traversable (class Traversable, traverse)
 import Data.UUID (UUID, parseUUID)
@@ -77,8 +77,8 @@ type Billable =
   , message :: String
   , recurrence :: Recurrence
   , amount :: Zatoshi
-  , gracePeriod :: Duration
-  , expiryPeriod :: Duration
+  , gracePeriod :: Hours
+  , expiryPeriod :: Hours
   }
 
 billableJSON :: Billable -> Json
