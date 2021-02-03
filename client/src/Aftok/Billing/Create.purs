@@ -106,35 +106,51 @@ component system caps =
 
   render :: forall slots. CState -> H.ComponentHTML Action slots m
   render st =
-    HH.div
-      [ P.classes (ClassName <$> ["card-body"]) ]
-      [ HH.form_
-        [
-          HH.div
-            [ P.classes (ClassName <$> ["form-group"]) ]
-            [ HH.label [ P.for "billableName" ] [ HH.text "Bill Name:" ]
-            , HH.input
-              [ P.type_ P.InputText
-              , P.classes (ClassName <$> [ "form-control" ])
-              , P.id_ "billableName"
-              , P.placeholder "A name for the product or service you want to bill for"
-              , P.required true
-              , P.autofocus true
-              , E.onValueInput (Just <<< SetName)
-              ]
-            , HH.label [ P.for "billableDesc" ] [ HH.text "Bill Description:" ]
-            , HH.input
-              [ P.type_ P.InputText
-              , P.classes (ClassName <$> [ "form-control" ])
-              , P.id_ "billableDesc"
-              , P.placeholder "Description of the product or service"
-              , P.required true
-              , P.autofocus true
-              , E.onValueInput (Just <<< SetDesc)
-              ]
+    HH.form_
+      [ HH.div
+        [ P.classes (ClassName <$> ["form-group"]) ]
+        [ HH.label 
+          [ P.for "billableName", P.classes (ClassName <$> ["font-weight-bold", "mb-1"] )]
+          [ HH.text "Bill Name:" ] 
+        , HH.input
+          [ P.type_ P.InputText
+          , P.classes (ClassName <$> [ "form-control-sm" ])
+          , P.id_ "billableName"
+          , P.placeholder "A name for the product or service you want to bill for"
+          , P.required true
+          , P.autofocus true
+          , E.onValueInput (Just <<< SetName)
+          ]
+        , HH.label 
+            [ P.for "billableDesc", P.classes (ClassName <$> ["font-weight-bold", "mb-1"] )]
+            [ HH.text "Bill Description:" ] 
+        , HH.input
+            [ P.type_ P.InputText
+            , P.classes (ClassName <$> [ "form-control-sm" ])
+            , P.id_ "billableDesc"
+            , P.placeholder "Description of the product or service"
+            , P.required true
+            , P.autofocus true
+            , E.onValueInput (Just <<< SetDesc)
+            ]
+        , HH.label 
+            [ P.for "billableMsg", P.classes (ClassName <$> ["font-weight-bold", "mb-1"] )]
+            [ HH.text "Message to be included with bill:" ] 
+        , HH.input
+            [ P.type_ P.InputText
+            , P.classes (ClassName <$> [ "form-control-sm" ])
+            , P.id_ "billableMsg"
+            , P.placeholder "Description of the product or service"
+            , P.required true
+            , P.autofocus true
+            , E.onValueInput (Just <<< SetDesc)
             ]
         ]
       ]
+
+  colmd :: forall a s. Int -> Array (H.ComponentHTML a s m) -> H.ComponentHTML a s m
+  colmd i xs = HH.div [ P.classes (ClassName <$> [ "col-md-" <> show i ]) ] xs
+
 
   eval :: forall slots. Action -> H.HalogenM CState Action slots Output m Unit
   eval = case _ of

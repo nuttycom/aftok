@@ -9,7 +9,7 @@ import Data.Maybe (Maybe(..), isNothing)
 -- import Data.Unfoldable as U
 import Data.Newtype (unwrap)
 import Data.Symbol (SProxy(..))
-import Data.Time.Duration (Hours(..))
+-- import Data.Time.Duration (Hours(..))
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple)
 import Effect.Aff (Aff)
@@ -18,7 +18,7 @@ import Effect.Aff (Aff)
 import Halogen as H
 import Halogen.HTML.Core (ClassName(..))
 import Halogen.HTML as HH
-import Halogen.HTML.Events as E
+-- import Halogen.HTML.Events as E
 import Halogen.HTML.Properties as P
 import Aftok.Billing.Create as Create
 import Aftok.ProjectList as ProjectList
@@ -34,6 +34,7 @@ import Aftok.Api.Billing
   , listProjectBillables
   , listUnpaidPaymentRequests
   )
+import Aftok.Modals as Modals
 
 type BillingInput
   = Maybe Project
@@ -117,18 +118,20 @@ component system caps pcaps =
               ]
           , HH.div
               [ P.classes (ClassName <$> if isNothing st.selectedProject then [ "collapse" ] else []) ]
-              case st.selectedProject of
+              (case st.selectedProject of
                 Just p -> 
-                  [ HH.slot
-                      _createBillable
-                      unit
-                      (Create.component system caps.createBillable)
-                      (unwrap p).projectId
-                      (Just <<< BillableCreated)
+                  [ Modals.modalButton "createBillable" "Create billable"
+                  , Modals.modal "createBillable" "Create Billable"
+                    [ HH.slot
+                        _createBillable
+                        unit
+                        (Create.component system caps.createBillable)
+                        (unwrap p).projectId
+                        (Just <<< BillableCreated)
+                    ]
                   ]
                 Nothing -> []
-                    
-              
+              )
           ]
       ]
 
