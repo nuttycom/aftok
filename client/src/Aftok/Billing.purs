@@ -121,14 +121,13 @@ component system caps pcaps =
               (case st.selectedProject of
                 Just p -> 
                   [ Modals.modalButton "createBillable" "Create billable"
-                  , Modals.modal "createBillable" "Create Billable"
-                    [ HH.slot
-                        _createBillable
-                        unit
-                        (Create.component system caps.createBillable)
-                        (unwrap p).projectId
-                        (Just <<< BillableCreated)
-                    ]
+                  , system.portal
+                      _createBillable
+                      unit
+                      (Create.component system caps.createBillable)
+                      (unwrap p).projectId
+                      Nothing
+                      (Just <<< BillableCreated)
                   ]
                 Nothing -> []
               )

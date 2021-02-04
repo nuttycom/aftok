@@ -1,8 +1,11 @@
 module Aftok.Modals where
 
 import Prelude ((<>), negate)
+import Data.Maybe (Maybe(..))
 import DOM.HTML.Indexed.ButtonType (ButtonType(..))
+import Halogen as H
 import Halogen.HTML as HH
+import Halogen.HTML.Events as E
 import Halogen.HTML.Properties as P
 import Halogen.HTML.Properties.ARIA as ARIA
 
@@ -19,8 +22,14 @@ modalButton target text =
     ]
     [ HH.text text ]
 
-modal :: forall w i. String -> String -> Array (HH.HTML w i) -> HH.HTML w i
-modal modalId title contents =
+modal :: 
+  forall action slots m. 
+  String -> 
+  String -> 
+  action ->
+  Array (H.ComponentHTML action slots m) -> 
+  H.ComponentHTML action slots m
+modal modalId title submit contents =
   HH.div
     [ P.classes [ C.modal ]
     , P.id_ modalId
@@ -58,6 +67,7 @@ modal modalId title contents =
           , HH.button
             [ P.type_ ButtonButton
             , P.classes [ C.btn, C.btnPrimary ]
+            , E.onClick (\_ -> Just submit)
             ]
             [ HH.text "Save changes"]
           ]

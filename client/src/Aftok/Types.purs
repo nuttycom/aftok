@@ -10,6 +10,7 @@ import Data.Enum (fromEnum)
 import Data.JSDate as JD
 import Data.Maybe (Maybe)
 import Data.Newtype (class Newtype)
+import Data.Symbol (class IsSymbol, SProxy)
 import Data.Tuple (Tuple(..))
 import Data.UUID (UUID, toString, parseUUID)
 import Effect (Effect)
@@ -17,8 +18,14 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Now (now, nowDateTime)
 import Effect.Class.Console as C
+import Type.Row as Row
 import Web.Event.Event as WE
-import Routing.Hash as H
+import Web.HTML (HTMLElement)
+import Routing.Hash as RH
+import Halogen as H
+import Halogen.HTML as HH
+import Halogen.Portal (portalAff)
+import Aftok.Modals.ModalFFI as ModalFFI
 
 type System m
   = { log :: String -> m Unit
@@ -29,6 +36,20 @@ type System m
     , nowDateTime :: m DateTime
     , preventDefault :: WE.Event -> m Unit
     , dateFFI :: DateFFI m
+    , portal :: 
+      forall query action input output slots label slot _1.
+        Row.Cons label (H.Slot query output slot) _1 slots =>
+        IsSymbol label =>
+        Ord slot =>
+        Monad m =>
+        SProxy label ->
+        slot ->
+        H.Component HH.HTML query input output m ->
+        input ->
+        Maybe HTMLElement ->
+        (output -> Maybe action) ->
+        H.ComponentHTML action slots m
+    , toggleModal :: String -> ModalFFI.Toggle -> m Unit
     }
 
 liveSystem :: System Aff
@@ -36,11 +57,13 @@ liveSystem =
   { log: liftEffect <<< C.log
   , error: liftEffect <<< C.error
   , now: liftEffect now
-  , getHash: liftEffect H.getHash
-  , setHash: liftEffect <<< H.setHash
+  , getHash: liftEffect RH.getHash
+  , setHash: liftEffect <<< RH.setHash
   , nowDateTime: liftEffect nowDateTime
   , preventDefault: liftEffect <<< WE.preventDefault
   , dateFFI: hoistDateFFI liftEffect jsDateFFI
+  , portal: portalAff
+  , toggleModal: \i t -> liftEffect (ModalFFI.toggleModal i t)
   }
 
 type DateFFI m

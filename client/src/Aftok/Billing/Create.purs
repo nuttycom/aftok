@@ -22,6 +22,8 @@ import Aftok.ProjectList as ProjectList
 import Aftok.Types (System, ProjectId)
 import Aftok.Api.Types (APIError(..))
 import Aftok.Api.Project (Project)
+import Aftok.Modals as Modals
+import Aftok.Modals.ModalFFI as ModalFFI
 import Aftok.Api.Billing
   ( BillableId
   , Billable
@@ -65,6 +67,7 @@ data Action
   | SetRecurrenceType RType
   | SetRecurrenceDuration Number
   | SetBillingAmount Number
+  | SaveBillable
 
 type Slot id
   = H.Slot Query Output id
@@ -106,45 +109,47 @@ component system caps =
 
   render :: forall slots. CState -> H.ComponentHTML Action slots m
   render st =
-    HH.form_
-      [ HH.div
-        [ P.classes (ClassName <$> ["form-group"]) ]
-        [ HH.label 
-          [ P.for "billableName", P.classes (ClassName <$> ["font-weight-bold", "mb-1"] )]
-          [ HH.text "Bill Name:" ] 
-        , HH.input
-          [ P.type_ P.InputText
-          , P.classes (ClassName <$> [ "form-control-sm" ])
-          , P.id_ "billableName"
-          , P.placeholder "A name for the product or service you want to bill for"
-          , P.required true
-          , P.autofocus true
-          , E.onValueInput (Just <<< SetName)
+    Modals.modal "createBillable" "Create Billable" SaveBillable
+      [ HH.form_
+        [ HH.div
+          [ P.classes (ClassName <$> ["form-group"]) ]
+          [ HH.label 
+            [ P.for "billableName", P.classes (ClassName <$> ["font-weight-bold", "mb-1"] )]
+            [ HH.text "Bill Name:" ] 
+          , HH.input
+            [ P.type_ P.InputText
+            , P.classes (ClassName <$> [ "form-control-sm" ])
+            , P.id_ "billableName"
+            , P.placeholder "A name for the product or service you want to bill for"
+            , P.required true
+            , P.autofocus true
+            , E.onValueInput (Just <<< SetName)
+            ]
+          , HH.label 
+              [ P.for "billableDesc", P.classes (ClassName <$> ["font-weight-bold", "mb-1"] )]
+              [ HH.text "Bill Description:" ] 
+          , HH.input
+              [ P.type_ P.InputText
+              , P.classes (ClassName <$> [ "form-control-sm" ])
+              , P.id_ "billableDesc"
+              , P.placeholder "Description of the product or service"
+              , P.required true
+              , P.autofocus true
+              , E.onValueInput (Just <<< SetDesc)
+              ]
+          , HH.label 
+              [ P.for "billableMsg", P.classes (ClassName <$> ["font-weight-bold", "mb-1"] )]
+              [ HH.text "Message to be included with bill:" ] 
+          , HH.input
+              [ P.type_ P.InputText
+              , P.classes (ClassName <$> [ "form-control-sm" ])
+              , P.id_ "billableMsg"
+              , P.placeholder "Description of the product or service"
+              , P.required true
+              , P.autofocus true
+              , E.onValueInput (Just <<< SetDesc)
+              ]
           ]
-        , HH.label 
-            [ P.for "billableDesc", P.classes (ClassName <$> ["font-weight-bold", "mb-1"] )]
-            [ HH.text "Bill Description:" ] 
-        , HH.input
-            [ P.type_ P.InputText
-            , P.classes (ClassName <$> [ "form-control-sm" ])
-            , P.id_ "billableDesc"
-            , P.placeholder "Description of the product or service"
-            , P.required true
-            , P.autofocus true
-            , E.onValueInput (Just <<< SetDesc)
-            ]
-        , HH.label 
-            [ P.for "billableMsg", P.classes (ClassName <$> ["font-weight-bold", "mb-1"] )]
-            [ HH.text "Message to be included with bill:" ] 
-        , HH.input
-            [ P.type_ P.InputText
-            , P.classes (ClassName <$> [ "form-control-sm" ])
-            , P.id_ "billableMsg"
-            , P.placeholder "Description of the product or service"
-            , P.required true
-            , P.autofocus true
-            , E.onValueInput (Just <<< SetDesc)
-            ]
         ]
       ]
 
@@ -162,4 +167,7 @@ component system caps =
       SetRecurrenceType rtype -> pure unit
       SetRecurrenceDuration dur -> pure unit
       SetBillingAmount amt -> pure unit
+      SaveBillable -> 
+        lift $ system.toggleModal "createBillable" ModalFFI.HideModal
+
 
