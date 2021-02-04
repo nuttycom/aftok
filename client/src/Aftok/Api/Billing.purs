@@ -6,7 +6,7 @@ import Control.Monad.Except.Trans (runExceptT, except, withExceptT)
 -- import Control.Monad.Except.Trans (ExceptT, runExceptT, except, withExceptT)
 -- import Control.Monad.Error.Class (throwError)
 import Data.Argonaut.Core (Json)
-import Data.Argonaut.Decode (class DecodeJson, decodeJson)
+import Data.Argonaut.Decode (class DecodeJson, decodeJson, JsonDecodeError(..))
 import Data.Argonaut.Encode (encodeJson)
 import Data.BigInt (toNumber)
 import Data.DateTime (DateTime)
@@ -56,7 +56,7 @@ derive instance billableIdNewtype :: Newtype BillableId _
 instance billableIdDecodeJson :: DecodeJson BillableId where
   decodeJson json = do
     uuidStr <- decodeJson json
-    BillableId <$> (note "Failed to decode billable UUID" $ parseUUID uuidStr)
+    BillableId <$> note (TypeMismatch"Failed to decode billable UUID") (parseUUID uuidStr)
 
 data Recurrence
   = Annually
@@ -104,7 +104,7 @@ derive instance paymentRequestIdNewtype :: Newtype PaymentRequestId _
 instance paymentRequestIdDecodeJson :: DecodeJson PaymentRequestId where
   decodeJson json = do
     uuidStr <- decodeJson json
-    PaymentRequestId <$> (note "Failed to decode paymentRequest UUID" $ parseUUID uuidStr)
+    PaymentRequestId <$> note (TypeMismatch "Failed to decode paymentRequest UUID") (parseUUID uuidStr)
 
 newtype PaymentRequest' t = PaymentRequest
   {
@@ -120,7 +120,7 @@ createBillable pid billable = do
     Left err -> throwError $ Error { status: Nothing, message: printError err }
     Right r -> case r.status of
       StatusCode 403 -> throwError $ Forbidden
-      StatusCode 200 -> withExceptT (ParseFailure r.body) <<< except $ decodeJson r.body
+      StatusCode 200 -> withExceptT ParseFailure <<< except $ decodeJson r.body
       other -> throwError $ Error { status: Just other, message: r.statusText }
 
 listProjectBillables :: ProjectId -> Aff (Either APIError (Array (Tuple BillableId Billable)))

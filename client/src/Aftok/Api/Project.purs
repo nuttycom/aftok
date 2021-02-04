@@ -4,8 +4,8 @@ import Prelude
 import Control.Monad.Except.Trans (ExceptT, runExceptT)
 -- import Control.Monad.Except.Trans (ExceptT, runExceptT, except, withExceptT)
 -- import Control.Monad.Error.Class (throwError)
-import Data.Argonaut.Core (Json)
-import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.:))
+import Data.Argonaut.Core (Json, fromString)
+import Data.Argonaut.Decode (class DecodeJson, JsonDecodeError(..), decodeJson, (.:))
 import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant, toDateTime)
 import Data.Either (Either(..))
@@ -51,7 +51,7 @@ instance decodeDepreciationFn :: DecodeJson DepreciationFn where
         undep <- Days <$> args .: "undep"
         dep <- Days <$> args .: "dep"
         pure $ LinearDepreciation { undep, dep }
-      other -> Left $ "Unrecognized depreciation function: " <> other
+      other -> Left $ UnexpectedValue (fromString dtype)
 
 newtype Project' date
   = Project'
@@ -78,7 +78,7 @@ instance projectTraversable :: Traversable Project' where
 type Project
   = Project' DateTime
 
-parseProject :: ProjectId -> Object Json -> Either String (Project' String)
+parseProject :: ProjectId -> Object Json -> Either JsonDecodeError (Project' String)
 parseProject projectId pjson = do
   projectName <- pjson .: "projectName"
   inceptionDate <- pjson .: "inceptionDate"

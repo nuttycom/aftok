@@ -1,7 +1,7 @@
 module Aftok.Types where
 
 import Prelude
-import Data.Argonaut.Decode (class DecodeJson, decodeJson)
+import Data.Argonaut.Decode (class DecodeJson, decodeJson, JsonDecodeError(..))
 import Data.Date (Date, year, month, day)
 import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant)
@@ -93,7 +93,7 @@ derive instance userIdNewtype :: Newtype UserId _
 instance userIdDecodeJson :: DecodeJson UserId where
   decodeJson json = do
     uuidStr <- decodeJson json
-    UserId <$> (note "Failed to decode user UUID" $ parseUUID uuidStr)
+    UserId <$> note (TypeMismatch "Failed to decode user UUID") (parseUUID uuidStr)
 
 newtype ProjectId
   = ProjectId UUID
@@ -107,7 +107,7 @@ derive instance projectIdNewtype :: Newtype ProjectId _
 instance projectIdDecodeJson :: DecodeJson ProjectId where
   decodeJson json = do
     uuidStr <- decodeJson json
-    ProjectId <$> (note "Failed to decode project UUID" $ parseUUID uuidStr)
+    ProjectId <$> note (TypeMismatch "Failed to decode project UUID") (parseUUID uuidStr)
 
 pidStr :: ProjectId -> String
 pidStr (ProjectId uuid) = toString uuid

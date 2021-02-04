@@ -118,10 +118,24 @@ let additions =
 -}
 
 let upstream =
-      https://github.com/purescript/package-sets/releases/download/psc-0.13.8-20200615/packages.dhall sha256:5d0cfad9408c84db0a3fdcea2d708f9ed8f64297e164dc57a7cf6328706df93a
+      https://github.com/purescript/package-sets/releases/download/psc-0.13.8-20210118/packages.dhall sha256:a59c5c93a68d5d066f3815a89f398bcf00e130a51cb185b2da29b20e2d8ae115
 
 let overrides = {=}
 
-let additions = {=}
+let additions =
+      { halogen-portal =
+        { dependencies =
+          [ "aff-bus"
+          , "effect"
+          , "halogen"
+          , "halogen-storybook"
+          , "psci-support"
+          , "record"
+          ]
+        , repo =
+            "https://github.com/thomashoneyman/purescript-halogen-portal.git"
+        , version = "34bcb2bb1dd859749f2061479c74c6052519e115"
+        }
+      }
 
 in  upstream // overrides // additions

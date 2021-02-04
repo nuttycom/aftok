@@ -5,7 +5,7 @@ import Control.Monad.Error.Class (throwError)
 import Control.Monad.Except.Trans (ExceptT, except, withExceptT)
 import Control.Monad.Trans.Class (lift)
 import Data.Argonaut.Core (Json)
-import Data.Argonaut.Decode (class DecodeJson, decodeJson)
+import Data.Argonaut.Decode (class DecodeJson, decodeJson, JsonDecodeError(..))
 import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant, fromDateTime)
 import Data.Functor.Compose (Compose(..))
@@ -44,10 +44,10 @@ instance jsonComposeDecodeJson :: (DecodeJson (f (g a))) => DecodeJson (JsonComp
 decompose :: forall f g a. JsonCompose f g a -> f (g a)
 decompose (JsonCompose (Compose fga)) = fga
 
-parseJsonDate :: Json -> ExceptT String Effect DateTime
+parseJsonDate :: Json -> ExceptT JsonDecodeError Effect DateTime
 parseJsonDate json = do
   str <- except $ decodeJson json
-  parseDate str
+  (withExceptT TypeMismatch $ parseDate str)
 
 parseDate :: String -> ExceptT String Effect DateTime
 parseDate str = do
@@ -57,12 +57,17 @@ parseDate str = do
         (JD.toDateTime jsDate)
 
 type Decode a
-  = Json -> Either String a
+  = Json -> Either JsonDecodeError a
 
-decodeDatedJson :: forall t. Traversable t => Decode (t String) -> Json -> ExceptT String Effect (t DateTime)
+decodeDatedJson :: 
+  forall t. 
+  Traversable t => 
+  Decode (t String) -> 
+  Json -> 
+  ExceptT JsonDecodeError Effect (t DateTime)
 decodeDatedJson decode json = do
   decoded <- except $ decode json
-  traverse parseDate decoded
+  (withExceptT TypeMismatch $ traverse parseDate decoded)
 
 parseDatedResponse ::
   forall t.
@@ -74,7 +79,7 @@ parseDatedResponse decode = case _ of
   Left err -> throwError $ Error { status: Nothing, message: printError err }
   Right r -> case r.status of
     StatusCode 403 -> throwError $ Forbidden
-    StatusCode 200 -> withExceptT (ParseFailure r.body) $ map fromDateTime <$> decodeDatedJson decode r.body
+    StatusCode 200 -> withExceptT ParseFailure $ map fromDateTime <$> decodeDatedJson decode r.body
     other -> throwError $ Error { status: Just other, message: r.statusText }
 
 parseDatedResponseMay ::
@@ -89,8 +94,9 @@ parseDatedResponseMay decode = case _ of
     StatusCode 403 -> throwError $ Forbidden
     StatusCode 404 -> pure Nothing
     StatusCode 200 ->
-      withExceptT (ParseFailure r.body)
-        $ Just
-        <<< map fromDateTime
-        <$> decodeDatedJson decode r.body
-    other -> throwError $ Error { status: Just other, message: r.statusText }
+      map Just
+      <<< withExceptT ParseFailure
+      <<< map (map fromDateTime)
+      $ decodeDatedJson decode r.body
+    other -> 
+      throwError $ Error { status: Just other, message: r.statusText }

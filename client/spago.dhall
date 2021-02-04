@@ -10,6 +10,7 @@
   , "halogen"
   , "halogen-css"
   , "halogen-formless"
+  , "halogen-portal"
   , "js-date"
   , "psci-support"
   , "rationals"
