@@ -30,7 +30,6 @@ import Aftok.Api.Billing
   , Billable
   , PaymentRequestId
   , PaymentRequest
-  , createBillable
   , listProjectBillables
   , listUnpaidPaymentRequests
   )
@@ -67,7 +66,6 @@ type Capability (m :: Type -> Type)
     , listProjectBillables :: ProjectId -> m (Either APIError (Array (Tuple BillableId Billable)))
     , listUnpaidPaymentRequests :: BillableId -> m (Either APIError (Array (Tuple PaymentRequestId PaymentRequest)))
     }
-
 
 component ::
   forall query m.
@@ -156,7 +154,7 @@ component system caps pcaps =
 
 apiCapability :: Capability Aff
 apiCapability =
-  { createBillable: { createBillable: createBillable }
+  { createBillable: Create.apiCapability
   , listProjectBillables: listProjectBillables
   , listUnpaidPaymentRequests: listUnpaidPaymentRequests
   }

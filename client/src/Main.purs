@@ -44,7 +44,8 @@ main =
 
       overview = Overview.apiCapability
 
-      billing = Billing.mockCapability
+      billing = Billing.apiCapability
+
       mainComponent = component liveSystem login signup timeline project overview billing
     halogenIO <- runUI mainComponent unit body
     void $ liftEffect

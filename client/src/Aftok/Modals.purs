@@ -22,14 +22,14 @@ modalButton target text =
     ]
     [ HH.text text ]
 
-modal :: 
+modalWithSave :: 
   forall action slots m. 
   String -> 
   String -> 
   action ->
   Array (H.ComponentHTML action slots m) -> 
   H.ComponentHTML action slots m
-modal modalId title submit contents =
+modalWithSave modalId title submit contents =
   HH.div
     [ P.classes [ C.modal ]
     , P.id_ modalId
@@ -51,7 +51,7 @@ modal modalId title submit contents =
             , ARIA.label "Close"
             , P.type_ ButtonButton
             ]
-            [ HH.span [ARIA.hidden "true"] [HH.text "&times;"]]
+            [ HH.span [ARIA.hidden "true"] [HH.text "×"]]
           ]
         , HH.div
           [ P.classes [C.modalBody] ]

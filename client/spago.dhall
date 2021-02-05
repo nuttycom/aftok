@@ -12,6 +12,7 @@
   , "halogen-formless"
   , "halogen-portal"
   , "js-date"
+  , "numbers"
   , "psci-support"
   , "rationals"
   , "routing"

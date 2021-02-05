@@ -6,12 +6,11 @@ import Control.Monad.Except.Trans (runExceptT, except, withExceptT)
 -- import Control.Monad.Except.Trans (ExceptT, runExceptT, except, withExceptT)
 -- import Control.Monad.Error.Class (throwError)
 import Data.Argonaut.Core (Json)
-import Data.Argonaut.Decode (class DecodeJson, decodeJson, JsonDecodeError(..))
+import Data.Argonaut.Decode (class DecodeJson, decodeJson, JsonDecodeError(..), (.:))
 import Data.Argonaut.Encode (encodeJson)
 import Data.BigInt (toNumber)
 import Data.DateTime (DateTime)
 -- import Data.DateTime.Instant (Instant, toDateTime)
-import Data.Interval.Duration (Duration)
 import Data.Either (Either(..), note)
 -- import Data.Foldable (class Foldable, foldr, foldl, foldMapDefaultR)
 -- import Data.Functor.Compose (Compose(..))
@@ -19,7 +18,7 @@ import Data.Either (Either(..), note)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap)
 -- import Data.Ratio (Ratio, (%))
-import Data.Time.Duration (Hours(..), Days(..))
+import Data.Time.Duration (Hours)
 import Data.Tuple (Tuple)
 -- import Data.Traversable (class Traversable, traverse)
 import Data.UUID (UUID, parseUUID)
@@ -55,7 +54,8 @@ derive instance billableIdNewtype :: Newtype BillableId _
 
 instance billableIdDecodeJson :: DecodeJson BillableId where
   decodeJson json = do
-    uuidStr <- decodeJson json
+    obj <- decodeJson json
+    uuidStr <- obj .: "billableId"
     BillableId <$> note (TypeMismatch"Failed to decode billable UUID") (parseUUID uuidStr)
 
 data Recurrence
@@ -83,12 +83,15 @@ type Billable =
 
 billableJSON :: Billable -> Json
 billableJSON b = encodeJson $
-  { name: b.name
+  { schemaVersion: "1.0"
+  , name: b.name
   , description: b.description
   , message: b.message
   , recurrence: recurrenceJSON b.recurrence
   , currency: "ZEC"
   , amount: toNumber (unwrap b.amount)
+  , gracePeriod: unwrap b.gracePeriod
+  , requestExpiryPeriod: unwrap b.expiryPeriod
   }
 
 

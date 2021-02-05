@@ -40,3 +40,9 @@ modalFooter = ClassName "modal-footer"
 
 modalTitle :: ClassName
 modalTitle = ClassName "modal-title"
+
+formGroup :: ClassName
+formGroup = ClassName "form-group"
+
+formControlSm :: ClassName
+formControlSm = ClassName "form-control-sm"
