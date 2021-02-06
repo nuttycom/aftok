@@ -6,6 +6,7 @@ import Control.Alternative ((<|>))
 -- import Control.Monad.Except.Trans (runExceptT, except, withExceptT)
 -- import Control.Monad.Except.Trans (ExceptT, runExceptT, except, withExceptT)
 -- import Control.Monad.Error.Class (throwError)
+import Control.Monad.Maybe.Trans (MaybeT(..), runMaybeT)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, JsonDecodeError(..), (.:), (.:?))
 import Data.Argonaut.Encode (encodeJson)
@@ -22,7 +23,7 @@ import Data.Newtype (class Newtype, unwrap)
 -- import Data.Ratio (Ratio, (%))
 import Data.Time.Duration (Hours(..), Days(..))
 import Data.Tuple (Tuple(..))
-import Data.Traversable (traverse)
+import Data.Traversable (traverse, sequence)
 import Data.UUID (UUID, parseUUID)
 -- import Effect (Effect)
 import Effect.Aff (Aff)
@@ -66,6 +67,20 @@ data Recurrence
   | Weekly Int
   | OneTime
 
+instance showRecurrence :: Show Recurrence where
+  show = case _ of
+    Annually -> "Annually"
+    Monthly i -> "Monthly " <> show i
+    Weekly i -> "Weekly " <> show i
+    OneTime -> "OneTime"
+
+recurrenceStr :: Recurrence -> String
+recurrenceStr = case _ of
+    Annually -> "Annually"
+    Monthly i -> "Every " <> show i <> " months"
+    Weekly i -> "Every " <> show i <> " weeks"
+    OneTime -> "One-time purchase"
+
 recurrenceJSON :: Recurrence -> Json
 recurrenceJSON = case _ of
   Annually -> encodeJson $ { annually: {} }
@@ -101,13 +116,12 @@ billableJSON b = encodeJson $
 parseRecurrence :: Json -> Either JsonDecodeError Recurrence
 parseRecurrence json = do
   obj <- decodeJson json
-  let annually = traverse (map \(_ :: Unit) -> Annually) (obj .:? "annually")
-      monthly =  traverse (map Monthly) (obj .:? "monthly")
-      weekly =   traverse (map Weekly) (obj .:? "weekly")
+  let parseInner f outer inner = map f ((MaybeT <<< (_ .:? inner)) =<< MaybeT (obj .:? outer))
+      annually = traverse (map \(_ :: Unit) -> Annually) (obj .:? "annually")
+      monthly =  sequence $ runMaybeT (parseInner Monthly "monthly" "months")
+      weekly =   sequence $ runMaybeT (parseInner Weekly "weekly" "weeks")
       onetime =  traverse (map \(_ :: Unit) -> OneTime) (obj .:? "onetime")
   join $ note (UnexpectedValue json) (annually <|> monthly <|> weekly <|> onetime)
-      
-
 
 parseBillableJSON :: Object Json -> Either JsonDecodeError (Tuple BillableId Billable)
 parseBillableJSON obj = do
@@ -116,7 +130,7 @@ parseBillableJSON obj = do
   name :: String <- bobj .: "name"
   description :: String <- bobj .: "description"
   let message = ""
-  recurrence :: Recurrence <- parseRecurrence =<< bobj .: "recurrence"
+  recurrence <- parseRecurrence =<< bobj .: "recurrence"
   amount <- 
     map Zatoshi 
       $   (note (TypeMismatch "Failed to decode as Zatoshi") <<< BigInt.fromNumber) 

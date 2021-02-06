@@ -10,7 +10,7 @@ import Data.Unfoldable as U
 import Data.Newtype (unwrap)
 import Data.Symbol (SProxy(..))
 -- import Data.Time.Duration (Hours(..))
-import Data.Traversable (traverse)
+import Data.Traversable (traverse_)
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 -- import Effect.Class (liftEffect)
@@ -21,6 +21,7 @@ import Halogen.HTML as HH
 -- import Halogen.HTML.Events as E
 import Halogen.HTML.Properties as P
 import Aftok.Billing.Create as Create
+import Aftok.Billing.PaymentRequest as PaymentRequest
 import Aftok.ProjectList as ProjectList
 import Aftok.Types (System, ProjectId)
 import Aftok.Api.Types (APIError(..))
@@ -32,6 +33,7 @@ import Aftok.Api.Billing
   , PaymentRequest
   , listProjectBillables
   , listUnpaidPaymentRequests
+  , recurrenceStr
   )
 import Aftok.Modals as Modals
 import Aftok.Zcash (toZEC, zecString)
@@ -57,10 +59,12 @@ type Slot id
 type Slots
   = ( projectList :: ProjectList.Slot Unit
     , createBillable :: Create.Slot Unit
+    , createPaymentRequest :: PaymentRequest.Slot Unit
     )
 
 _projectList = SProxy :: SProxy "projectList"
 _createBillable = SProxy :: SProxy "createBillable"
+_createPaymentRequest = SProxy :: SProxy "createPaymentRequest"
 
 type Capability (m :: Type -> Type)
   = { createBillable :: Create.Capability m
@@ -120,7 +124,16 @@ component system caps pcaps =
               (case st.selectedProject of
                 Just p -> 
                   [ renderBillableList st.billables
-                  , Modals.modalButton "createBillable" "Create billable"
+                  , HH.div 
+                    [ P.classes (ClassName <$> [ "col-md-2" ]) ] 
+                    [ Modals.modalButton "createBillable" "Create billable" ]
+                  , system.portal
+                      _createBillable
+                      unit
+                      (Create.component system caps.createBillable)
+                      (unwrap p).projectId
+                      Nothing
+                      (Just <<< BillableCreated)
                   , system.portal
                       _createBillable
                       unit
@@ -159,6 +172,10 @@ component system caps pcaps =
           [ colmd2 (Just b.name)
           , colmd2 (Just b.description)
           , colmd2 (Just (zecString <<< toZEC $ b.amount))
+          , colmd2 (Just (recurrenceStr b.recurrence))
+          , HH.div 
+            [ P.classes (ClassName <$> [ "col-md-2" ]) ] 
+            [ Modals.modalButton "createPaymentRequest" "New Payment Request" ]
           ]
 
   colmd2 :: forall i w. Maybe String -> HH.HTML i  w
@@ -170,11 +187,11 @@ component system caps pcaps =
     case action of
       Initialize -> do
         currentProject <- H.gets (_.selectedProject)
-        refreshBillables currentProject
+        traverse_ refreshBillables currentProject
 
       ProjectSelected p -> do
         currentProject <- H.gets (_.selectedProject)
-        refreshBillables currentProject
+        refreshBillables p
         when (all (\p' -> (unwrap p').projectId /= (unwrap p).projectId) currentProject)
           $ do
               H.raise (ProjectList.ProjectChange p)
@@ -182,14 +199,13 @@ component system caps pcaps =
 
       BillableCreated _ -> do
         currentProject <- H.gets (_.selectedProject)
-        refreshBillables currentProject
+        traverse_ refreshBillables currentProject
     where 
       refreshBillables currentProject = do
-        billables <- lift $ traverse (caps.listProjectBillables <<< (_.projectId) <<< unwrap) currentProject
+        billables <- lift $ caps.listProjectBillables (unwrap currentProject).projectId
         case billables of
-          Nothing -> pure unit
-          Just (Left err) -> lift $ system.error (show err)
-          Just (Right b) -> H.modify_ (_ { billables = b })
+          Left err -> lift $ system.error (show err)
+          Right b -> H.modify_ (_ { billables = b })
 
 apiCapability :: Capability Aff
 apiCapability =

@@ -7,7 +7,7 @@ module Aftok.Snaplet.Payments
   )
 where
 
-import Aftok.Billing
+import Aftok.Billing (SubscriptionId (..))
 import qualified Aftok.Config as AC
 import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
 import Aftok.Database

@@ -17,7 +17,7 @@ import Aftok.Interval
 import Aftok.Types
   ( CreditTo (..),
     DepreciationFunction (..),
-    DepreciationRules(..),
+    DepreciationRules (..),
     _CreditToAccount,
     _CreditToProject,
     _CreditToUser,
@@ -139,7 +139,7 @@ makePrisms ''WorkIndex
 type DepF = C.UTCTime -> Interval C.UTCTime -> NDT
 
 toDepF :: DepreciationRules -> DepF
-toDepF (DepreciationRules (LinearDepreciation undepLength depLength) firstRevenue)  =
+toDepF (DepreciationRules (LinearDepreciation undepLength depLength) firstRevenue) =
   linearDepreciation firstRevenue undepLength depLength
 
 daysToNDT :: C.Days -> NDT

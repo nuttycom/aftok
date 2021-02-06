@@ -1,60 +1,396 @@
 module Aftok.Billing.PaymentRequest where
 
-{--
-<div role="document" class="ant-modal" style="width: 520px; transform-origin: 724px 147.062px;">
-    <div tabindex="0" style="width: 0px; height: 0px; overflow: hidden;">sentinelStart</div>
-    <div class="ant-modal-content"><button aria-label="Close" class="ant-modal-close"><span class="ant-modal-close-x"><i aria-label="icon: close" class="anticon anticon-close ant-modal-close-icon"><svg viewBox="64 64 896 896" class="" data-icon="close" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M563.8 512l262.5-312.9c4.4-5.2.7-13.1-6.1-13.1h-79.8c-4.7 0-9.2 2.1-12.3 5.7L511.6 449.8 295.1 191.7c-3-3.6-7.5-5.7-12.3-5.7H203c-6.8 0-10.5 7.9-6.1 13.1L459.4 512 196.9 824.9A7.95 7.95 0 0 0 203 838h79.8c4.7 0 9.2-2.1 12.3-5.7l216.5-258.1 216.5 258.1c3 3.6 7.5 5.7 12.3 5.7h79.8c6.8 0 10.5-7.9 6.1-13.1L563.8 512z"></path></svg></i></span></button>
-        <div class="ant-modal-header">
-            <div class="ant-modal-title" id="rcDialogTitle0">Tip a proposal</div>
-        </div>
-        <div class="ant-modal-body">
-            <div class="TipJarModal">
-                <div class="TipJarModal-uri">
-                    <div>
-                        <div class="TipJarModal-uri-qr"><span style="opacity: 1;"><canvas height="128" width="128" style="height: 128px; width: 128px;"></canvas></span></div>
-                    </div>
-                    <div class="TipJarModal-uri-info">
-                        <div class="ant-row ant-form-item TipJarModal-uri-info-input CopyInput">
-                            <div class="ant-form-item-label"><label class="" title="Amount">Amount</label></div>
-                            <div class="ant-form-item-control-wrapper">
-                                <div class="ant-form-item-control"><span class="ant-form-item-children"><span class="ant-input-group-wrapper"><span class="ant-input-wrapper ant-input-group"><input type="number" placeholder="Amount to send" class="ant-input" value="0.2"><span class="ant-input-group-addon">ZEC</span></span>
-                                    </span>
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="ant-row ant-form-item CopyInput TipJarModal-uri-info-input is-textarea">
-                            <div class="ant-form-item-label"><label class="" title="Payment URI">Payment URI</label></div>
-                            <div class="ant-form-item-control-wrapper">
-                                <div class="ant-form-item-control"><span class="ant-form-item-children"><textarea readonly="" rows="3" class="ant-input">zcash:zs1xzymv205x8hhn8kt3pu43c6knjlelvxfgzgsyyus9yxhmdvqeu0yj0m2knzd3p93slsygkp94rz?amount=0.2</textarea><button type="button" class="ant-btn ant-btn-icon-only"><i aria-label="icon: copy" class="anticon anticon-copy"><svg viewBox="64 64 896 896" class="" data-icon="copy" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M832 64H296c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h496v688c0 4.4 3.6 8 8 8h56c4.4 0 8-3.6 8-8V96c0-17.7-14.3-32-32-32zM704 192H192c-17.7 0-32 14.3-32 32v530.7c0 8.5 3.4 16.6 9.4 22.6l173.3 173.3c2.2 2.2 4.7 4 7.4 5.5v1.9h4.2c3.5 1.3 7.2 2 11 2H704c17.7 0 32-14.3 32-32V224c0-17.7-14.3-32-32-32zM350 856.2L263.9 770H350v86.2zM664 888H414V746c0-22.1-17.9-40-40-40H232V264h432v624z"></path></svg></i></button></span></div>
-                            </div>
-                        </div><a href="zcash:zs1xzymv205x8hhn8kt3pu43c6knjlelvxfgzgsyyus9yxhmdvqeu0yj0m2knzd3p93slsygkp94rz?amount=0.2" class="ant-btn ant-btn-ghost ant-btn-lg ant-btn-block"><span>Open in Wallet </span><i aria-label="icon: link" class="anticon anticon-link"><svg viewBox="64 64 896 896" class="" data-icon="link" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M574 665.4a8.03 8.03 0 0 0-11.3 0L446.5 781.6c-53.8 53.8-144.6 59.5-204 0-59.5-59.5-53.8-150.2 0-204l116.2-116.2c3.1-3.1 3.1-8.2 0-11.3l-39.8-39.8a8.03 8.03 0 0 0-11.3 0L191.4 526.5c-84.6 84.6-84.6 221.5 0 306s221.5 84.6 306 0l116.2-116.2c3.1-3.1 3.1-8.2 0-11.3L574 665.4zm258.6-474c-84.6-84.6-221.5-84.6-306 0L410.3 307.6a8.03 8.03 0 0 0 0 11.3l39.7 39.7c3.1 3.1 8.2 3.1 11.3 0l116.2-116.2c53.8-53.8 144.6-59.5 204 0 59.5 59.5 53.8 150.2 0 204L665.3 562.6a8.03 8.03 0 0 0 0 11.3l39.8 39.8c3.1 3.1 8.2 3.1 11.3 0l116.2-116.2c84.5-84.6 84.5-221.5 0-306.1zM610.1 372.3a8.03 8.03 0 0 0-11.3 0L372.3 598.7a8.03 8.03 0 0 0 0 11.3l39.6 39.6c3.1 3.1 8.2 3.1 11.3 0l226.4-226.4c3.1-3.1 3.1-8.2 0-11.3l-39.5-39.6z"></path></svg></i></a></div>
-                </div>
-                <div class="TipJarModal-fields">
-                    <div class="TipJarModal-fields-row">
-                        <div class="ant-row ant-form-item CopyInput TipJarModal-fields-row-address">
-                            <div class="ant-form-item-label"><label class="" title="Address">Address</label></div>
-                            <div class="ant-form-item-control-wrapper">
-                                <div class="ant-form-item-control"><span class="ant-form-item-children"><input readonly="" type="text" class="ant-input" value="zs1xzymv205x8hhn8kt3pu43c6knjlelvxfgzgsyyus9yxhmdvqeu0yj0m2knzd3p93slsygkp94rz"><button type="button" class="ant-btn ant-btn-icon-only"><i aria-label="icon: copy" class="anticon anticon-copy"><svg viewBox="64 64 896 896" class="" data-icon="copy" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M832 64H296c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h496v688c0 4.4 3.6 8 8 8h56c4.4 0 8-3.6 8-8V96c0-17.7-14.3-32-32-32zM704 192H192c-17.7 0-32 14.3-32 32v530.7c0 8.5 3.4 16.6 9.4 22.6l173.3 173.3c2.2 2.2 4.7 4 7.4 5.5v1.9h4.2c3.5 1.3 7.2 2 11 2H704c17.7 0 32-14.3 32-32V224c0-17.7-14.3-32-32-32zM350 856.2L263.9 770H350v86.2zM664 888H414V746c0-22.1-17.9-40-40-40H232V264h432v624z"></path></svg></i></button></span></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="TipJarModal-fields-row">
-                        <div class="ant-row ant-form-item ant-form-item-with-help CopyInput">
-                            <div class="ant-form-item-label"><label class="" title="Zcash CLI command">Zcash CLI command</label></div>
-                            <div class="ant-form-item-control-wrapper">
-                                <div class="ant-form-item-control"><span class="ant-form-item-children"><input readonly="" type="text" class="ant-input" value="zcash-cli z_sendmany YOUR_ADDRESS '[{&quot;address&quot;:&quot;zs1xzymv205x8hhn8kt3pu43c6knjlelvxfgzgsyyus9yxhmdvqeu0yj0m2knzd3p93slsygkp94rz&quot;,&quot;amount&quot;:0.2}]'"><button type="button" class="ant-btn ant-btn-icon-only"><i aria-label="icon: copy" class="anticon anticon-copy"><svg viewBox="64 64 896 896" class="" data-icon="copy" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M832 64H296c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h496v688c0 4.4 3.6 8 8 8h56c4.4 0 8-3.6 8-8V96c0-17.7-14.3-32-32-32zM704 192H192c-17.7 0-32 14.3-32 32v530.7c0 8.5 3.4 16.6 9.4 22.6l173.3 173.3c2.2 2.2 4.7 4 7.4 5.5v1.9h4.2c3.5 1.3 7.2 2 11 2H704c17.7 0 32-14.3 32-32V224c0-17.7-14.3-32-32-32zM350 856.2L263.9 770H350v86.2zM664 888H414V746c0-22.1-17.9-40-40-40H232V264h432v624z"></path></svg></i></button></span>
-                                    <div class="ant-form-explain">Make sure you replace YOUR_ADDRESS with your actual address</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="ant-modal-footer"><button type="button" class="ant-btn ant-btn-primary"><span>Done</span></button></div>
-    </div>
-    <div tabindex="0" style="width: 0px; height: 0px; overflow: hidden;">sentinelEnd</div>
-</div>
+import Prelude
+import Control.Monad.Trans.Class (lift)
+-- import Data.DateTime (DateTime, date)
+import Data.Either (Either(..), note)
+import Data.Fixed as Fixed
+import Data.Foldable (any)
+import Data.Int as Int
+import Data.Maybe (Maybe(..), maybe)
+import Data.Newtype (unwrap)
+import Data.Number (fromString) as Number
+import Data.Number.Format (toString) as Number
+-- import Data.Unfoldable as U
+import Data.Validation.Semigroup (V(..), toEither)
+import Data.Time.Duration (Hours(..), Days(..))
+-- import Data.Traversable (traverse)
+import Data.Tuple (Tuple(..))
+import Effect.Aff (Aff)
+-- import Effect.Class (liftEffect)
+-- import Effect.Now (nowDateTime)
+import Halogen as H
+import Halogen.HTML.Core (ClassName(..))
+import Halogen.HTML as HH
+import Halogen.HTML.Events as E
+import Halogen.HTML.Properties as P
+import Aftok.Types (System, ProjectId)
+import Aftok.HTML.Classes as C
+import Aftok.Modals as Modals
+import Aftok.Modals.ModalFFI as ModalFFI
+import Aftok.Api.Types (APIError(..))
+import Aftok.Api.Billing
+  ( BillableId
+  , Billable
+  , Recurrence(..)
+  , createBillable
+  )
+import Aftok.Zcash (ZEC(..), toZatoshi)
 
---}
+data Field
+  = NameField
+  | DescField
+  | MessageField
+  | MonthlyRecurrenceField
+  | WeeklyRecurrenceField
+  | AmountField
+  | GracePeriodField
+  | RequestExpiryField
+
+derive instance fieldEq :: Eq Field
+derive instance fieldOrd :: Ord Field
+
+data RType
+  = RTAnnual
+  | RTMonthly
+  | RTWeekly
+  | RTOneTime
+
+derive instance rtypeEq :: Eq RType
+
+type CState =
+  { projectId :: ProjectId
+  , name :: Maybe String
+  , description :: Maybe String
+  , message :: Maybe String
+  , recurrenceType :: RType
+  , recurrenceValue :: Maybe Int
+  , amount :: Maybe ZEC
+  , gracePeriod :: Maybe Days
+  , requestExpiry :: Maybe Hours
+  , fieldErrors :: Array Field
+  }
+
+data Query a
+  = Tell a
+
+type Input = ProjectId
+
+type Output = Tuple BillableId Billable
+
+data Action
+  = ProjectChanged ProjectId
+  | SetName String
+  | SetDesc String
+  | SetMessage String
+  | SetRecurrenceType RType
+  | SetRecurrenceMonths String
+  | SetRecurrenceWeeks String
+  | SetBillingAmount String
+  | SetGracePeriod String
+  | SetRequestExpiry String
+  | SaveBillable
+
+type Slot id
+  = H.Slot Query Output id
+
+type Capability (m :: Type -> Type)
+  = { createBillable :: ProjectId -> Billable -> m (Either APIError BillableId)
+    }
+
+component ::
+  forall m.
+  Monad m =>
+  System m ->
+  Capability m ->
+  H.Component HH.HTML Query Input Output m
+component system caps =
+  H.mkComponent
+    { initialState
+    , render
+    , eval:
+        H.mkEval
+          $ H.defaultEval
+              { handleAction = eval
+              , receive = Just <<< ProjectChanged
+              }
+    }
+  where
+  initialState :: Input -> CState
+  initialState input =
+    { projectId: input
+    , name : Nothing
+    , description : Nothing
+    , message : Nothing
+    , recurrenceType : RTOneTime
+    , recurrenceValue : Nothing
+    , amount : Nothing
+    , gracePeriod : Nothing
+    , requestExpiry : Nothing
+    , fieldErrors : []
+    }
+
+  render :: forall slots. CState -> H.ComponentHTML Action slots m
+  render st =
+    Modals.modalWithSave "createBillable" "Create Billable" SaveBillable
+      [ HH.form_
+        [ formGroup st
+          [ NameField ]
+          [ HH.label 
+            [ P.for "billableName"]
+            [ HH.text "Product Name" ] 
+          , HH.input
+            [ P.type_ P.InputText
+            , P.classes [ C.formControlSm ]
+            , P.id_ "billableName"
+            , P.placeholder "A name for the product or service you want to bill for"
+            , E.onValueInput (Just <<< SetName)
+            ]
+          ] 
+        , formGroup st
+          [ DescField ]
+          [ HH.label 
+              [ P.for "billableDesc"]
+              [ HH.text "Product Description" ] 
+          , HH.input
+              [ P.type_ P.InputText
+              , P.classes [ C.formControlSm ]
+              , P.id_ "billableDesc"
+              , P.placeholder "Description of the product or service"
+              , E.onValueInput (Just <<< SetDesc)
+              ]
+          ]
+        , formGroup st
+          [ MessageField ]
+          [ HH.label 
+              [ P.for "billableMsg"]
+              [ HH.text "Message to be included with bill" ] 
+          , HH.input
+              [ P.type_ P.InputText
+              , P.id_ "billableMsg"
+              , P.placeholder "Enter your message here"
+              , E.onValueInput (Just <<< SetMessage)
+              ]
+          ]
+        , formGroup st
+          [MonthlyRecurrenceField, WeeklyRecurrenceField]
+          [ HH.label_
+            [ HH.input 
+                ([ P.type_ P.InputRadio 
+                , P.name "recurType" 
+                , E.onClick \_ -> Just (SetRecurrenceType RTAnnual)
+                ] <> (if st.recurrenceType == RTAnnual then [P.checked true] else []))
+            , HH.text " Annual"
+            ]
+          , HH.label_
+            [ HH.input 
+                ([ P.type_ P.InputRadio 
+                , P.name "recurType" 
+                , E.onClick \_ -> Just (SetRecurrenceType RTMonthly)
+                ] <> (if st.recurrenceType == RTMonthly then [P.checked true] else []))
+            , HH.text " every "
+            , HH.input
+                [ P.type_ P.InputNumber
+                , P.classes [ C.formControlSm ]
+                , P.value (if st.recurrenceType == RTMonthly
+                              then maybe "" show st.recurrenceValue
+                              else "")
+                , P.min 1.0
+                , P.max 12.0
+                , E.onValueInput (Just <<< SetRecurrenceMonths)
+                ] 
+            , HH.text " Months"
+            ]
+          , HH.label_
+            [ HH.input 
+                ([ P.type_ P.InputRadio 
+                , P.name "recurType" 
+                , E.onClick \_ -> Just (SetRecurrenceType RTWeekly)
+                ] <> (if st.recurrenceType == RTWeekly then [P.checked true] else []))
+            , HH.text " every "
+            , HH.input
+                [ P.type_ P.InputNumber
+                , P.classes [ C.formControlSm ]
+                , P.value (if st.recurrenceType == RTWeekly
+                              then maybe "" show st.recurrenceValue
+                              else "")
+                , P.min 1.0
+                , P.max 12.0
+                , E.onValueInput (Just <<< SetRecurrenceWeeks)
+                ] 
+            , HH.text " Weeks"
+            ]
+          , HH.label_
+            [ HH.input 
+                ([ P.type_ P.InputRadio 
+                , P.name "recurType" 
+                , E.onClick \_ -> Just (SetRecurrenceType RTOneTime)
+                ] <> (if st.recurrenceType == RTOneTime then [P.checked true] else []))
+            , HH.text " One-Time"
+            ]
+          ]
+        , formGroup st
+          [AmountField]
+          [ HH.label 
+              [ P.for "billableAmount"]
+              [ HH.text "Amount" ] 
+          , HH.input
+              [ P.type_ P.InputNumber
+              , P.classes [ C.formControlSm ]
+              , P.id_ "billableAmount"
+              , P.value (maybe "" (Fixed.toString <<< unwrap) st.amount)
+              , P.placeholder "1.0"
+              , P.min 0.0
+              , E.onValueInput (Just <<< SetBillingAmount)
+              ]
+          , HH.div
+              [ P.classes [ ClassName "input-group-append" ] ]
+              [ HH.span [ P.classes [ ClassName "input-group-text" ] ] [ HH.text "ZEC" ] ]
+          ]
+        , formGroup  st
+          [GracePeriodField]
+          [ HH.label 
+              [ P.for "gracePeriod"]
+              [ HH.text "Grace Period (Days)" ] 
+          , HH.input
+              [ P.type_ P.InputNumber
+              , P.id_ "gracePeriod"
+              , P.classes [ C.formControlSm ]
+              , P.value (maybe "" (Number.toString <<< unwrap) st.gracePeriod)
+              , P.placeholder "Days until a bill is considered overdue"
+              , P.min 0.0
+              , E.onValueInput (Just <<< SetGracePeriod)
+              ] 
+          ]
+        , formGroup st
+          [RequestExpiryField]
+          [ HH.label 
+              [ P.for "requestExpiry"]
+              [ HH.text "Request Expiry Period (Hours)" ] 
+          , HH.input
+              [ P.type_ P.InputNumber
+              , P.id_ "gracePeriod"
+              , P.classes [ C.formControlSm ]
+              , P.value (maybe "" (Number.toString <<< unwrap) st.requestExpiry)
+              , P.placeholder "Hours until a payment request expires"
+              , P.min 0.0
+              , E.onValueInput (Just <<< SetRequestExpiry)
+              ] 
+          ]
+        ]
+      ]
+
+  formGroup :: forall i a. CState -> Array Field -> Array (HH.HTML i a) -> HH.HTML i a
+  formGroup st fields body = 
+    HH.div
+     [ P.classes [C.formGroup] ]
+     (body <> (fieldError st =<< fields)) 
+
+  fieldError :: forall i a. CState -> Field -> Array (HH.HTML i a)
+  fieldError st field = 
+    if any (_ == field) st.fieldErrors 
+       then case field of
+            NameField -> err "The name field is required"
+            DescField -> err "The description field is required"
+            MessageField -> err "The message field is required"
+            MonthlyRecurrenceField -> err "You must enter a valid number of months."
+            WeeklyRecurrenceField -> err "You must enter a valid number of weeks."
+            AmountField -> err "You must enter a valid amount of ZEC"
+            GracePeriodField -> err "You must enter a valid number of hours."
+            RequestExpiryField -> err "You must enter a valid number of hours."
+       else []
+    where
+    err str = [ HH.div_ [ HH.span [ P.classes (ClassName <$> [ "badge", "badge-danger-soft" ]) ] [ HH.text str ] ] ]
+
+  eval :: forall slots. Action -> H.HalogenM CState Action slots Output m Unit
+  eval = case _ of
+      ProjectChanged pid ->
+        H.modify_ (_ { projectId = pid })
+      SetName name -> 
+        H.modify_ (_ { name = Just name })
+      SetDesc desc -> 
+        H.modify_ (_ { description = Just desc })
+      SetMessage msg -> 
+        H.modify_ (_ { message = Just msg })
+      SetRecurrenceType rtype -> do
+        curRecurType <- H.gets _.recurrenceType
+        curDuration <- H.gets _.recurrenceValue
+        let rdur = case curRecurType of
+              RTMonthly | rtype == RTMonthly -> curDuration
+              RTWeekly  | rtype == RTWeekly  -> curDuration
+              _ -> Nothing
+        H.modify_ (_ { recurrenceType = rtype, recurrenceValue = rdur  })
+      SetRecurrenceMonths dur -> 
+        case Int.fromString dur of
+             (Just n) -> H.modify_ (_ { recurrenceType = RTMonthly, recurrenceValue = Just n })
+             (Nothing) -> pure unit
+      SetRecurrenceWeeks dur -> 
+        case Int.fromString dur of
+             (Just n) -> H.modify_ (_ { recurrenceType = RTWeekly, recurrenceValue = Just n })
+             (Nothing) -> pure unit
+      SetBillingAmount amt -> 
+        case Fixed.fromString amt of
+             (Just zec) -> H.modify_ (_ { amount = Just (ZEC zec) })
+             (Nothing) -> pure unit
+      SetGracePeriod dur -> 
+        case Number.fromString dur of
+             (Just n) -> H.modify_ (_ { gracePeriod = Just (Days n) })
+             (Nothing) -> pure unit
+      SetRequestExpiry dur -> 
+        case Number.fromString dur of
+             (Just n) -> H.modify_ (_ { requestExpiry = Just (Hours n) })
+             (Nothing) -> pure unit
+      SaveBillable -> do
+        nameV <- V <<< note [NameField] <$> H.gets (_.name)
+        descV <- V <<< note [DescField] <$> H.gets (_.description)
+        msgV <- V <<< note [MessageField] <$> H.gets (_.message)
+        rtype <- H.gets (_.recurrenceType)
+        rvalueV <- case rtype of
+          RTAnnual  -> pure $ V (Right Annually)
+          RTMonthly -> V <<< maybe (Left [MonthlyRecurrenceField]) (Right <<< Monthly) <$> H.gets (_.recurrenceValue)
+          RTWeekly  -> V <<< maybe (Left [WeeklyRecurrenceField]) (Right <<< Weekly) <$> H.gets (_.recurrenceValue)
+          RTOneTime -> pure $ V (Right OneTime)
+        zatsV <- V <<< maybe (Left [AmountField]) (Right <<< toZatoshi) <$> H.gets (_.amount)
+        gperV <- V <<< note [GracePeriodField] <$> H.gets (_.gracePeriod)
+        expiryV <- V <<< note [RequestExpiryField] <$> H.gets (_.requestExpiry)
+        let toBillable = { name: _
+                         , description: _
+                         , message: _
+                         , recurrence: _
+                         , amount: _
+                         , gracePeriod: _
+                         , expiryPeriod: _
+                         }
+        
+            reqV :: V (Array Field) Billable
+            reqV = 
+              toBillable <$> nameV
+                         <*> descV
+                         <*> msgV
+                         <*> rvalueV
+                         <*> zatsV
+                         <*> gperV
+                         <*> expiryV
+
+        case toEither reqV of
+          Left errors -> do
+            H.modify_ (_ { fieldErrors = errors })
+          Right billable -> do
+            pid <- H.gets (_.projectId)
+            res <- lift $ caps.createBillable pid billable
+            case res of
+              Right bid -> do
+                H.raise (Tuple bid billable)
+                lift $ system.toggleModal "createBillable" ModalFFI.HideModal
+              Left errs -> 
+                lift $ system.error (show errs)
+
+apiCapability :: Capability Aff
+apiCapability =
+  { createBillable: createBillable
+  }
+
+mockCapability :: Capability Aff
+mockCapability =
+  { createBillable: \_ _ -> pure $ Left Forbidden }
+

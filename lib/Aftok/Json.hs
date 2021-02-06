@@ -193,9 +193,9 @@ qdbBillableJSON =
 
 recurrenceJSON' :: B.Recurrence -> Value
 recurrenceJSON' B.Annually = object ["annually" .= Null]
-recurrenceJSON' (B.Monthly i) = object ["monthly " .= object ["months" .= i]]
+recurrenceJSON' (B.Monthly i) = object ["monthly" .= object ["months" .= i]]
 --recurrenceJSON' B.SemiMonthly = object [ "semimonthly" .= Null ]
-recurrenceJSON' (B.Weekly i) = object ["weekly " .= object ["weeks" .= i]]
+recurrenceJSON' (B.Weekly i) = object ["weekly" .= object ["weeks" .= i]]
 recurrenceJSON' B.OneTime = object ["onetime" .= Null]
 
 -------------
