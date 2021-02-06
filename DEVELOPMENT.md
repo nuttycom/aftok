@@ -83,7 +83,7 @@ cp -r conf local
 
 # The aftok-zcashd container runs zcashd as user 2001, so we change the
 # owner of the zcashd configuration directories to this user.
-sudo chown -R 2001.2001 local/conf/zcashd
+sudo chown -R 2001.2001 local/zcashd
 ~~~
 
 Database Initialization
@@ -111,14 +111,14 @@ sudo docker ps
 At this point, the `aftok-db` container should be the only one that's running;
 the other two will have failed on startup.
 
-Assuming that you have such a dump at `local/db-dumps/aftok.dump`, use the
+Assuming that you have such a dump at `local/postgres/db-dumps/aftok.dump`, use the
 following commands to initialize the database. The postgres user's password is
 specified in the docker-compose file.
 
 ~~~bash
 createuser -h localhost -U postgres -W -P aftok
 createdb -h localhost -U postgres -W -O aftok aftok 
-psql -h localhost -U aftok -W aftok < local/db-dumps/aftok.dump
+psql -h localhost -U aftok -W aftok < local/postgres/db-dumps/aftok.dump
 ~~~
 
 Now, you should be able to shut down docker-compose using ^C and 
@@ -134,11 +134,11 @@ migrations as follows:
 
 ~~~bash
 stack install dbmigrations-postgresql
-moo-postgresql upgrade --config-file ./local/conf/server/aftok-migrations.cfg
+moo-postgresql upgrade --config-file ./local/server/conf/aftok-migrations.cfg
 ~~~
 
 New migrations can be created with:
 
 ~~~bash
-moo-postgresql new --config-file ./local/conf/server/aftok-migrations.cfg kebab-case-descriptive-name
+moo-postgresql new --config-file ./local/server/conf/aftok-migrations.cfg kebab-case-descriptive-name
 ~~~
