@@ -18,7 +18,7 @@ import Data.Either (Either(..), note)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap)
 -- import Data.Ratio (Ratio, (%))
-import Data.Time.Duration (Hours)
+import Data.Time.Duration (Hours(..), Days(..))
 import Data.Tuple (Tuple)
 -- import Data.Traversable (class Traversable, traverse)
 import Data.UUID (UUID, parseUUID)
@@ -52,11 +52,14 @@ derive instance billableIdOrd :: Ord BillableId
 
 derive instance billableIdNewtype :: Newtype BillableId _
 
+parseBillableIdJSON :: String -> Either JsonDecodeError BillableId
+parseBillableIdJSON uuidStr = 
+    BillableId <$> note (TypeMismatch"Failed to decode billable UUID") (parseUUID uuidStr)
+
 instance billableIdDecodeJson :: DecodeJson BillableId where
   decodeJson json = do
     obj <- decodeJson json
-    uuidStr <- obj .: "billableId"
-    BillableId <$> note (TypeMismatch"Failed to decode billable UUID") (parseUUID uuidStr)
+    parseBillableIdJSON =<< obj .: "billableId"
 
 data Recurrence
   = Annually
@@ -77,7 +80,7 @@ type Billable =
   , message :: String
   , recurrence :: Recurrence
   , amount :: Zatoshi
-  , gracePeriod :: Hours
+  , gracePeriod :: Days
   , expiryPeriod :: Hours
   }
 
@@ -90,9 +93,23 @@ billableJSON b = encodeJson $
   , recurrence: recurrenceJSON b.recurrence
   , currency: "ZEC"
   , amount: toNumber (unwrap b.amount)
+  -- API requires grace period as days
   , gracePeriod: unwrap b.gracePeriod
-  , requestExpiryPeriod: unwrap b.expiryPeriod
+  -- API requires expiry period as seconds
+  , requestExpiryPeriod: unwrap b.expiryPeriod * 60.0 * 60.0
   }
+
+-- parseBillableJSON :: Object Json -> Either JsonDecodeError (Tuple BillableId Billable)
+-- parseBillableJSON obj = do
+--   billableId <- parseBillableIdJSON =<< obj .: "billableId"
+--   bobj <- obj .: "billable"
+--   amount <- 
+--     Zatoshi <$> (note (TypeMismatch "Failed to decode as Zatoshi") <<< BigInt.fromNumber) 
+--             =<< (_ .: "zatoshi")
+--             =<< (bobj .: "amount")
+--   gracePeriod <- Hours <$> bobj .: "gracePeriod"
+--   recurrence <- parseRecurrence =<< bobj .: "recurrence"
+
 
 
 newtype PaymentRequestId

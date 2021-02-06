@@ -13,7 +13,7 @@ import Data.Number (fromString) as Number
 import Data.Number.Format (toString) as Number
 -- import Data.Unfoldable as U
 import Data.Validation.Semigroup (V(..), toEither)
-import Data.Time.Duration (Hours(..))
+import Data.Time.Duration (Hours(..), Days(..))
 -- import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
@@ -66,7 +66,7 @@ type CState =
   , recurrenceType :: RType
   , recurrenceValue :: Maybe Int
   , amount :: Maybe ZEC
-  , gracePeriod :: Maybe Hours
+  , gracePeriod :: Maybe Days
   , requestExpiry :: Maybe Hours
   , fieldErrors :: Array Field
   }
@@ -251,13 +251,13 @@ component system caps =
           [GracePeriodField]
           [ HH.label 
               [ P.for "gracePeriod"]
-              [ HH.text "Grace Period (Hours)" ] 
+              [ HH.text "Grace Period (Days)" ] 
           , HH.input
               [ P.type_ P.InputNumber
               , P.id_ "gracePeriod"
               , P.classes [ C.formControlSm ]
               , P.value (maybe "" (Number.toString <<< unwrap) st.gracePeriod)
-              , P.placeholder "Hours until a bill is considered overdue"
+              , P.placeholder "Days until a bill is considered overdue"
               , P.min 0.0
               , E.onValueInput (Just <<< SetGracePeriod)
               ] 
@@ -334,7 +334,7 @@ component system caps =
              (Nothing) -> pure unit
       SetGracePeriod dur -> 
         case Number.fromString dur of
-             (Just n) -> H.modify_ (_ { gracePeriod = Just (Hours n) })
+             (Just n) -> H.modify_ (_ { gracePeriod = Just (Days n) })
              (Nothing) -> pure unit
       SetRequestExpiry dur -> 
         case Number.fromString dur of
@@ -376,7 +376,6 @@ component system caps =
           Left errors -> do
             H.modify_ (_ { fieldErrors = errors })
           Right billable -> do
-            lift $ system.log "BILLABLE OK"
             pid <- H.gets (_.projectId)
             res <- lift $ caps.createBillable pid billable
             case res of
