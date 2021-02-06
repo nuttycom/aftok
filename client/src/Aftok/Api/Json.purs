@@ -2,7 +2,7 @@ module Aftok.Api.Json where
 
 import Prelude
 import Control.Monad.Error.Class (throwError)
-import Control.Monad.Except.Trans (ExceptT, except, withExceptT)
+import Control.Monad.Except.Trans (ExceptT, except, withExceptT, runExceptT)
 import Control.Monad.Trans.Class (lift)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, JsonDecodeError(..))
@@ -16,6 +16,7 @@ import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap, over)
 import Data.Traversable (class Traversable, traverse)
 import Effect (Effect)
+import Effect.Aff (Aff)
 import Affjax as AJAX
 import Affjax (Response, printError)
 import Affjax.StatusCode (StatusCode(..))
@@ -58,6 +59,19 @@ parseDate str = do
 
 type Decode a
   = Json -> Either JsonDecodeError a
+
+parseResponse ::
+  forall a.
+  Decode a -> 
+  Either AJAX.Error (Response Json) ->
+  Aff (Either APIError a)
+parseResponse decode response = 
+  runExceptT $ case response of 
+    Left err -> throwError $ Error { status: Nothing, message: printError err }
+    Right r -> case r.status of
+      StatusCode 403 -> throwError $ Forbidden
+      StatusCode 200 -> withExceptT ParseFailure <<< except $ decode r.body
+      other -> throwError $ Error { status: Just other, message: r.statusText }
 
 decodeDatedJson :: 
   forall t. 

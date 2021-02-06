@@ -4,7 +4,7 @@ import Prelude
 import Data.Newtype (class Newtype)
 import Data.BigInt (BigInt)
 import Data.BigInt (toString) as BigInt
-import Data.Fixed (Fixed, P1000000, TenTimes, fromInt,  numerator) 
+import Data.Fixed (Fixed, P1000000, TenTimes, fromInt, numerator, fromBigInt) 
 import Data.Fixed (toString) as Fixed
                   
 newtype Zatoshi = Zatoshi (BigInt)
@@ -17,6 +17,10 @@ derive instance zatoshiNewtype :: Newtype Zatoshi _
 
 zatsString :: Zatoshi -> String
 zatsString (Zatoshi z) = BigInt.toString z
+
+toZEC :: Zatoshi -> ZEC
+toZEC (Zatoshi z) = 
+  ZEC $ fromBigInt z / fromInt 100000000
 
 type ZPrec = TenTimes (TenTimes P1000000)
 

@@ -6,12 +6,12 @@ import Control.Monad.Trans.Class (lift)
 import Data.Either (Either(..))
 import Data.Foldable (all)
 import Data.Maybe (Maybe(..), isNothing)
--- import Data.Unfoldable as U
+import Data.Unfoldable as U
 import Data.Newtype (unwrap)
 import Data.Symbol (SProxy(..))
 -- import Data.Time.Duration (Hours(..))
 import Data.Traversable (traverse)
-import Data.Tuple (Tuple)
+import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 -- import Effect.Class (liftEffect)
 -- import Effect.Now (nowDateTime)
@@ -34,6 +34,7 @@ import Aftok.Api.Billing
   , listUnpaidPaymentRequests
   )
 import Aftok.Modals as Modals
+import Aftok.Zcash (toZEC, zecString)
 
 type BillingInput
   = Maybe Project
@@ -118,7 +119,8 @@ component system caps pcaps =
               [ P.classes (ClassName <$> if isNothing st.selectedProject then [ "collapse" ] else []) ]
               (case st.selectedProject of
                 Just p -> 
-                  [ Modals.modalButton "createBillable" "Create billable"
+                  [ renderBillableList st.billables
+                  , Modals.modalButton "createBillable" "Create billable"
                   , system.portal
                       _createBillable
                       unit
@@ -132,25 +134,62 @@ component system caps pcaps =
           ]
       ]
 
+  renderBillableList :: Array (Tuple BillableId Billable) -> H.ComponentHTML BillingAction Slots m
+  renderBillableList billables = 
+    HH.div
+      [ P.classes (ClassName <$> [ "container-fluid" ]) ]
+      [ HH.section
+          [ P.id_ "projectOverview", P.classes (ClassName <$> [ "pt-3" ]) ]
+          ([ HH.div
+              -- header
+              [ P.classes (ClassName <$> [ "row", "pt-3", "font-weight-bold" ]) ]
+              [ colmd2 (Just "Billable Name")
+              , colmd2 (Just "Description")
+              , colmd2 (Just "Amount")
+              , colmd2 (Just "Recurrence")
+              , colmd2 Nothing
+              ] 
+          ] <> (billableRow <$> billables))
+      ]
+    
+    where
+      billableRow (Tuple bid b) = 
+        HH.div
+          [ P.classes (ClassName <$> [ "row", "pt-3" ]) ]
+          [ colmd2 (Just b.name)
+          , colmd2 (Just b.description)
+          , colmd2 (Just (zecString <<< toZEC $ b.amount))
+          ]
+
+  colmd2 :: forall i w. Maybe String -> HH.HTML i  w
+  colmd2 xs = HH.div [ P.classes (ClassName <$> [ "col-md-2" ]) ] (U.fromMaybe $ HH.text <$> xs)
+
+
   eval :: BillingAction -> H.HalogenM BillingState BillingAction Slots ProjectList.Event m Unit
   eval action = do
     case action of
       Initialize -> do
         currentProject <- H.gets (_.selectedProject)
+        refreshBillables currentProject
+
+      ProjectSelected p -> do
+        currentProject <- H.gets (_.selectedProject)
+        refreshBillables currentProject
+        when (all (\p' -> (unwrap p').projectId /= (unwrap p).projectId) currentProject)
+          $ do
+              H.raise (ProjectList.ProjectChange p)
+              H.modify_ (_ { selectedProject = Just p })
+
+      BillableCreated _ -> do
+        currentProject <- H.gets (_.selectedProject)
+        refreshBillables currentProject
+    where 
+      refreshBillables currentProject = do
         billables <- lift $ traverse (caps.listProjectBillables <<< (_.projectId) <<< unwrap) currentProject
         case billables of
           Nothing -> pure unit
           Just (Left err) -> lift $ system.error (show err)
           Just (Right b) -> H.modify_ (_ { billables = b })
-
-      ProjectSelected p -> do
-        currentProject <- H.gets (_.selectedProject)
-        when (all (\p' -> (unwrap p').projectId /= (unwrap p).projectId) currentProject)
-          $ do
-              H.raise (ProjectList.ProjectChange p)
-              H.modify_ (_ { selectedProject = Just p })
-      BillableCreated _ ->
-        pure unit
 
 apiCapability :: Capability Aff
 apiCapability =

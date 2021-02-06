@@ -20,6 +20,8 @@ pkgs.stdenv.mkDerivation{
     pkgs.nodejs
     pkgs.pkg-config
     pkgs.purescript
+    haskellPackages.HDBC-postgresql
+    haskellPackages.dbmigrations-postgresql
     haskellPackages.cabal-install
     haskellPackages.ghcid
     haskellPackages.ormolu

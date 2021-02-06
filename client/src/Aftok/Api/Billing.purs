@@ -1,17 +1,19 @@
 module Aftok.Api.Billing where
 
 import Prelude
-import Control.Monad.Error.Class (throwError)
-import Control.Monad.Except.Trans (runExceptT, except, withExceptT)
+import Control.Alternative ((<|>))
+-- import Control.Monad.Error.Class (throwError)
+-- import Control.Monad.Except.Trans (runExceptT, except, withExceptT)
 -- import Control.Monad.Except.Trans (ExceptT, runExceptT, except, withExceptT)
 -- import Control.Monad.Error.Class (throwError)
 import Data.Argonaut.Core (Json)
-import Data.Argonaut.Decode (class DecodeJson, decodeJson, JsonDecodeError(..), (.:))
+import Data.Argonaut.Decode (class DecodeJson, decodeJson, JsonDecodeError(..), (.:), (.:?))
 import Data.Argonaut.Encode (encodeJson)
-import Data.BigInt (toNumber)
+import Data.BigInt (toNumber, fromNumber) as BigInt
 import Data.DateTime (DateTime)
 -- import Data.DateTime.Instant (Instant, toDateTime)
 import Data.Either (Either(..), note)
+import Foreign.Object (Object)
 -- import Data.Foldable (class Foldable, foldr, foldl, foldMapDefaultR)
 -- import Data.Functor.Compose (Compose(..))
 -- import Data.Map as M
@@ -19,29 +21,26 @@ import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap)
 -- import Data.Ratio (Ratio, (%))
 import Data.Time.Duration (Hours(..), Days(..))
-import Data.Tuple (Tuple)
--- import Data.Traversable (class Traversable, traverse)
+import Data.Tuple (Tuple(..))
+import Data.Traversable (traverse)
 import Data.UUID (UUID, parseUUID)
 -- import Effect (Effect)
 import Effect.Aff (Aff)
 -- import Effect.Class as EC
 -- import Foreign.Object (Object)
-import Affjax (post, printError)
+import Affjax (post, get)
 import Affjax.RequestBody as RB
 import Affjax.ResponseFormat as RF
-import Affjax.StatusCode (StatusCode(..))
+-- import Affjax.StatusCode (StatusCode(..))
 import Aftok.Types
   ( ProjectId, pidStr )
 import Aftok.Zcash
-  ( Zatoshi )
+  ( Zatoshi(..) )
 import Aftok.Api.Types
   (APIError(..))
--- import Aftok.Api.Json
---   ( Decode
---   , decompose
---   , parseDatedResponse
---   , parseDatedResponseMay
---   )
+import Aftok.Api.Json
+  ( parseResponse
+  )
 
 newtype BillableId
   = BillableId UUID
@@ -92,24 +91,40 @@ billableJSON b = encodeJson $
   , message: b.message
   , recurrence: recurrenceJSON b.recurrence
   , currency: "ZEC"
-  , amount: toNumber (unwrap b.amount)
+  , amount: BigInt.toNumber (unwrap b.amount)
   -- API requires grace period as days
   , gracePeriod: unwrap b.gracePeriod
   -- API requires expiry period as seconds
   , requestExpiryPeriod: unwrap b.expiryPeriod * 60.0 * 60.0
   }
 
--- parseBillableJSON :: Object Json -> Either JsonDecodeError (Tuple BillableId Billable)
--- parseBillableJSON obj = do
---   billableId <- parseBillableIdJSON =<< obj .: "billableId"
---   bobj <- obj .: "billable"
---   amount <- 
---     Zatoshi <$> (note (TypeMismatch "Failed to decode as Zatoshi") <<< BigInt.fromNumber) 
---             =<< (_ .: "zatoshi")
---             =<< (bobj .: "amount")
---   gracePeriod <- Hours <$> bobj .: "gracePeriod"
---   recurrence <- parseRecurrence =<< bobj .: "recurrence"
+parseRecurrence :: Json -> Either JsonDecodeError Recurrence
+parseRecurrence json = do
+  obj <- decodeJson json
+  let annually = traverse (map \(_ :: Unit) -> Annually) (obj .:? "annually")
+      monthly =  traverse (map Monthly) (obj .:? "monthly")
+      weekly =   traverse (map Weekly) (obj .:? "weekly")
+      onetime =  traverse (map \(_ :: Unit) -> OneTime) (obj .:? "onetime")
+  join $ note (UnexpectedValue json) (annually <|> monthly <|> weekly <|> onetime)
+      
 
+
+parseBillableJSON :: Object Json -> Either JsonDecodeError (Tuple BillableId Billable)
+parseBillableJSON obj = do
+  billableId <- parseBillableIdJSON =<< obj .: "billableId"
+  bobj <- obj .: "billable"
+  name :: String <- bobj .: "name"
+  description :: String <- bobj .: "description"
+  let message = ""
+  recurrence :: Recurrence <- parseRecurrence =<< bobj .: "recurrence"
+  amount <- 
+    map Zatoshi 
+      $   (note (TypeMismatch "Failed to decode as Zatoshi") <<< BigInt.fromNumber) 
+      =<< (_ .: "zatoshi")
+      =<< (bobj .: "amount")
+  gracePeriod <- Days <$> bobj .: "gracePeriod"
+  expiryPeriod <- Hours <$> bobj .: "gracePeriod"
+  pure $ Tuple billableId {name, description, message, recurrence, amount, gracePeriod, expiryPeriod }
 
 
 newtype PaymentRequestId
@@ -136,15 +151,12 @@ createBillable :: ProjectId -> Billable -> Aff (Either APIError BillableId)
 createBillable pid billable = do
   let body = RB.json $ billableJSON billable
   response <- post RF.json ("/api/projects/" <> pidStr pid <> "/billables") (Just body)
-  runExceptT $ case response of 
-    Left err -> throwError $ Error { status: Nothing, message: printError err }
-    Right r -> case r.status of
-      StatusCode 403 -> throwError $ Forbidden
-      StatusCode 200 -> withExceptT ParseFailure <<< except $ decodeJson r.body
-      other -> throwError $ Error { status: Just other, message: r.statusText }
+  parseResponse decodeJson response
 
 listProjectBillables :: ProjectId -> Aff (Either APIError (Array (Tuple BillableId Billable)))
-listProjectBillables pid = pure $ Left Forbidden
+listProjectBillables pid = do
+  response <- get RF.json ("/api/projects/" <> pidStr pid <> "/billables")
+  parseResponse (traverse parseBillableJSON <=< decodeJson) response
 
 listUnpaidPaymentRequests :: BillableId -> Aff (Either APIError (Array (Tuple PaymentRequestId PaymentRequest)))
 listUnpaidPaymentRequests billId = pure $ Left Forbidden
