@@ -11,7 +11,7 @@ conf/*.cfg
 conf/*.pem
 conf/site_key.txt
 
-log
+log/*.*
 /dist
 snaplets
 work
