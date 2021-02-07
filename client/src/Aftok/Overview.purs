@@ -99,7 +99,7 @@ component system caps pcaps =
           [ P.classes (ClassName <$> [ "container", "pt-6" ]) ]
           [ HH.h1
               [ P.classes (ClassName <$> [ "mb-0", "font-weight-bold", "text-center" ]) ]
-              [ HH.text "Project Overview" ]
+              [ HH.text "Project Overview - New!" ]
           , HH.p
               [ P.classes (ClassName <$> [ "col-md-5", "text-muted", "text-center", "mx-auto" ]) ]
               [ HH.text "Your project details" ]
@@ -129,8 +129,8 @@ component system caps pcaps =
               -- header
               [ P.classes (ClassName <$> [ "row", "pt-3", "font-weight-bold" ]) ]
               [ colmd2 (Just "Project Name")
-              , colmd2 (Just "Undepreciated Period")
-              , colmd2 (Just "Depreciation Duration")
+              , colmd3 (Just "Undepreciated Period")
+              , colmd3 (Just "Depreciation Duration")
               , colmd2 (Just "Originator")
               , colmd2 (Just "Origination Date")
               ]
@@ -150,8 +150,8 @@ component system caps pcaps =
                 [ P.classes (ClassName <$> [ "row", "pt-3", "font-weight-bold" ]) ]
                 [ colmd2 (Just "Contributor")
                 , colmd2 (Just "Joined")
-                , colmd2 (Just "Contributed Hours")
-                , colmd2 (Just "Current Revenue Share")
+                , colmd3 (Just "Contributed Hours")
+                , colmd3 (Just "Current Revenue Share")
                 ]
             ]
               <> (contributorCols <$> (L.toUnfoldable $ M.values detail.contributors))
@@ -161,8 +161,8 @@ component system caps pcaps =
   depreciationCols :: DepreciationFn -> Array (H.ComponentHTML OverviewAction Slots m)
   depreciationCols = case _ of
     LinearDepreciation obj ->
-      [ colmd2 (Just $ show (unwrap obj.undep) <> " days")
-      , colmd2 (Just $ show (unwrap obj.dep) <> " days")
+      [ colmd3 (Just $ show (unwrap obj.undep) <> " days")
+      , colmd3 (Just $ show (unwrap obj.dep) <> " days")
       ]
 
   contributorCols :: Contributor' DateTime -> H.ComponentHTML OverviewAction Slots m
@@ -176,12 +176,16 @@ component system caps pcaps =
         [ P.classes (ClassName <$> [ "row", "pt-3", "pb-2" ]) ]
         [ colmd2 (Just pud.handle)
         , colmd2 (Just $ dateStr (date pud.joinedOn))
-        , colmd2 (Just $ show (unwrap pud.timeDevoted))
-        , colmd2 (Just $ pct <> "%")
+        , colmd3 (Just $ show (unwrap pud.timeDevoted))
+        , colmd3 (Just $ pct <> "%")
         ]
 
   colmd2 :: Maybe String -> H.ComponentHTML OverviewAction Slots m
   colmd2 xs = HH.div [ P.classes (ClassName <$> [ "col-md-2" ]) ] (U.fromMaybe $ HH.text <$> xs)
+
+
+  colmd3 :: Maybe String -> H.ComponentHTML OverviewAction Slots m
+  colmd3 xs = HH.div [ P.classes (ClassName <$> [ "col-md-3" ]) ] (U.fromMaybe $ HH.text <$> xs)
 
   --         </section>
   --              <!-- Map payouts -->
