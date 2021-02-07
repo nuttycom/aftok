@@ -82,6 +82,7 @@ library
     , free
     , from-sum
     , groups        
+    , HStringTemplate          
     , haskoin-core 
     , heaps       
     , hourglass  
@@ -155,7 +156,7 @@ Executable aftok-server
 
   main-is:            Main.hs
 
-  other-modules: Aftok.QConfig
+  other-modules: Aftok.ServerConfig
                , Aftok.Snaplet
                , Aftok.Snaplet.Auctions
                , Aftok.Snaplet.Auth
@@ -208,6 +209,7 @@ Executable aftok-server
     , transformers
     , unordered-containers
     , uuid                
+    , vector-space
     , wreq        
     , x509
     , x509-store

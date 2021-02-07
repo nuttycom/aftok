@@ -1,0 +1,7 @@
+Description: (Describe migration here.)
+Created: 2021-02-07 02:43:18.803817984 UTC
+Depends: 2020-11-25_04-22-24_zcash-support
+Apply: |
+  ALTER TABLE cryptocurrency_accounts ADD COLUMN name text;
+  ALTER TABLE cryptocurrency_accounts ADD COLUMN description text;
+  ALTER TABLE cryptocurrency_accounts DROP COLUMN currency;

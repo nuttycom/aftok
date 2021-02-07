@@ -5,6 +5,7 @@ module Aftok.Snaplet.Billing
     billableListHandler,
     subscribeHandler,
     createPaymentRequestHandler,
+    paymentRequestDetailJSON,
   )
 where
 
@@ -18,16 +19,29 @@ import Aftok.Billing
 import qualified Aftok.Billing as B
 import Aftok.Currency (Amount (..), Currency (..))
 import Aftok.Currency.Bitcoin (Satoshi (..))
+import Aftok.Currency.Bitcoin.Bip70 (protoBase64)
+import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
 import Aftok.Currency.Zcash (Zatoshi (..))
+import qualified Aftok.Currency.Zcash.Zip321 as Zip321
 import Aftok.Database
   ( DBOp (..),
+    MonadDB,
     createBillable,
     liftdb,
     withProjectAuth,
   )
-import Aftok.Json (Version (..), badVersion, unversion)
+import Aftok.Json
+  ( Version (..),
+    badVersion,
+    obj,
+    satsJSON,
+    unversion,
+    v1,
+    zatsJSON,
+  )
 import Aftok.Payments
-  ( PaymentRequestId,
+  ( PaymentRequest' (..),
+    PaymentRequestId,
     PaymentsConfig,
     SomePaymentRequest (..),
     SomePaymentRequestDetail,
@@ -35,7 +49,12 @@ import Aftok.Payments
     zcashPaymentsConfig,
   )
 import Aftok.Payments.Types
-  ( PaymentRequestError (..),
+  ( NativeRequest (..),
+    PaymentRequestError (..),
+    _PaymentRequestId,
+    billable,
+    nativeRequest,
+    createdAt,
   )
 import qualified Aftok.Payments.Zcash as Zcash
 import Aftok.Snaplet
@@ -48,21 +67,17 @@ import Aftok.Snaplet
   )
 import Aftok.Snaplet.Auth (requireUserId)
 import Aftok.Types (ProjectId, UserId)
-import Control.Lens ((.~), (^.))
--- import Data.Aeson ()
+import Control.Lens ((.~), (^.), to)
+import Data.Aeson
 import Data.Aeson.Types
-  ( (.:),
-    (.:?),
-    Object,
+  ( Pair,
     Parser,
-    Value (..),
     parseEither,
-    parseJSON,
   )
+import Data.AffineSpace ((.+^))
 import qualified Data.HashMap.Strict as O
 import qualified Data.Thyme.Clock as C
 import Data.Thyme.Time.Core (toThyme)
-import Snap.Core (MonadSnap)
 import qualified Snap.Snaplet as S
 
 parseCreateBillable :: UserId -> ProjectId -> Value -> Parser (Billable Amount)
@@ -111,17 +126,17 @@ subscribeHandler = do
   snapEval . liftdb $ CreateSubscription uid bid (t ^. C._utctDay)
 
 createPaymentRequestHandler ::
-  MonadSnap m =>
+  MonadDB m =>
   PaymentsConfig m ->
   S.Handler App App (PaymentRequestId, SomePaymentRequestDetail)
 createPaymentRequestHandler cfg = do
   uid <- requireUserId
   pid <- requireProjectId
   bid <- requireId "billableId" BillableId
-  billable <- snapEval $ withProjectAuth pid uid (FindBillable bid)
+  billableMay <- snapEval $ withProjectAuth pid uid (FindBillable bid)
   now <- liftIO C.getCurrentTime
   let billDay = now ^. C._utctDay
-  case billable of
+  case billableMay of
     -- check that the billable is actually related to the project that the user
     -- is authorized for & the URL specifies
     Just b | (b ^. B.project == pid) ->
@@ -152,14 +167,38 @@ createPaymentRequestHandler cfg = do
 
 -- paymentRequestDetailsJSON :: [PaymentRequestDetail Amount] -> Value
 -- paymentRequestDetailsJSON r = v1 $ obj ["payment_requests" .= fmap paymentRequestDetailJSON r]
---
--- paymentRequestDetailJSON :: PaymentRequestDetail Amount -> Object
--- paymentRequestDetailJSON r = obj $ concat
---   [ ["payment_request_id" .= view () r]
---   , paymentRequestKV $ view _2 r
---   , subscriptionKV $ view _3 r
---   , billableKV $ view _4 r
---   ]
+
+paymentRequestDetailJSON :: (PaymentRequestId, SomePaymentRequestDetail) -> Object
+paymentRequestDetailJSON (rid, (SomePaymentRequest req)) =
+  obj $ ["payment_request_id" .= (rid ^. _PaymentRequestId)] <> fields req
+  where
+    fields :: PaymentRequest' (Billable' ProjectId UserId) c -> [Pair]
+    fields r = case r ^. nativeRequest of
+      (Zip321Request req') ->
+        [ "total" .= (r ^. billable . B.amount . to zatsJSON),
+          "expires_at" .= ((r ^. createdAt) .+^ (r ^. billable . B.requestExpiryPeriod)),
+          "native_request" .= zip321PaymentRequestJSON req'
+        ]
+      (Bip70Request req') ->
+        [ "total" .= (r ^. billable . B.amount . to satsJSON),
+          "expires_at" .= ((r ^. createdAt) .+^ (r ^. billable . B.requestExpiryPeriod)),
+          "native_request" .= bip70PaymentRequestJSON req'
+        ]
+
+bip70PaymentRequestJSON :: Bitcoin.PaymentRequest -> Value
+bip70PaymentRequestJSON r =
+  v1 . obj $
+    [ "bip70_request"
+        .= object
+          [ "payment_key" .= (r ^. Bitcoin.paymentRequestKey . Bitcoin._PaymentKey),
+            "payment_request_protobuf_64" .= (r ^. Bitcoin.bip70Request . to protoBase64)
+          ]
+    ]
+
+zip321PaymentRequestJSON :: Zip321.PaymentRequest -> Value
+zip321PaymentRequestJSON r =
+  v1 . obj $
+    ["zip321_request" .= (toJSON . Zip321.toURI $ r)]
 
 parseRecurrence :: Object -> Parser Recurrence
 parseRecurrence o =

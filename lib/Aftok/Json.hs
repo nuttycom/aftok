@@ -10,8 +10,8 @@ module Aftok.Json where
 
 import qualified Aftok.Billing as B
 import Aftok.Currency (Amount (..), Currency (..))
-import Aftok.Currency.Bitcoin
-import Aftok.Currency.Zcash (_Zatoshi)
+import Aftok.Currency.Bitcoin (Address, NetworkMode, Satoshi, _Satoshi, getNetwork)
+import Aftok.Currency.Zcash (Zatoshi, _Zatoshi)
 import Aftok.TimeLog
 import Aftok.Types
 import Control.Error.Util (maybeT)
@@ -162,8 +162,14 @@ parseCreditToV2 o =
 
 amountJSON :: Amount -> Value
 amountJSON (Amount currency value) = case currency of
-  BTC -> object ["satoshi" .= (value ^. _Satoshi)]
-  ZEC -> object ["zatoshi" .= (value ^. _Zatoshi)]
+  BTC -> satsJSON value
+  ZEC -> zatsJSON value
+
+zatsJSON :: Zatoshi -> Value
+zatsJSON value = object ["zatoshi" .= (value ^. _Zatoshi)]
+
+satsJSON :: Satoshi -> Value
+satsJSON value = object ["satoshi" .= (value ^. _Satoshi)]
 
 parseAmountJSON :: Value -> Parser Amount
 parseAmountJSON = \case

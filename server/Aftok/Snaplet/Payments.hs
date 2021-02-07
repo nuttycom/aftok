@@ -51,7 +51,7 @@ listPayableRequestsHandler = do
   sid <- requireId "subscriptionId" SubscriptionId
   snapEval $ findPayableRequests uid sid
 
-bip70PaymentResponseHandler :: AC.BillingConfig -> S.Handler App App PaymentId
+bip70PaymentResponseHandler :: AC.BitcoinConfig -> S.Handler App App PaymentId
 bip70PaymentResponseHandler _ = do
   requestBody <- readRequestBody 4096
   (prid, preq) <- getBip70PaymentRequestHandler

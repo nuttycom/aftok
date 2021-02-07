@@ -7,9 +7,10 @@ import Aftok.Billing (_BillableId, _SubscriptionId)
 import qualified Aftok.Config as C
 import Aftok.Currency.Bitcoin.Payments (_bip70Request)
 import Aftok.Currency.Zcash (rpcValidateZAddr)
+import Aftok.Database.PostgreSQL (QDBM)
 import Aftok.Json
 import Aftok.Payments.Types (_PaymentId)
-import Aftok.QConfig as Q
+import Aftok.ServerConfig
 import Aftok.Snaplet
 import Aftok.Snaplet.Auctions
 import Aftok.Snaplet.Auth
@@ -47,20 +48,21 @@ import System.IO.Error (IOError)
 main :: IO ()
 main = do
   cfgPath <- try @IOError $ getEnv "AFTOK_CFG"
-  cfg <- loadQConfig . decodeString $ fromRight "conf/aftok.cfg" cfgPath
+  cfg <- loadServerConfig . decodeString $ fromRight "conf/aftok.cfg" cfgPath
   sconf <- snapConfig cfg
   serveSnaplet sconf $ appInit cfg
 
-registerOps :: Manager -> QConfig -> RegisterOps IO
+registerOps :: Manager -> ServerConfig -> RegisterOps IO
 registerOps mgr cfg =
   RegisterOps
     { validateZAddr = rpcValidateZAddr mgr (_zcashdConfig cfg),
       sendConfirmationEmail = const $ pure ()
     }
 
-appInit :: QConfig -> SnapletInit App App
+appInit :: ServerConfig -> SnapletInit App App
 appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
   mgr <- liftIO $ newManager defaultManagerSettings
+  paymentsConfig <- liftIO $ C.toPaymentsConfig @QDBM (cfg ^. billingConfig)
   let cookieKey = cfg ^. authSiteKey . to encodeString
       rops = registerOps mgr cfg
   sesss <-
@@ -72,7 +74,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
         (cfg ^. cookieTimeout)
   pgs <- nestSnaplet "db" db $ pgsInit' (cfg ^. pgsConfig)
   auths <- nestSnaplet "auth" auth $ initPostgresAuth sess pgs
-  let nmode = cfg ^. billingConfig . C.networkMode
+  let nmode = cfg ^. billingConfig . C.bitcoinConfig . C.networkMode
       loginRoute = method GET requireLogin >> redirect "/app"
       xhrLoginRoute = void $ method POST requireLoginXHR
       checkLoginRoute = void $ method GET requireUser
@@ -106,12 +108,15 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
         serveJSON (fmap auctionJSON) $ method GET auctionListHandler
       auctionRoute = serveJSON auctionJSON $ method GET auctionGetHandler
       auctionBidRoute = serveJSON bidIdJSON $ method POST auctionBidHandler
+      -- Routes for billables
       billableCreateRoute =
         serveJSON (idJSON "billableId" _BillableId) $ method POST billableCreateHandler
       billableListRoute =
         serveJSON (fmap qdbBillableJSON) $ method GET billableListHandler
       subscribeRoute =
         serveJSON (idJSON "subscriptionId" _SubscriptionId) $ method POST subscribeHandler
+      paymentRequestCreateRoute =
+        serveJSON paymentRequestDetailJSON $ method POST (createPaymentRequestHandler paymentsConfig)
       -- payableRequestsRoute =
       --   serveJSON billDetailsJSON $ method GET listPayableRequestsHandler
       getBip70PaymentRequestRoute =
@@ -123,7 +128,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
           =<< method GET getBip70PaymentRequestHandler
       submitBip70PaymentRoute =
         serveJSON (idJSON "paymentId" _PaymentId) $
-          method POST (bip70PaymentResponseHandler $ cfg ^. billingConfig)
+          method POST (bip70PaymentResponseHandler $ cfg ^. billingConfig . C.bitcoinConfig)
   addRoutes
     [ ("static", serveDirectory . encodeString $ cfg ^. staticAssetPath),
       ("login", loginRoute), -- login.sh
@@ -141,6 +146,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
       ("projects/:projectId/workIndex", projectWorkIndexRoute), -- list_project_intervals.sh
       ("projects/:projectId/auctions", auctionCreateRoute <|> auctionListRoute),
       ("projects/:projectId/billables", billableCreateRoute <|> billableListRoute), -- create_billable.sh / list_project_billables.sh
+      ("projects/:projectId/billables/:billableId/paymentRequests", paymentRequestCreateRoute), -- create_billable.sh / list_project_billables.sh
       ("projects/:projectId/payouts", projectPayoutsRoute), -- list_project_payouts.sh
       ("projects/:projectId/invite", inviteRoute), -- invite.sh
       ("projects/:projectId/detail", projectDetailRoute), -- list_project_contributors.sh

@@ -93,8 +93,8 @@ findUserPaymentAddress uid = \case
         (bitcoinAddressParser mode)
         [sql| SELECT btc_addr FROM cryptocurrency_accounts
             WHERE user_id = ?
-            AND currency = 'BTC'
-            AND is_primary = true |]
+            AND is_primary = true
+            AND btc_addr IS NOT NULL |]
         (Only $ view _UserId uid)
   ZEC -> do
     headMay
@@ -102,8 +102,8 @@ findUserPaymentAddress uid = \case
         (zcashAddressParser)
         [sql| SELECT zcash_addr FROM cryptocurrency_accounts
             WHERE user_id = ?
-            AND currency = 'ZEC'
-            AND is_primary = true |]
+            AND is_primary = true
+            AND zcash_addr IS NOT NULL |]
         (Only $ view _UserId uid)
 
 findAccountPaymentAddress :: AccountId -> Currency a c -> DBM (Maybe a)

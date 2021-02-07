@@ -22,7 +22,7 @@ import Aftok.Config
 import Aftok.Database
 import Aftok.Json (creditToJSON, idValue, identifiedJSON, obj, v1)
 import Aftok.Project
-import Aftok.QConfig as QC
+import Aftok.ServerConfig as QC
 import Aftok.Snaplet
 import Aftok.Snaplet.Auth
 import Aftok.TimeLog
@@ -148,7 +148,7 @@ payoutsHandler = do
   ptime <- liftIO $ C.getCurrentTime
   pure $ payouts (toDepF $ project ^. depRules) ptime widx
 
-projectInviteHandler :: QConfig -> S.Handler App App ()
+projectInviteHandler :: ServerConfig -> S.Handler App App ()
 projectInviteHandler cfg = do
   uid <- requireUserId
   pid <- requireProjectId
@@ -168,7 +168,7 @@ projectInviteHandler cfg = do
       invCode
 
 sendProjectInviteEmail ::
-  QConfig ->
+  ServerConfig ->
   ProjectName ->
   Email -> -- Inviting user's email address
   Email -> -- Invitee's email address
