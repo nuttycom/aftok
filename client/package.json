@@ -16,6 +16,7 @@
   "dependencies": {
     "big-integer": "^1.6.48",
     "purty": "^6.3.0",
+    "uuid": "8.3.0",
     "uuid-validate": "0.0.3"
   }
 }
