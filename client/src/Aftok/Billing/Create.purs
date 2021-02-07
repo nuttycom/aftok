@@ -1,8 +1,15 @@
 module Aftok.Billing.Create where
 
 import Prelude
+
+import Aftok.Api.Billing (BillableId, Billable, Recurrence(..), createBillable)
+import Aftok.Api.Types (APIError(..))
+import Aftok.HTML.Classes as C
+import Aftok.Modals as Modals
+import Aftok.Modals.ModalFFI as ModalFFI
+import Aftok.Types (System, ProjectId)
+import Aftok.Zcash (ZEC(..), toZatoshi)
 import Control.Monad.Trans.Class (lift)
--- import Data.DateTime (DateTime, date)
 import Data.Either (Either(..), note)
 import Data.Fixed as Fixed
 import Data.Foldable (any)
@@ -11,31 +18,15 @@ import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (unwrap)
 import Data.Number (fromString) as Number
 import Data.Number.Format (toString) as Number
--- import Data.Unfoldable as U
-import Data.Validation.Semigroup (V(..), toEither)
 import Data.Time.Duration (Hours(..), Days(..))
--- import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
+import Data.Validation.Semigroup (V(..), toEither)
 import Effect.Aff (Aff)
--- import Effect.Class (liftEffect)
--- import Effect.Now (nowDateTime)
 import Halogen as H
-import Halogen.HTML.Core (ClassName(..))
 import Halogen.HTML as HH
+import Halogen.HTML.Core (ClassName(..))
 import Halogen.HTML.Events as E
 import Halogen.HTML.Properties as P
-import Aftok.Types (System, ProjectId)
-import Aftok.HTML.Classes as C
-import Aftok.Modals as Modals
-import Aftok.Modals.ModalFFI as ModalFFI
-import Aftok.Api.Types (APIError(..))
-import Aftok.Api.Billing
-  ( BillableId
-  , Billable
-  , Recurrence(..)
-  , createBillable
-  )
-import Aftok.Zcash (ZEC(..), toZatoshi)
 
 data Field
   = NameField
@@ -136,25 +127,25 @@ component system caps =
       [ HH.form_
         [ formGroup st
           [ NameField ]
-          [ HH.label 
+          [ HH.label
             [ P.for "billableName"]
-            [ HH.text "Product Name" ] 
+            [ HH.text "Product Name" ]
           , HH.input
             [ P.type_ P.InputText
-            , P.classes [ C.formControlSm ]
+            , P.classes [ C.formControl, C.formControlSm ]
             , P.id_ "billableName"
             , P.placeholder "A name for the product or service you want to bill for"
             , E.onValueInput (Just <<< SetName)
             ]
-          ] 
+          ]
         , formGroup st
           [ DescField ]
-          [ HH.label 
+          [ HH.label
               [ P.for "billableDesc"]
-              [ HH.text "Product Description" ] 
+              [ HH.text "Product Description" ]
           , HH.input
               [ P.type_ P.InputText
-              , P.classes [ C.formControlSm ]
+              , P.classes [ C.formControl, C.formControlSm ]
               , P.id_ "billableDesc"
               , P.placeholder "Description of the product or service"
               , E.onValueInput (Just <<< SetDesc)
@@ -162,11 +153,12 @@ component system caps =
           ]
         , formGroup st
           [ MessageField ]
-          [ HH.label 
+          [ HH.label
               [ P.for "billableMsg"]
-              [ HH.text "Message to be included with bill" ] 
+              [ HH.text "Message to be included with bill" ]
           , HH.input
               [ P.type_ P.InputText
+              , P.classes [C.formControl, C.formControlSm]
               , P.id_ "billableMsg"
               , P.placeholder "Enter your message here"
               , E.onValueInput (Just <<< SetMessage)
@@ -174,121 +166,149 @@ component system caps =
           ]
         , formGroup st
           [MonthlyRecurrenceField, WeeklyRecurrenceField]
-          [ HH.label_
-            [ HH.input 
-                ([ P.type_ P.InputRadio 
-                , P.name "recurType" 
-                , E.onClick \_ -> Just (SetRecurrenceType RTAnnual)
-                ] <> (if st.recurrenceType == RTAnnual then [P.checked true] else []))
-            , HH.text " Annual"
-            ]
-          , HH.label_
-            [ HH.input 
-                ([ P.type_ P.InputRadio 
-                , P.name "recurType" 
-                , E.onClick \_ -> Just (SetRecurrenceType RTMonthly)
-                ] <> (if st.recurrenceType == RTMonthly then [P.checked true] else []))
-            , HH.text " every "
+          [ formCheckGroup
+              { id: "recurAnnual"
+              , checked: (st.recurrenceType == RTAnnual)
+              , labelClasses: []
+              }
+              (\_ -> Just (SetRecurrenceType RTAnnual))
+              [ HH.text "Annual" ]
+          , formCheckGroup
+              { id: "recurMonthly"
+              , checked: (st.recurrenceType == RTMonthly)
+              , labelClasses: [C.formInline]
+              }
+              (\_ -> Just (SetRecurrenceType RTMonthly))
+              [ HH.text "Every"
+              , HH.input
+                  [ P.type_ P.InputNumber
+                  , P.classes [ C.formControl, C.formControlXs, C.formControlFlush, C.marginX2 ]
+                  , P.value (if st.recurrenceType == RTMonthly
+                                then maybe "" show st.recurrenceValue
+                                else "")
+                  , P.min 1.0
+                  , P.max 12.0
+                  , E.onValueInput (Just <<< SetRecurrenceMonths)
+                  ]
+              , HH.text "Months"]
+          , formCheckGroup
+            { id: "recurWeekly"
+            , checked: (st.recurrenceType == RTWeekly)
+            , labelClasses: [C.formInline]
+            }
+            (\_ -> Just (SetRecurrenceType RTWeekly))
+            [ HH.text "Every"
             , HH.input
                 [ P.type_ P.InputNumber
-                , P.classes [ C.formControlSm ]
-                , P.value (if st.recurrenceType == RTMonthly
-                              then maybe "" show st.recurrenceValue
-                              else "")
-                , P.min 1.0
-                , P.max 12.0
-                , E.onValueInput (Just <<< SetRecurrenceMonths)
-                ] 
-            , HH.text " Months"
-            ]
-          , HH.label_
-            [ HH.input 
-                ([ P.type_ P.InputRadio 
-                , P.name "recurType" 
-                , E.onClick \_ -> Just (SetRecurrenceType RTWeekly)
-                ] <> (if st.recurrenceType == RTWeekly then [P.checked true] else []))
-            , HH.text " every "
-            , HH.input
-                [ P.type_ P.InputNumber
-                , P.classes [ C.formControlSm ]
+                , P.classes [ C.formControl, C.formControlXs, C.formControlFlush, C.marginX2 ]
                 , P.value (if st.recurrenceType == RTWeekly
                               then maybe "" show st.recurrenceValue
                               else "")
                 , P.min 1.0
                 , P.max 12.0
                 , E.onValueInput (Just <<< SetRecurrenceWeeks)
-                ] 
-            , HH.text " Weeks"
+                ]
+            , HH.text "Weeks"
             ]
-          , HH.label_
-            [ HH.input 
-                ([ P.type_ P.InputRadio 
-                , P.name "recurType" 
-                , E.onClick \_ -> Just (SetRecurrenceType RTOneTime)
-                ] <> (if st.recurrenceType == RTOneTime then [P.checked true] else []))
-            , HH.text " One-Time"
-            ]
+          , formCheckGroup
+            { id: "oneTime"
+            , checked: st.recurrenceType == RTOneTime
+            , labelClasses: []
+            }
+            (\_ -> Just (SetRecurrenceType RTOneTime))
+            [ HH.text "One-Time" ]
           ]
         , formGroup st
           [AmountField]
-          [ HH.label 
+          [ HH.label
               [ P.for "billableAmount"]
-              [ HH.text "Amount" ] 
-          , HH.input
-              [ P.type_ P.InputNumber
-              , P.classes [ C.formControlSm ]
-              , P.id_ "billableAmount"
-              , P.value (maybe "" (Fixed.toString <<< unwrap) st.amount)
-              , P.placeholder "1.0"
-              , P.min 0.0
-              , E.onValueInput (Just <<< SetBillingAmount)
-              ]
+              [ HH.text "Amount" ]
           , HH.div
-              [ P.classes [ ClassName "input-group-append" ] ]
-              [ HH.span [ P.classes [ ClassName "input-group-text" ] ] [ HH.text "ZEC" ] ]
+          [ P.classes [ ClassName "input-group", ClassName "input-group-sm" ] ]
+              [ HH.input
+                  [ P.type_ P.InputNumber
+                  , P.classes [ C.formControl ]
+                  , P.id_ "billableAmount"
+                  , P.value (maybe "" (Fixed.toString <<< unwrap) st.amount)
+                  , P.placeholder "1.0"
+                  , P.min 0.0
+                  , E.onValueInput (Just <<< SetBillingAmount)
+                  ]
+              , HH.div
+                [ P.classes [ ClassName "input-group-append"] ]
+                [ HH.span
+                    [ P.classes [ ClassName "input-group-text" ]
+                    , P.style "height: auto;" -- fix bad calculated height from LandKit
+                    ]
+                    [ HH.text "ZEC" ] ]
+              ]
           ]
         , formGroup  st
           [GracePeriodField]
-          [ HH.label 
+          [ HH.label
               [ P.for "gracePeriod"]
-              [ HH.text "Grace Period (Days)" ] 
+              [ HH.text "Grace Period (Days)" ]
           , HH.input
               [ P.type_ P.InputNumber
               , P.id_ "gracePeriod"
-              , P.classes [ C.formControlSm ]
+              , P.classes [ C.formControl, C.formControlSm ]
               , P.value (maybe "" (Number.toString <<< unwrap) st.gracePeriod)
               , P.placeholder "Days until a bill is considered overdue"
               , P.min 0.0
               , E.onValueInput (Just <<< SetGracePeriod)
-              ] 
+              ]
           ]
         , formGroup st
           [RequestExpiryField]
-          [ HH.label 
+          [ HH.label
               [ P.for "requestExpiry"]
-              [ HH.text "Request Expiry Period (Hours)" ] 
+              [ HH.text "Request Expiry Period (Hours)" ]
           , HH.input
               [ P.type_ P.InputNumber
               , P.id_ "gracePeriod"
-              , P.classes [ C.formControlSm ]
+              , P.classes [ C.formControl, C.formControlSm ]
               , P.value (maybe "" (Number.toString <<< unwrap) st.requestExpiry)
               , P.placeholder "Hours until a payment request expires"
               , P.min 0.0
               , E.onValueInput (Just <<< SetRequestExpiry)
-              ] 
+              ]
           ]
         ]
       ]
 
+  formCheckGroup :: forall i a.
+    { id :: String
+    , checked :: Boolean
+    , labelClasses :: Array ClassName
+    }
+    -> (Unit -> Maybe a)
+    -> Array (HH.HTML i a)
+    -> HH.HTML i a
+  formCheckGroup { id, checked, labelClasses } onChange children  =
+    HH.div
+      [ P.classes [C.formCheck] ]
+      [ HH.input
+          ([ P.type_ P.InputRadio
+          , P.name "recurType"
+          , P.classes [C.formCheckInput]
+          , P.id_ id
+          , E.onClick \_ -> onChange unit
+          ] <> (if checked then [P.checked true] else []))
+       , HH.label
+           [ P.classes ([C.formCheckLabel ] <> labelClasses)
+           , P.for id]
+           children
+       ]
+
   formGroup :: forall i a. CState -> Array Field -> Array (HH.HTML i a) -> HH.HTML i a
-  formGroup st fields body = 
+  formGroup st fields body =
     HH.div
      [ P.classes [C.formGroup] ]
-     (body <> (fieldError st =<< fields)) 
+     (body <> (fieldError st =<< fields))
 
   fieldError :: forall i a. CState -> Field -> Array (HH.HTML i a)
-  fieldError st field = 
-    if any (_ == field) st.fieldErrors 
+  fieldError st field =
+    if any (_ == field) st.fieldErrors
        then case field of
             NameField -> err "The name field is required"
             DescField -> err "The description field is required"
@@ -306,11 +326,11 @@ component system caps =
   eval = case _ of
       ProjectChanged pid ->
         H.modify_ (_ { projectId = pid })
-      SetName name -> 
+      SetName name ->
         H.modify_ (_ { name = Just name })
-      SetDesc desc -> 
+      SetDesc desc ->
         H.modify_ (_ { description = Just desc })
-      SetMessage msg -> 
+      SetMessage msg ->
         H.modify_ (_ { message = Just msg })
       SetRecurrenceType rtype -> do
         curRecurType <- H.gets _.recurrenceType
@@ -320,23 +340,23 @@ component system caps =
               RTWeekly  | rtype == RTWeekly  -> curDuration
               _ -> Nothing
         H.modify_ (_ { recurrenceType = rtype, recurrenceValue = rdur  })
-      SetRecurrenceMonths dur -> 
+      SetRecurrenceMonths dur ->
         case Int.fromString dur of
              (Just n) -> H.modify_ (_ { recurrenceType = RTMonthly, recurrenceValue = Just n })
              (Nothing) -> pure unit
-      SetRecurrenceWeeks dur -> 
+      SetRecurrenceWeeks dur ->
         case Int.fromString dur of
              (Just n) -> H.modify_ (_ { recurrenceType = RTWeekly, recurrenceValue = Just n })
              (Nothing) -> pure unit
-      SetBillingAmount amt -> 
+      SetBillingAmount amt ->
         case Fixed.fromString amt of
              (Just zec) -> H.modify_ (_ { amount = Just (ZEC zec) })
              (Nothing) -> pure unit
-      SetGracePeriod dur -> 
+      SetGracePeriod dur ->
         case Number.fromString dur of
              (Just n) -> H.modify_ (_ { gracePeriod = Just (Days n) })
              (Nothing) -> pure unit
-      SetRequestExpiry dur -> 
+      SetRequestExpiry dur ->
         case Number.fromString dur of
              (Just n) -> H.modify_ (_ { requestExpiry = Just (Hours n) })
              (Nothing) -> pure unit
@@ -361,9 +381,9 @@ component system caps =
                          , gracePeriod: _
                          , expiryPeriod: _
                          }
-        
+
             reqV :: V (Array Field) Billable
-            reqV = 
+            reqV =
               toBillable <$> nameV
                          <*> descV
                          <*> msgV
@@ -382,7 +402,7 @@ component system caps =
               Right bid -> do
                 H.raise (Tuple bid billable)
                 lift $ system.toggleModal "createBillable" ModalFFI.HideModal
-              Left errs -> 
+              Left errs ->
                 lift $ system.error (show errs)
 
 apiCapability :: Capability Aff
