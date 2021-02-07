@@ -7,15 +7,21 @@ import Aftok.Project (projectName)
 import Aftok.Currency.Bitcoin (NetworkMode, Satoshi (..))
 import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
 import Aftok.Currency.Zcash (Zatoshi(..))
+import Aftok.Currency.Zcash.Types (Memo(..))
 import Aftok.Database (MonadDB, findProjectOrError)
 import Aftok.Payments (PaymentsConfig(..))
 import qualified Aftok.Payments.Bitcoin as Bitcoin
 import qualified Aftok.Payments.Zcash as Zcash
+import Aftok.Types (AccountId)
 import qualified Bippy.Types as BT
 import Control.Lens
   ( (^.),
     makeLenses,
     traverseOf,
+  )
+import Crypto.Random.Types
+  ( MonadRandom,
+    getRandomBytes,
   )
 import qualified Data.Configurator as C
 import qualified Data.Configurator.Types as C
@@ -32,6 +38,7 @@ import Filesystem.Path.CurrentOS
     fromText,
   )
 import qualified Filesystem.Path.CurrentOS as P
+import Haskoin.Address (encodeBase58Check)
 import qualified Network.Mail.SMTP as SMTP
 import qualified Network.Socket as NS
 import Network.URI (URI, parseURI)
@@ -127,23 +134,24 @@ toBitcoinPaymentsConfig c = do
   let pkiData = BT.X509SHA256 . CertificateChain $ pkiEntries
   pure $ Bitcoin.PaymentsConfig (c ^. networkMode) privKey pkiData (_minPayment c)
 
-toPaymentsConfig :: MonadDB m => BillingConfig -> IO (PaymentsConfig m)
+toPaymentsConfig :: (MonadRandom m, MonadDB m) => BillingConfig -> IO (PaymentsConfig m)
 toPaymentsConfig cfg = do
   btcCfg <- toBitcoinPaymentsConfig (cfg ^. bitcoinConfig)
-  let btcOps = Bitcoin.BillingOps _memoGen (_uriGen $ cfg ^. bitcoinConfig . bip70Host) _payloadGen
+  let btcOps = Bitcoin.BillingOps _btcMemoGen (_uriGen $ cfg ^. bitcoinConfig . bip70Host) _payloadGen
   pure $ PaymentsConfig {
     _bitcoinBillingOps = btcOps,
     _bitcoinPaymentsConfig = btcCfg,
+    _zcashBillingOps = _zcashMemoGen,
     _zcashPaymentsConfig = cfg ^. zcashConfig
   }
 
-_memoGen ::
+_btcMemoGen ::
   MonadDB m =>
   B.Billable Satoshi ->
   Day ->
   UTCTime ->
   m (Maybe Text)
-_memoGen bill billingDate requestTime = do
+_btcMemoGen bill billingDate requestTime = do
   req <- traverseOf B.project findProjectOrError bill
   let template =
         (newSTMP . toString)
@@ -156,6 +164,19 @@ _memoGen bill billingDate requestTime = do
             ("issue_time", show requestTime)
           ]
   pure $ fmap (render . setAttrs) template
+
+_zcashMemoGen ::
+  (MonadRandom m, MonadDB m) =>
+  B.Billable Zatoshi ->
+  Day ->
+  UTCTime ->
+  AccountId ->
+  m (Maybe Memo)
+_zcashMemoGen _ _ _ _ = do
+  pkey <- encodeBase58Check <$> getRandomBytes 32
+  -- for now
+  pure $ Just (Memo $ encodeUtf8 pkey)
+
 
 _payloadGen ::
   Monad m =>
@@ -176,3 +197,4 @@ _uriGen ::
 _uriGen hostname (Bitcoin.PaymentKey k) =
   let paymentRequestPath = "https://" <> fromString hostname <> "/pay/" <> k
    in pure . parseURI $ show paymentRequestPath
+

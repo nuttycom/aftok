@@ -17,7 +17,7 @@ import Aftok.Database
 import Aftok.Payments.Types (PaymentRequestError (..))
 import Aftok.Project (depRules)
 import qualified Aftok.TimeLog as TL
-import Aftok.Types (ProjectId)
+import Aftok.Types (ProjectId, AccountId)
 import Control.Error.Util (note)
 import Control.Lens ((^.))
 import Control.Monad.Trans.Except (except)
@@ -50,7 +50,7 @@ getPayouts ::
   c ->
   -- | the fractions of the total payout to pay to each recipient
   TL.WorkShares ->
-  ExceptT PaymentRequestError m (Map a c)
+  ExceptT PaymentRequestError m (Map (AccountId, a) c)
 getPayouts t currency mp@(MinPayout minAmt) amt payouts =
   if amt <= minAmt
     then pure mempty
@@ -73,7 +73,7 @@ getPayoutAmounts ::
   TL.CreditTo ->
   -- | the amount to pay to the recipient
   c ->
-  ExceptT PaymentRequestError m [(a, c)]
+  ExceptT PaymentRequestError m [((AccountId, a), c)]
 getPayoutAmounts t network mp creditTo amt = case creditTo of
   (TL.CreditToAccount aid) ->
     fmap (,amt) . maybeToList <$> (lift . runMaybeT $ findAccountPaymentAddress aid network)

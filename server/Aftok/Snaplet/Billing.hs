@@ -23,9 +23,9 @@ import Aftok.Currency.Bitcoin.Bip70 (protoBase64)
 import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
 import Aftok.Currency.Zcash (Zatoshi (..))
 import qualified Aftok.Currency.Zcash.Zip321 as Zip321
+import Aftok.Database.PostgreSQL (QDBM)
 import Aftok.Database
   ( DBOp (..),
-    MonadDB,
     createBillable,
     liftdb,
     withProjectAuth,
@@ -47,6 +47,7 @@ import Aftok.Payments
     SomePaymentRequestDetail,
     createPaymentRequest,
     zcashPaymentsConfig,
+    zcashBillingOps
   )
 import Aftok.Payments.Types
   ( NativeRequest (..),
@@ -64,10 +65,12 @@ import Aftok.Snaplet
     requireProjectId,
     snapError,
     snapEval,
+    qdbmEval
   )
 import Aftok.Snaplet.Auth (requireUserId)
 import Aftok.Types (ProjectId, UserId)
 import Control.Lens ((.~), (^.), to)
+import Control.Monad.Trans.Except (mapExceptT)
 import Data.Aeson
 import Data.Aeson.Types
   ( Pair,
@@ -126,8 +129,7 @@ subscribeHandler = do
   snapEval . liftdb $ CreateSubscription uid bid (t ^. C._utctDay)
 
 createPaymentRequestHandler ::
-  MonadDB m =>
-  PaymentsConfig m ->
+  PaymentsConfig QDBM ->
   S.Handler App App (PaymentRequestId, SomePaymentRequestDetail)
 createPaymentRequestHandler cfg = do
   uid <- requireUserId
@@ -142,8 +144,8 @@ createPaymentRequestHandler cfg = do
     Just b | (b ^. B.project == pid) ->
       case b ^. B.amount of
         Amount ZEC v -> do
-          let ops = Zcash.paymentOps (cfg ^. zcashPaymentsConfig)
-          res <- snapEval . runExceptT $ createPaymentRequest ops now bid (b & B.amount .~ v) billDay
+          let ops = Zcash.paymentOps (cfg ^. zcashBillingOps) (cfg ^. zcashPaymentsConfig)
+          res <- runExceptT . mapExceptT qdbmEval $ createPaymentRequest ops now bid (b & B.amount .~ v) billDay
           case res of
             Left AmountInvalid -> snapError 400 $ "Invalid payment amount requested."
             Left NoRecipients -> snapError 400 $ "This project has no payable members."
@@ -170,7 +172,8 @@ createPaymentRequestHandler cfg = do
 
 paymentRequestDetailJSON :: (PaymentRequestId, SomePaymentRequestDetail) -> Object
 paymentRequestDetailJSON (rid, (SomePaymentRequest req)) =
-  obj $ ["payment_request_id" .= (rid ^. _PaymentRequestId)] <> fields req
+  v1 . obj $
+    ["payment_request_id" .= (rid ^. _PaymentRequestId)] <> fields req
   where
     fields :: PaymentRequest' (Billable' ProjectId UserId) c -> [Pair]
     fields r = case r ^. nativeRequest of

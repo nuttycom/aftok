@@ -60,7 +60,9 @@ qchar c =
     || any (== c) "-._!$'()*+,;:@"
 
 paramIndex :: Maybe Int -> Text
-paramIndex = maybe "" (\i -> pack (printf ".%d" i)) . find (> 0)
+paramIndex = \case
+  Just i | i > 0 -> pack (printf ".%d" i)
+  _ -> ""
 
 addrParam :: Maybe Int -> Address -> Text
 addrParam i (Address t) = strParam "address" i t
@@ -95,7 +97,7 @@ itemPartial i item =
 
 itemsParams :: NonEmpty PaymentItem -> NonEmpty Text
 itemsParams xs =
-  intercalate "&" . toList . itemParams <$> zip (Just <$> fromList [1 ..]) xs
+  intercalate "&" . toList . itemParams <$> zip (Just <$> fromList [0 ..]) xs
   where
     itemParams (i, item) =
       addrParam i (item ^. address) : itemPartial i item

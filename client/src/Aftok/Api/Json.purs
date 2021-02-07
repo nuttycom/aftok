@@ -5,7 +5,8 @@ import Control.Monad.Error.Class (throwError)
 import Control.Monad.Except.Trans (ExceptT, except, withExceptT, runExceptT)
 import Control.Monad.Trans.Class (lift)
 import Data.Argonaut.Core (Json)
-import Data.Argonaut.Decode (class DecodeJson, decodeJson, JsonDecodeError(..))
+import Data.Argonaut.Decode (class DecodeJson, decodeJson, JsonDecodeError(..), (.:))
+import Data.BigInt (fromNumber) as BigInt
 import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant, fromDateTime)
 import Data.Functor.Compose (Compose(..))
@@ -17,10 +18,12 @@ import Data.Newtype (class Newtype, unwrap, over)
 import Data.Traversable (class Traversable, traverse)
 import Effect (Effect)
 import Effect.Aff (Aff)
+import Foreign.Object (Object)
 import Affjax as AJAX
 import Affjax (Response, printError)
 import Affjax.StatusCode (StatusCode(..))
 import Aftok.Api.Types (APIError(..))
+import Aftok.Zcash (Zatoshi(..))
 
 newtype JsonCompose f g a
   = JsonCompose (Compose f g a)
@@ -114,3 +117,9 @@ parseDatedResponseMay decode = case _ of
       $ decodeDatedJson decode r.body
     other -> 
       throwError $ Error { status: Just other, message: r.statusText }
+
+parseZatoshi :: Object Json -> Either JsonDecodeError Zatoshi
+parseZatoshi obj = 
+  map Zatoshi 
+    $   (note (TypeMismatch "Failed to decode as Zatoshi") <<< BigInt.fromNumber) 
+    =<< (obj .: "zatoshi")

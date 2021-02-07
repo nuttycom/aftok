@@ -26,6 +26,7 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.Portal (portalAff)
 import Aftok.Modals.ModalFFI as ModalFFI
+import Aftok.HTML.KjuaQR as KjuaQR
 
 type System m
   = { log :: String -> m Unit
@@ -50,6 +51,7 @@ type System m
         (output -> Maybe action) ->
         H.ComponentHTML action slots m
     , toggleModal :: String -> ModalFFI.Toggle -> m Unit
+    , renderQR :: String -> KjuaQR.QROpts -> m Unit
     }
 
 liveSystem :: System Aff
@@ -64,6 +66,7 @@ liveSystem =
   , dateFFI: hoistDateFFI liftEffect jsDateFFI
   , portal: portalAff
   , toggleModal: \i t -> liftEffect (ModalFFI.toggleModal i t)
+  , renderQR: \i opts -> liftEffect (KjuaQR.renderQR i opts)
   }
 
 type DateFFI m

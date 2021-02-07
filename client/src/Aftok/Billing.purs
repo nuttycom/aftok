@@ -12,13 +12,14 @@ import Data.Symbol (SProxy(..))
 -- import Data.Time.Duration (Hours(..))
 import Data.Traversable (traverse_)
 import Data.Tuple (Tuple(..))
+import DOM.HTML.Indexed.ButtonType (ButtonType(..))
 import Effect.Aff (Aff)
 -- import Effect.Class (liftEffect)
 -- import Effect.Now (nowDateTime)
 import Halogen as H
 import Halogen.HTML.Core (ClassName(..))
 import Halogen.HTML as HH
--- import Halogen.HTML.Events as E
+import Halogen.HTML.Events as E
 import Halogen.HTML.Properties as P
 import Aftok.Billing.Create as Create
 import Aftok.Billing.PaymentRequest as PaymentRequest
@@ -35,7 +36,9 @@ import Aftok.Api.Billing
   , listUnpaidPaymentRequests
   , recurrenceStr
   )
+import Aftok.HTML.Classes as C
 import Aftok.Modals as Modals
+import Aftok.Modals.ModalFFI as ModalFFI
 import Aftok.Zcash (toZEC, zecString)
 
 type BillingInput
@@ -44,7 +47,7 @@ type BillingInput
 type BillingState
   = { selectedProject :: Maybe Project
     , billables :: Array (Tuple BillableId Billable)
-    , selectedBillable :: Maybe (Tuple BillableId Billable)
+    , selectedBillable :: Maybe BillableId
     , paymentRequests :: Array (Tuple PaymentRequestId PaymentRequest)
     }
 
@@ -52,6 +55,8 @@ data BillingAction
   = Initialize
   | ProjectSelected Project
   | BillableCreated (Tuple BillableId Billable)
+  | CreatePaymentRequest BillableId
+  | PaymentRequestCreated (PaymentRequest)
 
 type Slot id
   = forall query. H.Slot query ProjectList.Event id
@@ -60,14 +65,17 @@ type Slots
   = ( projectList :: ProjectList.Slot Unit
     , createBillable :: Create.Slot Unit
     , createPaymentRequest :: PaymentRequest.Slot Unit
+    , showPaymentRequest :: PaymentRequest.QrSlot Unit
     )
 
 _projectList = SProxy :: SProxy "projectList"
 _createBillable = SProxy :: SProxy "createBillable"
 _createPaymentRequest = SProxy :: SProxy "createPaymentRequest"
+_showPaymentRequest = SProxy :: SProxy "showPaymentRequest"
 
 type Capability (m :: Type -> Type)
   = { createBillable :: Create.Capability m
+    , createPaymentRequest :: PaymentRequest.Capability m
     , listProjectBillables :: ProjectId -> m (Either APIError (Array (Tuple BillableId Billable)))
     , listUnpaidPaymentRequests :: BillableId -> m (Either APIError (Array (Tuple PaymentRequestId PaymentRequest)))
     }
@@ -126,7 +134,7 @@ component system caps pcaps =
                   [ renderBillableList st.billables
                   , HH.div 
                     [ P.classes (ClassName <$> [ "col-md-2" ]) ] 
-                    [ Modals.modalButton "createBillable" "Create billable" ]
+                    [ Modals.modalButton "createBillable" "Create billable" Nothing]
                   , system.portal
                       _createBillable
                       unit
@@ -135,12 +143,19 @@ component system caps pcaps =
                       Nothing
                       (Just <<< BillableCreated)
                   , system.portal
-                      _createBillable
+                      _createPaymentRequest
                       unit
-                      (Create.component system caps.createBillable)
-                      (unwrap p).projectId
+                      (PaymentRequest.component system caps.createPaymentRequest)
+                      { projectId: (unwrap p).projectId, billableId: st.selectedBillable }
                       Nothing
-                      (Just <<< BillableCreated)
+                      (Just <<< PaymentRequestCreated)
+                  , system.portal
+                      _showPaymentRequest
+                      unit
+                      (PaymentRequest.qrcomponent system)
+                      Nothing
+                      Nothing
+                      (const Nothing)
                   ]
                 Nothing -> []
               )
@@ -164,7 +179,6 @@ component system caps pcaps =
               ] 
           ] <> (billableRow <$> billables))
       ]
-    
     where
       billableRow (Tuple bid b) = 
         HH.div
@@ -175,12 +189,17 @@ component system caps pcaps =
           , colmd2 (Just (recurrenceStr b.recurrence))
           , HH.div 
             [ P.classes (ClassName <$> [ "col-md-2" ]) ] 
-            [ Modals.modalButton "createPaymentRequest" "New Payment Request" ]
+            [ HH.button
+              [ P.classes [ C.btn, C.btnPrimary ]
+              , P.type_ ButtonButton
+              , E.onClick (\_ -> Just $ CreatePaymentRequest bid)
+              ]
+              [ HH.text "New Payment Request" ]
+            ]
           ]
 
   colmd2 :: forall i w. Maybe String -> HH.HTML i  w
   colmd2 xs = HH.div [ P.classes (ClassName <$> [ "col-md-2" ]) ] (U.fromMaybe $ HH.text <$> xs)
-
 
   eval :: BillingAction -> H.HalogenM BillingState BillingAction Slots ProjectList.Event m Unit
   eval action = do
@@ -200,6 +219,20 @@ component system caps pcaps =
       BillableCreated _ -> do
         currentProject <- H.gets (_.selectedProject)
         traverse_ refreshBillables currentProject
+
+      CreatePaymentRequest bid -> do
+        H.modify_ (_ { selectedBillable = Just bid })
+        _ <- H.query _createPaymentRequest unit $ H.tell (PaymentRequest.SetBillableId bid)
+        lift $ system.toggleModal PaymentRequest.modalId ModalFFI.ShowModal
+
+      PaymentRequestCreated req -> do
+        lift $ system.log "Created payment request, closing modal."
+        lift $ system.toggleModal PaymentRequest.modalId ModalFFI.HideModal
+        lift $ system.log "About to show QR code modal"
+        lift $ system.toggleModal PaymentRequest.qrModalId ModalFFI.ShowModal
+        _ <- H.query _showPaymentRequest unit $ H.tell (PaymentRequest.QrRender req)
+        pure unit
+
     where 
       refreshBillables currentProject = do
         billables <- lift $ caps.listProjectBillables (unwrap currentProject).projectId
@@ -210,13 +243,15 @@ component system caps pcaps =
 apiCapability :: Capability Aff
 apiCapability =
   { createBillable: Create.apiCapability
+  , createPaymentRequest: PaymentRequest.apiCapability
   , listProjectBillables: listProjectBillables
   , listUnpaidPaymentRequests: listUnpaidPaymentRequests
   }
 
 mockCapability :: Capability Aff
 mockCapability =
-  { createBillable: { createBillable: \_ _ -> pure $ Left Forbidden }
+  { createBillable: Create.mockCapability
+  , createPaymentRequest: PaymentRequest.mockCapability
   , listProjectBillables: \_ -> pure $ Left Forbidden
   , listUnpaidPaymentRequests: \_ -> pure $ Left Forbidden
   }

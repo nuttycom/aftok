@@ -10,7 +10,7 @@ import Aftok.Database
     DBOp,
     liftdb,
   )
-import Aftok.Database.PostgreSQL (runQDBM)
+import Aftok.Database.PostgreSQL (QDBM, runQDBM)
 import Aftok.Types
   ( ProjectId (..),
     UserId (..),
@@ -81,6 +81,22 @@ snapEval p = do
   nmode <- getNetworkMode
   e <- liftPG $
     \conn -> liftIO $ runExceptT (runQDBM nmode conn $ interpret liftdb p)
+  either handleDBError pure e
+
+qdbmEval ::
+  (MonadSnap m, HasPostgres m, HasNetworkMode m) => QDBM a -> m a
+qdbmEval p = do
+  let handleDBError (OpForbidden (UserId uid) reason) =
+        snapError 403 $ show reason <> " (User " <> show uid <> ")"
+      handleDBError (SubjectNotFound) =
+        snapError
+          404
+          "The subject of the requested operation could not be found."
+      handleDBError (EventStorageFailed) =
+        snapError 500 "The event submitted could not be saved to the log."
+  nmode <- getNetworkMode
+  e <- liftPG $
+    \conn -> liftIO $ runExceptT (runQDBM nmode conn p)
   either handleDBError pure e
 
 snapError :: MonadSnap m => Int -> Text -> m a

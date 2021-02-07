@@ -178,6 +178,7 @@ Executable aftok-server
     , cereal
     , containers
     , configurator              
+    , cryptonite
     , directory
     , either
     , errors

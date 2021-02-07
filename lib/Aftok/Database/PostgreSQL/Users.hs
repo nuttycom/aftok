@@ -84,14 +84,14 @@ findUserByName (UserName h) = do
       [sql| SELECT id, handle, recovery_email, recovery_zaddr FROM users WHERE handle = ? |]
       (Only h)
 
-findUserPaymentAddress :: UserId -> Currency a c -> DBM (Maybe a)
+findUserPaymentAddress :: UserId -> Currency a c -> DBM (Maybe (AccountId, a))
 findUserPaymentAddress uid = \case
   BTC -> do
     mode <- askNetworkMode
     headMay
       <$> pquery
-        (bitcoinAddressParser mode)
-        [sql| SELECT btc_addr FROM cryptocurrency_accounts
+        ((,) <$> idParser AccountId <*> bitcoinAddressParser mode)
+        [sql| SELECT id, btc_addr FROM cryptocurrency_accounts
             WHERE user_id = ?
             AND is_primary = true
             AND btc_addr IS NOT NULL |]
@@ -99,8 +99,8 @@ findUserPaymentAddress uid = \case
   ZEC -> do
     headMay
       <$> pquery
-        (zcashAddressParser)
-        [sql| SELECT zcash_addr FROM cryptocurrency_accounts
+        ((,) <$> idParser AccountId <*> zcashAddressParser)
+        [sql| SELECT id, zcash_addr FROM cryptocurrency_accounts
             WHERE user_id = ?
             AND is_primary = true
             AND zcash_addr IS NOT NULL |]
