@@ -11,6 +11,9 @@ btnPrimary = ClassName "btn-primary"
 btnSecondary :: ClassName
 btnSecondary = ClassName "btn-secondary"
 
+btnSmall :: ClassName
+btnSmall = ClassName "btn-sm"
+
 close :: ClassName
 close = ClassName "close"
 

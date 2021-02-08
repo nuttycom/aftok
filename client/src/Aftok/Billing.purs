@@ -172,7 +172,7 @@ component system caps pcaps =
               [ colmd2 (Just "Billable Name")
               , colmd2 (Just "Description")
               , colmd2 (Just "Amount")
-              , colmd2 (Just "Recurrence")
+              , colmd3 (Just "Recurrence")
               , colmd2 Nothing
               ] 
           ] <> (billableRow <$> billables))
@@ -180,15 +180,15 @@ component system caps pcaps =
     where
       billableRow (Tuple bid b) = 
         HH.div
-          [ P.classes (ClassName <$> [ "row", "pt-3" ]) ]
+          [ P.classes (ClassName <$> [ "row", "border-top" ]) ]
           [ colmd2 (Just b.name)
           , colmd2 (Just b.description)
           , colmd2 (Just (zecString <<< toZEC $ b.amount))
-          , colmd2 (Just (recurrenceStr b.recurrence))
+          , colmd3 (Just (recurrenceStr b.recurrence))
           , HH.div 
             [ P.classes (ClassName <$> [ "col-md-2" ]) ] 
             [ HH.button
-              [ P.classes [ C.btn, C.btnPrimary ]
+              [ P.classes [ C.btn, C.btnPrimary, C.btnSmall ]
               , P.type_ ButtonButton
               , E.onClick (\_ -> Just $ CreatePaymentRequest bid)
               ]
@@ -197,7 +197,11 @@ component system caps pcaps =
           ]
 
   colmd2 :: forall i w. Maybe String -> HH.HTML i  w
-  colmd2 xs = HH.div [ P.classes (ClassName <$> [ "col-md-2" ]) ] (U.fromMaybe $ HH.text <$> xs)
+  colmd2 xs = HH.div [ P.classes (ClassName <$> [ "col-md-2"]) ] (U.fromMaybe $ HH.text <$> xs)
+
+
+  colmd3 :: forall i w. Maybe String -> HH.HTML i  w
+  colmd3 xs = HH.div [ P.classes (ClassName <$> [ "col-md-3" ]) ] (U.fromMaybe $ HH.text <$> xs)
 
   eval :: BillingAction -> H.HalogenM BillingState BillingAction Slots ProjectList.Event m Unit
   eval action = do
