@@ -172,7 +172,7 @@ createPaymentRequestHandler cfg = do
 
 paymentRequestDetailJSON :: (PaymentRequestId, SomePaymentRequestDetail) -> Object
 paymentRequestDetailJSON (rid, (SomePaymentRequest req)) =
-  v1 . obj $
+  obj $
     ["payment_request_id" .= (rid ^. _PaymentRequestId)] <> fields req
   where
     fields :: PaymentRequest' (Billable' ProjectId UserId) c -> [Pair]
