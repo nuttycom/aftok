@@ -77,12 +77,13 @@ modalWithSave modalId title submit contents =
     ]
 
 modalWithClose ::
-  forall i w.
+  forall action slots m.
   String ->
   String ->
-  Array (HH.HTML i w) ->
-  HH.HTML i w
-modalWithClose modalId title contents =
+  action ->
+  Array (H.ComponentHTML action slots m) ->
+  H.ComponentHTML action slots m
+modalWithClose modalId title action contents =
   HH.div
     [ P.classes [ C.modal ]
     , P.id_ modalId
@@ -115,6 +116,7 @@ modalWithClose modalId title contents =
             [ P.type_ ButtonButton
             , P.classes [ C.btn, C.btnSecondary]
             , AP.dataDismiss "modal"
+            , E.onClick (\_ -> Just action)
             ]
             [ HH.text "Close" ]
           ]

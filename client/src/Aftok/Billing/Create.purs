@@ -62,9 +62,6 @@ type CState =
   , fieldErrors :: Array Field
   }
 
-data Query a
-  = Tell a
-
 type Input = ProjectId
 
 type Output = Tuple BillableId Billable
@@ -83,18 +80,18 @@ data Action
   | SaveBillable
 
 type Slot id
-  = H.Slot Query Output id
+  = forall query. H.Slot query Output id
 
 type Capability (m :: Type -> Type)
   = { createBillable :: ProjectId -> Billable -> m (Either APIError BillableId)
     }
 
 component ::
-  forall m.
+  forall query m.
   Monad m =>
   System m ->
   Capability m ->
-  H.Component HH.HTML Query Input Output m
+  H.Component HH.HTML query Input Output m
 component system caps =
   H.mkComponent
     { initialState

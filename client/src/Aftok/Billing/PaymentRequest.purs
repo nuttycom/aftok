@@ -5,9 +5,9 @@ import Control.Monad.Trans.Class (lift)
 -- import Control.Monad.State.Class (get)
 import Data.Either (Either(..), note)
 import Data.Foldable (any)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Tuple (Tuple(..))
--- import Data.Traversable (traverse_)
+import Data.Traversable (traverse_)
 import Data.Unfoldable as U
 import Data.Validation.Semigroup (V(..), toEither)
 import Effect.Aff (Aff)
@@ -44,18 +44,17 @@ type CState =
   , fieldErrors :: Array FieldError
   }
 
-type Input = 
-  { projectId :: ProjectId
-  , billableId :: Maybe BillableId
-  }
+type Input = ProjectId
 
-data Query a = 
-  SetBillableId BillableId a
+data Query a 
+  = SetProjectId ProjectId a
+  | SetBillableId BillableId a
 
 type Output = PaymentRequest
 
 data Action
-  = SetName String
+  = ProjectChanged ProjectId
+  | SetName String
   | SetDesc String
   | SavePaymentRequest
 
@@ -88,13 +87,14 @@ component system caps =
           $ H.defaultEval
               { handleAction = handleAction
               , handleQuery = handleQuery
+              , receive = Just <<< ProjectChanged
               }
     }
   where
   initialState :: Input -> CState
   initialState input =
-    { projectId: input.projectId
-    , billableId: input.billableId
+    { projectId: input
+    , billableId: Nothing
     , name : Nothing
     , description : Nothing
     , fieldErrors : []
@@ -114,6 +114,7 @@ component system caps =
             , P.classes [ C.formControl, C.formControlSm ]
             , P.id_ "requestName"
             , P.placeholder "A name for the payment request"
+            , P.value (fromMaybe "" st.name)
             , E.onValueInput (Just <<< SetName)
             ]
           ]
@@ -127,6 +128,7 @@ component system caps =
               , P.classes [ C.formControl, C.formControlSm ]
               , P.id_ "requestDesc"
               , P.placeholder "Additional descriptive information"
+              , P.value (fromMaybe "" st.description)
               , E.onValueInput (Just <<< SetDesc)
               ]
           ]
@@ -151,12 +153,18 @@ component system caps =
 
   handleQuery :: forall slots a. Query a -> H.HalogenM CState Action slots Output m (Maybe a)
   handleQuery = case _ of
+    SetProjectId pid a -> do
+      H.modify_ (_ { projectId = pid, billableId = Nothing, name = Nothing, description = Nothing })
+      pure (Just a)
+
     SetBillableId bid a -> do
       H.modify_ (_ { billableId = Just bid })
       pure (Just a)
 
   handleAction :: forall slots. Action -> H.HalogenM CState Action slots Output m Unit
   handleAction = case _ of
+    ProjectChanged pid ->
+      H.modify_ (_ { projectId = pid, billableId = Nothing, name = Nothing, description = Nothing })
     SetName name ->
       H.modify_ (_ { name = Just name })
     SetDesc desc ->
@@ -175,8 +183,8 @@ component system caps =
           res <- lift $ caps.createPaymentRequest pid bid reqMeta
           case res of
             Right content -> do
-              lift $ system.log "Request created."
               H.raise content
+              H.modify_ (_ { billableId = Nothing, name = Nothing, description = Nothing, fieldErrors = [] })
               lift $ system.toggleModal "createPaymentRequest" ModalFFI.HideModal
             Left errs ->
               lift $ system.error (show errs)
@@ -203,6 +211,7 @@ data QrQuery a
 
 data QrAction 
   = QrInit
+  | QrClose
 
 type QrSlot id
   = H.Slot QrQuery Unit id
@@ -234,7 +243,7 @@ qrcomponent system =
 
   render :: forall slots. QrState -> H.ComponentHTML QrAction slots m
   render st =
-    Modals.modalWithClose qrModalId "Payment Request"
+    Modals.modalWithClose qrModalId "Payment Request" QrClose
       [ HH.div_
         ((\url -> HH.img [P.src url]) <$> U.fromMaybe st.dataUrl)
       ]
@@ -247,7 +256,12 @@ qrcomponent system =
       pure (Just a)
 
   handleAction :: forall slots. QrAction -> H.HalogenM QrState QrAction slots output m Unit
-  handleAction _ = pure unit
+  handleAction = case _ of
+    QrInit -> do
+      req <- H.gets (_.req)
+      lift $ traverse_ renderQR req
+    QrClose -> 
+      H.modify_ (_ { req = Nothing, dataUrl = Nothing })
 
   renderQR :: PaymentRequest -> m String
   renderQR (PaymentRequest r) = 

@@ -47,7 +47,6 @@ type BillingInput
 type BillingState
   = { selectedProject :: Maybe Project
     , billables :: Array (Tuple BillableId Billable)
-    , selectedBillable :: Maybe BillableId
     , paymentRequests :: Array (Tuple PaymentRequestId PaymentRequest)
     }
 
@@ -103,7 +102,6 @@ component system caps pcaps =
   initialState input =
     { selectedProject: input
     , billables: []
-    , selectedBillable: Nothing
     , paymentRequests: []
     }
 
@@ -146,7 +144,7 @@ component system caps pcaps =
                       _createPaymentRequest
                       unit
                       (PaymentRequest.component system caps.createPaymentRequest)
-                      { projectId: (unwrap p).projectId, billableId: st.selectedBillable }
+                      (unwrap p).projectId
                       Nothing
                       (Just <<< PaymentRequestCreated)
                   , system.portal
@@ -221,7 +219,6 @@ component system caps pcaps =
         traverse_ refreshBillables currentProject
 
       CreatePaymentRequest bid -> do
-        H.modify_ (_ { selectedBillable = Just bid })
         _ <- H.query _createPaymentRequest unit $ H.tell (PaymentRequest.SetBillableId bid)
         lift $ system.toggleModal PaymentRequest.modalId ModalFFI.ShowModal
 

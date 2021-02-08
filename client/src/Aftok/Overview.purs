@@ -99,7 +99,7 @@ component system caps pcaps =
           [ P.classes (ClassName <$> [ "container", "pt-6" ]) ]
           [ HH.h1
               [ P.classes (ClassName <$> [ "mb-0", "font-weight-bold", "text-center" ]) ]
-              [ HH.text "Project Overview - New!" ]
+              [ HH.text "Project Overview" ]
           , HH.p
               [ P.classes (ClassName <$> [ "col-md-5", "text-muted", "text-center", "mx-auto" ]) ]
               [ HH.text "Your project details" ]
