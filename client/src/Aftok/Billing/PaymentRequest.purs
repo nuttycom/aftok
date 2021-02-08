@@ -2,13 +2,14 @@ module Aftok.Billing.PaymentRequest where
 
 import Prelude
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.State.Class (get)
+-- import Control.Monad.State.Class (get)
 import Data.Either (Either(..), note)
 import Data.Foldable (any)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
+-- import Data.Traversable (traverse_)
+import Data.Unfoldable as U
 import Data.Validation.Semigroup (V(..), toEither)
-import Data.Traversable (traverse_)
 import Effect.Aff (Aff)
 import Halogen as H
 import Halogen.HTML.Core (ClassName(..))
@@ -190,7 +191,12 @@ mockCapability =
   { createPaymentRequest: \_ _ _ -> pure $ Left Forbidden }
 
 
-type QrState = Maybe PaymentRequest
+type QrInput = Maybe PaymentRequest
+
+type QrState = 
+  { req :: Maybe PaymentRequest
+  , dataUrl :: Maybe String
+  }
 
 data QrQuery a
   = QrRender PaymentRequest a
@@ -208,7 +214,7 @@ qrcomponent ::
   forall m output.
   Monad m =>
   System m ->
-  H.Component HH.HTML QrQuery (Maybe PaymentRequest) output m
+  H.Component HH.HTML QrQuery QrInput output m
 qrcomponent system =
   H.mkComponent
     { initialState
@@ -222,28 +228,27 @@ qrcomponent system =
               }
     }
   where
-  initialState :: Maybe PaymentRequest -> Maybe PaymentRequest
-  initialState input = input
+  initialState :: QrInput -> QrState
+  initialState input = 
+    { req: input, dataUrl: Nothing }
 
   render :: forall slots. QrState -> H.ComponentHTML QrAction slots m
   render st =
     Modals.modalWithClose qrModalId "Payment Request"
       [ HH.div_
-        [ HH.div [P.id_ "paymentRequestQRCode"] []
-        ]
+        ((\url -> HH.img [P.src url]) <$> U.fromMaybe st.dataUrl)
       ]
 
   handleQuery :: forall slots a. QrQuery a -> H.HalogenM QrState QrAction slots output m (Maybe a)
   handleQuery = case _ of
     QrRender r a -> do
-      lift $ renderQR r
+      dataUrl <- lift $ renderQR r
+      H.modify_ (_ { dataUrl = Just dataUrl })
       pure (Just a)
 
   handleAction :: forall slots. QrAction -> H.HalogenM QrState QrAction slots output m Unit
-  handleAction = case _ of
-    QrInit -> do
-      traverse_ (lift <<< renderQR) =<< get
+  handleAction _ = pure unit
 
-  renderQR :: PaymentRequest -> m Unit
+  renderQR :: PaymentRequest -> m String
   renderQR (PaymentRequest r) = 
-    system.renderQR "paymentRequestQRCode" { text: r.native_request.zip321_request }
+    system.renderQR { value: r.native_request.zip321_request, size: 300 }

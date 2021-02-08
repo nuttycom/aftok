@@ -122,10 +122,10 @@ parseRecurrence :: Json -> Either JsonDecodeError Recurrence
 parseRecurrence json = do
   obj <- decodeJson json
   let parseInner f outer inner = map f ((MaybeT <<< (_ .:? inner)) =<< MaybeT (obj .:? outer))
-      annually = traverse (map \(_ :: Unit) -> Annually) (obj .:? "annually")
+      annually = traverse (map \(_ :: Json) -> Annually) (obj .:? "annually")
       monthly =  sequence $ runMaybeT (parseInner Monthly "monthly" "months")
       weekly =   sequence $ runMaybeT (parseInner Weekly "weekly" "weeks")
-      onetime =  traverse (map \(_ :: Unit) -> OneTime) (obj .:? "onetime")
+      onetime =  traverse (map \(_ :: Json) -> OneTime) (obj .:? "onetime")
   join $ note (UnexpectedValue json) (annually <|> monthly <|> weekly <|> onetime)
 
 parseBillableJSON :: Object Json -> Either JsonDecodeError (Tuple BillableId Billable)
