@@ -19,7 +19,7 @@ renderQR :: String -> QROpts -> Effect Unit
 renderQR = renderQRInternal
 
 type QROpts = 
-  { content :: String
+  { text :: String
   }
 --     -- render method: 'canvas', 'image' or 'svg'
 --     render :: QRType,

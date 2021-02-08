@@ -246,4 +246,4 @@ qrcomponent system =
 
   renderQR :: PaymentRequest -> m Unit
   renderQR (PaymentRequest r) = 
-    system.renderQR "paymentRequestQRCode" { content: r.native_request.zip321_request }
+    system.renderQR "paymentRequestQRCode" { text: r.native_request.zip321_request }
