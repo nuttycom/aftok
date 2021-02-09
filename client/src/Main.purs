@@ -190,7 +190,7 @@ component system loginCap signupCap tlCap pCap ovCap bcap =
                   "billing" -> VBilling
                   _ -> VOverview
       navigate nextView
-    SignupAction (Signup.SignupComplete _) -> navigate VOverview
+    SignupAction (Signup.SignupComplete _) -> navigate VLogin
     SignupAction (Signup.SigninNav) -> navigate VLogin
     LoginAction (Login.LoginComplete _) -> navigate VOverview
     LogoutAction -> do
