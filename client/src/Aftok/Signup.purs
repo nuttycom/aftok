@@ -277,7 +277,8 @@ component system caps conf =
       when (addr /= "") (setZAddr addr)
     SetInvitationCodes codeStr -> do
       let r = unsafePartial (fromRight $ regex "\\s*,\\s*" global)
-      H.modify_ (_ { invitationCodes = split r codeStr })
+          codes = split r codeStr 
+      H.modify_ (_ { invitationCodes = codes })
     Signup ev -> do
       lift $ system.preventDefault ev
       recType <- H.gets (_.recoveryType)
@@ -294,7 +295,8 @@ component system caps conf =
       let
         reqV :: V (Array SignupError) Acc.SignupRequest
         reqV =
-          signupRequest <$> usernameV
+          signupRequest 
+            <$> usernameV
             <*> ( (eq <$> pwdFormV <*> pwdConfV)
                   `andThen`
                     (if _ then pwdFormV else invalid [ PasswordMismatch ])
