@@ -60,10 +60,11 @@ type SignupRequest
     , password :: String
     , recoverBy :: RecoverBy
     , captchaToken :: String
+    , invitation_codes :: Array String
     }
 
-signupRequest :: String -> String -> RecoverBy -> String -> SignupRequest
-signupRequest username password recoverBy captchaToken = { username, password, recoverBy, captchaToken }
+signupRequest :: String -> String -> RecoverBy -> String -> Array String -> SignupRequest
+signupRequest username password recoverBy captchaToken invcodes = { username, password, recoverBy, captchaToken, invitation_codes: invcodes }
 
 data SignupResponse
   = SignupOK

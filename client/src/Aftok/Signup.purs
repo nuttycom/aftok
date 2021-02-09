@@ -289,6 +289,7 @@ component system caps conf =
         EmailComms -> V <<< note [ EmailRequired ] <<< map Acc.RecoverByEmail <$> H.gets (_.recoveryEmail)
         ZcashComms -> V <<< note [ ZAddrRequired ] <<< map Acc.RecoverByZAddr <$> H.gets (_.recoveryZAddr)
       recapV <- lift $ V <<< note [ CaptchaError ] <$> caps.getRecaptchaResponse Nothing
+      invcodes <- H.gets (_.invitationCodes)
       --lift $ system.log "Sending signup request..."
       let
         reqV :: V (Array SignupError) Acc.SignupRequest
@@ -300,6 +301,7 @@ component system caps conf =
               )
             <*> recoveryV
             <*> recapV
+            <*> pure invcodes
       case toEither reqV of
         Left errors -> do
           let
