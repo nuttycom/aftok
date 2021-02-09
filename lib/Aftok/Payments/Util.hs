@@ -17,7 +17,7 @@ import Aftok.Database
 import Aftok.Payments.Types (PaymentRequestError (..))
 import Aftok.Project (depRules)
 import qualified Aftok.TimeLog as TL
-import Aftok.Types (ProjectId, AccountId)
+import Aftok.Types (AccountId, ProjectId)
 import Control.Error.Util (note)
 import Control.Lens ((^.))
 import Control.Monad.Trans.Except (except)

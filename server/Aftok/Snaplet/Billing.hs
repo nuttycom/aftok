@@ -22,14 +22,13 @@ import Aftok.Currency.Bitcoin (Satoshi (..))
 import Aftok.Currency.Bitcoin.Bip70 (protoBase64)
 import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
 import Aftok.Currency.Zcash (Zatoshi (..))
-import qualified Aftok.Currency.Zcash.Zip321 as Zip321
-import Aftok.Database.PostgreSQL (QDBM)
 import Aftok.Database
   ( DBOp (..),
     createBillable,
     liftdb,
     withProjectAuth,
   )
+import Aftok.Database.PostgreSQL (QDBM)
 import Aftok.Json
   ( Version (..),
     badVersion,
@@ -46,28 +45,29 @@ import Aftok.Payments
     SomePaymentRequest (..),
     SomePaymentRequestDetail,
     createPaymentRequest,
+    zcashBillingOps,
     zcashPaymentsConfig,
-    zcashBillingOps
   )
 import Aftok.Payments.Types
   ( NativeRequest (..),
     PaymentRequestError (..),
     _PaymentRequestId,
     billable,
-    nativeRequest,
     createdAt,
+    nativeRequest,
   )
 import qualified Aftok.Payments.Zcash as Zcash
 import Aftok.Snaplet
   ( App,
+    qdbmEval,
     readRequestJSON,
     requireId,
     requireProjectId,
     snapError,
     snapEval,
-    qdbmEval
   )
 import Aftok.Snaplet.Auth (requireUserId)
+import Aftok.Snaplet.Json (zip321PaymentRequestJSON)
 import Aftok.Types (ProjectId, UserId)
 import Control.Lens ((.~), (^.), to)
 import Control.Monad.Trans.Except (mapExceptT)
@@ -197,11 +197,6 @@ bip70PaymentRequestJSON r =
             "payment_request_protobuf_64" .= (r ^. Bitcoin.bip70Request . to protoBase64)
           ]
     ]
-
-zip321PaymentRequestJSON :: Zip321.PaymentRequest -> Value
-zip321PaymentRequestJSON r =
-  v1 . obj $
-    ["zip321_request" .= (toJSON . Zip321.toURI $ r)]
 
 parseRecurrence :: Object -> Parser Recurrence
 parseRecurrence o =

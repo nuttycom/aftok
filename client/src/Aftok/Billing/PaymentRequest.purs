@@ -6,6 +6,7 @@ import Control.Monad.Trans.Class (lift)
 import Data.Either (Either(..), note)
 import Data.Foldable (any)
 import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
 import Data.Traversable (traverse_)
 import Data.Unfoldable as U
@@ -20,10 +21,9 @@ import Aftok.Types (System, ProjectId)
 import Aftok.HTML.Classes as C
 import Aftok.Modals as Modals
 import Aftok.Modals.ModalFFI as ModalFFI
-import Aftok.Api.Types (APIError(..))
+import Aftok.Api.Types (APIError(..), Zip321Request(..))
 import Aftok.Api.Billing
   ( BillableId
-  , PaymentRequest'(..)
   , PaymentRequest
   , PaymentRequestMeta
   , createPaymentRequest
@@ -199,15 +199,15 @@ mockCapability =
   { createPaymentRequest: \_ _ _ -> pure $ Left Forbidden }
 
 
-type QrInput = Maybe PaymentRequest
+type QrInput = Maybe Zip321Request
 
 type QrState = 
-  { req :: Maybe PaymentRequest
+  { req :: Maybe Zip321Request
   , dataUrl :: Maybe String
   }
 
 data QrQuery a
-  = QrRender PaymentRequest a
+  = QrRender Zip321Request a
 
 data QrAction 
   = QrInit
@@ -246,13 +246,18 @@ qrcomponent system =
     Modals.modalWithClose qrModalId "Payment Request" QrClose
       [ HH.div_
         ((\url -> HH.img [P.src url]) <$> U.fromMaybe st.dataUrl)
+      , HH.div_
+        [ HH.span
+            [ P.classes (ClassName <$> ["code", "zip321uri"]) ]
+            (HH.text <<< unwrap <$> U.fromMaybe st.req)
+        ]
       ]
 
   handleQuery :: forall slots a. QrQuery a -> H.HalogenM QrState QrAction slots output m (Maybe a)
   handleQuery = case _ of
     QrRender r a -> do
       dataUrl <- lift $ renderQR r
-      H.modify_ (_ { dataUrl = Just dataUrl })
+      H.modify_ (_ { req = Just r, dataUrl = Just dataUrl })
       pure (Just a)
 
   handleAction :: forall slots. QrAction -> H.HalogenM QrState QrAction slots output m Unit
@@ -263,6 +268,6 @@ qrcomponent system =
     QrClose -> 
       H.modify_ (_ { req = Nothing, dataUrl = Nothing })
 
-  renderQR :: PaymentRequest -> m String
-  renderQR (PaymentRequest r) = 
-    system.renderQR { value: r.native_request.zip321_request, size: 300 }
+  renderQR :: Zip321Request -> m String
+  renderQR (Zip321Request r) = 
+    system.renderQR { value: r, size: 300 }

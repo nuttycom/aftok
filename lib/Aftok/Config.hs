@@ -3,15 +3,15 @@
 module Aftok.Config where
 
 import qualified Aftok.Billing as B
-import Aftok.Project (projectName)
 import Aftok.Currency.Bitcoin (NetworkMode, Satoshi (..))
 import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
-import Aftok.Currency.Zcash (Zatoshi(..))
-import Aftok.Currency.Zcash.Types (Memo(..))
+import Aftok.Currency.Zcash (Zatoshi (..))
+import Aftok.Currency.Zcash.Types (Memo (..))
 import Aftok.Database (MonadDB, findProjectOrError)
-import Aftok.Payments (PaymentsConfig(..))
+import Aftok.Payments (PaymentsConfig (..))
 import qualified Aftok.Payments.Bitcoin as Bitcoin
 import qualified Aftok.Payments.Zcash as Zcash
+import Aftok.Project (projectName)
 import Aftok.Types (AccountId)
 import qualified Bippy.Types as BT
 import Control.Lens
@@ -90,8 +90,8 @@ makeLenses ''BitcoinConfig
 
 data BillingConfig
   = BillingConfig
-      { _bitcoinConfig :: BitcoinConfig
-      , _zcashConfig :: Zcash.PaymentsConfig
+      { _bitcoinConfig :: BitcoinConfig,
+        _zcashConfig :: Zcash.PaymentsConfig
       }
 
 makeLenses ''BillingConfig
@@ -138,12 +138,13 @@ toPaymentsConfig :: (MonadRandom m, MonadDB m) => BillingConfig -> IO (PaymentsC
 toPaymentsConfig cfg = do
   btcCfg <- toBitcoinPaymentsConfig (cfg ^. bitcoinConfig)
   let btcOps = Bitcoin.BillingOps _btcMemoGen (_uriGen $ cfg ^. bitcoinConfig . bip70Host) _payloadGen
-  pure $ PaymentsConfig {
-    _bitcoinBillingOps = btcOps,
-    _bitcoinPaymentsConfig = btcCfg,
-    _zcashBillingOps = _zcashMemoGen,
-    _zcashPaymentsConfig = cfg ^. zcashConfig
-  }
+  pure $
+    PaymentsConfig
+      { _bitcoinBillingOps = btcOps,
+        _bitcoinPaymentsConfig = btcCfg,
+        _zcashBillingOps = _zcashMemoGen,
+        _zcashPaymentsConfig = cfg ^. zcashConfig
+      }
 
 _btcMemoGen ::
   MonadDB m =>
@@ -177,7 +178,6 @@ _zcashMemoGen _ _ _ _ = do
   -- for now
   pure $ Just (Memo $ encodeUtf8 pkey)
 
-
 _payloadGen ::
   Monad m =>
   B.Billable Satoshi ->
@@ -186,15 +186,13 @@ _payloadGen ::
   m (Maybe ByteString)
 _payloadGen _ _ _ = pure Nothing
 
-
 -- The same URL is used for retrieving a BIP-70 payment request and for submitting
 -- the response.
 _uriGen ::
   Monad m =>
   NS.HostName ->
-  Bitcoin.PaymentKey
-  -> m (Maybe URI)
+  Bitcoin.PaymentKey ->
+  m (Maybe URI)
 _uriGen hostname (Bitcoin.PaymentKey k) =
   let paymentRequestPath = "https://" <> fromString hostname <> "/pay/" <> k
    in pure . parseURI $ show paymentRequestPath
-

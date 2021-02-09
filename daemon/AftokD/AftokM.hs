@@ -23,8 +23,8 @@ import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
 import qualified Aftok.Database as DB
 import Aftok.Database.PostgreSQL (QDBM (..))
 import qualified Aftok.Payments as P
-import qualified Aftok.Payments.Types as P
 import qualified Aftok.Payments.Bitcoin as Bitcoin
+import qualified Aftok.Payments.Types as P
 import Aftok.Project
   ( Project,
     projectName,

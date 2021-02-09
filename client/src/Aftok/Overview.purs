@@ -23,9 +23,13 @@ import Halogen as H
 import Halogen.HTML.Core (ClassName(..))
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as P
+import Aftok.Billing.PaymentRequest as PaymentRequest
+import Aftok.Modals as Modals
+import Aftok.Modals.ModalFFI as ModalFFI
 import Aftok.ProjectList as ProjectList
+import Aftok.Projects.Invite as Invite
 import Aftok.Types (System, ProjectId, UserId(..), dateStr)
-import Aftok.Api.Types (APIError)
+import Aftok.Api.Types (APIError, Zip321Request)
 import Aftok.Api.Project
   ( Project
   , Project'(..)
@@ -52,18 +56,24 @@ data OverviewAction
   = Initialize
   | ProjectSelected Project
   | Invite Invitation
+  | InvitationCreated (Maybe Zip321Request)
 
 type Slot id
   = forall query. H.Slot query ProjectList.Event id
 
 type Slots
   = ( projectList :: ProjectList.Slot Unit
+    , invitationModal :: Invite.Slot Unit
+    , inviteQRModal :: PaymentRequest.QrSlot Unit
     )
 
 _projectList = SProxy :: SProxy "projectList"
+_invitationModal = SProxy :: SProxy "invitationModal"
+_inviteQRModal = SProxy :: SProxy "inviteQRModal"
 
 type Capability (m :: Type -> Type)
   = { getProjectDetail :: ProjectId -> m (Either APIError (Maybe ProjectDetail))
+    , invitationCaps :: Invite.Capability m
     }
 
 component ::
@@ -155,6 +165,28 @@ component system caps pcaps =
                 ]
             ]
               <> (contributorCols <$> (L.toUnfoldable $ M.values detail.contributors))
+              <>
+            [ HH.div 
+              [ P.classes (ClassName <$> [ "row", "pt-3", "font-weight-bold" ]) ]
+              [ HH.div 
+                  [ P.classes (ClassName <$> [ "col-md-2" ]) ] 
+                  [ Modals.modalButton Invite.modalId "Invite a collaborator" Nothing]
+                , system.portal
+                    _invitationModal
+                    unit
+                    (Invite.component system caps.invitationCaps)
+                    project.projectId
+                    Nothing
+                    (Just <<< InvitationCreated)
+               , system.portal
+                   _inviteQRModal
+                   unit
+                   (PaymentRequest.qrcomponent system)
+                   Nothing
+                   Nothing
+                   (const Nothing)
+                  ]
+            ]
           )
       ]
 
@@ -187,135 +219,6 @@ component system caps pcaps =
   colmd3 :: Maybe String -> H.ComponentHTML OverviewAction Slots m
   colmd3 xs = HH.div [ P.classes (ClassName <$> [ "col-md-3" ]) ] (U.fromMaybe $ HH.text <$> xs)
 
-  --         </section>
-  --              <!-- Map payouts -->
-  --              <div class="row font-weight-bold">
-  --                 <div class="col-md-2">
-  --                 </div>
-  --                 <div class="col-md-4">
-  --                     Payments
-  --                 </div>
-  --                 <div class="col-md-6">
-  --
-  --                 </div>
-  --              </div>
-  --              <div class="row">
-  --                 <div class="col-md-2">
-  --                 </div>
-  --                 <div class="col-md-2">
-  --                     Oct 20 2020
-  --                 </div>
-  --                 <div class="col-md-2">
-  --                     100 zec
-  --                 </div>
-  --                 <div class="col-md-2">
-  --                     Acme PaidUsRight
-  --                 </div>
-  --                 <div class="col-md-4">
-  --                 </div>
-  --             </div>
-  --             <!-- map payout creditTos-->
-  --             <div class="row pt-3">
-  --                 <div class="col-md-4">
-  --                 </div>
-  --                 <div class="col-md-2">
-  --                     Freuline Fred
-  --                 </div>
-  --                 <div class="col-md-2">
-  --                     2.4 zec
-  --                 </div>
-  --                 <div class="col-md-2">
-  --                     2.4 %
-  --                 </div>
-  --                 <div class="col-md-2">
-  --                 </div>
-  --             </div>
-  --             <div class="row pt-3">
-  --                 <div class="col-md-4">
-  --                 </div>
-  --                 <div class="col-md-2">
-  --                     Goobie Works A Lot
-  --                 </div>
-  --                 <div class="col-md-2">
-  --                     50 zec
-  --                 </div>
-  --                 <div class="col-md-2">
-  --                     50 %
-  --                 </div>
-  --                 <div class="col-md-2">
-  --                 </div>
-  --             </div> <div class="row pt-3">
-  --                 <div class="col-md-4">
-  --                 </div>
-  --                 <div class="col-md-2">
-  --                     Average Fella
-  --                 </div>
-  --                 <div class="col-md-2">
-  --                     25 zec
-  --                 </div>
-  --                 <div class="col-md-2">
-  --                     25 %
-  --                 </div>
-  --                 <div class="col-md-2">
-  --                 </div>
-  --             </div> <div class="row pt-3">
-  --                 <div class="col-md-4">
-  --                 </div>
-  --                 <div class="col-md-2">
-  --                     Cool Kid
-  --                 </div>
-  --                 <div class="col-md-2">
-  --                     24.6 zec
-  --                 </div>
-  --                 <div class="col-md-2">
-  --                     24.6 %
-  --                 </div>
-  --                 <div class="col-md-2">
-  --                 </div>
-  --             </div>
-  --
-  --         </section>
-  --
-  --
-  --         <!-- New Project form-->
-  --         <section id="addProject">
-  --
-  --             <div class="row pt-3">
-  --                 <div class="col-md-4">
-  --                     <span class="float-right">Project Name</span>
-  --                 </div>
-  --                 <div class="col-md-4">
-  --                     <input type="text" id="projectName" name="projectName" />
-  --                 </div>
-  --             </div>
-  --
-  --             <div class="row pt-3">
-  --                 <div class="col-md-4">
-  --                     <span class="float-right">Undepreciated Period ( Months )</span>
-  --                 </div>
-  --                 <div class="col-md-4">
-  --                     <input type="text" id="undepreciatedPeriod" name="undepreciatedPeriod" />
-  --                 </div>
-  --             </div>
-  --
-  --             <div class="row pt-3">
-  --                 <div class="col-md-4">
-  --                     <span class="float-right">Depreciation Duration ( Months )</span>
-  --                 </div>
-  --                 <div class="col-md-4">
-  --                     <input type="text" id="depreciationDuration" name="depreciationDuration" />
-  --                 </div>
-  --             </div>
-  --
-  --             <div class="row pt-3 pb-3">
-  --                 <div class="col-md-2">
-  --                 </div>
-  --                 <div class="col-md-10">
-  --                     <button class="btn btn-sm btn-primary lift ml-auto">Add Project</button>
-  --                 </div>
-  --             </div>
-  --
-  --         </section>
   eval :: OverviewAction -> H.HalogenM OverviewState OverviewAction Slots ProjectList.Event m Unit
   eval action = do
     case action of
@@ -331,6 +234,11 @@ component system caps pcaps =
               H.raise (ProjectList.ProjectChange p)
               H.modify_ (_ { selectedProject = Just p })
               setProjectDetail (unwrap p).projectId
+      InvitationCreated req -> do
+        lift $ system.toggleModal Invite.modalId ModalFFI.HideModal
+        lift $ system.toggleModal PaymentRequest.qrModalId ModalFFI.ShowModal
+        traverse_ (\r -> H.query _inviteQRModal unit $ H.tell (PaymentRequest.QrRender r)) req
+        pure unit
 
   setProjectDetail :: ProjectId -> H.HalogenM OverviewState OverviewAction Slots ProjectList.Event m Unit
   setProjectDetail pid = do
@@ -342,6 +250,7 @@ component system caps pcaps =
 apiCapability :: Capability Aff
 apiCapability =
   { getProjectDetail: getProjectDetail
+  , invitationCaps: Invite.apiCapability
   }
 
 mockCapability :: Capability Aff
@@ -370,4 +279,5 @@ mockCapability =
                         , revShare: 55.0 R.% 100.0
                         }
               }
+  , invitationCaps: Invite.apiCapability
   }

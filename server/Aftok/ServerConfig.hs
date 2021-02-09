@@ -24,7 +24,6 @@ import qualified Snap.Http.Server.Config as SC
 import Snap.Snaplet.PostgresqlSimple
 import System.Environment (getEnvironment)
 
-
 data ServerConfig
   = ServerConfig
       { _hostname :: C8.ByteString,

@@ -6,13 +6,14 @@ import Control.Monad.Except.Trans (ExceptT, runExceptT)
 -- import Control.Monad.Error.Class (throwError)
 import Data.Argonaut.Core (Json, fromString)
 import Data.Argonaut.Decode (class DecodeJson, JsonDecodeError(..), decodeJson, (.:))
+import Data.Argonaut.Encode (encodeJson)
 import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant, toDateTime)
 import Data.Either (Either(..))
 import Data.Foldable (class Foldable, foldr, foldl, foldMapDefaultR)
 import Data.Functor.Compose (Compose(..))
 import Data.Map as M
-import Data.Maybe (Maybe)
+import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap)
 import Data.Ratio (Ratio, (%))
 import Data.Time.Duration (Hours(..), Days(..))
@@ -22,18 +23,20 @@ import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class as EC
 import Foreign.Object (Object)
-import Affjax (get)
+import Affjax (get, post)
 import Affjax.ResponseFormat as RF
+import Affjax.RequestBody as RB
 import Aftok.Types
   ( UserId
   , ProjectId
   , pidStr
   )
 import Aftok.Api.Types
-  (APIError)
+  (APIError, CommsAddress(..), Zip321Request(..))
 import Aftok.Api.Json
   ( Decode
   , decompose
+  , parseResponse
   , parseDatedResponse
   , parseDatedResponseMay
   )
@@ -188,3 +191,33 @@ getProjectDetail pid = do
     <<< runExceptT
     <<< map (map (map toDateTime))
     $ parsed
+
+encodeInviteBy :: CommsAddress -> Json
+encodeInviteBy = case _ of
+  EmailCommsAddr email -> encodeJson ({ email: email })
+  ZcashCommsAddr zaddr -> encodeJson ({ zaddr: zaddr })
+
+type Invitation' by = 
+  { greetName :: String
+  , message :: Maybe String
+  , inviteBy :: by
+  }
+
+type Invitation = Invitation' CommsAddress
+
+encodeInvitation :: Invitation' Json -> Json
+encodeInvitation = encodeJson
+
+type InvResult = 
+  { zip321_request :: Maybe String
+  }
+
+decodeInvResult :: Json -> Either JsonDecodeError InvResult
+decodeInvResult = decodeJson
+
+invite :: ProjectId -> Invitation -> Aff (Either APIError (Maybe Zip321Request))
+invite pid inv = do
+  let inv' = inv { inviteBy = encodeInviteBy inv.inviteBy }
+  let body = RB.json $ encodeInvitation inv'
+  response <- post RF.json ("/api/projects/" <> pidStr pid <> "/invite") (Just body)
+  map (\r -> Zip321Request <$> r.zip321_request) <$> parseResponse decodeInvResult response

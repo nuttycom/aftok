@@ -25,13 +25,14 @@ import Aftok.Billing.Create as Create
 import Aftok.Billing.PaymentRequest as PaymentRequest
 import Aftok.ProjectList as ProjectList
 import Aftok.Types (System, ProjectId)
-import Aftok.Api.Types (APIError(..))
+import Aftok.Api.Types (APIError(..), Zip321Request(..))
 import Aftok.Api.Project (Project)
 import Aftok.Api.Billing
   ( BillableId
   , Billable
   , PaymentRequestId
   , PaymentRequest
+  , PaymentRequest'(..)
   , listProjectBillables
   , listUnpaidPaymentRequests
   , recurrenceStr
@@ -226,12 +227,11 @@ component system caps pcaps =
         _ <- H.query _createPaymentRequest unit $ H.tell (PaymentRequest.SetBillableId bid)
         lift $ system.toggleModal PaymentRequest.modalId ModalFFI.ShowModal
 
-      PaymentRequestCreated req -> do
-        lift $ system.log "Created payment request, closing modal."
+      PaymentRequestCreated (PaymentRequest req) -> do
         lift $ system.toggleModal PaymentRequest.modalId ModalFFI.HideModal
-        lift $ system.log "About to show QR code modal"
         lift $ system.toggleModal PaymentRequest.qrModalId ModalFFI.ShowModal
-        _ <- H.query _showPaymentRequest unit $ H.tell (PaymentRequest.QrRender req)
+        let req' = Zip321Request req.native_request.zip321_request
+        _ <- H.query _showPaymentRequest unit $ H.tell (PaymentRequest.QrRender req')
         pure unit
 
     where 

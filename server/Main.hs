@@ -82,8 +82,10 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
       checkUsernameRoute = void $ method GET checkUsernameHandler
       checkZAddrRoute = void $ method GET (checkZAddrHandler rops)
       registerRoute = void $ method POST (registerHandler rops (cfg ^. recaptchaSecret))
-      inviteRoute = void $ method POST (projectInviteHandler cfg)
-      acceptInviteRoute = void $ method POST acceptInvitationHandler
+      inviteRoute =
+        serveJSON (projectInviteResponseJSON) $ method POST (projectInviteHandler cfg)
+      acceptInviteRoute =
+        void $ method POST acceptInvitationHandler
       projectDetailRoute =
         serveJSON (v1 . projectDetailJSON) $ method GET projectDetailGetHandler
       projectCreateRoute =

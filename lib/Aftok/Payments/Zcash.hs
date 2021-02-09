@@ -10,7 +10,7 @@ import Aftok.Billing
   )
 import Aftok.Currency (Currency (ZEC))
 import Aftok.Currency.Zcash (Address, Zatoshi)
-import Aftok.Currency.Zcash.Types (Memo(..))
+import Aftok.Currency.Zcash.Types (Memo (..))
 import Aftok.Currency.Zcash.Zip321 (PaymentItem (..), PaymentRequest (..))
 import Aftok.Database (MonadDB)
 import qualified Aftok.Payments.Types as PT
@@ -72,11 +72,12 @@ zip321PaymentRequest cfg memoGen billable billingDay billTime = do
     toPaymentItem :: ((AccountId, Address), Zatoshi) -> m PaymentItem
     toPaymentItem ((aid, a), z) = do
       memo <- memoGen billable billingDay billTime aid
-      pure $ PaymentItem
-        { _address = a,
-          _label = Nothing,
-          _message = billable ^. messageText,
-          _amount = z,
-          _memo = memo,
-          _other = []
-        }
+      pure $
+        PaymentItem
+          { _address = a,
+            _label = Nothing,
+            _message = billable ^. messageText,
+            _amount = z,
+            _memo = memo,
+            _other = []
+          }
