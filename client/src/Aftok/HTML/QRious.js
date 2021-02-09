@@ -1,3 +1,5 @@
+"use strict"
+
 var QRious = require('qrious');
 
 exports.renderQRInternal = options => () => {

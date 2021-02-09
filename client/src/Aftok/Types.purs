@@ -20,7 +20,9 @@ import Effect.Now (now, nowDateTime)
 import Effect.Class.Console as C
 import Type.Row as Row
 import Web.Event.Event as WE
-import Web.HTML (HTMLElement)
+import Web.HTML (HTMLElement, window)
+import Web.HTML.Window (location)
+import Web.HTML.Location (href)
 import Routing.Hash as RH
 import Halogen as H
 import Halogen.HTML as HH
@@ -29,7 +31,8 @@ import Aftok.Modals.ModalFFI as ModalFFI
 import Aftok.HTML.QRious as QRious
 
 type System m
-  = { log :: String -> m Unit
+  = { href :: m String
+    , log :: String -> m Unit
     , error :: String -> m Unit
     , now :: m Instant
     , getHash :: m String
@@ -56,7 +59,8 @@ type System m
 
 liveSystem :: System Aff
 liveSystem =
-  { log: liftEffect <<< C.log
+  { href: liftEffect $ href =<< location =<< window
+  , log: liftEffect <<< C.log
   , error: liftEffect <<< C.error
   , now: liftEffect now
   , getHash: liftEffect RH.getHash

@@ -16,6 +16,7 @@
   , "psci-support"
   , "rationals"
   , "routing"
+  , "uri"
   , "uuid"
   , "validation"
   ]

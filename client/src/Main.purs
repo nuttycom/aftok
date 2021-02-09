@@ -187,6 +187,7 @@ component system loginCap signupCap tlCap pCap ovCap bcap =
                 Acc.LoginError _ -> VLogin
                 _ -> case other of
                   "timeline" -> VTimeline
+                  "billing" -> VBilling
                   _ -> VOverview
       navigate nextView
     SignupAction (Signup.SignupComplete _) -> navigate VOverview
