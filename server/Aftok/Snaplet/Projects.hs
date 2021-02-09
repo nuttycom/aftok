@@ -222,7 +222,8 @@ projectInviteHandler cfg = do
                   <> "https://aftok.com/app/?invcode="
                   <> renderInvCode invCode
                   <> "&zaddr="
-                  <> zaddr,
+                  <> zaddr
+                  <> "#signup",
             _message = Nothing,
             _label = Nothing,
             _other = []
