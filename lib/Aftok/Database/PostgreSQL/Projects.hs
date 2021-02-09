@@ -29,7 +29,7 @@ import Aftok.Database.PostgreSQL.Types
   )
 import Aftok.Project
   ( Invitation (..),
-    InvitationCode (..),
+    InvitationCode,
     Project (..),
     depRules,
     inceptionDate,

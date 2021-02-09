@@ -22,9 +22,9 @@ import Aftok.Database.PostgreSQL.Types
     askNetworkMode,
     bitcoinAddressParser,
     idParser,
+    pexec,
     pinsert,
     pquery,
-    pexec,
     utcParser,
     zcashAddressParser,
     zcashIvkParser,
@@ -49,14 +49,15 @@ userParser = do
 
 createUser :: User -> DBM UserId
 createUser user' = do
-  uid <- pinsert
-    UserId
-    [sql| INSERT INTO users (handle, recovery_email, recovery_zaddr)
+  uid <-
+    pinsert
+      UserId
+      [sql| INSERT INTO users (handle, recovery_email, recovery_zaddr)
           VALUES (?, ?, ?) RETURNING id |]
-    ( user' ^. (username . _UserName),
-      user' ^? userAccountRecovery . _RecoverByEmail . _Email,
-      user' ^? userAccountRecovery . _RecoverByZAddr . Zcash._Address
-    )
+      ( user' ^. (username . _UserName),
+        user' ^? userAccountRecovery . _RecoverByEmail . _Email,
+        user' ^? userAccountRecovery . _RecoverByZAddr . Zcash._Address
+      )
   case user' ^. userAccountRecovery of
     RecoverByZAddr addr -> linkZcashAccount uid addr
     RecoverByEmail _ -> pure ()
@@ -64,14 +65,14 @@ createUser user' = do
 
 linkZcashAccount :: UserId -> Zcash.Address -> DBM ()
 linkZcashAccount uid addr =
-  void $ pexec
-    [sql| INSERT INTO cryptocurrency_accounts (user_id, is_primary, zcash_addr)
+  void $
+    pexec
+      [sql| INSERT INTO cryptocurrency_accounts (user_id, is_primary, zcash_addr)
           VALUES (?, ?, ?) |]
-    ( uid ^. _UserId,
-      True,
-      addr ^. Zcash._Address
-    )
-
+      ( uid ^. _UserId,
+        True,
+        addr ^. Zcash._Address
+      )
 
 findUser :: UserId -> DBM (Maybe User)
 findUser (UserId uid) = do
