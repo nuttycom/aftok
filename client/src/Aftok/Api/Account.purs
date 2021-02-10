@@ -60,10 +60,11 @@ type SignupRequest
     , password :: String
     , recoverBy :: RecoverBy
     , captchaToken :: String
+    , invitationCodes :: Array String
     }
 
-signupRequest :: String -> String -> RecoverBy -> String -> SignupRequest
-signupRequest username password recoverBy captchaToken = { username, password, recoverBy, captchaToken }
+signupRequest :: String -> String -> RecoverBy -> String -> Array String -> SignupRequest
+signupRequest username password recoverBy captchaToken invitationCodes = { username, password, recoverBy, captchaToken, invitationCodes}
 
 data SignupResponse
   = SignupOK
@@ -128,6 +129,7 @@ signup req = do
                 RecoverByEmail _ -> Nothing
                 RecoverByZAddr zaddr -> Just zaddr
           , captchaToken: req.captchaToken
+          , invitation_codes: req.invitationCodes
           }
   log ("Sending JSON request: " <> stringify signupJSON)
   result <- post RF.ignore "/api/register" (Just <<< RB.Json $ signupJSON)

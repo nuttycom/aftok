@@ -63,9 +63,10 @@ makePrisms ''CreditTo
 data DepreciationFunction = LinearDepreciation C.Days C.Days
   deriving (Eq, Show)
 
-data DepreciationRules = DepreciationRules
-  { _depf :: DepreciationFunction
-  , _firstRevenue :: Maybe C.UTCTime
-  }
+data DepreciationRules
+  = DepreciationRules
+      { _depf :: DepreciationFunction,
+        _firstRevenue :: Maybe C.UTCTime
+      }
 
 makeLenses ''DepreciationRules

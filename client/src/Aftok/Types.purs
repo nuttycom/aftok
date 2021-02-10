@@ -1,7 +1,7 @@
 module Aftok.Types where
 
 import Prelude
-import Data.Argonaut.Decode (class DecodeJson, decodeJson)
+import Data.Argonaut.Decode (class DecodeJson, decodeJson, JsonDecodeError(..))
 import Data.Date (Date, year, month, day)
 import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant)
@@ -10,6 +10,7 @@ import Data.Enum (fromEnum)
 import Data.JSDate as JD
 import Data.Maybe (Maybe)
 import Data.Newtype (class Newtype)
+import Data.Symbol (class IsSymbol, SProxy)
 import Data.Tuple (Tuple(..))
 import Data.UUID (UUID, toString, parseUUID)
 import Effect (Effect)
@@ -17,11 +18,21 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Now (now, nowDateTime)
 import Effect.Class.Console as C
+import Type.Row as Row
 import Web.Event.Event as WE
-import Routing.Hash as H
+import Web.HTML (HTMLElement, window)
+import Web.HTML.Window (location)
+import Web.HTML.Location (href)
+import Routing.Hash as RH
+import Halogen as H
+import Halogen.HTML as HH
+import Halogen.Portal (portalAff)
+import Aftok.Modals.ModalFFI as ModalFFI
+import Aftok.HTML.QRious as QRious
 
 type System m
-  = { log :: String -> m Unit
+  = { href :: m String
+    , log :: String -> m Unit
     , error :: String -> m Unit
     , now :: m Instant
     , getHash :: m String
@@ -29,18 +40,37 @@ type System m
     , nowDateTime :: m DateTime
     , preventDefault :: WE.Event -> m Unit
     , dateFFI :: DateFFI m
+    , portal :: 
+      forall query action input output slots label slot _1.
+        Row.Cons label (H.Slot query output slot) _1 slots =>
+        IsSymbol label =>
+        Ord slot =>
+        Monad m =>
+        SProxy label ->
+        slot ->
+        H.Component HH.HTML query input output m ->
+        input ->
+        Maybe HTMLElement ->
+        (output -> Maybe action) ->
+        H.ComponentHTML action slots m
+    , toggleModal :: String -> ModalFFI.Toggle -> m Unit
+    , renderQR :: QRious.QROpts -> m String
     }
 
 liveSystem :: System Aff
 liveSystem =
-  { log: liftEffect <<< C.log
+  { href: liftEffect $ href =<< location =<< window
+  , log: liftEffect <<< C.log
   , error: liftEffect <<< C.error
   , now: liftEffect now
-  , getHash: liftEffect H.getHash
-  , setHash: liftEffect <<< H.setHash
+  , getHash: liftEffect RH.getHash
+  , setHash: liftEffect <<< RH.setHash
   , nowDateTime: liftEffect nowDateTime
   , preventDefault: liftEffect <<< WE.preventDefault
   , dateFFI: hoistDateFFI liftEffect jsDateFFI
+  , portal: portalAff
+  , toggleModal: \i t -> liftEffect (ModalFFI.toggleModal i t)
+  , renderQR: \opts -> liftEffect (QRious.renderQR opts)
   }
 
 type DateFFI m
@@ -93,7 +123,7 @@ derive instance userIdNewtype :: Newtype UserId _
 instance userIdDecodeJson :: DecodeJson UserId where
   decodeJson json = do
     uuidStr <- decodeJson json
-    UserId <$> (note "Failed to decode user UUID" $ parseUUID uuidStr)
+    UserId <$> note (TypeMismatch "Failed to decode user UUID") (parseUUID uuidStr)
 
 newtype ProjectId
   = ProjectId UUID
@@ -107,7 +137,7 @@ derive instance projectIdNewtype :: Newtype ProjectId _
 instance projectIdDecodeJson :: DecodeJson ProjectId where
   decodeJson json = do
     uuidStr <- decodeJson json
-    ProjectId <$> (note "Failed to decode project UUID" $ parseUUID uuidStr)
+    ProjectId <$> note (TypeMismatch "Failed to decode project UUID") (parseUUID uuidStr)
 
 pidStr :: ProjectId -> String
 pidStr (ProjectId uuid) = toString uuid

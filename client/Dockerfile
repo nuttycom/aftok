@@ -8,7 +8,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 # Install build tools & library dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    libtinfo5 nodejs npm netbase
+    libtinfo5 nodejs npm netbase git
 
 RUN apt-get install -y --no-install-recommends ca-certificates
 RUN update-ca-certificates

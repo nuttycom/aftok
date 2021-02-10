@@ -3,31 +3,28 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeApplications #-}
 
 module AftokD.AftokM where
 
 import qualified Aftok.Billing as B
 import Aftok.Billing
-  ( Billable,
-    Billable',
+  ( Billable',
     ContactChannel (..),
     Subscription',
     contactChannel,
     customer,
     paymentRequestEmailTemplate,
-    paymentRequestMemoTemplate,
     project,
   )
 import qualified Aftok.Config as AC
 import Aftok.Currency.Bitcoin (Satoshi, _Satoshi)
 import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
-import Aftok.Currency.Zcash (Zatoshi (..))
 import qualified Aftok.Database as DB
 import Aftok.Database.PostgreSQL (QDBM (..))
 import qualified Aftok.Payments as P
-import Aftok.Payments.Bitcoin (BillingOps (..), PaymentsConfig)
+import qualified Aftok.Payments.Bitcoin as Bitcoin
 import qualified Aftok.Payments.Types as P
-import qualified Aftok.Payments.Zcash as Zcash
 import Aftok.Project
   ( Project,
     projectName,
@@ -62,7 +59,6 @@ import Control.Monad.Trans.Reader (mapReaderT)
 import Crypto.Random.Types (MonadRandom (..))
 import qualified Data.Text as T
 import Data.Thyme.Clock as C
-import Data.Thyme.Time as C
 import Database.PostgreSQL.Simple
   ( Connection,
     connect,
@@ -70,10 +66,7 @@ import Database.PostgreSQL.Simple
 import Filesystem.Path.CurrentOS (encodeString)
 import qualified Network.Mail.Mime as Mime
 import qualified Network.Mail.SMTP as SMTP
-import Network.URI
-  ( URI,
-    parseURI,
-  )
+import Network.URI (URI)
 import Text.StringTemplate
   ( directoryGroup,
     getStringTemplate,
@@ -86,6 +79,7 @@ data AftokDErr
   = ConfigError Text
   | DBErr DB.DBError
   | PaymentErr P.PaymentError
+  | MailGenError
 
 makeClassyPrisms ''AftokDErr
 
@@ -98,10 +92,8 @@ data AftokMEnv
   = AftokMEnv
       { _dcfg :: !D.Config,
         _conn :: !Connection,
-        _pcfg :: !PaymentsConfig
+        _pcfg :: !(P.PaymentsConfig AftokM)
       }
-
-makeLenses ''AftokMEnv
 
 -- instance P.HasPaymentsConfig AftokMEnv where
 --   networkMode = pcfg . P.networkMode
@@ -112,6 +104,8 @@ makeLenses ''AftokMEnv
 newtype AftokM a = AftokM {runAftokM :: ReaderT AftokMEnv (ExceptT AftokDErr IO) a}
   deriving (Functor, Applicative, Monad, MonadIO, MonadError AftokDErr, MonadReader AftokMEnv)
 
+makeLenses ''AftokMEnv
+
 instance MonadRandom AftokM where
   getRandomBytes = liftIO . getRandomBytes
 
@@ -120,7 +114,7 @@ instance DB.MonadDB AftokM where
 
 liftQDBM :: QDBM a -> AftokM a
 liftQDBM (QDBM r) = do
-  let f a = (a ^. dcfg . D.billingConfig . AC.networkMode, a ^. conn)
+  let f a = (a ^. dcfg . D.billingConfig . AC.bitcoinConfig . AC.networkMode, a ^. conn)
   AftokM . mapReaderT (withExceptT DBErr) . withReaderT f $ r
 
 createAllPaymentRequests :: D.Config -> IO ()
@@ -141,10 +135,7 @@ createProjectsPaymentRequests = do
 createProjectSubscriptionPaymentRequests :: ProjectId -> AftokM ()
 createProjectSubscriptionPaymentRequests pid = do
   now <- liftIO C.getCurrentTime
-  btcCfg <- asks _pcfg
-  let btcOps = BillingOps _memoGen (fmap Just . bip70PaymentURL) _payloadGen
-      zecCfg = Zcash.PaymentsConfig (Zatoshi 100)
-      pcfg' = P.PaymentsConfig btcOps btcCfg zecCfg
+  pcfg' <- asks _pcfg
   subscribers <- liftQDBM $ DB.findSubscribers pid
   subscriptions <- join <$> traverse (DB.findSubscriptions pid) subscribers
   requests <-
@@ -160,6 +151,7 @@ _Compose = iso Compose getCompose
 sendPaymentRequestEmail :: (B.Subscription, (P.PaymentRequestId, P.SomePaymentRequestDetail)) -> AftokM ()
 sendPaymentRequestEmail (sub, (_, P.SomePaymentRequest req)) = do
   cfg <- ask
+  pcfg' <- liftIO $ AC.toPaymentsConfig @AftokM (cfg ^. dcfg . D.billingConfig)
   let AC.SmtpConfig {..} = cfg ^. (dcfg . D.smtpConfig)
       preqCfg = cfg ^. (dcfg . D.paymentRequestConfig)
       req' = over P.billable (\b -> Compose $ sub & B.billable .~ b) req
@@ -167,14 +159,17 @@ sendPaymentRequestEmail (sub, (_, P.SomePaymentRequest req)) = do
   req''' <- enrichWithProject req''
   case req''' ^. P.nativeRequest of
     P.Bip70Request nreq -> do
-      bip70URL <- bip70PaymentURL (nreq ^. Bitcoin.paymentRequestKey)
-      mail <- buildBip70PaymentRequestEmail preqCfg req''' bip70URL
+      let bip70URIGen = Bitcoin.uriGen (pcfg' ^. P.bitcoinBillingOps)
+      bip70URL <- bip70URIGen (nreq ^. Bitcoin.paymentRequestKey)
+      mail <- traverse (buildBip70PaymentRequestEmail preqCfg req''') bip70URL
       let mailer =
             maybe
               (SMTP.sendMailWithLogin _smtpHost)
               (SMTP.sendMailWithLogin' _smtpHost)
               _smtpPort
-      liftIO $ mailer _smtpUser _smtpPass mail
+      case mail of
+        Just email -> liftIO $ mailer _smtpUser _smtpPass email
+        Nothing -> throwError MailGenError
     P.Zip321Request _ -> pure ()
 
 enrichWithUser ::
@@ -232,48 +227,3 @@ buildBip70PaymentRequestEmail cfg req paymentUrl = do
           subject = "Payment is due for your " <> pname <> " subscription!"
           body = Mime.plainPart . render $ setAttrs template
       pure $ SMTP.simpleMail fromAddr [toAddr] [] [] subject [body]
-
-_memoGen ::
-  DB.MonadDB m =>
-  Billable Satoshi ->
-  C.Day ->
-  C.UTCTime ->
-  m (Maybe Text)
-_memoGen bill billingDate requestTime = do
-  req <- traverseOf B.project DB.findProjectOrError bill
-  let template =
-        (newSTMP . T.unpack)
-          <$> (bill ^. paymentRequestMemoTemplate)
-      setAttrs =
-        setManyAttrib
-          [ ("project_name", req ^. B.project . projectName),
-            ("subscription", req ^. B.name),
-            ("billing_date", show billingDate),
-            ("issue_time", show requestTime)
-          ]
-  pure $ fmap (render . setAttrs) template
-
--- The same URL is used for retrieving a BIP-70 payment request and for submitting
--- the response.
-bip70PaymentURL :: Bitcoin.PaymentKey -> AftokM URI
-bip70PaymentURL (Bitcoin.PaymentKey k) = do
-  env <- ask
-  let hostname = env ^. (dcfg . D.paymentRequestConfig . D.aftokHost)
-      paymentRequestPath = "https://" <> hostname <> "/pay/" <> k
-  maybe
-    ( throwError
-        . ConfigError
-        $ "Could not parse path "
-          <> paymentRequestPath
-          <> " to a valid URI"
-    )
-    pure
-    (parseURI $ show paymentRequestPath)
-
-_payloadGen ::
-  Monad m =>
-  Billable Satoshi ->
-  C.Day ->
-  C.UTCTime ->
-  m (Maybe ByteString)
-_payloadGen _ _ _ = pure Nothing

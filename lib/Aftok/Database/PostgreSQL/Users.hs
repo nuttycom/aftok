@@ -22,6 +22,7 @@ import Aftok.Database.PostgreSQL.Types
     askNetworkMode,
     bitcoinAddressParser,
     idParser,
+    pexec,
     pinsert,
     pquery,
     utcParser,
@@ -48,14 +49,30 @@ userParser = do
 
 createUser :: User -> DBM UserId
 createUser user' = do
-  pinsert
-    UserId
-    [sql| INSERT INTO users (handle, recovery_email, recovery_zaddr)
+  uid <-
+    pinsert
+      UserId
+      [sql| INSERT INTO users (handle, recovery_email, recovery_zaddr)
           VALUES (?, ?, ?) RETURNING id |]
-    ( user' ^. (username . _UserName),
-      user' ^? userAccountRecovery . _RecoverByEmail . _Email,
-      user' ^? userAccountRecovery . _RecoverByZAddr . Zcash._Address
-    )
+      ( user' ^. (username . _UserName),
+        user' ^? userAccountRecovery . _RecoverByEmail . _Email,
+        user' ^? userAccountRecovery . _RecoverByZAddr . Zcash._Address
+      )
+  case user' ^. userAccountRecovery of
+    RecoverByZAddr addr -> linkZcashAccount uid addr
+    RecoverByEmail _ -> pure ()
+  pure uid
+
+linkZcashAccount :: UserId -> Zcash.Address -> DBM ()
+linkZcashAccount uid addr =
+  void $
+    pexec
+      [sql| INSERT INTO cryptocurrency_accounts (user_id, is_primary, zcash_addr)
+          VALUES (?, ?, ?) |]
+      ( uid ^. _UserId,
+        True,
+        addr ^. Zcash._Address
+      )
 
 findUser :: UserId -> DBM (Maybe User)
 findUser (UserId uid) = do
@@ -84,26 +101,26 @@ findUserByName (UserName h) = do
       [sql| SELECT id, handle, recovery_email, recovery_zaddr FROM users WHERE handle = ? |]
       (Only h)
 
-findUserPaymentAddress :: UserId -> Currency a c -> DBM (Maybe a)
+findUserPaymentAddress :: UserId -> Currency a c -> DBM (Maybe (AccountId, a))
 findUserPaymentAddress uid = \case
   BTC -> do
     mode <- askNetworkMode
     headMay
       <$> pquery
-        (bitcoinAddressParser mode)
-        [sql| SELECT btc_addr FROM cryptocurrency_accounts
+        ((,) <$> idParser AccountId <*> bitcoinAddressParser mode)
+        [sql| SELECT id, btc_addr FROM cryptocurrency_accounts
             WHERE user_id = ?
-            AND currency = 'BTC'
-            AND is_primary = true |]
+            AND is_primary = true
+            AND btc_addr IS NOT NULL |]
         (Only $ view _UserId uid)
   ZEC -> do
     headMay
       <$> pquery
-        (zcashAddressParser)
-        [sql| SELECT zcash_addr FROM cryptocurrency_accounts
+        ((,) <$> idParser AccountId <*> zcashAddressParser)
+        [sql| SELECT id, zcash_addr FROM cryptocurrency_accounts
             WHERE user_id = ?
-            AND currency = 'ZEC'
-            AND is_primary = true |]
+            AND is_primary = true
+            AND zcash_addr IS NOT NULL |]
         (Only $ view _UserId uid)
 
 findAccountPaymentAddress :: AccountId -> Currency a c -> DBM (Maybe a)

@@ -76,6 +76,7 @@ data PaymentsConfig m
   = PaymentsConfig
       { _bitcoinBillingOps :: !(BTC.BillingOps m),
         _bitcoinPaymentsConfig :: !BTC.PaymentsConfig,
+        _zcashBillingOps :: !(Zcash.MemoGen m),
         _zcashPaymentsConfig :: !Zcash.PaymentsConfig
       }
 
@@ -132,7 +133,7 @@ createSubscriptionPaymentRequests cfg now (sid, sub) = do
                   bill' = bill & amount .~ sats
               second SomePaymentRequest <$> createPaymentRequest ops now billableId bill' day
             Amount ZEC zats -> withExceptT RequestError $ do
-              let ops = Zcash.paymentOps (cfg ^. zcashPaymentsConfig)
+              let ops = Zcash.paymentOps (cfg ^. zcashBillingOps) (cfg ^. zcashPaymentsConfig)
                   bill' = bill & amount .~ zats
               second SomePaymentRequest <$> createPaymentRequest ops now billableId bill' day
 

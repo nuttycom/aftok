@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Aftok.QConfig where
+module Aftok.ServerConfig where
 
 import Aftok.Config
 import Aftok.Currency.Zcash (ZcashdConfig (..))
@@ -24,8 +24,8 @@ import qualified Snap.Http.Server.Config as SC
 import Snap.Snaplet.PostgresqlSimple
 import System.Environment (getEnvironment)
 
-data QConfig
-  = QConfig
+data ServerConfig
+  = ServerConfig
       { _hostname :: C8.ByteString,
         _port :: Int,
         _authSiteKey :: P.FilePath,
@@ -39,18 +39,18 @@ data QConfig
         _zcashdConfig :: ZcashdConfig
       }
 
-makeLenses ''QConfig
+makeLenses ''ServerConfig
 
-loadQConfig :: P.FilePath -> IO QConfig
-loadQConfig cfgFile = do
+loadServerConfig :: P.FilePath -> IO ServerConfig
+loadServerConfig cfgFile = do
   env <- getEnvironment
   cfg <- C.load [C.Required $ encodeString cfgFile]
   let dbEnvCfg = pgsDefaultConfig . C8.pack <$> L.lookup "DATABASE_URL" env
-  readQConfig cfg dbEnvCfg
+  readServerConfig cfg dbEnvCfg
 
-readQConfig :: CT.Config -> Maybe PGSConfig -> IO QConfig
-readQConfig cfg pc =
-  QConfig
+readServerConfig :: CT.Config -> Maybe PGSConfig -> IO ServerConfig
+readServerConfig cfg pc =
+  ServerConfig
     <$> C.lookupDefault "localhost" cfg "hostname"
     <*> C.lookupDefault 8000 cfg "port"
     <*> (fromText <$> C.require cfg "siteKey")
@@ -80,10 +80,10 @@ readZcashdConfig cfg =
     <*> C.require cfg "rpcUser"
     <*> C.require cfg "rpcPassword"
 
-baseSnapConfig :: QConfig -> SC.Config m a -> SC.Config m a
+baseSnapConfig :: ServerConfig -> SC.Config m a -> SC.Config m a
 baseSnapConfig qc = SC.setHostname (qc ^. hostname) . SC.setPort (qc ^. port)
 
 -- configuration specific to Snap, commandLineConfig arguments override
 -- config file.
-snapConfig :: QConfig -> IO (SC.Config Snap a)
+snapConfig :: ServerConfig -> IO (SC.Config Snap a)
 snapConfig qc = SC.commandLineConfig $ baseSnapConfig qc SC.emptyConfig

@@ -1,21 +1,25 @@
 { name = "halogen-project"
-, dependencies = 
-    [ "console"
-    , "effect"
-    , "halogen"
-    , "psci-support"
-    , "affjax"
-    , "halogen-css"
-    , "argonaut-codecs" 
-    , "rationals"
-    , "routing"
-    , "uuid"
-    , "validation"
-    , "js-date"
-    , "format"
-    , "formatters"
-    , "fixed-precision"
-    ]
+, dependencies =
+  [ "affjax"
+  , "argonaut-codecs"
+  , "console"
+  , "effect"
+  , "fixed-precision"
+  , "format"
+  , "formatters"
+  , "halogen"
+  , "halogen-css"
+  , "halogen-formless"
+  , "halogen-portal"
+  , "js-date"
+  , "numbers"
+  , "psci-support"
+  , "rationals"
+  , "routing"
+  , "uri"
+  , "uuid"
+  , "validation"
+  ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]
 }

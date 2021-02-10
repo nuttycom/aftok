@@ -24,6 +24,7 @@ import Aftok.Payments.Types
     PaymentRequestError,
   )
 import Aftok.Payments.Util (MinPayout (..), getPayouts, getProjectPayoutFractions)
+import Aftok.Types (AccountId)
 import qualified Bippy as B
 import qualified Bippy.Proto as P
 import Bippy.Types
@@ -152,8 +153,8 @@ bip70PaymentRequest ops cfg billable billingDay billingTime = do
   resp <- lift $ B.createPaymentRequest (cfg ^. signingKey) (cfg ^. pkiData) details
   either (throwError . SigningError) (pure . PaymentRequest pkey) resp
 
-toOutput :: (Address, Satoshi) -> Either PaymentError Output
-toOutput (addr, amt) = case addr of
+toOutput :: ((AccountId, Address), Satoshi) -> Either PaymentError Output
+toOutput ((_, addr), amt) = case addr of
   (PubKeyAddress a) -> Right (Output amt (PayPKHash a))
   other -> Left $ IllegalAddress other
 

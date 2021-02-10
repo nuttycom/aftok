@@ -3,6 +3,7 @@
 module Aftok.Database.PostgreSQL.Json where
 
 import Aftok.Currency.Bitcoin (NetworkMode, Satoshi (..), _Satoshi, getNetwork)
+import qualified Aftok.Currency.Bitcoin.Bip70 as Bip70
 import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
 import Aftok.Currency.Zcash (Zatoshi (..), _Zatoshi)
 import qualified Aftok.Currency.Zcash.Payments as Zcash
@@ -21,19 +22,9 @@ import Aftok.Payments.Types
 import Control.Lens ((^.), (^?), _Just, review, to, view)
 import Data.Aeson
 import Data.Aeson.Types (Parser)
-import qualified Data.ByteString.Base64 as B64
-import Data.ProtocolBuffers (Decode, Encode, decodeMessage, encodeMessage)
-import Data.Serialize.Get (runGet)
-import Data.Serialize.Put (runPut)
 import Data.Text (unpack)
 -- import Data.Thyme.Calendar (showGregorian)
 import Haskoin.Address (addrToText)
-
-protoBase64 :: Encode a => a -> Text
-protoBase64 = B64.encodeBase64 . runPut . encodeMessage
-
-fromBase64Proto :: Decode a => Text -> Either Text a
-fromBase64Proto t = (first toText . runGet decodeMessage) <=< B64.decodeBase64 $ encodeUtf8 t
 
 bip70PaymentRequestJSON :: Bitcoin.PaymentRequest -> Value
 bip70PaymentRequestJSON r =
@@ -41,7 +32,7 @@ bip70PaymentRequestJSON r =
     [ "bip70_request"
         .= object
           [ "payment_key" .= (r ^. Bitcoin.paymentRequestKey . Bitcoin._PaymentKey),
-            "payment_request_protobuf_64" .= (r ^. Bitcoin.bip70Request . to protoBase64)
+            "payment_request_protobuf_64" .= (r ^. Bitcoin.bip70Request . to Bip70.protoBase64)
           ]
     ]
 
@@ -51,7 +42,7 @@ parseBip70PaymentRequestJSON = \case
     o <- wrapper .: "bip70_request"
     Bitcoin.PaymentRequest
       <$> (Bitcoin.PaymentKey <$> o .: "paymentKey")
-      <*> ( either (fail . toString) pure . fromBase64Proto =<< (o .: "payment_request_protobuf_64")
+      <*> ( either (fail . toString) pure . Bip70.fromBase64Proto =<< (o .: "payment_request_protobuf_64")
           )
   nonobject ->
     fail $ "Value " <> show nonobject <> " is not a JSON object."
@@ -80,7 +71,7 @@ bitcoinPaymentJSON nmode bp =
       "txid" .= (bp ^. Bitcoin.txid),
       "address" .= addrText,
       "payment_key" .= (bp ^. Bitcoin.paymentKey . Bitcoin._PaymentKey),
-      "payment_protobuf_64" .= (bp ^. Bitcoin.bip70Payment . to protoBase64)
+      "payment_protobuf_64" .= (bp ^. Bitcoin.bip70Payment . to Bip70.protoBase64)
     ]
   where
     addrText = addrToText (getNetwork nmode) <$> (bp ^. Bitcoin.address)
@@ -93,7 +84,7 @@ parseBitcoinPaymentJSON nmode = \case
       <*> (o .:? "txid")
       <*> (traverse (parseBtcAddr nmode) =<< o .:? "address")
       <*> (Bitcoin.PaymentKey <$> o .: "paymentKey")
-      <*> ( either (fail . unpack) pure . fromBase64Proto =<< (o .: "payment_protobuf_64")
+      <*> ( either (fail . unpack) pure . Bip70.fromBase64Proto =<< (o .: "payment_protobuf_64")
           )
   nonobject ->
     fail $ "Value " <> show nonobject <> " is not a JSON object."

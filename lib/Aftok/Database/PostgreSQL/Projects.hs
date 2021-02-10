@@ -29,7 +29,7 @@ import Aftok.Database.PostgreSQL.Types
   )
 import Aftok.Project
   ( Invitation (..),
-    InvitationCode (..),
+    InvitationCode,
     Project (..),
     depRules,
     inceptionDate,
@@ -39,14 +39,14 @@ import Aftok.Project
     renderInvCode,
   )
 import Aftok.Types
-  ( Email (..),
+  ( DepreciationRules (..),
+    Email (..),
     ProjectId (..),
     UserId (..),
     UserName (..),
     _ProjectId,
     _UserId,
-    DepreciationRules(..),
-    depf
+    depf,
   )
 import Control.Lens
 import Data.Aeson (toJSON)
@@ -64,10 +64,9 @@ projectParser =
     <$> field
     <*> utcParser
     <*> idParser UserId
-    <*> (
-      DepreciationRules
-        <$> (unSerDepFunction <$> fieldWith fromJSONField)
-        <*> (fmap C.toThyme <$> field)
+    <*> ( DepreciationRules
+            <$> (unSerDepFunction <$> fieldWith fromJSONField)
+            <*> (fmap C.toThyme <$> field)
         )
 
 invitationParser :: RowParser Invitation

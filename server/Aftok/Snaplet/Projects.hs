@@ -15,16 +15,20 @@ module Aftok.Snaplet.Projects
     payoutsJSON,
     qdbProjectJSON,
     projectDetailJSON,
+    projectInviteResponseJSON,
   )
 where
 
 import Aftok.Config
+import qualified Aftok.Currency.Zcash as Zcash
+import qualified Aftok.Currency.Zcash.Zip321 as Zip321
 import Aftok.Database
 import Aftok.Json (creditToJSON, idValue, identifiedJSON, obj, v1)
 import Aftok.Project
-import Aftok.QConfig as QC
+import Aftok.ServerConfig as QC
 import Aftok.Snaplet
 import Aftok.Snaplet.Auth
+import Aftok.Snaplet.Json (zip321PaymentRequestJSON)
 import Aftok.TimeLog
   ( WorkShare,
     WorkShares,
@@ -40,8 +44,7 @@ import Aftok.Util (fromMaybeT)
 import Control.Lens ((^.), _1, _2, makeLenses, to)
 import Control.Monad.Trans.Maybe (mapMaybeT)
 import qualified Data.Aeson as A
-import Data.Aeson ((.:), (.=), Value (..), object)
-import Data.Attoparsec.ByteString (takeByteString)
+import Data.Aeson ((.:), (.:?), (.=), Value (..), object)
 import qualified Data.Map.Strict as M
 import qualified Data.Thyme.Clock as C
 import Filesystem.Path.CurrentOS (encodeString)
@@ -148,27 +151,86 @@ payoutsHandler = do
   ptime <- liftIO $ C.getCurrentTime
   pure $ payouts (toDepF $ project ^. depRules) ptime widx
 
-projectInviteHandler :: QConfig -> S.Handler App App ()
+data CommsAddress
+  = EmailComms Text
+  | ZcashComms Text
+
+data ProjectInviteRequest
+  = PIR
+      { greetName :: Text,
+        message :: Maybe Text,
+        inviteBy :: CommsAddress
+      }
+
+instance A.FromJSON ProjectInviteRequest where
+  parseJSON (A.Object v) = do
+    name <- v .: "greetName"
+    message <- v .:? "message"
+    comms <- v .: "inviteBy"
+    emailComms <- fmap EmailComms <$> (comms .:? "email")
+    zcashComms <- fmap ZcashComms <$> (comms .:? "zaddr")
+    case emailComms <|> zcashComms of
+      Nothing -> mzero
+      Just addr -> pure $ PIR name message addr
+  parseJSON _ = mzero
+
+data ProjectInviteResponse
+  = ProjectInviteResponse
+      { zip321URI :: Maybe Zip321.PaymentRequest
+      }
+
+projectInviteResponseJSON :: ProjectInviteResponse -> Value
+projectInviteResponseJSON resp =
+  case zip321URI resp of
+    Just r -> zip321PaymentRequestJSON r
+    Nothing -> object []
+
+projectInviteHandler :: ServerConfig -> S.Handler App App ProjectInviteResponse
 projectInviteHandler cfg = do
   uid <- requireUserId
   pid <- requireProjectId
-  toEmail <- parseParam "email" (fmap (Email . decodeUtf8) takeByteString)
+  requestBody <- readRequestBody 4096
+  req <- either (snapError 400 . show) pure $ A.eitherDecode requestBody
   t <- liftIO C.getCurrentTime
-  (Just p, invCode) <-
-    snapEval $
-      (,)
-        <$> (runMaybeT $ findUserProject uid pid)
-        <*> createInvitation pid uid toEmail t
-  liftIO $
-    sendProjectInviteEmail
-      cfg
-      (p ^. projectName)
-      (Email "noreply@aftok.com")
-      toEmail
-      invCode
+  let invite email =
+        snapEval $
+          (,)
+            <$> (runMaybeT $ findUserProject uid pid)
+            <*> createInvitation pid uid email t
+  case inviteBy req of
+    EmailComms email -> do
+      (Just p, invCode) <- invite (Email email)
+      liftIO $
+        sendProjectInviteEmail
+          cfg
+          (p ^. projectName)
+          (Email "noreply@aftok.com")
+          (Email email)
+          invCode
+      pure (ProjectInviteResponse Nothing)
+    ZcashComms zaddr -> do
+      (Just p, invCode) <- invite (Email "")
+      pure . ProjectInviteResponse . Just
+        $ Zip321.PaymentRequest . pure
+        $ Zip321.PaymentItem
+          { _address = Zcash.Address zaddr,
+            _amount = Zcash.Zatoshi 1000,
+            _memo =
+              Just . Zcash.Memo . encodeUtf8 $
+                "Welcome to the " <> (p ^. projectName) <> " aftok, " <> greetName req <> "\n"
+                  <> maybe "" (<> "\n") (message req)
+                  <> "https://aftok.com/app/?invcode="
+                  <> renderInvCode invCode
+                  <> "&zaddr="
+                  <> zaddr
+                  <> "#signup",
+            _message = Nothing,
+            _label = Nothing,
+            _other = []
+          }
 
 sendProjectInviteEmail ::
-  QConfig ->
+  ServerConfig ->
   ProjectName ->
   Email -> -- Inviting user's email address
   Email -> -- Invitee's email address

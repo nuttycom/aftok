@@ -7,7 +7,7 @@ module Aftok.Snaplet.Payments
   )
 where
 
-import Aftok.Billing
+import Aftok.Billing (SubscriptionId (..))
 import qualified Aftok.Config as AC
 import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
 import Aftok.Database
@@ -51,7 +51,7 @@ listPayableRequestsHandler = do
   sid <- requireId "subscriptionId" SubscriptionId
   snapEval $ findPayableRequests uid sid
 
-bip70PaymentResponseHandler :: AC.BillingConfig -> S.Handler App App PaymentId
+bip70PaymentResponseHandler :: AC.BitcoinConfig -> S.Handler App App PaymentId
 bip70PaymentResponseHandler _ = do
   requestBody <- readRequestBody 4096
   (prid, preq) <- getBip70PaymentRequestHandler

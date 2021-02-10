@@ -76,7 +76,7 @@ data DBOp a where
   FindUser :: UserId -> DBOp (Maybe User)
   FindUserProjectDetail :: UserId -> ProjectId -> DBOp (Maybe (User, C.UTCTime))
   FindUserByName :: UserName -> DBOp (Maybe (UserId, User))
-  FindUserPaymentAddress :: UserId -> Currency a c -> DBOp (Maybe a)
+  FindUserPaymentAddress :: UserId -> Currency a c -> DBOp (Maybe (AccountId, a))
   FindAccountPaymentAddress :: AccountId -> Currency a c -> DBOp (Maybe a)
   FindAccountZcashIVK :: AccountId -> DBOp (Maybe Zcash.IVK)
   CreateProject :: Project -> DBOp ProjectId
@@ -167,11 +167,11 @@ findUserProjectDetail uid pid = MaybeT . liftdb $ FindUserProjectDetail uid pid
 findUserByName :: (MonadDB m) => UserName -> MaybeT m (UserId, User)
 findUserByName = MaybeT . liftdb . FindUserByName
 
-findUserPaymentAddress :: (MonadDB m) => UserId -> Currency a c -> MaybeT m a
+findUserPaymentAddress :: (MonadDB m) => UserId -> Currency a c -> MaybeT m (AccountId, a)
 findUserPaymentAddress uid n = MaybeT . liftdb $ FindUserPaymentAddress uid n
 
-findAccountPaymentAddress :: (MonadDB m) => AccountId -> Currency a c -> MaybeT m a
-findAccountPaymentAddress uid n = MaybeT . liftdb $ FindAccountPaymentAddress uid n
+findAccountPaymentAddress :: (MonadDB m) => AccountId -> Currency a c -> MaybeT m (AccountId, a)
+findAccountPaymentAddress aid n = fmap (aid,) . MaybeT . liftdb $ FindAccountPaymentAddress aid n
 
 -- Project ops
 

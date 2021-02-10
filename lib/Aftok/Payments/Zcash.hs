@@ -10,10 +10,12 @@ import Aftok.Billing
   )
 import Aftok.Currency (Currency (ZEC))
 import Aftok.Currency.Zcash (Address, Zatoshi)
+import Aftok.Currency.Zcash.Types (Memo (..))
 import Aftok.Currency.Zcash.Zip321 (PaymentItem (..), PaymentRequest (..))
 import Aftok.Database (MonadDB)
 import qualified Aftok.Payments.Types as PT
 import Aftok.Payments.Util (MinPayout (..), getPayouts, getProjectPayoutFractions)
+import Aftok.Types (AccountId)
 import Control.Error.Safe (tryJust)
 import Control.Lens ((^.), makeLenses)
 import Data.Map.Strict (assocs)
@@ -27,18 +29,31 @@ data PaymentsConfig
 
 makeLenses ''PaymentsConfig
 
+type MemoGen m = Billable Zatoshi -> C.Day -> C.UTCTime -> AccountId -> m (Maybe Memo)
+
 paymentOps ::
   (MonadDB m) =>
+  MemoGen m ->
   PaymentsConfig ->
   PT.PaymentOps Zatoshi (ExceptT PT.PaymentRequestError m)
-paymentOps cfg =
+paymentOps memoGen cfg =
   PT.PaymentOps
-    { PT.newPaymentRequest = ((fmap PT.Zip321Request .) .) . zip321PaymentRequest cfg
+    { PT.newPaymentRequest = ((fmap PT.Zip321Request .) .) . zip321PaymentRequest cfg memoGen
     }
 
+-- TODO: Return a richer type that can include per-item uniqueness that can
+-- be used for tracking payments. A payment request, though it's a request for
+-- a single transaction, is really a request for multiple payments that we need
+-- to be able to verify individually since they'll be independent notes.
+--
+-- However, this doesn't really become important until we start generating addresses
+-- from Zcash IVKs, so it's not essential for right now.
 zip321PaymentRequest ::
+  forall m.
   (MonadDB m) =>
   PaymentsConfig ->
+  -- | generator for the memo to be associated with each item
+  MemoGen m ->
   -- | billing information
   Billable Zatoshi ->
   -- | payout date (billing date)
@@ -46,20 +61,23 @@ zip321PaymentRequest ::
   -- | timestamp for payment request creation
   C.UTCTime ->
   ExceptT PT.PaymentRequestError m PaymentRequest
-zip321PaymentRequest cfg billable billingDay _ = do
+zip321PaymentRequest cfg memoGen billable billingDay billTime = do
   let payoutTime = C.mkUTCTime billingDay (fromInteger 0)
       billTotal = billable ^. amount
   payoutFractions <- lift $ getProjectPayoutFractions payoutTime (billable ^. project)
   payouts <- getPayouts payoutTime ZEC (MinPayout $ cfg ^. minAmt) billTotal payoutFractions
-  PaymentRequest <$> (tryJust PT.NoRecipients $ nonEmpty (toPaymentItem <$> assocs payouts))
+  itemsMay <- lift $ nonEmpty <$> traverse toPaymentItem (assocs payouts)
+  PaymentRequest <$> tryJust PT.NoRecipients itemsMay
   where
-    toPaymentItem :: (Address, Zatoshi) -> PaymentItem
-    toPaymentItem (a, z) =
-      PaymentItem
-        { _address = a,
-          _label = Nothing,
-          _message = billable ^. messageText,
-          _amount = z,
-          _memo = Nothing, -- Just . Memo $ toASCIIBytes (reqid ^. PT._PaymentRequestId),
-          _other = []
-        }
+    toPaymentItem :: ((AccountId, Address), Zatoshi) -> m PaymentItem
+    toPaymentItem ((aid, a), z) = do
+      memo <- memoGen billable billingDay billTime aid
+      pure $
+        PaymentItem
+          { _address = a,
+            _label = Nothing,
+            _message = billable ^. messageText,
+            _amount = z,
+            _memo = memo,
+            _other = []
+          }

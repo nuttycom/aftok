@@ -23,6 +23,7 @@ import Aftok.Types (System, liveSystem)
 import Aftok.Login as Login
 import Aftok.Api.Account as Acc
 import Aftok.Api.Project (Project)
+import Aftok.Billing as Billing
 import Aftok.Signup as Signup
 import Aftok.Timeline as Timeline
 import Aftok.Overview as Overview
@@ -43,7 +44,9 @@ main =
 
       overview = Overview.apiCapability
 
-      mainComponent = component liveSystem login signup timeline project overview
+      billing = Billing.apiCapability
+
+      mainComponent = component liveSystem login signup timeline project overview billing
     halogenIO <- runUI mainComponent unit body
     void $ liftEffect
       $ matchesWith (match mainRoute) \oldMay new ->
@@ -56,6 +59,7 @@ data View
   | VLogin
   | VOverview
   | VTimeline
+  | VBilling
 
 mainRoute :: Match View
 mainRoute =
@@ -64,6 +68,7 @@ mainRoute =
     , VLogin <$ lit "login"
     , VOverview <$ lit "overview"
     , VTimeline <$ lit "timeline"
+    , VBilling <$ lit "billing"
     ]
 
 routeHash :: View -> String
@@ -72,6 +77,7 @@ routeHash = case _ of
   VLogin -> "login"
   VTimeline -> "timeline"
   VOverview -> "overview"
+  VBilling -> "billing"
   VLoading -> ""
 
 -- derive instance genericView :: Generic View _
@@ -100,6 +106,7 @@ type Slots
     , signup :: Signup.Slot Unit
     , overview :: Overview.Slot Unit
     , timeline :: Timeline.Slot Unit
+    , billing :: Billing.Slot Unit
     )
 
 _login = SProxy :: SProxy "login"
@@ -110,6 +117,8 @@ _overview = SProxy :: SProxy "overview"
 
 _timeline = SProxy :: SProxy "timeline"
 
+_billing = SProxy :: SProxy "billing"
+
 component ::
   forall input output m.
   Monad m =>
@@ -119,8 +128,9 @@ component ::
   Timeline.Capability m ->
   ProjectList.Capability m ->
   Overview.Capability m ->
+  Billing.Capability m ->
   H.Component HH.HTML MainQuery input output m
-component system loginCap signupCap tlCap pCap ovCap =
+component system loginCap signupCap tlCap pCap ovCap bcap =
   H.mkComponent
     { initialState
     , render
@@ -157,6 +167,10 @@ component system loginCap signupCap tlCap pCap ovCap =
       withNavBar
         $ HH.div_
             [ HH.slot _timeline unit (Timeline.component system tlCap pCap) st.selectedProject (Just <<< ProjectAction) ]
+    VBilling ->
+      withNavBar
+        $ HH.div_
+            [ HH.slot _billing unit (Billing.component system bcap pCap) st.selectedProject (Just <<< ProjectAction) ]
 
   handleAction :: MainAction -> H.HalogenM MainState MainAction Slots output m Unit
   handleAction = case _ of
@@ -173,9 +187,10 @@ component system loginCap signupCap tlCap pCap ovCap =
                 Acc.LoginError _ -> VLogin
                 _ -> case other of
                   "timeline" -> VTimeline
+                  "billing" -> VBilling
                   _ -> VOverview
       navigate nextView
-    SignupAction (Signup.SignupComplete _) -> navigate VOverview
+    SignupAction (Signup.SignupComplete _) -> navigate VLogin
     SignupAction (Signup.SigninNav) -> navigate VLogin
     LoginAction (Login.LoginComplete _) -> navigate VOverview
     LogoutAction -> do
@@ -214,6 +229,7 @@ nav :: Array NavItem
 nav =
   [ { label: "Overview", path: "overview" }
   , { label: "Timeline", path: "timeline" }
+  , { label: "Billing", path: "billing" }
   ]
 
 brand :: forall a s m. H.ComponentHTML a s m

@@ -6,7 +6,7 @@ import Control.Monad.Error.Class (throwError)
 import Control.Monad.Except.Trans (withExceptT, runExceptT)
 import Data.Array (head)
 import Data.Argonaut.Core (Json)
-import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.:), (.:?))
+import Data.Argonaut.Decode (class DecodeJson, JsonDecodeError(..), decodeJson, (.:), (.:?))
 import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant)
 import Data.Either (Either, note)
@@ -69,12 +69,12 @@ instance eventTraversable :: Traversable Event where
     StopEvent a -> StopEvent <$> f a
   sequence = traverse identity
 
-parseEventFields :: Object Json -> Either String (Event String)
+parseEventFields :: Object Json -> Either JsonDecodeError (Event String)
 parseEventFields obj = do
   ev <- obj .: "event"
   start' <- traverse (_ .: "eventTime") =<< ev .:? "start"
   stop' <- traverse (_ .: "eventTime") =<< ev .:? "stop"
-  note "Only 'stop' and 'start' events are supported."
+  note (TypeMismatch "Only 'stop' and 'start' events are supported.")
     $ (StartEvent <$> start')
     <|> (StopEvent <$> stop')
 
