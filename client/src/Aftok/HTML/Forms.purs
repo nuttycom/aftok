@@ -12,9 +12,9 @@ import CSS.Flexbox (flexFlow, row, nowrap)
 import Aftok.Api.Types (CommsType(..))
 
 type CommsState r = 
-  { recoveryType :: CommsType
-  , recoveryEmail :: Maybe String
-  , recoveryZAddr :: Maybe String
+  { channel :: CommsType
+  , email :: Maybe String
+  , zaddr :: Maybe String
   | r }
 
 type SetCommsType action = CommsType -> action
@@ -63,42 +63,39 @@ commsField ::
   CommsState r -> 
   CommsErrors i a -> 
   HH.HTML i a
-commsField setEmail setZAddr st errs = case st.recoveryType of
+commsField setEmail setZAddr st errs = case st.channel of
   EmailComms ->
-    HH.div
-      [ P.id_ "recoveryEmail" ]
-      $ [ HH.label [ P.for "email" ] [ HH.text "Email Address" ]
-        , HH.input
-            [ P.type_ P.InputEmail
-            , P.classes (ClassName <$> [ "form-control" ])
-            , P.id_ "email"
-            , P.placeholder "name@address.com"
-            , P.value (fromMaybe "" st.recoveryEmail)
-            , E.onValueInput (Just <<< setEmail)
-            ]
-        ]
+    HH.div_ $ 
+      [ HH.label [ P.for "email" ] [ HH.text "Email Address" ]
+      , HH.input
+          [ P.type_ P.InputEmail
+          , P.classes (ClassName <$> [ "form-control" ])
+          , P.id_ "email"
+          , P.placeholder "name@address.com"
+          , P.value (fromMaybe "" st.email)
+          , E.onValueInput (Just <<< setEmail)
+          ]
+      ]
       <> errs EmailComms 
   ZcashComms ->
-    HH.div
-      [ P.id_ "recoveryZAddr" ]
-      $ [ HH.label
-            [ P.for "zaddr" ]
-            [ HH.text "Zcash Shielded Address"
-            , HH.a
-                [ P.attr (AttrName "data-toggle") "modal"
-                , P.href "#modalAboutZAddr"
-                ]
-                [ HH.img [ P.src "/assets/img/icons/duotone-icons/Code/Info-circle.svg" ]
-                ]
-            ]
-        , HH.input
-            [ P.type_ P.InputText
-            , P.classes (ClassName <$> [ "form-control" ])
-            , P.id_ "email"
-            , P.placeholder "Enter a Zcash shielded address"
-            , P.value (fromMaybe "" st.recoveryZAddr)
-            , E.onValueInput (Just <<< setZAddr)
-            ]
-        ]
+    HH.div_ $
+      [ HH.label
+          [ P.for "zaddr" ]
+          [ HH.text "Zcash Shielded Address"
+          , HH.a
+              [ P.attr (AttrName "data-toggle") "modal"
+              , P.href "#modalAboutZAddr"
+              ]
+              [ HH.img [ P.src "/assets/img/icons/duotone-icons/Code/Info-circle.svg" ]
+              ]
+          ]
+      , HH.input
+          [ P.type_ P.InputText
+          , P.classes (ClassName <$> [ "form-control" ])
+          , P.id_ "email"
+          , P.placeholder "Enter a Zcash shielded address"
+          , P.value (fromMaybe "" st.zaddr)
+          , E.onValueInput (Just <<< setZAddr)
+          ]
+      ]
       <> errs ZcashComms
-

@@ -62,9 +62,9 @@ type SignupState
   = { username :: Maybe String
     , password :: Maybe String
     , passwordConfirm :: Maybe String
-    , recoveryType :: CommsType
-    , recoveryEmail :: Maybe String
-    , recoveryZAddr :: Maybe String
+    , channel :: CommsType
+    , email :: Maybe String
+    , zaddr :: Maybe String
     , invitationCodes :: Array String
     , signupErrors :: M.Map SignupField SignupError
     }
@@ -118,9 +118,9 @@ component system caps conf =
     { username: Nothing
     , password: Nothing
     , passwordConfirm: Nothing
-    , recoveryType: EmailComms
-    , recoveryEmail: Nothing
-    , recoveryZAddr: Nothing
+    , channel: EmailComms
+    , email: Nothing
+    , zaddr: Nothing
     , invitationCodes: []
     , signupErrors: M.empty
     }
@@ -188,7 +188,7 @@ component system caps conf =
                                 ]
                             ]
                           <> signupErrors st ConfirmField
-                      , commsSwitch SetRecoveryType st.recoveryType
+                      , commsSwitch SetRecoveryType st.channel
                       , commsField SetRecoveryEmail SetRecoveryZAddr st $
                           case _ of
                             EmailComms -> signupErrors st EmailField
@@ -226,10 +226,10 @@ component system caps conf =
 
   setZAddr addr = do
     zres <- lift $ caps.checkZAddr addr
-    H.modify_ (_ { recoveryZAddr = Just addr })
+    H.modify_ (_ { zaddr = Just addr })
     case zres of
       Acc.ZAddrCheckValid -> 
-        H.modify_ (\st -> st { signupErrors = M.delete ZAddrField st.signupErrors, recoveryType = ZcashComms })
+        H.modify_ (\st -> st { signupErrors = M.delete ZAddrField st.signupErrors, channel = ZcashComms })
       Acc.ZAddrCheckInvalid -> 
         H.modify_ (\st -> st { signupErrors = M.insert ZAddrField ZAddrInvalid st.signupErrors })
 
@@ -270,9 +270,9 @@ component system caps conf =
       else
         (H.modify_ (\st -> st { signupErrors = M.delete ConfirmField st.signupErrors }))
     SetRecoveryType t -> 
-      H.modify_ (_ { recoveryType = t })
+      H.modify_ (_ { channel = t })
     SetRecoveryEmail email -> 
-      H.modify_ (_ { recoveryEmail = Just email })
+      H.modify_ (_ { email = Just email })
     SetRecoveryZAddr addr ->
       when (addr /= "") (setZAddr addr)
     SetInvitationCodes codeStr -> do
@@ -281,14 +281,14 @@ component system caps conf =
       H.modify_ (_ { invitationCodes = codes })
     Signup ev -> do
       lift $ system.preventDefault ev
-      recType <- H.gets (_.recoveryType)
+      recType <- H.gets (_.channel)
       usernameV <- V <<< note [ UsernameRequired ] <$> H.gets (_.username)
       pwdFormV <- V <<< note [ PasswordRequired ] <$> H.gets (_.password)
       pwdConfV <- V <<< note [ ConfirmRequired ] <$> H.gets (_.passwordConfirm)
-      recoveryType <- H.gets (_.recoveryType)
-      recoveryV <- case recoveryType of
-        EmailComms -> V <<< note [ EmailRequired ] <<< map Acc.RecoverByEmail <$> H.gets (_.recoveryEmail)
-        ZcashComms -> V <<< note [ ZAddrRequired ] <<< map Acc.RecoverByZAddr <$> H.gets (_.recoveryZAddr)
+      channel <- H.gets (_.channel)
+      recoveryV <- case channel of
+        EmailComms -> V <<< note [ EmailRequired ] <<< map Acc.RecoverByEmail <$> H.gets (_.email)
+        ZcashComms -> V <<< note [ ZAddrRequired ] <<< map Acc.RecoverByZAddr <$> H.gets (_.zaddr)
       recapV <- lift $ V <<< note [ CaptchaError ] <$> caps.getRecaptchaResponse Nothing
       invcodes <- H.gets (_.invitationCodes)
       --lift $ system.log "Sending signup request..."

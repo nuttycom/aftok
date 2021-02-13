@@ -19,17 +19,17 @@ import Data.UUID (genUUID)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Now (nowDateTime)
+import DOM.HTML.Indexed.ButtonType (ButtonType(..))
 import Halogen as H
 import Halogen.HTML.Core (ClassName(..))
 import Halogen.HTML as HH
+import Halogen.HTML.Events as E
 import Halogen.HTML.Properties as P
-import Aftok.Billing.PaymentRequest as PaymentRequest
-import Aftok.Modals as Modals
-import Aftok.Modals.ModalFFI as ModalFFI
+import Aftok.HTML.Classes as C
 import Aftok.ProjectList as ProjectList
 import Aftok.Projects.Invite as Invite
 import Aftok.Types (System, ProjectId, UserId(..), dateStr)
-import Aftok.Api.Types (APIError, Zip321Request)
+import Aftok.Api.Types (APIError)
 import Aftok.Api.Project
   ( Project
   , Project'(..)
@@ -55,8 +55,7 @@ data Invitation
 data OverviewAction
   = Initialize
   | ProjectSelected Project
-  | Invite Invitation
-  | InvitationCreated (Maybe Zip321Request)
+  | Invite ProjectId
 
 type Slot id
   = forall query. H.Slot query ProjectList.Event id
@@ -64,12 +63,10 @@ type Slot id
 type Slots
   = ( projectList :: ProjectList.Slot Unit
     , invitationModal :: Invite.Slot Unit
-    , inviteQRModal :: PaymentRequest.QrSlot Unit
     )
 
 _projectList = SProxy :: SProxy "projectList"
 _invitationModal = SProxy :: SProxy "invitationModal"
-_inviteQRModal = SProxy :: SProxy "inviteQRModal"
 
 type Capability (m :: Type -> Type)
   = { getProjectDetail :: ProjectId -> m (Either APIError (Maybe ProjectDetail))
@@ -170,22 +167,21 @@ component system caps pcaps =
               [ P.classes (ClassName <$> [ "row", "pt-3", "font-weight-bold" ]) ]
               [ HH.div 
                   [ P.classes (ClassName <$> [ "col-md-2" ]) ] 
-                  [ Modals.modalButton Invite.modalId "Invite a collaborator" Nothing]
+                  [ HH.button
+                    [ P.classes [ C.btn, C.btnPrimary ]
+                    , P.type_ ButtonButton
+                    , E.onClick (\_ -> Just (Invite project.projectId))
+                    ]
+                    [ HH.text "Invite a collaborator" ]
+                  ]
                 , system.portal
                     _invitationModal
                     unit
                     (Invite.component system caps.invitationCaps)
-                    project.projectId
+                    unit
                     Nothing
-                    (Just <<< InvitationCreated)
-               , system.portal
-                   _inviteQRModal
-                   unit
-                   (PaymentRequest.qrcomponent system)
-                   Nothing
-                   Nothing
-                   (const Nothing)
-                  ]
+                    (const Nothing)
+              ]
             ]
           )
       ]
@@ -225,8 +221,8 @@ component system caps pcaps =
       Initialize -> do
         currentProject <- H.gets (_.selectedProject)
         traverse_ (setProjectDetail <<< (\p -> (unwrap p).projectId)) currentProject
-      Invite _ -> do
-        pure unit
+      Invite pid -> do
+        void <<< H.query _invitationModal unit $ H.tell (Invite.OpenModal pid)
       ProjectSelected p -> do
         currentProject <- H.gets (_.selectedProject)
         when (all (\p' -> (unwrap p').projectId /= (unwrap p).projectId) currentProject)
@@ -234,11 +230,6 @@ component system caps pcaps =
               H.raise (ProjectList.ProjectChange p)
               H.modify_ (_ { selectedProject = Just p })
               setProjectDetail (unwrap p).projectId
-      InvitationCreated req -> do
-        lift $ system.toggleModal Invite.modalId ModalFFI.HideModal
-        lift $ system.toggleModal PaymentRequest.qrModalId ModalFFI.ShowModal
-        traverse_ (\r -> H.query _inviteQRModal unit $ H.tell (PaymentRequest.QrRender r)) req
-        pure unit
 
   setProjectDetail :: ProjectId -> H.HalogenM OverviewState OverviewAction Slots ProjectList.Event m Unit
   setProjectDetail pid = do

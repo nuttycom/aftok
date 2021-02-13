@@ -5,7 +5,6 @@ import Prelude
 import Aftok.Api.Billing (BillableId, Billable, Recurrence(..), createBillable)
 import Aftok.Api.Types (APIError(..))
 import Aftok.HTML.Classes as C
-import Aftok.Modals as Modals
 import Aftok.Modals.ModalFFI as ModalFFI
 import Aftok.Types (System, ProjectId)
 import Aftok.Zcash (ZEC(..), toZatoshi)
@@ -22,14 +21,17 @@ import Data.Time.Duration (Hours(..), Days(..))
 import Data.Tuple (Tuple(..))
 import Data.Validation.Semigroup (V(..), toEither)
 import Effect.Aff (Aff)
+import DOM.HTML.Indexed.ButtonType (ButtonType(..))
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Core (ClassName(..))
 import Halogen.HTML.Events as E
 import Halogen.HTML.Properties as P
+import Halogen.HTML.Properties.ARIA as ARIA
 
 data Field
-  = NameField
+  = PidField
+  | NameField
   | DescField
   | MessageField
   | MonthlyRecurrenceField
@@ -50,7 +52,7 @@ data RType
 derive instance rtypeEq :: Eq RType
 
 type CState =
-  { projectId :: ProjectId
+  { projectId :: Maybe ProjectId
   , name :: Maybe String
   , description :: Maybe String
   , message :: Maybe String
@@ -62,13 +64,14 @@ type CState =
   , fieldErrors :: Array Field
   }
 
-type Input = ProjectId
+data Query a
+  = OpenModal ProjectId a
 
-type Output = Tuple BillableId Billable
+data Output 
+  = BillableCreated BillableId
 
 data Action
-  = ProjectChanged ProjectId
-  | SetName String
+  = SetName String
   | SetDesc String
   | SetMessage String
   | SetRecurrenceType RType
@@ -77,36 +80,39 @@ data Action
   | SetBillingAmount String
   | SetGracePeriod String
   | SetRequestExpiry String
-  | SaveBillable
+  | Save
+  | Close
 
 type Slot id
-  = forall query. H.Slot query Output id
+  = H.Slot Query Output id
 
 type Capability (m :: Type -> Type)
   = { createBillable :: ProjectId -> Billable -> m (Either APIError BillableId)
     }
 
+modalId :: String
+modalId = "createBillable"
+
 component ::
-  forall query m.
+  forall input m.
   Monad m =>
   System m ->
   Capability m ->
-  H.Component HH.HTML query Input Output m
+  H.Component HH.HTML Query input Output m
 component system caps =
   H.mkComponent
-    { initialState
+    { initialState: const initialState
     , render
-    , eval:
-        H.mkEval
-          $ H.defaultEval
-              { handleAction = eval
-              , receive = Just <<< ProjectChanged
-              }
+    , eval: H.mkEval
+        $ H.defaultEval
+            { handleAction = handleAction
+            , handleQuery = handleQuery
+            }
     }
   where
-  initialState :: Input -> CState
-  initialState input =
-    { projectId: input
+  initialState :: CState
+  initialState =
+    { projectId: Nothing
     , name : Nothing
     , description : Nothing
     , message : Nothing
@@ -119,160 +125,209 @@ component system caps =
     }
 
   render :: forall slots. CState -> H.ComponentHTML Action slots m
-  render st =
-    Modals.modalWithSave "createBillable" "Create Billable" SaveBillable
-      [ HH.form_
-        [ formGroup st
-          [ NameField ]
-          [ HH.label
-            [ P.for "billableName"]
-            [ HH.text "Product Name" ]
-          , HH.input
-            [ P.type_ P.InputText
-            , P.classes [ C.formControl, C.formControlSm ]
-            , P.id_ "billableName"
-            , P.placeholder "A name for the product or service you want to bill for"
-            , E.onValueInput (Just <<< SetName)
-            ]
-          ]
-        , formGroup st
-          [ DescField ]
-          [ HH.label
-              [ P.for "billableDesc"]
-              [ HH.text "Product Description" ]
-          , HH.input
-              [ P.type_ P.InputText
-              , P.classes [ C.formControl, C.formControlSm ]
-              , P.id_ "billableDesc"
-              , P.placeholder "Description of the product or service"
-              , E.onValueInput (Just <<< SetDesc)
+  render st = 
+    HH.div
+      [ P.classes [ C.modal ]
+      , P.id_ modalId
+      , P.tabIndex (negate 1)
+      , ARIA.role "dialog"
+      , ARIA.labelledBy (modalId <> "Title")
+      , ARIA.hidden "true"
+      ]
+      [ HH.div
+        [ P.classes [C.modalDialog], ARIA.role "document" ]
+        [ HH.div
+          [ P.classes [C.modalContent] ]
+          [ HH.div
+            [ P.classes [C.modalHeader] ]
+            [ HH.h5 [P.classes [C.modalTitle], P.id_ (modalId <>"Title") ] [HH.text "Create a new billable item"]
+            , HH.button
+              [ P.classes [ C.close ]
+              , ARIA.label "Close"
+              , P.type_ ButtonButton
+              , E.onClick (\_ -> Just Close)
               ]
-          ]
-        , formGroup st
-          [ MessageField ]
-          [ HH.label
-              [ P.for "billableMsg"]
-              [ HH.text "Message to be included with bill" ]
-          , HH.input
-              [ P.type_ P.InputText
-              , P.classes [C.formControl, C.formControlSm]
-              , P.id_ "billableMsg"
-              , P.placeholder "Enter your message here"
-              , E.onValueInput (Just <<< SetMessage)
-              ]
-          ]
-        , formGroup st
-          [MonthlyRecurrenceField, WeeklyRecurrenceField]
-          [ formCheckGroup
-              { id: "recurAnnual"
-              , checked: (st.recurrenceType == RTAnnual)
-              , labelClasses: []
-              }
-              (\_ -> Just (SetRecurrenceType RTAnnual))
-              [ HH.text "Annual" ]
-          , formCheckGroup
-              { id: "recurMonthly"
-              , checked: (st.recurrenceType == RTMonthly)
-              , labelClasses: [C.formInline]
-              }
-              (\_ -> Just (SetRecurrenceType RTMonthly))
-              [ HH.text "Every"
-              , HH.input
-                  [ P.type_ P.InputNumber
-                  , P.classes [ C.formControl, C.formControlXs, C.formControlFlush, C.marginX2 ]
-                  , P.value (if st.recurrenceType == RTMonthly
-                                then maybe "" show st.recurrenceValue
-                                else "")
-                  , P.min 1.0
-                  , P.max 12.0
-                  , E.onValueInput (Just <<< SetRecurrenceMonths)
-                  ]
-              , HH.text "Months"]
-          , formCheckGroup
-            { id: "recurWeekly"
-            , checked: (st.recurrenceType == RTWeekly)
-            , labelClasses: [C.formInline]
-            }
-            (\_ -> Just (SetRecurrenceType RTWeekly))
-            [ HH.text "Every"
-            , HH.input
-                [ P.type_ P.InputNumber
-                , P.classes [ C.formControl, C.formControlXs, C.formControlFlush, C.marginX2 ]
-                , P.value (if st.recurrenceType == RTWeekly
-                              then maybe "" show st.recurrenceValue
-                              else "")
-                , P.min 1.0
-                , P.max 12.0
-                , E.onValueInput (Just <<< SetRecurrenceWeeks)
-                ]
-            , HH.text "Weeks"
+              [ HH.span [ARIA.hidden "true"] [HH.text "×"]]
             ]
-          , formCheckGroup
-            { id: "oneTime"
-            , checked: st.recurrenceType == RTOneTime
-            , labelClasses: []
-            }
-            (\_ -> Just (SetRecurrenceType RTOneTime))
-            [ HH.text "One-Time" ]
-          ]
-        , formGroup st
-          [AmountField]
-          [ HH.label
-              [ P.for "billableAmount"]
-              [ HH.text "Amount" ]
           , HH.div
-          [ P.classes [ ClassName "input-group", ClassName "input-group-sm" ] ]
-              [ HH.input
-                  [ P.type_ P.InputNumber
-                  , P.classes [ C.formControl ]
-                  , P.id_ "billableAmount"
-                  , P.value (maybe "" (Fixed.toString <<< unwrap) st.amount)
-                  , P.placeholder "1.0"
-                  , P.min 0.0
-                  , E.onValueInput (Just <<< SetBillingAmount)
+            [ P.classes [C.modalBody] ]
+            [ HH.form_
+              [ formGroup st
+                [ NameField ]
+                [ HH.label
+                  [ P.for "billableName"]
+                  [ HH.text "Product Name" ]
+                , HH.input
+                  [ P.type_ P.InputText
+                  , P.classes [ C.formControl, C.formControlSm ]
+                  , P.id_ "billableName"
+                  , P.placeholder "A name for the product or service you want to bill for"
+                  , E.onValueInput (Just <<< SetName)
                   ]
-              , HH.div
-                [ P.classes [ ClassName "input-group-append"] ]
-                [ HH.span
-                    [ P.classes [ ClassName "input-group-text" ]
-                    , P.style "height: auto;" -- fix bad calculated height from LandKit
+                ]
+              , formGroup st
+                [ DescField ]
+                [ HH.label
+                    [ P.for "billableDesc"]
+                    [ HH.text "Product Description" ]
+                , HH.input
+                    [ P.type_ P.InputText
+                    , P.classes [ C.formControl, C.formControlSm ]
+                    , P.id_ "billableDesc"
+                    , P.placeholder "Description of the product or service"
+                    , E.onValueInput (Just <<< SetDesc)
                     ]
-                    [ HH.text "ZEC" ] ]
+                ]
+              , formGroup st
+                [ MessageField ]
+                [ HH.label
+                    [ P.for "billableMsg"]
+                    [ HH.text "Message to be included with bill" ]
+                , HH.input
+                    [ P.type_ P.InputText
+                    , P.classes [C.formControl, C.formControlSm]
+                    , P.id_ "billableMsg"
+                    , P.placeholder "Enter your message here"
+                    , E.onValueInput (Just <<< SetMessage)
+                    ]
+                ]
+              , formGroup st
+                [MonthlyRecurrenceField, WeeklyRecurrenceField]
+                [ formCheckGroup
+                    { id: "recurAnnual"
+                    , checked: (st.recurrenceType == RTAnnual)
+                    , labelClasses: []
+                    }
+                    (\_ -> Just (SetRecurrenceType RTAnnual))
+                    [ HH.text "Annual" ]
+                , formCheckGroup
+                    { id: "recurMonthly"
+                    , checked: (st.recurrenceType == RTMonthly)
+                    , labelClasses: [C.formInline]
+                    }
+                    (\_ -> Just (SetRecurrenceType RTMonthly))
+                    [ HH.text "Every"
+                    , HH.input
+                        [ P.type_ P.InputNumber
+                        , P.classes [ C.formControl, C.formControlXs, C.formControlFlush, C.marginX2 ]
+                        , P.value (if st.recurrenceType == RTMonthly
+                                      then maybe "" show st.recurrenceValue
+                                      else "")
+                        , P.min 1.0
+                        , P.max 12.0
+                        , E.onValueInput (Just <<< SetRecurrenceMonths)
+                        ]
+                    , HH.text "Months"]
+                , formCheckGroup
+                  { id: "recurWeekly"
+                  , checked: (st.recurrenceType == RTWeekly)
+                  , labelClasses: [C.formInline]
+                  }
+                  (\_ -> Just (SetRecurrenceType RTWeekly))
+                  [ HH.text "Every"
+                  , HH.input
+                      [ P.type_ P.InputNumber
+                      , P.classes [ C.formControl, C.formControlXs, C.formControlFlush, C.marginX2 ]
+                      , P.value (if st.recurrenceType == RTWeekly
+                                    then maybe "" show st.recurrenceValue
+                                    else "")
+                      , P.min 1.0
+                      , P.max 12.0
+                      , E.onValueInput (Just <<< SetRecurrenceWeeks)
+                      ]
+                  , HH.text "Weeks"
+                  ]
+                , formCheckGroup
+                  { id: "oneTime"
+                  , checked: st.recurrenceType == RTOneTime
+                  , labelClasses: []
+                  }
+                  (\_ -> Just (SetRecurrenceType RTOneTime))
+                  [ HH.text "One-Time" ]
+                ]
+              , formGroup st
+                [AmountField]
+                [ HH.label
+                    [ P.for "billableAmount"]
+                    [ HH.text "Amount" ]
+                , HH.div
+                [ P.classes [ ClassName "input-group", ClassName "input-group-sm" ] ]
+                    [ HH.input
+                        [ P.type_ P.InputNumber
+                        , P.classes [ C.formControl ]
+                        , P.id_ "billableAmount"
+                        , P.value (maybe "" (Fixed.toString <<< unwrap) st.amount)
+                        , P.placeholder "1.0"
+                        , P.min 0.0
+                        , E.onValueInput (Just <<< SetBillingAmount)
+                        ]
+                    , HH.div
+                      [ P.classes [ ClassName "input-group-append"] ]
+                      [ HH.span
+                          [ P.classes [ ClassName "input-group-text" ]
+                          , P.style "height: auto;" -- fix bad calculated height from LandKit
+                          ]
+                          [ HH.text "ZEC" ] ]
+                    ]
+                ]
+              , formGroup  st
+                [GracePeriodField]
+                [ HH.label
+                    [ P.for "gracePeriod"]
+                    [ HH.text "Grace Period (Days)" ]
+                , HH.input
+                    [ P.type_ P.InputNumber
+                    , P.id_ "gracePeriod"
+                    , P.classes [ C.formControl, C.formControlSm ]
+                    , P.value (maybe "" (Number.toString <<< unwrap) st.gracePeriod)
+                    , P.placeholder "Days until a bill is considered overdue"
+                    , P.min 0.0
+                    , E.onValueInput (Just <<< SetGracePeriod)
+                    ]
+                ]
+              , formGroup st
+                [RequestExpiryField]
+                [ HH.label
+                    [ P.for "requestExpiry"]
+                    [ HH.text "Request Expiry Period (Hours)" ]
+                , HH.input
+                    [ P.type_ P.InputNumber
+                    , P.id_ "gracePeriod"
+                    , P.classes [ C.formControl, C.formControlSm ]
+                    , P.value (maybe "" (Number.toString <<< unwrap) st.requestExpiry)
+                    , P.placeholder "Hours until a payment request expires"
+                    , P.min 0.0
+                    , E.onValueInput (Just <<< SetRequestExpiry)
+                    ]
+                ]
               ]
-          ]
-        , formGroup  st
-          [GracePeriodField]
-          [ HH.label
-              [ P.for "gracePeriod"]
-              [ HH.text "Grace Period (Days)" ]
-          , HH.input
-              [ P.type_ P.InputNumber
-              , P.id_ "gracePeriod"
-              , P.classes [ C.formControl, C.formControlSm ]
-              , P.value (maybe "" (Number.toString <<< unwrap) st.gracePeriod)
-              , P.placeholder "Days until a bill is considered overdue"
-              , P.min 0.0
-              , E.onValueInput (Just <<< SetGracePeriod)
+              , formGroup st [PidField] []
+            ]
+          , HH.div
+            [ P.classes [C.modalFooter] ]
+            [ HH.button
+              [ P.type_ ButtonButton
+              , P.classes [ C.btn, C.btnSecondary]
+              , E.onClick (\_ -> Just Close)
               ]
-          ]
-        , formGroup st
-          [RequestExpiryField]
-          [ HH.label
-              [ P.for "requestExpiry"]
-              [ HH.text "Request Expiry Period (Hours)" ]
-          , HH.input
-              [ P.type_ P.InputNumber
-              , P.id_ "gracePeriod"
-              , P.classes [ C.formControl, C.formControlSm ]
-              , P.value (maybe "" (Number.toString <<< unwrap) st.requestExpiry)
-              , P.placeholder "Hours until a payment request expires"
-              , P.min 0.0
-              , E.onValueInput (Just <<< SetRequestExpiry)
+              [ HH.text "Close" ]
+            , HH.button
+              [ P.type_ ButtonButton
+              , P.classes [ C.btn, C.btnPrimary ]
+              , E.onClick (\_ -> Just Save)
               ]
+              [ HH.text "Create billable"]
+            ]
           ]
         ]
       ]
-
+ 
+  formGroup :: forall i a. CState -> Array Field -> Array (HH.HTML i a) -> HH.HTML i a
+  formGroup st fields body =
+    HH.div
+     [ P.classes [C.formGroup] ]
+     (body <> (fieldError st =<< fields))
+ 
   formCheckGroup :: forall i a.
     { id :: String
     , checked :: Boolean
@@ -296,17 +351,12 @@ component system caps =
            , P.for id]
            children
        ]
-
-  formGroup :: forall i a. CState -> Array Field -> Array (HH.HTML i a) -> HH.HTML i a
-  formGroup st fields body =
-    HH.div
-     [ P.classes [C.formGroup] ]
-     (body <> (fieldError st =<< fields))
-
+ 
   fieldError :: forall i a. CState -> Field -> Array (HH.HTML i a)
   fieldError st field =
     if any (_ == field) st.fieldErrors
        then case field of
+            PidField -> err "No project id found; please report an error"
             NameField -> err "The name field is required"
             DescField -> err "The description field is required"
             MessageField -> err "The message field is required"
@@ -317,12 +367,22 @@ component system caps =
             RequestExpiryField -> err "You must enter a valid number of hours."
        else []
     where
-    err str = [ HH.div_ [ HH.span [ P.classes (ClassName <$> [ "badge", "badge-danger-soft" ]) ] [ HH.text str ] ] ]
+    err str = 
+      [ HH.div_ 
+        [ HH.span 
+          [ P.classes (ClassName <$> [ "badge", "badge-danger-soft" ]) ] [ HH.text str ] ] 
+      ]
 
-  eval :: forall slots. Action -> H.HalogenM CState Action slots Output m Unit
-  eval = case _ of
-      ProjectChanged pid ->
-        H.modify_ (_ { projectId = pid })
+  -- we use a query to initialize, since this is a modal that doesn't actually get unloaded.
+  handleQuery :: forall slots a. Query a -> H.HalogenM CState Action slots Output m (Maybe a)
+  handleQuery = case _ of
+    OpenModal pid a -> do
+      H.modify_ (\_ -> initialState { projectId = Just pid })
+      lift $ system.toggleModal modalId ModalFFI.ShowModal
+      pure (Just a)
+
+  handleAction :: forall slots. Action -> H.HalogenM CState Action slots Output m Unit
+  handleAction = case _ of
       SetName name ->
         H.modify_ (_ { name = Just name })
       SetDesc desc ->
@@ -357,10 +417,12 @@ component system caps =
         case Number.fromString dur of
              (Just n) -> H.modify_ (_ { requestExpiry = Just (Hours n) })
              (Nothing) -> pure unit
-      SaveBillable -> do
+
+      Save -> do
+        pidV  <- V <<< note [PidField] <$> H.gets (_.projectId)
         nameV <- V <<< note [NameField] <$> H.gets (_.name)
         descV <- V <<< note [DescField] <$> H.gets (_.description)
-        msgV <- V <<< note [MessageField] <$> H.gets (_.message)
+        msgV  <- V <<< note [MessageField] <$> H.gets (_.message)
         rtype <- H.gets (_.recurrenceType)
         rvalueV <- case rtype of
           RTAnnual  -> pure $ V (Right Annually)
@@ -389,18 +451,21 @@ component system caps =
                          <*> gperV
                          <*> expiryV
 
-        case toEither reqV of
-          Left errors -> do
-            H.modify_ (_ { fieldErrors = errors })
-          Right billable -> do
-            pid <- H.gets (_.projectId)
+        case toEither (Tuple <$> pidV <*> reqV) of
+          Right (Tuple pid billable) -> do
             res <- lift $ caps.createBillable pid billable
             case res of
               Right bid -> do
-                H.raise (Tuple bid billable)
-                lift $ system.toggleModal "createBillable" ModalFFI.HideModal
-              Left errs ->
+                H.raise (BillableCreated bid)
+                handleAction Close
+              Left errs -> do
                 lift $ system.error (show errs)
+          Left errors -> do
+            H.modify_ (_ { fieldErrors = errors })
+
+      Close -> do
+        H.modify_ (const initialState) -- wipe the state for safety
+        lift $ system.toggleModal modalId ModalFFI.HideModal
 
 apiCapability :: Capability Aff
 apiCapability =

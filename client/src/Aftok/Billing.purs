@@ -25,21 +25,18 @@ import Aftok.Billing.Create as Create
 import Aftok.Billing.PaymentRequest as PaymentRequest
 import Aftok.ProjectList as ProjectList
 import Aftok.Types (System, ProjectId)
-import Aftok.Api.Types (APIError(..), Zip321Request(..))
+import Aftok.Api.Types (APIError(..))
 import Aftok.Api.Project (Project)
 import Aftok.Api.Billing
   ( BillableId
   , Billable
   , PaymentRequestId
   , PaymentRequest
-  , PaymentRequest'(..)
   , listProjectBillables
   , listUnpaidPaymentRequests
   , recurrenceStr
   )
 import Aftok.HTML.Classes as C
-import Aftok.Modals as Modals
-import Aftok.Modals.ModalFFI as ModalFFI
 import Aftok.Zcash (toZEC, zecString)
 
 type BillingInput
@@ -54,9 +51,9 @@ type BillingState
 data BillingAction
   = Initialize
   | ProjectSelected Project
-  | BillableCreated (Tuple BillableId Billable)
-  | CreatePaymentRequest BillableId
-  | PaymentRequestCreated (PaymentRequest)
+  | OpenBillableModal ProjectId
+  | BillableCreated BillableId
+  | OpenPaymentRequestModal ProjectId BillableId
 
 type Slot id
   = forall query. H.Slot query ProjectList.Event id
@@ -65,13 +62,11 @@ type Slots
   = ( projectList :: ProjectList.Slot Unit
     , createBillable :: Create.Slot Unit
     , createPaymentRequest :: PaymentRequest.Slot Unit
-    , showPaymentRequest :: PaymentRequest.QrSlot Unit
     )
 
 _projectList = SProxy :: SProxy "projectList"
 _createBillable = SProxy :: SProxy "createBillable"
 _createPaymentRequest = SProxy :: SProxy "createPaymentRequest"
-_showPaymentRequest = SProxy :: SProxy "showPaymentRequest"
 
 type Capability (m :: Type -> Type)
   = { createBillable :: Create.Capability m
@@ -130,29 +125,28 @@ component system caps pcaps =
               [ P.classes (ClassName <$> if isNothing st.selectedProject then [ "collapse" ] else []) ]
               (case st.selectedProject of
                 Just p -> 
-                  [ renderBillableList st.billables
+                  [ renderBillableList (unwrap p).projectId st.billables
                   , HH.div 
                     [ P.classes (ClassName <$> [ "col-md-2" ]) ] 
-                    [ Modals.modalButton "createBillable" "Create billable" Nothing]
+                    [ HH.button
+                      [ P.classes [ C.btn, C.btnPrimary ]
+                      , P.type_ ButtonButton
+                      , E.onClick (\_ -> Just (OpenBillableModal (unwrap p).projectId))
+                      ]
+                      [ HH.text "Create billable" ]
+                    ]
                   , system.portal
                       _createBillable
                       unit
                       (Create.component system caps.createBillable)
-                      (unwrap p).projectId
+                      unit
                       Nothing
-                      (Just <<< BillableCreated)
+                      (\(Create.BillableCreated bid) -> Just (BillableCreated bid))
                   , system.portal
                       _createPaymentRequest
                       unit
                       (PaymentRequest.component system caps.createPaymentRequest)
-                      (unwrap p).projectId
-                      Nothing
-                      (Just <<< PaymentRequestCreated)
-                  , system.portal
-                      _showPaymentRequest
                       unit
-                      (PaymentRequest.qrcomponent system)
-                      Nothing
                       Nothing
                       (const Nothing)
                   ]
@@ -161,8 +155,8 @@ component system caps pcaps =
           ]
       ]
 
-  renderBillableList :: Array (Tuple BillableId Billable) -> H.ComponentHTML BillingAction Slots m
-  renderBillableList billables = 
+  renderBillableList :: ProjectId -> Array (Tuple BillableId Billable) -> H.ComponentHTML BillingAction Slots m
+  renderBillableList pid billables = 
     HH.div
       [ P.classes (ClassName <$> [ "container-fluid" ]) ]
       [ HH.section
@@ -191,9 +185,9 @@ component system caps pcaps =
             [ HH.button
               [ P.classes [ C.btn, C.btnPrimary, C.btnSmall ]
               , P.type_ ButtonButton
-              , E.onClick (\_ -> Just $ CreatePaymentRequest bid)
+              , E.onClick (\_ -> Just $ OpenPaymentRequestModal pid bid)
               ]
-              [ HH.text "New Payment Request" ]
+              [ HH.text "New payment request" ]
             ]
           ]
 
@@ -219,20 +213,15 @@ component system caps pcaps =
               H.raise (ProjectList.ProjectChange p)
               H.modify_ (_ { selectedProject = Just p })
 
+      OpenBillableModal pid -> do
+        void $ H.query _createBillable unit $ H.tell (Create.OpenModal pid)
+
       BillableCreated _ -> do
         currentProject <- H.gets (_.selectedProject)
         traverse_ refreshBillables currentProject
 
-      CreatePaymentRequest bid -> do
-        _ <- H.query _createPaymentRequest unit $ H.tell (PaymentRequest.SetBillableId bid)
-        lift $ system.toggleModal PaymentRequest.modalId ModalFFI.ShowModal
-
-      PaymentRequestCreated (PaymentRequest req) -> do
-        lift $ system.toggleModal PaymentRequest.modalId ModalFFI.HideModal
-        lift $ system.toggleModal PaymentRequest.qrModalId ModalFFI.ShowModal
-        let req' = Zip321Request req.native_request.zip321_request
-        _ <- H.query _showPaymentRequest unit $ H.tell (PaymentRequest.QrRender req')
-        pure unit
+      OpenPaymentRequestModal pid bid -> do
+        void $ H.query _createPaymentRequest unit $ H.tell (PaymentRequest.OpenModal pid bid)
 
     where 
       refreshBillables currentProject = do
