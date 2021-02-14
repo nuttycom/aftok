@@ -112,27 +112,31 @@ projectDetailGetHandler = do
       (snapError 404 $ "Project not found for id " <> show pid)
       (mapMaybeT snapEval $ findUserProject uid pid)
   widx <- snapEval $ readWorkIndex pid uid
+  contributors <- snapEval $ listProjectContributors pid uid
   ptime <- liftIO $ C.getCurrentTime
   let p = payouts (toDepF $ project ^. depRules) ptime widx
-      toContributorRecord = \case
-        (CreditToUser uid', ws) -> do
-          (user, joinedOn') <-
-            fromMaybeT
-              (snapError 500 $ "No user record found for logged-in user.")
-              (mapMaybeT snapEval $ findUserProjectDetail uid' pid)
-          pure . Just . (uid',) $
-            Contributor
-              { _userId = uid',
-                _handle = user ^. username,
-                _joinedOn = joinedOn',
-                _timeDevoted = Hours . (`div` 3600) . round . C.toSeconds' $ ws ^. wsLogged,
-                _revenueShare = ws ^. wsShare
-              }
-        _ -> pure Nothing
+
+      toContributorRecord uid' ws = do
+        (user, joinedOn') <- findUserProjectDetail uid' pid
+        pure $
+          Contributor
+            { _userId = uid',
+              _handle = user ^. username,
+              _joinedOn = joinedOn',
+              _timeDevoted = Hours . (`div` 3600) . round . C.toSeconds' $ ws ^. wsLogged,
+              _revenueShare = ws ^. wsShare
+            }
+
+      findContributorPayouts (uid', h, t) = do
+        let userShares = M.lookup (CreditToUser uid') (p ^. creditToShares)
+            zeroContrib = Contributor uid' h t (Hours 0) 0
+         in (uid',) <$> maybe (pure zeroContrib) (toContributorRecord uid') userShares
   contributorRecords <-
-    fmap (M.fromList . catMaybes)
-      . traverse toContributorRecord
-      $ M.assocs (p ^. creditToShares)
+    fromMaybeT
+      (snapError 500 $ "No user record found for credited user.")
+      . mapMaybeT snapEval
+      . fmap M.fromList
+      $ traverse findContributorPayouts contributors
   pure $
     ProjectDetail
       { _pdProject = project,
