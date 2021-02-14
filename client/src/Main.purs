@@ -195,7 +195,8 @@ component system loginCap signupCap tlCap pCap ovCap bcap =
     LogoutAction -> do
       lift loginCap.logout
       navigate VLogin
-    ProjectAction (ProjectList.ProjectChange p) -> H.modify_ (_ { selectedProject = Just p })
+    ProjectAction (ProjectList.ProjectChange p) -> 
+      H.modify_ (_ { selectedProject = Just p })
 
   handleQuery :: forall a. MainQuery a -> H.HalogenM MainState MainAction Slots output m (Maybe a)
   handleQuery = case _ of

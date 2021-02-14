@@ -69,6 +69,7 @@ component console caps =
               { handleAction = handleAction
               , handleQuery = handleQuery
               , initialize = Just (Initialize Nothing)
+              , receive = Just <<< Initialize
               }
     }
   where
@@ -116,8 +117,12 @@ component console caps =
         Right projects -> H.modify_ (_ { projects = projects, selectedPid = pidMay })
     Select i -> do
       projects <- H.gets (_.projects)
-      lift <<< console.log $ "Selected project index " <> show i
-      traverse_ (\p -> H.raise $ ProjectChange (unwrap p).projectId) (index projects (i - 1))
+      traverse_ projectSelected (index projects (i - 1))
+    where
+      projectSelected p = do
+        let pid = (unwrap p).projectId
+        H.modify_ (_ { selectedPid = Just pid })
+        H.raise $ ProjectChange pid
 
 apiCapability :: Capability Aff
 apiCapability = { listProjects }

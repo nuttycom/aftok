@@ -12,7 +12,7 @@ import Data.DateTime as DT
 import Data.DateTime (DateTime(..), date)
 import Data.DateTime.Instant (Instant, unInstant, fromDateTime, toDateTime)
 import Data.Either (Either(..))
-import Data.Foldable (any, length)
+import Data.Foldable (length)
 import Data.Map as M
 import Data.Maybe (Maybe(..), maybe, isJust, isNothing, fromMaybe)
 import Data.Symbol (SProxy(..))
@@ -20,7 +20,6 @@ import Data.Time.Duration (Milliseconds(..), Hours(..), Days(..))
 import Data.Traversable (traverse_, traverse)
 import Data.Tuple (Tuple(..))
 import Data.Unfoldable as U
--- import Text.Format as F -- (format, zeroFill, width)
 import Effect.Aff as Aff
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
@@ -99,7 +98,7 @@ type TimelineState
 
 data TimelineAction
   = Initialize
-  | ProjectSelected ProjectId
+  | ProjectSelected (Maybe ProjectId)
   | Start
   | Stop
   | Refresh
@@ -135,8 +134,9 @@ component system caps pcaps =
     , eval:
         H.mkEval
           $ H.defaultEval
-              { handleAction = eval
+              { handleAction = handleAction
               , initialize = Just Initialize
+              , receive = Just <<< ProjectSelected
               }
     }
   where
@@ -166,7 +166,7 @@ component system caps pcaps =
                   unit
                   (ProjectList.component system pcaps)
                   st.selectedProject
-                  (Just <<< (\(ProjectList.ProjectChange pid) -> ProjectSelected pid))
+                  (Just <<< (\(ProjectList.ProjectChange pid) -> ProjectSelected (Just pid)))
               ]
           , HH.div
               [ P.classes (ClassName <$> if isNothing st.selectedProject then [ "collapse" ] else []) ]
@@ -190,21 +190,20 @@ component system caps pcaps =
           ]
       ]
 
-  eval :: TimelineAction -> H.HalogenM TimelineState TimelineAction Slots ProjectList.Output m Unit
-  eval action = do
+  handleAction :: TimelineAction -> H.HalogenM TimelineState TimelineAction Slots ProjectList.Output m Unit
+  handleAction action = do
     case action of
       Initialize -> do
         void $ H.subscribe caps.timer
         currentProject <- H.gets (_.selectedProject)
         traverse_ setStateForProject currentProject
-      ProjectSelected pid -> do
+      ProjectSelected pidMay -> do
         oldActive <- isJust <$> H.gets (_.active)
         currentProject <- H.gets (_.selectedProject)
-        -- End any active intervals when switching projects.
-        when (oldActive && any (_ /= pid) currentProject)
-          $ (traverse_ logEnd currentProject)
-        H.raise (ProjectList.ProjectChange pid)
-        setStateForProject pid
+        when (currentProject /= pidMay) $ do
+          -- End any active intervals when switching projects.
+          when oldActive $ traverse_ logEnd currentProject
+          traverse_ projectSelected pidMay
       Start -> do
         project <- H.gets (_.selectedProject)
         traverse_ logStart project
@@ -218,6 +217,10 @@ component system caps pcaps =
     active <- H.gets (_.active)
     activeHistory <- lift <<< map (fromMaybe M.empty) <<< runMaybeT $ toHistory system (U.fromMaybe active)
     H.modify_ (_ { activeHistory = activeHistory })
+    where
+      projectSelected pid = do
+        setStateForProject pid
+        H.raise (ProjectList.ProjectChange pid)
 
   logStart :: ProjectId -> H.HalogenM TimelineState TimelineAction Slots ProjectList.Output m Unit
   logStart pid = do

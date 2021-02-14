@@ -8,7 +8,6 @@ import Data.DateTime (DateTime, date)
 import Data.Time.Duration (Hours(..), Days(..))
 import Data.Either (Either(..))
 import Data.Fixed as F
-import Data.Foldable (all)
 import Data.Ratio as R
 import Data.Map as M
 import Data.Maybe (Maybe(..), maybe, isNothing)
@@ -51,7 +50,7 @@ type OverviewState
 
 data OverviewAction
   = Initialize
-  | ProjectSelected ProjectId
+  | ProjectSelected (Maybe ProjectId)
   | OpenCreateModal
   | OpenInviteModal ProjectId
 
@@ -88,7 +87,8 @@ component system caps pcaps =
     , eval:
         H.mkEval
           $ H.defaultEval
-              { handleAction = eval
+              { handleAction = handleAction
+              , receive = Just <<< ProjectSelected
               , initialize = Just Initialize
               }
     }
@@ -117,14 +117,14 @@ component system caps pcaps =
                   unit
                   (ProjectList.component system pcaps)
                   st.selectedProject
-                  (Just <<< (\(ProjectList.ProjectChange p) -> ProjectSelected p))
+                  (Just <<< (\(ProjectList.ProjectChange p) -> ProjectSelected (Just p)))
               , system.portal
                   _projectCreateModal
                   unit
                   (Create.component system caps.createCaps)
                   unit
                   Nothing
-                  (Just <<< (\(Create.ProjectCreated p) -> ProjectSelected p))
+                  (Just <<< (\(Create.ProjectCreated p) -> ProjectSelected (Just p)))
               ]
           , HH.div
               [ P.classes (ClassName <$> if isNothing st.selectedProject then [ "collapse" ] else []) ]
@@ -237,8 +237,8 @@ component system caps pcaps =
   colmd3 :: Maybe String -> H.ComponentHTML OverviewAction Slots m
   colmd3 xs = HH.div [ P.classes (ClassName <$> [ "col-md-3" ]) ] (U.fromMaybe $ HH.text <$> xs)
 
-  eval :: OverviewAction -> H.HalogenM OverviewState OverviewAction Slots ProjectList.Output m Unit
-  eval action = do
+  handleAction :: OverviewAction -> H.HalogenM OverviewState OverviewAction Slots ProjectList.Output m Unit
+  handleAction action = do
     case action of
       Initialize -> do
         currentProject <- H.gets (_.selectedProject)
@@ -247,13 +247,15 @@ component system caps pcaps =
         void <<< H.query _projectCreateModal unit $ H.tell (Create.OpenModal)
       OpenInviteModal pid -> do
         void <<< H.query _invitationModal unit $ H.tell (Invite.OpenModal pid)
-      ProjectSelected pid -> do
+      ProjectSelected pidMay -> do
         currentProject <- H.gets (_.selectedProject)
-        when (all (_ /= pid) currentProject)
-          $ do
-              H.raise (ProjectList.ProjectChange pid)
-              H.modify_ (_ { selectedProject = Just pid })
-              setProjectDetail pid
+        when (currentProject /= pidMay)
+          $ traverse_ projectSelected pidMay
+    where 
+      projectSelected pid = do
+        H.modify_ (_ { selectedProject = Just pid })
+        setProjectDetail pid
+        H.raise (ProjectList.ProjectChange pid)
 
   setProjectDetail :: ProjectId -> H.HalogenM OverviewState OverviewAction Slots ProjectList.Output m Unit
   setProjectDetail pid = do
