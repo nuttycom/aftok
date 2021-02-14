@@ -2,6 +2,7 @@ module Aftok.Overview where
 
 import Prelude
 import Control.Monad.Trans.Class (lift)
+import Data.Array (reverse, sortWith)
 import Data.List as L
 import Data.DateTime (DateTime, date)
 import Data.Time.Duration (Hours(..), Days(..))
@@ -28,11 +29,11 @@ import Halogen.HTML.Properties as P
 import Aftok.HTML.Classes as C
 import Aftok.ProjectList as ProjectList
 import Aftok.Projects.Invite as Invite
+import Aftok.Projects.Create as Create
 import Aftok.Types (System, ProjectId, UserId(..), dateStr)
 import Aftok.Api.Types (APIError)
 import Aftok.Api.Project
-  ( Project
-  , Project'(..)
+  ( Project'(..)
   , ProjectDetail
   , ProjectDetail'(..)
   , DepreciationFn(..)
@@ -41,36 +42,36 @@ import Aftok.Api.Project
   )
 
 type OverviewInput
-  = Maybe Project
+  = Maybe ProjectId
 
 type OverviewState
-  = { selectedProject :: Maybe Project
+  = { selectedProject :: Maybe ProjectId
     , projectDetail :: Maybe ProjectDetail
     }
 
-data Invitation
-  = InviteByEmail String
-  | InviteByZaddr String
-
 data OverviewAction
   = Initialize
-  | ProjectSelected Project
-  | Invite ProjectId
+  | ProjectSelected ProjectId
+  | OpenCreateModal
+  | OpenInviteModal ProjectId
 
 type Slot id
-  = forall query. H.Slot query ProjectList.Event id
+  = forall query. H.Slot query ProjectList.Output id
 
 type Slots
   = ( projectList :: ProjectList.Slot Unit
+    , projectCreateModal :: Create.Slot Unit
     , invitationModal :: Invite.Slot Unit
     )
 
 _projectList = SProxy :: SProxy "projectList"
+_projectCreateModal = SProxy :: SProxy "projectCreateModal"
 _invitationModal = SProxy :: SProxy "invitationModal"
 
 type Capability (m :: Type -> Type)
   = { getProjectDetail :: ProjectId -> m (Either APIError (Maybe ProjectDetail))
     , invitationCaps :: Invite.Capability m
+    , createCaps :: Create.Capability m
     }
 
 component ::
@@ -79,7 +80,7 @@ component ::
   System m ->
   Capability m ->
   ProjectList.Capability m ->
-  H.Component HH.HTML query OverviewInput ProjectList.Event m
+  H.Component HH.HTML query OverviewInput ProjectList.Output m
 component system caps pcaps =
   H.mkComponent
     { initialState
@@ -108,7 +109,7 @@ component system caps pcaps =
               [ P.classes (ClassName <$> [ "mb-0", "font-weight-bold", "text-center" ]) ]
               [ HH.text "Project Overview" ]
           , HH.p
-              [ P.classes (ClassName <$> [ "col-md-5", "text-muted", "text-center", "mx-auto" ]) ]
+              [ P.classes (ClassName <$> [ "text-muted", "text-center", "mx-auto" ]) ]
               [ HH.text "Your project details" ]
           , HH.div_
               [ HH.slot
@@ -117,10 +118,26 @@ component system caps pcaps =
                   (ProjectList.component system pcaps)
                   st.selectedProject
                   (Just <<< (\(ProjectList.ProjectChange p) -> ProjectSelected p))
+              , system.portal
+                  _projectCreateModal
+                  unit
+                  (Create.component system caps.createCaps)
+                  unit
+                  Nothing
+                  (Just <<< (\(Create.ProjectCreated p) -> ProjectSelected p))
               ]
           , HH.div
               [ P.classes (ClassName <$> if isNothing st.selectedProject then [ "collapse" ] else []) ]
               (U.fromMaybe $ projectDetail <$> st.projectDetail)
+          , HH.div 
+              [ P.classes (ClassName <$> [ "pt-6", "mx-auto" ]) ] 
+              [ HH.button
+                [ P.classes [ C.btn, C.btnPrimary ]
+                , P.type_ ButtonButton
+                , E.onClick (\_ -> Just OpenCreateModal)
+                ]
+                [ HH.text "Create a new project" ]
+              ]
           ]
       ]
 
@@ -161,8 +178,13 @@ component system caps pcaps =
                 , colmd3 (Just "Current Revenue Share")
                 ]
             ]
-              <> (contributorCols <$> (L.toUnfoldable $ M.values detail.contributors))
-              <>
+            <> (contributorCols <$> (
+                 reverse 
+                 <<< sortWith ((_.revShare) <<< unwrap) 
+                 <<< L.toUnfoldable 
+                 $ M.values detail.contributors
+               ))
+            <>
             [ HH.div 
               [ P.classes (ClassName <$> [ "row", "pt-3", "font-weight-bold" ]) ]
               [ HH.div 
@@ -170,7 +192,7 @@ component system caps pcaps =
                   [ HH.button
                     [ P.classes [ C.btn, C.btnPrimary ]
                     , P.type_ ButtonButton
-                    , E.onClick (\_ -> Just (Invite project.projectId))
+                    , E.onClick (\_ -> Just (OpenInviteModal project.projectId))
                     ]
                     [ HH.text "Invite a collaborator" ]
                   ]
@@ -215,23 +237,25 @@ component system caps pcaps =
   colmd3 :: Maybe String -> H.ComponentHTML OverviewAction Slots m
   colmd3 xs = HH.div [ P.classes (ClassName <$> [ "col-md-3" ]) ] (U.fromMaybe $ HH.text <$> xs)
 
-  eval :: OverviewAction -> H.HalogenM OverviewState OverviewAction Slots ProjectList.Event m Unit
+  eval :: OverviewAction -> H.HalogenM OverviewState OverviewAction Slots ProjectList.Output m Unit
   eval action = do
     case action of
       Initialize -> do
         currentProject <- H.gets (_.selectedProject)
-        traverse_ (setProjectDetail <<< (\p -> (unwrap p).projectId)) currentProject
-      Invite pid -> do
+        traverse_ setProjectDetail currentProject
+      OpenCreateModal -> do
+        void <<< H.query _projectCreateModal unit $ H.tell (Create.OpenModal)
+      OpenInviteModal pid -> do
         void <<< H.query _invitationModal unit $ H.tell (Invite.OpenModal pid)
-      ProjectSelected p -> do
+      ProjectSelected pid -> do
         currentProject <- H.gets (_.selectedProject)
-        when (all (\p' -> (unwrap p').projectId /= (unwrap p).projectId) currentProject)
+        when (all (_ /= pid) currentProject)
           $ do
-              H.raise (ProjectList.ProjectChange p)
-              H.modify_ (_ { selectedProject = Just p })
-              setProjectDetail (unwrap p).projectId
+              H.raise (ProjectList.ProjectChange pid)
+              H.modify_ (_ { selectedProject = Just pid })
+              setProjectDetail pid
 
-  setProjectDetail :: ProjectId -> H.HalogenM OverviewState OverviewAction Slots ProjectList.Event m Unit
+  setProjectDetail :: ProjectId -> H.HalogenM OverviewState OverviewAction Slots ProjectList.Output m Unit
   setProjectDetail pid = do
     detail <- lift $ caps.getProjectDetail pid
     case detail of
@@ -242,6 +266,7 @@ apiCapability :: Capability Aff
 apiCapability =
   { getProjectDetail: getProjectDetail
   , invitationCaps: Invite.apiCapability
+  , createCaps: Create.apiCapability
   }
 
 mockCapability :: Capability Aff
@@ -271,4 +296,5 @@ mockCapability =
                         }
               }
   , invitationCaps: Invite.apiCapability
+  , createCaps: Create.apiCapability
   }

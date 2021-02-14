@@ -2,20 +2,15 @@ module Aftok.Billing where
 
 import Prelude
 import Control.Monad.Trans.Class (lift)
--- import Data.DateTime (DateTime, date)
 import Data.Either (Either(..))
 import Data.Foldable (all)
 import Data.Maybe (Maybe(..), isNothing)
 import Data.Unfoldable as U
-import Data.Newtype (unwrap)
 import Data.Symbol (SProxy(..))
--- import Data.Time.Duration (Hours(..))
 import Data.Traversable (traverse_)
 import Data.Tuple (Tuple(..))
 import DOM.HTML.Indexed.ButtonType (ButtonType(..))
 import Effect.Aff (Aff)
--- import Effect.Class (liftEffect)
--- import Effect.Now (nowDateTime)
 import Halogen as H
 import Halogen.HTML.Core (ClassName(..))
 import Halogen.HTML as HH
@@ -26,7 +21,6 @@ import Aftok.Billing.PaymentRequest as PaymentRequest
 import Aftok.ProjectList as ProjectList
 import Aftok.Types (System, ProjectId)
 import Aftok.Api.Types (APIError(..))
-import Aftok.Api.Project (Project)
 import Aftok.Api.Billing
   ( BillableId
   , Billable
@@ -40,23 +34,23 @@ import Aftok.HTML.Classes as C
 import Aftok.Zcash (toZEC, zecString)
 
 type BillingInput
-  = Maybe Project
+  = Maybe ProjectId
 
 type BillingState
-  = { selectedProject :: Maybe Project
+  = { selectedProject :: Maybe ProjectId
     , billables :: Array (Tuple BillableId Billable)
     , paymentRequests :: Array (Tuple PaymentRequestId PaymentRequest)
     }
 
 data BillingAction
   = Initialize
-  | ProjectSelected Project
+  | ProjectSelected ProjectId
   | OpenBillableModal ProjectId
   | BillableCreated BillableId
   | OpenPaymentRequestModal ProjectId BillableId
 
 type Slot id
-  = forall query. H.Slot query ProjectList.Event id
+  = forall query. H.Slot query ProjectList.Output id
 
 type Slots
   = ( projectList :: ProjectList.Slot Unit
@@ -81,7 +75,7 @@ component ::
   System m ->
   Capability m ->
   ProjectList.Capability m ->
-  H.Component HH.HTML query BillingInput ProjectList.Event m
+  H.Component HH.HTML query BillingInput ProjectList.Output m
 component system caps pcaps =
   H.mkComponent
     { initialState
@@ -124,14 +118,14 @@ component system caps pcaps =
           , HH.div
               [ P.classes (ClassName <$> if isNothing st.selectedProject then [ "collapse" ] else []) ]
               (case st.selectedProject of
-                Just p -> 
-                  [ renderBillableList (unwrap p).projectId st.billables
+                Just pid -> 
+                  [ renderBillableList pid st.billables
                   , HH.div 
                     [ P.classes (ClassName <$> [ "col-md-2" ]) ] 
                     [ HH.button
                       [ P.classes [ C.btn, C.btnPrimary ]
                       , P.type_ ButtonButton
-                      , E.onClick (\_ -> Just (OpenBillableModal (unwrap p).projectId))
+                      , E.onClick (\_ -> Just (OpenBillableModal pid))
                       ]
                       [ HH.text "Create billable" ]
                     ]
@@ -198,34 +192,33 @@ component system caps pcaps =
   colmd3 :: forall i w. Maybe String -> HH.HTML i  w
   colmd3 xs = HH.div [ P.classes (ClassName <$> [ "col-md-3" ]) ] (U.fromMaybe $ HH.text <$> xs)
 
-  eval :: BillingAction -> H.HalogenM BillingState BillingAction Slots ProjectList.Event m Unit
+  eval :: BillingAction -> H.HalogenM BillingState BillingAction Slots ProjectList.Output m Unit
   eval action = do
     case action of
       Initialize -> do
-        currentProject <- H.gets (_.selectedProject)
-        traverse_ refreshBillables currentProject
+        currentPid <- H.gets (_.selectedProject)
+        traverse_ refreshBillables currentPid
 
-      ProjectSelected p -> do
-        currentProject <- H.gets (_.selectedProject)
-        refreshBillables p
-        when (all (\p' -> (unwrap p').projectId /= (unwrap p).projectId) currentProject)
-          $ do
-              H.raise (ProjectList.ProjectChange p)
-              H.modify_ (_ { selectedProject = Just p })
+      ProjectSelected pid -> do
+        currentPid <- H.gets (_.selectedProject)
+        refreshBillables pid
+        when (all (_ /= pid) currentPid) $ do
+          H.raise (ProjectList.ProjectChange pid)
+          H.modify_ (_ { selectedProject = Just pid })
 
       OpenBillableModal pid -> do
         void $ H.query _createBillable unit $ H.tell (Create.OpenModal pid)
 
       BillableCreated _ -> do
-        currentProject <- H.gets (_.selectedProject)
-        traverse_ refreshBillables currentProject
+        currentPid <- H.gets (_.selectedProject)
+        traverse_ refreshBillables currentPid
 
       OpenPaymentRequestModal pid bid -> do
         void $ H.query _createPaymentRequest unit $ H.tell (PaymentRequest.OpenModal pid bid)
 
     where 
-      refreshBillables currentProject = do
-        billables <- lift $ caps.listProjectBillables (unwrap currentProject).projectId
+      refreshBillables pid = do
+        billables <- lift $ caps.listProjectBillables pid
         case billables of
           Left err -> lift $ system.error (show err)
           Right b -> H.modify_ (_ { billables = b })

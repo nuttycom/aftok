@@ -3,14 +3,15 @@ module Aftok.ProjectList where
 import Prelude
 import Control.Monad.Trans.Class (lift)
 import Data.Array (index)
--- import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
 import Data.Foldable (any)
 import Data.Maybe (Maybe(..), isNothing)
+import Data.Newtype (unwrap)
 import Data.Traversable (traverse_)
 import Effect.Aff (Aff)
 import Aftok.Types
   ( System
+  , ProjectId
   , pidStr
   )
 import Aftok.Api.Types
@@ -28,21 +29,24 @@ import Halogen.HTML.Events as E
 import Halogen.HTML.Properties as P
 
 type Input
-  = Maybe Project
+  = Maybe ProjectId
 
-data Event
-  = ProjectChange Project
+data Query a
+  = ProjectCreated ProjectId a
+
+data Output
+  = ProjectChange ProjectId
 
 type Slot id
-  = forall query. H.Slot query Event id
+  = H.Slot Query Output id
 
 type CState
-  = { selectedProject :: Maybe Project
+  = { selectedPid :: Maybe ProjectId
     , projects :: Array Project
     }
 
 data Action
-  = Initialize
+  = Initialize (Maybe ProjectId)
   | Select Int
 
 type Capability m
@@ -50,11 +54,11 @@ type Capability m
     }
 
 component ::
-  forall query m.
+  forall m.
   Monad m =>
   System m ->
   Capability m ->
-  H.Component HH.HTML query Input Event m
+  H.Component HH.HTML Query Input Output m
 component console caps =
   H.mkComponent
     { initialState
@@ -62,13 +66,14 @@ component console caps =
     , eval:
         H.mkEval
           $ H.defaultEval
-              { handleAction = eval
-              , initialize = Just Initialize
+              { handleAction = handleAction
+              , handleQuery = handleQuery
+              , initialize = Just (Initialize Nothing)
               }
     }
   where
   initialState :: Input -> CState
-  initialState input = { selectedProject: input, projects: [] }
+  initialState input = { selectedPid: input, projects: [] }
 
   render :: forall slots. CState -> H.ComponentHTML Action slots m
   render st =
@@ -84,29 +89,35 @@ component console caps =
           , P.id_ "projectSelect"
           , E.onSelectedIndexChange (Just <<< Select)
           ]
-          ( [ HH.option [ P.selected (isNothing st.selectedProject), P.disabled true ] [ HH.text "Select a project" ] ]
+          ( [ HH.option [ P.selected (isNothing st.selectedPid), P.disabled true ] [ HH.text "Select a project" ] ]
               <> map renderOption st.projects
           )
       ]
     where
     renderOption (Project' p) =
       HH.option
-        [ P.selected (any (\(Project' p') -> p'.projectId == p.projectId) st.selectedProject)
+        [ P.selected (any (p.projectId == _) st.selectedPid)
         , P.value $ pidStr p.projectId
         ]
         [ HH.text p.projectName ]
 
-  eval :: Action -> H.HalogenM CState Action () Event m Unit
-  eval = case _ of
-    Initialize -> do
+  handleQuery :: forall slots a. Query a -> H.HalogenM CState Action slots Output m (Maybe a)
+  handleQuery = case _ of
+    ProjectCreated pid a -> do
+      handleAction (Initialize (Just pid))
+      pure (Just a)
+
+  handleAction :: forall slots. Action -> H.HalogenM CState Action slots Output m Unit
+  handleAction = case _ of
+    Initialize pidMay -> do
       res <- lift caps.listProjects
       case res of
         Left _ -> lift <<< console.error $ "Could not retrieve project list."
-        Right projects -> H.modify_ (_ { projects = projects })
+        Right projects -> H.modify_ (_ { projects = projects, selectedPid = pidMay })
     Select i -> do
       projects <- H.gets (_.projects)
       lift <<< console.log $ "Selected project index " <> show i
-      traverse_ (H.raise <<< ProjectChange) (index projects (i - 1))
+      traverse_ (\p -> H.raise $ ProjectChange (unwrap p).projectId) (index projects (i - 1))
 
 apiCapability :: Capability Aff
 apiCapability = { listProjects }

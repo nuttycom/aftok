@@ -19,10 +19,9 @@ import Halogen.HTML.Properties as P
 import Routing (match)
 import Routing.Hash (matchesWith)
 import Routing.Match (Match, lit)
-import Aftok.Types (System, liveSystem)
+import Aftok.Types (System, ProjectId, liveSystem)
 import Aftok.Login as Login
 import Aftok.Api.Account as Acc
-import Aftok.Api.Project (Project)
 import Aftok.Billing as Billing
 import Aftok.Signup as Signup
 import Aftok.Timeline as Timeline
@@ -91,14 +90,14 @@ data MainQuery a
 type MainState
   = { view :: View
     , config :: Signup.Config
-    , selectedProject :: Maybe Project
+    , selectedProject :: Maybe ProjectId
     }
 
 data MainAction
   = Initialize
   | LoginAction Login.LoginResult
   | SignupAction Signup.SignupResult
-  | ProjectAction ProjectList.Event
+  | ProjectAction ProjectList.Output
   | LogoutAction
 
 type Slots

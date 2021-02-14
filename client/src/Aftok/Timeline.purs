@@ -15,7 +15,6 @@ import Data.Either (Either(..))
 import Data.Foldable (any, length)
 import Data.Map as M
 import Data.Maybe (Maybe(..), maybe, isJust, isNothing, fromMaybe)
-import Data.Newtype (unwrap)
 import Data.Symbol (SProxy(..))
 import Data.Time.Duration (Milliseconds(..), Hours(..), Days(..))
 import Data.Traversable (traverse_, traverse)
@@ -60,10 +59,6 @@ import Aftok.Types
   , ProjectId
   , dateStr
   )
-import Aftok.Api.Project
-  ( Project
-  , Project'(..)
-  )
 
 type TimelineLimits
   = { bounds :: TimeInterval
@@ -93,10 +88,10 @@ type History
   = M.Map Date DayIntervals
 
 type Input
-  = Maybe Project
+  = Maybe ProjectId
 
 type TimelineState
-  = { selectedProject :: Maybe Project
+  = { selectedProject :: Maybe ProjectId
     , history :: M.Map Date DayIntervals
     , active :: Maybe (Interval TimelineEvent)
     , activeHistory :: M.Map Date DayIntervals
@@ -104,13 +99,13 @@ type TimelineState
 
 data TimelineAction
   = Initialize
-  | ProjectSelected Project
+  | ProjectSelected ProjectId
   | Start
   | Stop
   | Refresh
 
 type Slot id
-  = forall query. H.Slot query ProjectList.Event id
+  = forall query. H.Slot query ProjectList.Output id
 
 type Slots
   = ( projectList :: ProjectList.Slot Unit
@@ -132,7 +127,7 @@ component ::
   System m ->
   Capability m ->
   ProjectList.Capability m ->
-  H.Component HH.HTML query Input ProjectList.Event m
+  H.Component HH.HTML query Input ProjectList.Output m
 component system caps pcaps =
   H.mkComponent
     { initialState
@@ -171,7 +166,7 @@ component system caps pcaps =
                   unit
                   (ProjectList.component system pcaps)
                   st.selectedProject
-                  (Just <<< (\(ProjectList.ProjectChange p) -> ProjectSelected p))
+                  (Just <<< (\(ProjectList.ProjectChange pid) -> ProjectSelected pid))
               ]
           , HH.div
               [ P.classes (ClassName <$> if isNothing st.selectedProject then [ "collapse" ] else []) ]
@@ -195,22 +190,21 @@ component system caps pcaps =
           ]
       ]
 
-  eval :: TimelineAction -> H.HalogenM TimelineState TimelineAction Slots ProjectList.Event m Unit
+  eval :: TimelineAction -> H.HalogenM TimelineState TimelineAction Slots ProjectList.Output m Unit
   eval action = do
     case action of
       Initialize -> do
         void $ H.subscribe caps.timer
         currentProject <- H.gets (_.selectedProject)
         traverse_ setStateForProject currentProject
-      ProjectSelected p -> do
+      ProjectSelected pid -> do
         oldActive <- isJust <$> H.gets (_.active)
         currentProject <- H.gets (_.selectedProject)
         -- End any active intervals when switching projects.
-        when (oldActive && any (\p' -> (unwrap p').projectId /= (unwrap p).projectId) currentProject)
-          $ do
-              (traverse_ logEnd currentProject)
-        H.raise (ProjectList.ProjectChange p)
-        setStateForProject p
+        when (oldActive && any (_ /= pid) currentProject)
+          $ (traverse_ logEnd currentProject)
+        H.raise (ProjectList.ProjectChange pid)
+        setStateForProject pid
       Start -> do
         project <- H.gets (_.selectedProject)
         traverse_ logStart project
@@ -225,16 +219,16 @@ component system caps pcaps =
     activeHistory <- lift <<< map (fromMaybe M.empty) <<< runMaybeT $ toHistory system (U.fromMaybe active)
     H.modify_ (_ { activeHistory = activeHistory })
 
-  logStart :: Project -> H.HalogenM TimelineState TimelineAction Slots ProjectList.Event m Unit
-  logStart (Project' p) = do
-    logged <- lift $ caps.logStart p.projectId
+  logStart :: ProjectId -> H.HalogenM TimelineState TimelineAction Slots ProjectList.Output m Unit
+  logStart pid = do
+    logged <- lift $ caps.logStart pid
     case logged of
       Left err -> lift <<< system.log $ "Failed to start timer: " <> show err
       Right t -> H.modify_ (updateStart t)
 
-  logEnd :: Project -> H.HalogenM TimelineState TimelineAction Slots ProjectList.Event m Unit
-  logEnd (Project' p) = do
-    logged <- lift $ caps.logEnd p.projectId
+  logEnd :: ProjectId -> H.HalogenM TimelineState TimelineAction Slots ProjectList.Output m Unit
+  logEnd pid = do
+    logged <- lift $ caps.logEnd pid
     case logged of
       Left err -> lift <<< system.log $ "Failed to stop timer: " <> show err
       Right t -> do
@@ -242,10 +236,10 @@ component system caps pcaps =
         updatedState <- lift $ updateStop system t currentState
         H.put updatedState
 
-  setStateForProject :: Project -> H.HalogenM TimelineState TimelineAction Slots ProjectList.Event m Unit
-  setStateForProject p = do
+  setStateForProject :: ProjectId -> H.HalogenM TimelineState TimelineAction Slots ProjectList.Output m Unit
+  setStateForProject pid = do
     timeSpan <- TL.Before <$> lift system.nowDateTime -- FIXME, should come from a form control
-    intervals' <- lift $ caps.listIntervals (unwrap p).projectId timeSpan
+    intervals' <- lift $ caps.listIntervals pid timeSpan
     intervals <-
       lift
         $ case intervals' of
@@ -257,7 +251,7 @@ component system caps pcaps =
     hist <- case history' of
       Nothing -> lift $ system.log "Project history was empty." *> pure M.empty
       Just h -> pure h
-    latestEventResponse <- lift $ caps.getLatestEvent (unwrap p).projectId
+    latestEventResponse <- lift $ caps.getLatestEvent pid
     now <- lift $ system.now
     active <-
       lift
@@ -274,7 +268,7 @@ component system caps pcaps =
                       *> (Just <<< interval (LoggedEvent ev) <<< PhantomEvent <$> system.now)
                   TL.StopEvent _ -> pure Nothing
               join <$> traverse activeInterval latestEvent
-    H.modify_ (_ { selectedProject = Just p, history = hist, active = active })
+    H.modify_ (_ { selectedProject = Just pid, history = hist, active = active })
 
 historyLine ::
   forall w i.

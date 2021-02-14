@@ -4,9 +4,9 @@ import Prelude
 import Control.Monad.Except.Trans (ExceptT, runExceptT)
 -- import Control.Monad.Except.Trans (ExceptT, runExceptT, except, withExceptT)
 -- import Control.Monad.Error.Class (throwError)
-import Data.Argonaut.Core (Json, fromString)
+import Data.Argonaut.Core (Json, fromString, jsonEmptyObject)
 import Data.Argonaut.Decode (class DecodeJson, JsonDecodeError(..), decodeJson, (.:))
-import Data.Argonaut.Encode (encodeJson)
+import Data.Argonaut.Encode (encodeJson, (:=), (~>))
 import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant, toDateTime)
 import Data.Either (Either(..))
@@ -221,3 +221,30 @@ invite pid inv = do
   let body = RB.json $ encodeInvitation inv'
   response <- post RF.json ("/api/projects/" <> pidStr pid <> "/invite") (Just body)
   map (\r -> Zip321Request <$> r.zip321_request) <$> parseResponse decodeInvResult response
+
+type ProjectCreateRequest =
+  { projectName :: String
+  , depf :: DepreciationFn
+  }
+
+encodeProjectCreateRequest :: ProjectCreateRequest -> Json
+encodeProjectCreateRequest pc =
+  "projectName" := pc.projectName
+  ~> "depf" := (
+    case pc.depf of
+      LinearDepreciation vs ->
+        encodeJson {
+          "type": "LinearDepreciation",
+          "arguments": { "undep": unwrap vs.undep, dep: unwrap vs.dep }
+        }
+  )
+  ~> jsonEmptyObject
+
+decodeProjectId :: Json -> Either JsonDecodeError ProjectId
+decodeProjectId json = (_ .: "projectId") =<< decodeJson json
+
+createProject :: ProjectCreateRequest -> Aff (Either APIError ProjectId)
+createProject pc = do
+  let body = RB.json $ encodeProjectCreateRequest pc
+  response <- post RF.json "/api/projects/" (Just body)
+  parseResponse decodeProjectId response
