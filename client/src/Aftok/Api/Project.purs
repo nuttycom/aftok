@@ -101,7 +101,8 @@ newtype Contributor' date
   { userId :: UserId
   , handle :: String
   , joinedOn :: date
-  , timeDevoted :: Hours
+  , loggedHours :: Hours
+  , depreciatedHours :: Hours
   , revShare :: Ratio Number
   }
 
@@ -124,13 +125,14 @@ instance decodeJsonContributor :: DecodeJson (Contributor' String) where
     userId <- x .: "userId"
     handle <- x .: "username"
     joinedOn <- x .: "joinedOn"
-    timeDevoted <- Hours <$> x .: "timeDevoted"
+    loggedHours <- Hours <$> x .: "loggedHours"
+    depreciatedHours <- Hours <$> x .: "depreciatedHours"
     revShareObj <- x .: "revenureShare"
     num <- revShareObj .: "numerator"
     den <- revShareObj .: "denominator"
     let
       revShare = num % den
-    pure $ Contributor' { userId, handle, joinedOn, timeDevoted, revShare }
+    pure $ Contributor' { userId, handle, joinedOn, loggedHours, depreciatedHours, revShare }
 
 newtype ProjectDetail' date
   = ProjectDetail'

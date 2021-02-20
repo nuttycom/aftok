@@ -36,6 +36,7 @@ import Aftok.TimeLog
     payouts,
     toDepF,
     wsLogged,
+    wsDepreciated,
     wsShare,
   )
 import Aftok.TimeLog.Serialization (depfFromJSON)
@@ -68,7 +69,8 @@ data Contributor
       { _userId :: UserId,
         _handle :: UserName,
         _joinedOn :: C.UTCTime,
-        _timeDevoted :: Hours,
+        _loggedHours :: Hours,
+        _depreciatedHours :: Hours,
         _revenueShare :: Rational
       }
 
@@ -115,7 +117,6 @@ projectDetailGetHandler = do
   contributors <- snapEval $ listProjectContributors pid uid
   ptime <- liftIO $ C.getCurrentTime
   let p = payouts (toDepF $ project ^. depRules) ptime widx
-
       toContributorRecord uid' ws = do
         (user, joinedOn') <- findUserProjectDetail uid' pid
         pure $
@@ -123,13 +124,13 @@ projectDetailGetHandler = do
             { _userId = uid',
               _handle = user ^. username,
               _joinedOn = joinedOn',
-              _timeDevoted = Hours . (`div` 3600) . round . C.toSeconds' $ ws ^. wsLogged,
+              _loggedHours = Hours . (`div` 3600) . round . C.toSeconds' $ ws ^. wsLogged,
+              _depreciatedHours = Hours . (`div` 3600) . round . C.toSeconds' $ ws ^. wsDepreciated,
               _revenueShare = ws ^. wsShare
             }
-
       findContributorPayouts (uid', h, t) = do
         let userShares = M.lookup (CreditToUser uid') (p ^. creditToShares)
-            zeroContrib = Contributor uid' h t (Hours 0) 0
+            zeroContrib = Contributor uid' h t (Hours 0) (Hours 0) 0
          in (uid',) <$> maybe (pure zeroContrib) (toContributorRecord uid') userShares
   contributorRecords <-
     fromMaybeT
@@ -299,7 +300,8 @@ contributorJSON c =
     [ "userId" .= idValue _UserId (c ^. userId),
       "username" .= (c ^. handle . _UserName),
       "joinedOn" .= (c ^. joinedOn),
-      "timeDevoted" .= (c ^. timeDevoted . (to fromEnum)),
+      "loggedHours" .= (c ^. loggedHours . (to fromEnum)),
+      "depreciatedHours" .= (c ^. depreciatedHours . (to fromEnum)),
       "revenureShare"
         .= object
           [ "numerator" .= (c ^. revenueShare . (to numerator)),

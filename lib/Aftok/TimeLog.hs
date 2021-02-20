@@ -111,6 +111,7 @@ data WorkShare a
         _wsDepreciated :: NDT,
         _wsShare :: a
       }
+  deriving (Show, Eq)
 
 makeLenses ''WorkShare
 
@@ -119,6 +120,7 @@ data WorkShares
       { _loggedTotal :: NDT,
         _creditToShares :: Map CreditTo (WorkShare Rational)
       }
+  deriving (Show, Eq)
 
 makeLenses ''WorkShares
 
@@ -166,7 +168,10 @@ linearDepreciation firstRevenue undepDays depDays =
       depPercentage intervalAge =
         if intervalAge < undepLength
           then 1
-          else max 0 (1 - (C.toSeconds (intervalAge ^-^ undepLength) / C.toSeconds depLength))
+          else
+            if depLength == 0
+              then 0
+              else max 0 (1 - (C.toSeconds (intervalAge ^-^ undepLength) / C.toSeconds depLength))
    in \payoutDate ival ->
         let ivalEnd = case firstRevenue of
               -- if the end of the interval was before first revenue, count it as
@@ -194,7 +199,12 @@ payouts depf payoutDate (WorkIndex widx) =
         let (logged, depreciated) = workCredit depf payoutDate ivals
          in (total ^+^ depreciated, WorkShare logged depreciated ())
       (totalTime, keyTimes) = MS.mapAccum addIntervalDiff zeroV widx
-      withShareFraction t = t & wsShare .~ (C.toSeconds (t ^. wsDepreciated) / C.toSeconds totalTime)
+      withShareFraction t =
+        t & wsShare .~ (
+          if totalTime == 0
+            then 0
+            else (C.toSeconds (t ^. wsDepreciated) / C.toSeconds totalTime)
+        )
    in WorkShares totalTime (fmap withShareFraction keyTimes)
 
 workIndex :: (Foldable f, HasLogEntry le, Ord o) => (le -> o) -> f le -> WorkIndex le

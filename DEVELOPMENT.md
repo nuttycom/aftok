@@ -112,13 +112,11 @@ At this point, the `aftok-db` container should be the only one that's running;
 the other two will have failed on startup.
 
 Assuming that you have such a dump at `local/postgres/db-dumps/aftok.dump`, use the
-following commands to initialize the database. The postgres user's password is
-specified in the docker-compose file.
+`deploy/dbinit.sh` script to initialize the database. The postgres user's password 
+can be specified in the docker-compose file.
 
 ~~~bash
-createuser -h localhost -U postgres -W -P aftok
-createdb -h localhost -U postgres -W -O aftok aftok 
-psql -h localhost -U aftok -W aftok < local/postgres/db-dumps/aftok.dump
+./deploy/dbinit.sh local/postgres/db-dumps/aftok.dump
 ~~~
 
 Now, you should be able to shut down docker-compose using ^C and 

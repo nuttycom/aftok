@@ -78,7 +78,7 @@ services:
       POSTGRES_PASSWORD: "postgres"
     volumes:
       - type: volume
-        source: aftok-data
+        source: v_aftok-data
         target: /var/lib/postgresql/data
       - type: bind
         source: ./local/postgres/db-dumps
@@ -106,7 +106,7 @@ services:
       - back-tier
 
 volumes:
-  aftok-data:
+  v_aftok-data:
   v_aftok-client:
 
 networks:

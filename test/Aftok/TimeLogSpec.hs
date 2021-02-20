@@ -12,7 +12,7 @@ where
 import Aftok.Generators (genUUID)
 import qualified Aftok.Interval as I
 import Aftok.TimeLog
-import Aftok.Types (DepreciationFunction (..), UserId (..))
+import Aftok.Types (DepreciationFunction (..), DepreciationRules (..), UserId (..))
 import Control.Lens ((^.), to, view)
 import Data.AffineSpace ((.+^))
 import Data.List (head, tail)
@@ -22,6 +22,7 @@ import Data.Maybe (fromJust)
 import Data.Ratio ((%))
 import qualified Data.Thyme.Clock as C
 import qualified Data.Thyme.Time as C
+import qualified Data.UUID as U
 import Data.Time.ISO8601
 import Test.Hspec
 import Test.QuickCheck (Gen, arbitrary, choose, forAll, listOf, sample', suchThat)
@@ -125,16 +126,37 @@ spec = do
                   (u2, L.fromList $ take 120 intervals)
                 ]
           -- for this test we'll be entirely within undepreciated period
-          depf = toDepF $ LinearDepreciation 180 1800
+          depf = toDepF $ DepreciationRules (LinearDepreciation 180 1800) Nothing
           evalTime = I._start . head $ drop 120 intervals
           shares = payouts depf evalTime widx
       (shares ^. loggedTotal `shouldBe` (fromInteger @C.NominalDiffTime (3600 * 160)))
       (shares ^. creditToShares . to (fromJust . M.lookup u0) . wsShare) `shouldBe` (10 % 160)
       (shares ^. creditToShares . to (fromJust . M.lookup u1) . wsShare) `shouldBe` (30 % 160)
       (shares ^. creditToShares . to (fromJust . M.lookup u2) . wsShare) `shouldBe` (120 % 160)
+    it "correctly handles fully depreciated work intervals" $ do
+      now <- C.getCurrentTime
+      let depf = toDepF $ DepreciationRules (LinearDepreciation 6 2) Nothing
+          raw = [
+            ("b3ff64b7-6699-45f2-acee-38751325bf46", StartWork, "2021-02-09T15:52:13.434308+00"),
+            ("b3ff64b7-6699-45f2-acee-38751325bf46", StopWork,  "2021-02-09T16:12:32.936579+00"),
+            ("d56ae5bd-8892-44c6-9a02-f6a8aca8636e", StartWork, "2021-02-09T16:23:10.637749+00"),
+            ("d56ae5bd-8892-44c6-9a02-f6a8aca8636e", StopWork,  "2021-02-09T16:27:00.082747+00"),
+            ("d56ae5bd-8892-44c6-9a02-f6a8aca8636e", StartWork, "2021-02-09T16:29:10.119337+00"),
+            ("d56ae5bd-8892-44c6-9a02-f6a8aca8636e", StopWork,  "2021-02-09T18:54:26.778107+00")]
+          toEvent :: (String, C.UTCTime -> LogEvent, String) -> Maybe LogEntry
+          toEvent (uuid, f, t) =
+            LogEntry <$> (CreditToUser . UserId <$> U.fromString uuid)
+                     <*> (f . C.toThyme <$> parseISO8601 t)
+                     <*> pure Nothing
+          events = catMaybes $ fmap toEvent raw
+          widx = workIndex (view event) events
+          p = payouts depf now widx
+      p `shouldBe` WorkShares 0 M.empty
+
+
   describe "depreciation functions" $ do
     it "computes linear depreciation" $ do
-      let depf = linearDepreciation 10 100
+      let depf fr = linearDepreciation fr 10 100
           hour = fromInteger (60 * 60)
           t0 :: C.UTCTime = C.toThyme . fromJust $ parseISO8601 "2014-01-01T00:08:00Z"
           ival = I.Interval (t0 .+^ negate hour) t0

@@ -174,8 +174,9 @@ component system caps pcaps =
                 [ P.classes (ClassName <$> [ "row", "pt-3", "font-weight-bold" ]) ]
                 [ colmd2 (Just "Contributor")
                 , colmd2 (Just "Joined")
-                , colmd3 (Just "Contributed Hours")
-                , colmd3 (Just "Current Revenue Share")
+                , colmd2 (Just "Contributed")
+                , colmd3 (Just "After Depreciation")
+                , colmd3 (Just "Revenue Share")
                 ]
             ]
             <> (contributorCols <$> (
@@ -226,7 +227,8 @@ component system caps pcaps =
         [ P.classes (ClassName <$> [ "row", "pt-3", "pb-2" ]) ]
         [ colmd2 (Just pud.handle)
         , colmd2 (Just $ dateStr (date pud.joinedOn))
-        , colmd3 (Just $ show (unwrap pud.timeDevoted))
+        , colmd2 (Just $ show (unwrap pud.loggedHours) <> " hours")
+        , colmd3 (Just $ show (unwrap pud.depreciatedHours) <> " hours")
         , colmd3 (Just $ pct <> "%")
         ]
 
@@ -293,7 +295,8 @@ mockCapability =
                         { userId: uid
                         , handle: "Joe"
                         , joinedOn: t
-                        , timeDevoted: Hours 100.0
+                        , loggedHours: Hours 100.0
+                        , depreciatedHours: Hours 75.0
                         , revShare: 55.0 R.% 100.0
                         }
               }
