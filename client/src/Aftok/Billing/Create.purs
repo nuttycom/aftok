@@ -7,13 +7,13 @@ import Aftok.Api.Types (APIError(..))
 import Aftok.HTML.Classes as C
 import Aftok.Modals.ModalFFI as ModalFFI
 import Aftok.Types (System, ProjectId)
-import Aftok.Zcash (ZEC(..), toZatoshi)
+import Aftok.Zcash (ZEC(..), toZatoshi, ZPrec)
 import Control.Monad.Trans.Class (lift)
 import Data.Either (Either(..), note)
 import Data.Fixed as Fixed
 import Data.Foldable (any)
 import Data.Int as Int
-import Data.Maybe (Maybe(..), maybe)
+import Data.Maybe (Maybe(..), maybe, fromMaybe)
 import Data.Newtype (unwrap)
 import Data.Number (fromString) as Number
 import Data.Number.Format (toString) as Number
@@ -58,7 +58,7 @@ type CState =
   , message :: Maybe String
   , recurrenceType :: RType
   , recurrenceValue :: Maybe Int
-  , amount :: Maybe ZEC
+  , amount :: Maybe String
   , gracePeriod :: Maybe Days
   , requestExpiry :: Maybe Hours
   , fieldErrors :: Array Field
@@ -67,7 +67,7 @@ type CState =
 data Query a
   = OpenModal ProjectId a
 
-data Output 
+data Output
   = BillableCreated BillableId
 
 data Action
@@ -125,7 +125,7 @@ component system caps =
     }
 
   render :: forall slots. CState -> H.ComponentHTML Action slots m
-  render st = 
+  render st =
     HH.div
       [ P.classes [ C.modal ]
       , P.id_ modalId
@@ -256,7 +256,7 @@ component system caps =
                         [ P.type_ P.InputNumber
                         , P.classes [ C.formControl ]
                         , P.id_ "billableAmount"
-                        , P.value (maybe "" (Fixed.toString <<< unwrap) st.amount)
+                        , P.value (fromMaybe "" st.amount)
                         , P.placeholder "1.0"
                         , P.min 0.0
                         , E.onValueInput (Just <<< SetBillingAmount)
@@ -321,13 +321,13 @@ component system caps =
           ]
         ]
       ]
- 
+
   formGroup :: forall i a. CState -> Array Field -> Array (HH.HTML i a) -> HH.HTML i a
   formGroup st fields body =
     HH.div
      [ P.classes [C.formGroup] ]
      (body <> (fieldError st =<< fields))
- 
+
   formCheckGroup :: forall i a.
     { id :: String
     , checked :: Boolean
@@ -351,7 +351,7 @@ component system caps =
            , P.for id]
            children
        ]
- 
+
   fieldError :: forall i a. CState -> Field -> Array (HH.HTML i a)
   fieldError st field =
     if any (_ == field) st.fieldErrors
@@ -367,10 +367,10 @@ component system caps =
             RequestExpiryField -> err "You must enter a valid number of hours."
        else []
     where
-    err str = 
-      [ HH.div_ 
-        [ HH.span 
-          [ P.classes (ClassName <$> [ "badge", "badge-danger-soft" ]) ] [ HH.text str ] ] 
+    err str =
+      [ HH.div_
+        [ HH.span
+          [ P.classes (ClassName <$> [ "badge", "badge-danger-soft" ]) ] [ HH.text str ] ]
       ]
 
   -- we use a query to initialize, since this is a modal that doesn't actually get unloaded.
@@ -405,10 +405,13 @@ component system caps =
         case Int.fromString dur of
              (Just n) -> H.modify_ (_ { recurrenceType = RTWeekly, recurrenceValue = Just n })
              (Nothing) -> pure unit
-      SetBillingAmount amt ->
+      SetBillingAmount amt -> do
+        curAmount <- H.gets (_.amount)
         case Fixed.fromString amt of
-             (Just zec) -> H.modify_ (_ { amount = Just (ZEC zec) })
-             (Nothing) -> pure unit
+             (Just (_ :: Fixed.Fixed ZPrec)) ->
+                H.modify_ (_ { amount = Just amt })
+             (Nothing) ->
+                H.modify_ (_ { amount = curAmount })
       SetGracePeriod dur ->
         case Number.fromString dur of
              (Just n) -> H.modify_ (_ { gracePeriod = Just (Days n) })
@@ -429,7 +432,8 @@ component system caps =
           RTMonthly -> V <<< maybe (Left [MonthlyRecurrenceField]) (Right <<< Monthly) <$> H.gets (_.recurrenceValue)
           RTWeekly  -> V <<< maybe (Left [WeeklyRecurrenceField]) (Right <<< Weekly) <$> H.gets (_.recurrenceValue)
           RTOneTime -> pure $ V (Right OneTime)
-        zatsV <- V <<< maybe (Left [AmountField]) (Right <<< toZatoshi) <$> H.gets (_.amount)
+        zecStr <- (Fixed.fromString =<< _) <$> H.gets (_.amount)
+        zatsV <- pure $ V (maybe (Left [AmountField]) (Right <<< toZatoshi <<< ZEC) zecStr)
         gperV <- V <<< note [GracePeriodField] <$> H.gets (_.gracePeriod)
         expiryV <- V <<< note [RequestExpiryField] <$> H.gets (_.requestExpiry)
         let toBillable = { name: _
