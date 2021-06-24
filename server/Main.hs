@@ -5,10 +5,10 @@ module Main where
 import Aftok.Auction (_AuctionId)
 import Aftok.Billing (_BillableId, _SubscriptionId)
 import qualified Aftok.Config as C
-import Aftok.Currency.Bitcoin.Payments (_bip70Request)
 import Aftok.Currency.Zcash (rpcValidateZAddr)
 import Aftok.Database.PostgreSQL (QDBM)
 import Aftok.Json
+import Aftok.Payments.Bitcoin.Types (_bip70Request)
 import Aftok.Payments.Types (_PaymentId)
 import Aftok.ServerConfig
 import Aftok.Snaplet

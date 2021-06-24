@@ -86,7 +86,7 @@ services:
       - back-tier
 
         #  zcashd:
-        #    image: electriccoinco/zcashd:v4.5.1-1
+        #    image: electriccoinco/zcashd:v5.4.1
         #    container_name: aftok-zcashd
         #    expose:
         #      - "18232"

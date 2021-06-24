@@ -3,11 +3,14 @@ module Aftok.Billing where
 import Prelude
 import Control.Monad.Trans.Class (lift)
 import Data.Either (Either(..))
+import Data.Foldable (any)
 import Data.Maybe (Maybe(..), isNothing)
 import Data.Unfoldable as U
 import Data.Symbol (SProxy(..))
 import Data.Traversable (traverse_)
 import Data.Tuple (Tuple(..))
+import Data.Map (Map)
+import Data.Map as Map
 import DOM.HTML.Indexed.ButtonType (ButtonType(..))
 import Effect.Aff (Aff)
 import Halogen as H
@@ -38,7 +41,8 @@ type BillingInput
 type BillingState
   = { selectedProject :: Maybe ProjectId
     , billables :: Array (Tuple BillableId Billable)
-    , paymentRequests :: Array (Tuple PaymentRequestId PaymentRequest)
+    , activeRequests :: Map BillableId (Array (Tuple PaymentRequestId PaymentRequest))
+    , selectedBillable :: Maybe BillableId
     }
 
 data BillingAction
@@ -92,7 +96,8 @@ component system caps pcaps =
   initialState input =
     { selectedProject: input
     , billables: []
-    , paymentRequests: []
+    , activeRequests: Map.empty
+    , selectedBillable: Nothing
     }
 
   render :: BillingState -> H.ComponentHTML BillingAction Slots m
@@ -118,10 +123,10 @@ component system caps pcaps =
           , HH.div
               [ P.classes (ClassName <$> if isNothing st.selectedProject then [ "collapse" ] else []) ]
               (case st.selectedProject of
-                Just pid -> 
-                  [ renderBillableList pid st.billables
-                  , HH.div 
-                    [ P.classes (ClassName <$> [ "col-md-2" ]) ] 
+                Just pid ->
+                  [ renderBillableList pid st
+                  , HH.div
+                    [ P.classes (ClassName <$> [ "col-md-2" ]) ]
                     [ HH.button
                       [ P.classes [ C.btn, C.btnPrimary ]
                       , P.type_ ButtonButton
@@ -149,8 +154,11 @@ component system caps pcaps =
           ]
       ]
 
-  renderBillableList :: ProjectId -> Array (Tuple BillableId Billable) -> H.ComponentHTML BillingAction Slots m
-  renderBillableList pid billables = 
+  renderBillableList ::
+    ProjectId ->
+    BillingState ->
+    H.ComponentHTML BillingAction Slots m
+  renderBillableList pid st =
     HH.div
       [ P.classes (ClassName <$> [ "container-fluid" ]) ]
       [ HH.section
@@ -163,19 +171,28 @@ component system caps pcaps =
               , colmd2 (Just "Amount")
               , colmd3 (Just "Recurrence")
               , colmd2 Nothing
-              ] 
-          ] <> (billableRow <$> billables))
+              ]
+          ] <> (billableRows =<< st.billables)
+          )
       ]
     where
-      billableRow (Tuple bid b) = 
-        HH.div
+      billableRows (Tuple bid b) =
+        let paymentRequestRow (Tuple prid preq) =
+              HH.div
+                [ P.classes (ClassName <$> [ "row", "border-top" ]) ]
+                [ colmd2 Nothing
+                , colmd2 (Just b.description)
+                , colmd2 (Just (zecString <<< toZEC $ b.amount))
+                , colmd3 (Just (recurrenceStr b.recurrence))
+                ]
+         in [ HH.div
           [ P.classes (ClassName <$> [ "row", "border-top" ]) ]
           [ colmd2 (Just b.name)
           , colmd2 (Just b.description)
           , colmd2 (Just (zecString <<< toZEC $ b.amount))
           , colmd3 (Just (recurrenceStr b.recurrence))
-          , HH.div 
-            [ P.classes (ClassName <$> [ "col-md-2" ]) ] 
+          , HH.div
+            [ P.classes (ClassName <$> [ "col-md-2" ]) ]
             [ HH.button
               [ P.classes [ C.btn, C.btnPrimary, C.btnSmall ]
               , P.type_ ButtonButton
@@ -184,6 +201,12 @@ component system caps pcaps =
               [ HH.text "New payment request" ]
             ]
           ]
+        ] <>
+        ( if any ((==) bid) st.selectedBillable
+            then paymentRequestRow <$> (join $ U.fromMaybe (Map.lookup bid st.activeRequests))
+            else
+              []
+        )
 
   colmd2 :: forall i w. Maybe String -> HH.HTML i  w
   colmd2 xs = HH.div [ P.classes (ClassName <$> [ "col-md-2"]) ] (U.fromMaybe $ HH.text <$> xs)
@@ -202,7 +225,7 @@ component system caps pcaps =
       ProjectSelected pidMay -> do
         currentPid <- H.gets (_.selectedProject)
         traverse_ refreshBillables pidMay
-        when (currentPid /= pidMay) 
+        when (currentPid /= pidMay)
           $ traverse_ projectSelected pidMay
 
       OpenBillableModal pid -> do
@@ -215,7 +238,7 @@ component system caps pcaps =
       OpenPaymentRequestModal pid bid -> do
         void $ H.query _createPaymentRequest unit $ H.tell (PaymentRequest.OpenModal pid bid)
 
-    where 
+    where
       projectSelected pid = do
         H.modify_ (_ { selectedProject = Just pid })
         H.raise (ProjectList.ProjectChange pid)

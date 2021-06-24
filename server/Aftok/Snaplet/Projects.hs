@@ -21,9 +21,9 @@ where
 
 import Aftok.Config
 import qualified Aftok.Currency.Zcash as Zcash
-import qualified Aftok.Currency.Zcash.Zip321 as Zip321
 import Aftok.Database
 import Aftok.Json (creditToJSON, idValue, identifiedJSON, obj, v1)
+import qualified Aftok.Payments.Zcash.Zip321 as Zip321
 import Aftok.Project
 import Aftok.ServerConfig as QC
 import Aftok.Snaplet

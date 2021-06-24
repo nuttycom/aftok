@@ -4,12 +4,12 @@ module Aftok.Config where
 
 import qualified Aftok.Billing as B
 import Aftok.Currency.Bitcoin (NetworkMode, Satoshi (..))
-import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
 import Aftok.Currency.Zcash (Zatoshi (..))
 import Aftok.Currency.Zcash.Types (Memo (..))
 import Aftok.Database (MonadDB, findProjectOrError)
 import Aftok.Payments (PaymentsConfig (..))
 import qualified Aftok.Payments.Bitcoin as Bitcoin
+import Aftok.Payments.Common (PaymentKey (..))
 import qualified Aftok.Payments.Zcash as Zcash
 import Aftok.Project (projectName)
 import Aftok.Types (AccountId)
@@ -188,8 +188,8 @@ _payloadGen _ _ _ = pure Nothing
 _uriGen ::
   Monad m =>
   NS.HostName ->
-  Bitcoin.PaymentKey ->
+  PaymentKey ->
   m (Maybe URI)
-_uriGen hostname (Bitcoin.PaymentKey k) =
+_uriGen hostname (PaymentKey k) =
   let paymentRequestPath = "https://" <> fromString hostname <> "/pay/" <> k
    in pure . parseURI $ show paymentRequestPath

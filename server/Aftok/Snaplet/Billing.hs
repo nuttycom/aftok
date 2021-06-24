@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
 
 module Aftok.Snaplet.Billing
   ( billableCreateHandler,
@@ -19,9 +20,7 @@ import Aftok.Billing
 import qualified Aftok.Billing as B
 import Aftok.Currency (Amount (..), Currency (..))
 import Aftok.Currency.Bitcoin (Satoshi (..))
-import Aftok.Currency.Bitcoin.Bip70 (protoBase64)
-import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
-import Aftok.Currency.Zcash (Zatoshi (..))
+import Aftok.Currency.Zcash (Address (..), Zatoshi (..))
 import Aftok.Database
   ( DBOp (..),
     createBillable,
@@ -48,15 +47,20 @@ import Aftok.Payments
     zcashBillingOps,
     zcashPaymentsConfig,
   )
+import Aftok.Payments.Bitcoin.Bip70 (protoBase64)
+import qualified Aftok.Payments.Bitcoin.Types as Bitcoin
+import Aftok.Payments.Common (_PaymentKey)
 import Aftok.Payments.Types
   ( NativeRequest (..),
     PaymentRequestError (..),
+    RequestMeta (..),
     billable,
     createdAt,
     nativeRequest,
     _PaymentRequestId,
   )
 import qualified Aftok.Payments.Zcash as Zcash
+import qualified Aftok.Payments.Zcash.Types as Zcash
 import Aftok.Snaplet
   ( App,
     qdbmEval,
@@ -68,7 +72,7 @@ import Aftok.Snaplet
   )
 import Aftok.Snaplet.Auth (requireUserId)
 import Aftok.Snaplet.Json (zip321PaymentRequestJSON)
-import Aftok.Types (ProjectId, UserId)
+import Aftok.Types (Email (..), ProjectId, UserId)
 import Control.Lens (to, (.~), (^.))
 import Control.Monad.Trans.Except (mapExceptT)
 import Data.Aeson
@@ -105,6 +109,23 @@ parseCreateBillable uid pid = unversion "Billable" p
         <*> (o .:? "paymentRequestMemoTemplate")
     p ver o = badVersion "Billable" ver o
 
+parseZcashChannelJSON :: Value -> Parser Zcash.Channel
+parseZcashChannelJSON = \case
+  Object o ->
+    (Zcash.EmailChannel . Email <$> o .: "email")
+      <|> (Zcash.MemoChannel . Address <$> o .: "memo")
+  String "web" -> pure Zcash.WebChannel
+  other -> fail $ "Value " <> show other <> " is not a recognized Zcash payment channel encoding."
+
+parseCreatePaymentRequest :: Value -> Parser (Text, RequestMeta Zatoshi)
+parseCreatePaymentRequest = unversion "PaymentRequest" p
+  where
+    p (Version 1 0) o =
+      (,)
+        <$> (o .: "name")
+        <*> (fmap ZcashRequestMeta . parseZcashChannelJSON =<< (o .: "channel"))
+    p ver o = badVersion "PaymentRequest" ver o
+
 billableCreateHandler :: S.Handler App App BillableId
 billableCreateHandler = do
   uid <- requireUserId
@@ -137,6 +158,10 @@ createPaymentRequestHandler cfg = do
   bid <- requireId "billableId" BillableId
   billableMay <- snapEval $ withProjectAuth pid uid (FindBillable bid)
   now <- liftIO C.getCurrentTime
+  requestBody <- readRequestJSON 4096
+  (reqName, reqMeta) <-
+    either (snapError 400 . show) pure $
+      parseEither parseCreatePaymentRequest requestBody
   let billDay = now ^. C._utctDay
   case billableMay of
     -- check that the billable is actually related to the project that the user
@@ -145,7 +170,7 @@ createPaymentRequestHandler cfg = do
       case b ^. B.amount of
         Amount ZEC v -> do
           let ops = Zcash.paymentOps (cfg ^. zcashBillingOps) (cfg ^. zcashPaymentsConfig)
-          res <- runExceptT . mapExceptT qdbmEval $ createPaymentRequest ops now bid (b & B.amount .~ v) billDay
+          res <- runExceptT . mapExceptT qdbmEval $ createPaymentRequest ops now bid (b & B.amount .~ v) reqName reqMeta billDay
           case res of
             Left AmountInvalid -> snapError 400 $ "Invalid payment amount requested."
             Left NoRecipients -> snapError 400 $ "This project has no payable members."
@@ -180,7 +205,7 @@ paymentRequestDetailJSON (rid, (SomePaymentRequest req)) =
       (Zip321Request req') ->
         [ "total" .= (r ^. billable . B.amount . to zatsJSON),
           "expires_at" .= ((r ^. createdAt) .+^ (r ^. billable . B.requestExpiryPeriod)),
-          "native_request" .= zip321PaymentRequestJSON req'
+          "native_request" .= zip321PaymentRequestJSON (req' ^. Zcash.zip321Request)
         ]
       (Bip70Request req') ->
         [ "total" .= (r ^. billable . B.amount . to satsJSON),
@@ -193,7 +218,7 @@ bip70PaymentRequestJSON r =
   v1 . obj $
     [ "bip70_request"
         .= object
-          [ "payment_key" .= (r ^. Bitcoin.paymentRequestKey . Bitcoin._PaymentKey),
+          [ "payment_key" .= (r ^. Bitcoin.paymentRequestKey . _PaymentKey),
             "payment_request_protobuf_64" .= (r ^. Bitcoin.bip70Request . to protoBase64)
           ]
     ]

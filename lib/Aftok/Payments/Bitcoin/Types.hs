@@ -1,10 +1,9 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Aftok.Currency.Bitcoin.Payments
-  ( PaymentKey (..),
-    _PaymentKey,
-    Payment (..),
+module Aftok.Payments.Bitcoin.Types
+  ( Payment (..),
     PaymentRequest (..),
+    Channel (..),
     amount,
     txid,
     address,
@@ -12,22 +11,24 @@ module Aftok.Currency.Bitcoin.Payments
     paymentKey,
     bip70Request,
     paymentRequestKey,
+    paymentRequestChannel,
   )
 where
 
+import Aftok.Payments.Common (PaymentKey)
+import Aftok.Types (Email)
 import qualified Bippy.Proto as B
 import Bippy.Types (Satoshi)
-import Control.Lens (makeLenses, makePrisms)
+import Control.Lens (makeLenses)
 import Haskoin.Address (Address (..))
 
--- A unique identifier for a payment request, suitable
--- for URL embedding.
-newtype PaymentKey = PaymentKey Text deriving (Eq)
-
-makePrisms ''PaymentKey
+data Channel
+  = EmailChannel Email
+  | WebChannel
 
 data PaymentRequest = PaymentRequest
   { _paymentRequestKey :: PaymentKey,
+    _paymentRequestChannel :: Channel,
     _bip70Request :: B.PaymentRequest
   }
 

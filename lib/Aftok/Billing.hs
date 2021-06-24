@@ -5,6 +5,7 @@
 
 module Aftok.Billing where
 
+import Aftok.Currency.Zcash.Types as Zcash
 import Aftok.Types (Email, ProjectId, UserId)
 import Control.Lens (makeLenses, makePrisms, preview, view, _Just)
 import qualified Data.Thyme.Clock as C
@@ -74,6 +75,7 @@ makePrisms ''BillableId
 
 data ContactChannel
   = EmailChannel Email
+  | ZMessageChannel Zcash.Address
 
 -- | An association between a customer and a (potentially recurring) billable amount.
 --

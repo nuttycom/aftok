@@ -14,10 +14,10 @@ import Aftok.Billing
   )
 import Aftok.Currency (Currency (..), Currency' (..))
 import Aftok.Currency.Bitcoin (Satoshi)
-import qualified Aftok.Currency.Bitcoin.Payments as B
 import Aftok.Currency.Zcash (Zatoshi)
-import qualified Aftok.Currency.Zcash.Payments as Z
-import qualified Aftok.Currency.Zcash.Zip321 as Z
+import qualified Aftok.Payments.Bitcoin.Types as B
+import Aftok.Payments.Common (PaymentKey)
+import qualified Aftok.Payments.Zcash.Types as Z
 import Aftok.Types (ProjectId, UserId)
 import Control.Lens
   ( makeLenses,
@@ -51,20 +51,33 @@ zip321Request = \case
   Zip321Request r -> Just r
   _ -> Nothing
 
+paymentRequestKey :: NativeRequest currency -> PaymentKey
+paymentRequestKey = \case
+  Bip70Request r -> B._paymentRequestKey r
+  Zip321Request r -> Z._paymentRequestKey r
+
 data NativePayment currency where
   BitcoinPayment :: B.Payment -> NativePayment Satoshi
   ZcashPayment :: Z.Payment -> NativePayment Zatoshi
 
+data RequestMeta currency where
+  BitcoinRequestMeta :: B.Channel -> RequestMeta Satoshi
+  ZcashRequestMeta :: Z.Channel -> RequestMeta Zatoshi
+  NoMeta :: RequestMeta currency
+
 data PaymentOps currency m = PaymentOps
   { newPaymentRequest ::
       Billable currency -> -- billing information
+      RequestMeta currency -> -- currency-specific request information
       C.Day -> -- payout date (billing date)
       C.UTCTime -> -- timestamp of payment request creation
       m (NativeRequest currency)
   }
 
 data PaymentRequest' (billable :: Type -> Type) currency = PaymentRequest
-  { _billable :: billable currency,
+  { _paymentKey :: PaymentKey,
+    _requestName :: Text,
+    _billable :: billable currency,
     _createdAt :: C.UTCTime,
     _billingDate :: C.Day,
     _nativeRequest :: NativeRequest currency

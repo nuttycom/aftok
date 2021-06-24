@@ -19,11 +19,11 @@ import Aftok.Billing
 import qualified Aftok.Billing as B
 import qualified Aftok.Config as AC
 import Aftok.Currency.Bitcoin (Satoshi, _Satoshi)
-import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
 import qualified Aftok.Database as DB
 import Aftok.Database.PostgreSQL (QDBM (..))
 import qualified Aftok.Payments as P
 import qualified Aftok.Payments.Bitcoin as Bitcoin
+import qualified Aftok.Payments.Bitcoin.Types as BP
 import qualified Aftok.Payments.Types as P
 import Aftok.Project
   ( Project,
@@ -159,7 +159,7 @@ sendPaymentRequestEmail (sub, (_, P.SomePaymentRequest req)) = do
   case req''' ^. P.nativeRequest of
     P.Bip70Request nreq -> do
       let bip70URIGen = Bitcoin.uriGen (pcfg' ^. P.bitcoinBillingOps)
-      bip70URL <- bip70URIGen (nreq ^. Bitcoin.paymentRequestKey)
+      bip70URL <- bip70URIGen (nreq ^. BP.paymentRequestKey)
       mail <- traverse (buildBip70PaymentRequestEmail preqCfg req''') bip70URL
       let mailer =
             maybe
@@ -209,6 +209,8 @@ buildBip70PaymentRequestEmail cfg req paymentUrl = do
     Just template -> do
       toEmail <- case req ^. (P.billable . to getCompose . contactChannel) of
         EmailChannel email -> pure email
+        ZMessageChannel _ ->
+          throwError $ ConfigError "Cannot send BIP70 requests via Zcash memo"
       -- TODO: other channels
       let fromEmail = cfg ^. D.billingFromEmail
           pname = req ^. P.billable . to getCompose . B.billable . B.project . projectName

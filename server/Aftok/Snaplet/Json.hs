@@ -4,8 +4,8 @@ module Aftok.Snaplet.Json
   )
 where
 
-import qualified Aftok.Currency.Zcash.Zip321 as Zip321
 import Aftok.Json (idValue, obj, v1)
+import qualified Aftok.Payments.Zcash.Zip321 as Zip321
 import Control.Lens (Getter)
 import Data.Aeson (Value, toJSON, (.=))
 import Data.Aeson.Key (fromText)

@@ -11,9 +11,9 @@ module Aftok.Database where
 import qualified Aftok.Auction as A
 import Aftok.Billing as B
 import Aftok.Currency (Amount, Currency)
-import Aftok.Currency.Bitcoin.Payments (PaymentKey)
 import qualified Aftok.Currency.Zcash as Zcash
 import Aftok.Interval (RangeQuery)
+import Aftok.Payments.Common (PaymentKey)
 import Aftok.Payments.Types
   ( Payment,
     PaymentId,

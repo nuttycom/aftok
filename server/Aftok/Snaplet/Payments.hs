@@ -9,9 +9,10 @@ where
 
 import Aftok.Billing (SubscriptionId (..))
 import qualified Aftok.Config as AC
-import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
 import Aftok.Database
 import Aftok.Payments
+import qualified Aftok.Payments.Bitcoin.Types as Bitcoin
+import Aftok.Payments.Common (PaymentKey (..), _PaymentKey)
 import Aftok.Payments.Types
   ( NativePayment (..),
     Payment' (..),
@@ -91,10 +92,10 @@ getBip70PaymentRequestHandler = do
 getBip70PaymentRequestHandler' ::
   S.Handler App App (PaymentRequestId, SomePaymentRequestDetail)
 getBip70PaymentRequestHandler' = do
-  pkey <- Bitcoin.PaymentKey . decodeUtf8 <$> requireParam "paymentRequestKey"
+  pkey <- PaymentKey . decodeUtf8 <$> requireParam "paymentRequestKey"
   fromMaybeT
     ( snapError 404 $
         "Outstanding payment request not found for key "
-          <> (view Bitcoin._PaymentKey pkey)
+          <> (view _PaymentKey pkey)
     )
     (mapMaybeT snapEval $ findPaymentRequestByKey pkey)

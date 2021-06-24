@@ -90,10 +90,9 @@
             buildInputs = [
               hspkgs.ormolu
               (pkgs.haskell.lib.dontCheck dbmigrations-postgresql.defaultPackage.${system})
-            ];
-            nativeBuildInputs = [
               pkgs.binutils
               pkgs.openssl
+              pkgs.nodejs-19_x
               pkgs.postgresql
               pkgs.secp256k1
               pkgs.zlib

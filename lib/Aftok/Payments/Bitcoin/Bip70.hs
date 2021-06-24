@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Aftok.Currency.Bitcoin.Bip70
+module Aftok.Payments.Bitcoin.Bip70
   ( module Bippy.Proto,
     protoBase64,
     fromBase64Proto,

@@ -38,12 +38,8 @@ library
                       Aftok.Config
                       Aftok.Currency
                       Aftok.Currency.Bitcoin
-                      Aftok.Currency.Bitcoin.Payments
-                      Aftok.Currency.Bitcoin.Bip70
                       Aftok.Currency.Zcash
                       Aftok.Currency.Zcash.Types
-                      Aftok.Currency.Zcash.Payments
-                      Aftok.Currency.Zcash.Zip321
                       Aftok.Database
                       Aftok.Database.PostgreSQL
                       Aftok.Database.PostgreSQL.Json
@@ -55,10 +51,16 @@ library
                       Aftok.Database.PostgreSQL.Users
                       Aftok.Interval
                       Aftok.Json
+                      Aftok.Orphans
                       Aftok.Payments
+                      Aftok.Payments.Common
                       Aftok.Payments.Types
                       Aftok.Payments.Bitcoin
+                      Aftok.Payments.Bitcoin.Types
+                      Aftok.Payments.Bitcoin.Bip70
                       Aftok.Payments.Zcash
+                      Aftok.Payments.Zcash.Types
+                      Aftok.Payments.Zcash.Zip321
                       Aftok.Payments.Util
                       Aftok.Project
                       Aftok.TimeLog

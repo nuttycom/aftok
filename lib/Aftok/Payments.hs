@@ -15,6 +15,8 @@ import Aftok.Billing
     Subscription',
     SubscriptionId,
     amount,
+    contactChannel,
+    _SubscriptionId,
   )
 import qualified Aftok.Billing as B
 import Aftok.Currency (Amount (..), Currency (..), Currency' (..))
@@ -34,7 +36,10 @@ import Aftok.Database
     raiseSubjectNotFound,
     storePaymentRequest,
   )
+import Aftok.Orphans ()
 import qualified Aftok.Payments.Bitcoin as BTC
+import qualified Aftok.Payments.Bitcoin.Types as BTC
+import Aftok.Payments.Common (randomPaymentKey)
 import Aftok.Payments.Types
   ( NativeRequest (..),
     Payment,
@@ -43,6 +48,7 @@ import Aftok.Payments.Types
     PaymentRequest' (..),
     PaymentRequestDetail,
     PaymentRequestId,
+    RequestMeta (..),
     SomePaymentRequest (..),
     SomePaymentRequestDetail,
     billingDate,
@@ -51,6 +57,7 @@ import Aftok.Payments.Types
   )
 import qualified Aftok.Payments.Types as PT
 import qualified Aftok.Payments.Zcash as Zcash
+import qualified Aftok.Payments.Zcash.Types as Zcash
 import Aftok.Types
   ( UserId,
   )
@@ -70,6 +77,7 @@ import Control.Monad.Except
 import qualified Crypto.Random.Types as CR
 import Data.Thyme.Clock as C
 import Data.Thyme.Time as T
+import qualified Data.UUID as UUID
 import Network.URI ()
 
 data PaymentsConfig m = PaymentsConfig
@@ -126,29 +134,43 @@ createSubscriptionPaymentRequests cfg now (sid, sub) = do
       ExceptT PaymentError m (PaymentRequestId, SomePaymentRequestDetail)
     createPaymentRequest' sub' day =
       let bill = sub' ^. B.billable
+          requestName = "Subscription " <> UUID.toText (sid ^. _SubscriptionId) <> " for "
        in case bill ^. amount of
+            -- BTC bill creation
             Amount BTC sats -> withExceptT BTCPaymentError $ do
               let ops = BTC.paymentOps (cfg ^. bitcoinBillingOps) (cfg ^. bitcoinPaymentsConfig)
                   bill' = bill & amount .~ sats
-              second SomePaymentRequest <$> createPaymentRequest ops now billableId bill' day
+                  reqm = case sub' ^. contactChannel of
+                    B.EmailChannel e -> BitcoinRequestMeta (BTC.EmailChannel e)
+                    _ -> NoMeta
+              second SomePaymentRequest <$> createPaymentRequest ops now billableId bill' requestName reqm day
+            -- Zcash bill creation
             Amount ZEC zats -> withExceptT RequestError $ do
               let ops = Zcash.paymentOps (cfg ^. zcashBillingOps) (cfg ^. zcashPaymentsConfig)
                   bill' = bill & amount .~ zats
-              second SomePaymentRequest <$> createPaymentRequest ops now billableId bill' day
+                  reqm = case sub' ^. contactChannel of
+                    B.EmailChannel e -> ZcashRequestMeta (Zcash.EmailChannel e)
+                    B.ZMessageChannel a -> ZcashRequestMeta (Zcash.MemoChannel a)
+              second SomePaymentRequest <$> createPaymentRequest ops now billableId bill' requestName reqm day
 
 createPaymentRequest ::
-  (MonadDB m) =>
+  (MonadDB m, CR.MonadRandom m) =>
   PaymentOps currency m ->
   C.UTCTime ->
   BillableId ->
   Billable currency ->
+  Text ->
+  RequestMeta currency ->
   T.Day ->
   m (PaymentRequestId, PaymentRequestDetail currency)
-createPaymentRequest ops now billId bill bday = do
-  nativeReq <- newPaymentRequest ops bill bday now
+createPaymentRequest ops now billId bill reqName reqm bday = do
+  nativeReq <- newPaymentRequest ops bill reqm bday now
+  paymentKey <- randomPaymentKey
   let req =
         PaymentRequest
-          { _billable = (Const billId),
+          { _paymentKey = paymentKey,
+            _requestName = reqName,
+            _billable = (Const billId),
             _createdAt = now,
             _billingDate = bday,
             _nativeRequest = nativeReq

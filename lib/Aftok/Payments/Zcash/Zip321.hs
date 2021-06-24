@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Aftok.Currency.Zcash.Zip321 where
+module Aftok.Payments.Zcash.Zip321 where
 
 import Aftok.Currency.Zcash.Types
 import Control.Lens (makeLenses, makePrisms, (^.))

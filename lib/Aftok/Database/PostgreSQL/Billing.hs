@@ -44,14 +44,13 @@ import Aftok.Billing
 import Aftok.Currency (Amount (..), Currency (..))
 import Aftok.Currency.Bitcoin (Satoshi)
 import qualified Aftok.Currency.Bitcoin as Bitcoin
-import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
 import Aftok.Currency.Zcash (Zatoshi)
 import Aftok.Database.PostgreSQL.Json
   ( nativeRequestJSON,
-    parseBip70PaymentRequestJSON,
     parseBitcoinPaymentJSON,
+    parseBitcoinPaymentRequestJSON,
     parseZcashPaymentJSON,
-    parseZip321PaymentRequestJSON,
+    parseZcashPaymentRequestJSON,
     paymentJSON,
   )
 import Aftok.Database.PostgreSQL.Types
@@ -65,6 +64,7 @@ import Aftok.Database.PostgreSQL.Types
     pinsert,
     pquery,
   )
+import Aftok.Payments.Common (PaymentKey (..), _PaymentKey)
 import Aftok.Payments.Types
   ( NativePayment (..),
     NativeRequest (..),
@@ -77,11 +77,13 @@ import Aftok.Payments.Types
     SomePaymentRequest (..),
     SomePaymentRequestDetail,
     billingDate,
-    bip70Request,
     createdAt,
     nativeRequest,
     paymentDate,
+    paymentKey,
     paymentRequest,
+    paymentRequestKey,
+    requestName,
     _PaymentRequestId,
   )
 import Aftok.TimeLog
@@ -95,7 +97,7 @@ import Aftok.Types
     _ProjectId,
     _UserId,
   )
-import Control.Lens (to, view, (.~), (^.), (^?), _Just)
+import Control.Lens (to, view, (.~), (^.))
 import Data.Aeson (encode)
 import Data.Aeson.Types (parseEither)
 import qualified Data.Thyme.Clock as C
@@ -150,26 +152,29 @@ subscriptionParser =
     <*> (C.toThyme <$> field)
     <*> ((fmap C.toThyme) <$> field)
 
-bip70RequestParser :: RowParser (NativeRequest Satoshi)
-bip70RequestParser =
-  Bip70Request <$> ((either (const empty) pure . parseEither parseBip70PaymentRequestJSON) =<< field)
+bitcoinPaymentRequestParser :: RowParser (NativeRequest Satoshi)
+bitcoinPaymentRequestParser =
+  Bip70Request <$> ((either (const empty) pure . parseEither parseBitcoinPaymentRequestJSON) =<< field)
 
-zip321RequestParser :: RowParser (NativeRequest Zatoshi)
-zip321RequestParser =
-  Zip321Request <$> ((either (const empty) pure . parseEither parseZip321PaymentRequestJSON) =<< field)
+zcashPaymentRequestParser :: RowParser (NativeRequest Zatoshi)
+zcashPaymentRequestParser =
+  Zip321Request <$> ((either (const empty) pure . parseEither parseZcashPaymentRequestJSON) =<< field)
 
 paymentRequestDetailParser :: RowParser SomePaymentRequestDetail
 paymentRequestDetailParser = do
   billable <- billableParser
+  reqName :: Text <- field
   ctime :: C.UTCTime <- C.toThyme <$> field
   billDay :: C.Day <- C.toThyme <$> field
   case billable ^. amount of
     (Amount BTC sats) -> do
-      nativeReq <- bip70RequestParser
-      pure . SomePaymentRequest $ PaymentRequest (billable & amount .~ sats) ctime billDay nativeReq
+      nativeReq <- bitcoinPaymentRequestParser
+      let key = paymentRequestKey nativeReq
+      pure . SomePaymentRequest $ PaymentRequest key reqName (billable & amount .~ sats) ctime billDay nativeReq
     (Amount ZEC zats) -> do
-      nativeReq <- zip321RequestParser
-      pure . SomePaymentRequest $ PaymentRequest (billable & amount .~ zats) ctime billDay nativeReq
+      nativeReq <- zcashPaymentRequestParser
+      let key = paymentRequestKey nativeReq
+      pure . SomePaymentRequest $ PaymentRequest key reqName (billable & amount .~ zats) ctime billDay nativeReq
 
 paymentParser :: Bitcoin.NetworkMode -> PaymentRequestId -> Currency a c -> RowParser (Payment c)
 paymentParser nmode prid ccy = do
@@ -301,18 +306,19 @@ storePaymentRequest eid sid req =
   pinsert
     PaymentRequestId
     [sql| INSERT INTO payment_requests
-          (subscription_id, event_id, request_json, url_key, request_time, billing_date)
+          (subscription_id, event_id, request_name, request_time, billing_date, url_key, request_json)
           VALUES (?, ?, ?, ?, ?, ?) RETURNING id |]
     ( (^. _SubscriptionId) <$> sid,
       eid ^. _EventId,
-      req ^. nativeRequest . to nativeRequestJSON,
-      req ^? nativeRequest . to bip70Request . _Just . Bitcoin.paymentRequestKey . Bitcoin._PaymentKey,
+      req ^. requestName,
       req ^. createdAt . to C.fromThyme,
-      req ^. billingDate . to C.fromThyme
+      req ^. billingDate . to C.fromThyme,
+      req ^. paymentKey . _PaymentKey,
+      req ^. nativeRequest . to nativeRequestJSON
     )
 
-findPaymentRequestByKey :: Bitcoin.PaymentKey -> DBM (Maybe (PaymentRequestId, SomePaymentRequestDetail))
-findPaymentRequestByKey (Bitcoin.PaymentKey k) =
+findPaymentRequestByKey :: PaymentKey -> DBM (Maybe (PaymentRequestId, SomePaymentRequestDetail))
+findPaymentRequestByKey (PaymentKey k) =
   headMay
     <$> pquery
       ((,) <$> idParser PaymentRequestId <*> paymentRequestDetailParser)
@@ -320,8 +326,8 @@ findPaymentRequestByKey (Bitcoin.PaymentKey k) =
         SELECT r.id,
           b.project_id, e.created_by, b.name, b.description, b.recurrence_type,
           b.recurrence_count, b.billing_currency, b.billing_amount, b.grace_period_days,
-          b.payment_request_email_template, b.payment_request_memo_template
-          r.request_time, r.billing_date, r.request_json,
+          b.payment_request_email_template, b.payment_request_memo_template,
+          r.request_name, r.request_time, r.billing_date, r.request_json
         FROM payment_requests r
         JOIN billables b on b.id = s.billable_id
         JOIN aftok_events e on e.id = b.event_id
@@ -338,8 +344,8 @@ findPaymentRequestById (PaymentRequestId prid) =
         SELECT
           b.project_id, e.created_by, b.name, b.description, b.recurrence_type,
           b.recurrence_count, b.billing_currency, b.billing_amount, b.grace_period_days,
-          b.payment_request_email_template, b.payment_request_memo_template
-          r.request_time, r.billing_date, r.request_json,
+          b.payment_request_email_template, b.payment_request_memo_template,
+          r.request_name, r.request_time, r.billing_date, r.request_json
         FROM payment_requests r
         JOIN billables b on b.id = s.billable_id
         JOIN aftok_events e on e.id = b.event_id
@@ -355,8 +361,8 @@ findSubscriptionPaymentRequests sid =
       SELECT r.id,
         b.project_id, e.created_by, b.name, b.description, b.recurrence_type,
         b.recurrence_count, b.billing_currency, b.billing_amount, b.grace_period_days,
-        b.payment_request_email_template, b.payment_request_memo_template
-        r.request_time, r.billing_date, r.request_json,
+        b.payment_request_email_template, b.payment_request_memo_template,
+        r.request_name, r.request_time, r.billing_date, r.request_json
       FROM payment_requests r
       JOIN billables b on b.id = s.billable_id
       JOIN aftok_events e on e.id = b.event_id
@@ -368,11 +374,12 @@ findSubscriptionUnpaidRequests :: SubscriptionId -> DBM [(PaymentRequestId, Some
 findSubscriptionUnpaidRequests sid =
   pquery
     ((,) <$> idParser PaymentRequestId <*> paymentRequestDetailParser)
-    [sql| SELECT r.id,
-             b.project_id, e.created_by, b.name, b.description, b.recurrence_type,
-             b.recurrence_count, b.billing_currency, b.billing_amount, b.grace_period_days,
-             b.payment_request_email_template, b.payment_request_memo_template
-             r.request_time, r.billing_date, r.request_json,
+    [sql|
+      SELECT r.id,
+        b.project_id, e.created_by, b.name, b.description, b.recurrence_type,
+        b.recurrence_count, b.billing_currency, b.billing_amount, b.grace_period_days,
+        b.payment_request_email_template, b.payment_request_memo_template,
+        r.request_name, r.request_time, r.billing_date, r.request_json
       FROM payment_requests r
       JOIN subscriptions s on s.id = r.subscription_id
       JOIN billables b on b.id = s.billable_id
