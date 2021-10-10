@@ -44,6 +44,7 @@ import Aftok.Api.Timeline
   , Interval(..)
   , TimeInterval
   , KeyedEvent
+  , TimelineEventRequest(..)
   , TimeSpan
   , start
   , end
@@ -53,6 +54,7 @@ import Aftok.Api.Timeline
   , keyedEvent
   )
 import Aftok.ProjectList as ProjectList
+import Aftok.Timeline.TimelineEventModal as TimelineEventModal
 import Aftok.Types
   ( System
   , ProjectId
@@ -108,17 +110,24 @@ type Slot id
 
 type Slots
   = ( projectList :: ProjectList.Slot Unit
+    , logEventModal :: TimelineEventModal.Slot Unit
     )
 
 _projectList = SProxy :: SProxy "projectList"
+_logEventModal = SProxy :: SProxy "logEventModal"
 
 type Capability m
   = { timer :: EventSource m TimelineAction
     , logStart :: ProjectId -> m (Either TimelineError (KeyedEvent Instant))
     , logEnd :: ProjectId -> m (Either TimelineError (KeyedEvent Instant))
+    , promptLogStart :: ProjectId -> m (Either TimelineError (TimelineEventRequest Instant))
+    , promptLogEnd :: ProjectId -> m (Either TimelineError (TimelineEventRequest Instant))
     , listIntervals :: ProjectId -> TimeSpan -> m (Either TimelineError (Array (Interval (KeyedEvent Instant))))
     , getLatestEvent :: ProjectId -> m (Either TimelineError (Maybe (KeyedEvent Instant)))
     }
+
+modalId :: String
+modalId = "logEventModal"
 
 component ::
   forall query m.
@@ -187,6 +196,13 @@ component system caps pcaps =
                 ]
                   <> (historyLine <$> reverse (M.toUnfoldable $ unionHistories st.history st.activeHistory))
               )
+          , system.portal
+              _logEventModal
+              unit
+              (TimelineEventModal.component system)
+              unit
+              Nothing
+              (const Nothing)
           ]
       ]
 
@@ -197,6 +213,7 @@ component system caps pcaps =
         void $ H.subscribe caps.timer
         currentProject <- H.gets (_.selectedProject)
         traverse_ setStateForProject currentProject
+
       ProjectSelected pidMay -> do
         oldActive <- isJust <$> H.gets (_.active)
         currentProject <- H.gets (_.selectedProject)
@@ -204,15 +221,19 @@ component system caps pcaps =
           -- End any active intervals when switching projects.
           when oldActive $ traverse_ logEnd currentProject
           traverse_ projectSelected pidMay
+
       Start -> do
-        project <- H.gets (_.selectedProject)
-        traverse_ logStart project
+        pid <- H.gets (_.selectedProject)
+        traverse_ promptLogStart pid
+
       Stop -> do
-        currentProject <- H.gets (_.selectedProject)
-        traverse_ logEnd currentProject
+        pid <- H.gets (_.selectedProject)
+        traverse_ promptLogEnd pid
+
       Refresh -> do
         t <- lift $ system.now
         H.modify_ (refresh t)
+
     -- common updates, irrespective of action
     active <- H.gets (_.active)
     activeHistory <- lift <<< map (fromMaybe M.empty) <<< runMaybeT $ toHistory system (U.fromMaybe active)
@@ -238,6 +259,34 @@ component system caps pcaps =
         currentState <- H.get
         updatedState <- lift $ updateStop system t currentState
         H.put updatedState
+
+  promptLogStart :: ProjectId -> H.HalogenM TimelineState TimelineAction Slots ProjectList.Output m Unit
+  promptLogStart pid = do
+    prompt <- lift $ caps.promptLogStart pid
+    case prompt of
+      Left err -> lift <<< system.log $ "Failed to start timer: " <> show err
+      Right (Legacy t) -> 
+        H.modify_ (updateStart t)
+      Right (ZcashChain req) ->
+        void $ H.query _logEventModal unit 
+          $ H.tell (TimelineEventModal.OpenModal (TimelineEventModal.LogStart req))
+        -- TODO: start a provisional interval that'll get reconciled against
+        -- the chain once it's observed
+
+  promptLogEnd :: ProjectId -> H.HalogenM TimelineState TimelineAction Slots ProjectList.Output m Unit
+  promptLogEnd pid = do
+    prompt <- lift $ caps.promptLogStart pid
+    case prompt of
+      Left err -> lift <<< system.log $ "Failed to stop timer: " <> show err
+      Right (Legacy t) -> do
+        currentState <- H.get
+        updatedState <- lift $ updateStop system t currentState
+        H.put updatedState
+      Right (ZcashChain req) ->
+        void $ H.query _logEventModal unit 
+          $ H.tell (TimelineEventModal.OpenModal (TimelineEventModal.LogEnd req))
+        -- TODO: provisionally close the interval that'll get reconciled against
+        -- the chain once it's observed
 
   setStateForProject :: ProjectId -> H.HalogenM TimelineState TimelineAction Slots ProjectList.Output m Unit
   setStateForProject pid = do
@@ -383,6 +432,8 @@ apiCapability =
   { timer: timer
   , logStart: TL.apiLogStart
   , logEnd: TL.apiLogEnd
+  , promptLogStart: TL.apiNewStartRequest
+  , promptLogEnd: TL.apiNewEndRequest
   , listIntervals: TL.apiListIntervals
   , getLatestEvent: TL.apiLatestEvent
   }
@@ -392,6 +443,8 @@ mockCapability =
   { timer: timer
   , logStart: \_ -> Right <<< keyedEvent "" <<< StartEvent <$> liftEffect now
   , logEnd: \_ -> Right <<< keyedEvent "" <<< StopEvent <$> liftEffect now
+  , promptLogStart: \_ -> Right <<< Legacy <<< keyedEvent "" <<< StartEvent <$> liftEffect now
+  , promptLogEnd: \_ -> Right <<< Legacy <<< keyedEvent "" <<< StopEvent <$> liftEffect now
   , listIntervals: \_ _ -> Right <$> pure []
   , getLatestEvent: \_ -> Right <$> pure Nothing
   }

@@ -25,9 +25,9 @@ import Affjax (get, post)
 import Affjax.RequestBody as RB
 import Affjax.ResponseFormat as RF
 import Data.Argonaut.Encode (encodeJson)
-import Aftok.Types (ProjectId(..), pidStr)
-import Aftok.Api.Types (APIError)
 import Aftok.Api.Json (decompose, parseDatedResponse)
+import Aftok.Api.Types (APIError, Zip321Request(..))
+import Aftok.Types (ProjectId(..), pidStr)
 
 data TimelineError
   = LogFailure (APIError)
@@ -204,6 +204,45 @@ apiLogEnd (ProjectId pid) = do
         case event kev of
           StartEvent _ -> throwError <<< Unexpected $ "Expected stop event, got start."
           StopEvent _ -> pure kev
+
+data TimelineEventRequest t
+  = Legacy (KeyedEvent t)
+  | ZcashChain Zip321Request
+
+derive instance timelineEventRequestFunctor :: Functor TimelineEventRequest
+
+instance timelineEventRequestFoldable :: Foldable TimelineEventRequest where
+  foldr f b = case _ of
+    Legacy ev -> foldr f b ev
+    _ -> b
+  foldl f b = case _ of
+    Legacy ev -> foldl f b ev
+    _ -> b
+  foldMap = foldMapDefaultR
+
+instance timelineEventRequestTraversable :: Traversable TimelineEventRequest where
+  traverse f = case _ of
+    Legacy fa -> Legacy <$> traverse f fa
+    ZcashChain req -> pure $ ZcashChain req
+  sequence = traverse identity
+
+instance decodeTimelineEventRequest :: DecodeJson (TimelineEventRequest String) where
+  decodeJson json = do
+    x <- decodeJson json
+    legacy' <- map Legacy <$> x .:? "legacy"
+    zcash' <- map (ZcashChain <<< Zip321Request) <$> x .:? "zcashZip321"
+    note (TypeMismatch "Only 'legacy' and 'zcashZip321' event requests are supported.")
+      $ (legacy' <|> zcash')
+
+apiNewStartRequest :: ProjectId -> Aff (Either TimelineError (TimelineEventRequest Instant))
+apiNewStartRequest (ProjectId pid) = do
+  response <- post RF.json ("/api/user/projects/" <> UUID.toString pid <> "/newStartRequest") Nothing
+  liftEffect <<< runExceptT $ withExceptT LogFailure $ parseDatedResponse decodeJson response
+
+apiNewEndRequest :: ProjectId -> Aff (Either TimelineError (TimelineEventRequest Instant))
+apiNewEndRequest (ProjectId pid) = do
+  response <- post RF.json ("/api/user/projects/" <> UUID.toString pid <> "/newEndRequest") Nothing
+  liftEffect <<< runExceptT $ withExceptT LogFailure $ parseDatedResponse decodeJson response
 
 newtype ListIntervalsResponse a
   = ListIntervalsResponse

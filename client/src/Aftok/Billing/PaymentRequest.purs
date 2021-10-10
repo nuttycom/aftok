@@ -252,7 +252,7 @@ component system caps =
           H.modify_ (_ { fieldErrors = errors })
     Close -> do 
       H.modify_ (const initialState) -- wipe the state for safety
-      lift $ system.toggleModal "createPaymentRequest" ModalFFI.HideModal
+      lift $ system.toggleModal modalId ModalFFI.HideModal
 
 apiCapability :: Capability Aff
 apiCapability =
