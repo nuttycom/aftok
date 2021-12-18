@@ -99,6 +99,8 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
         serveJSON payoutsJSON $ method GET payoutsHandler
       logWorkRoute f =
         serveJSON extendedLogEntryJSON $ method POST (logWorkHandler f)
+      logRequestRoute f =
+        serveJSON logRequestJSON $ method POST (logRequestHandler f)
       amendEventRoute = serveJSON amendEventResultJSON $ method PUT amendEventHandler
       userEventsRoute =
         serveJSON (fmap keyedLogEntryJSON) $ method GET userEvents
@@ -143,6 +145,8 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
       ("accept_invitation", acceptInviteRoute),
       ("user/projects/:projectId/logStart", logWorkRoute StartWork), -- log_start.sh
       ("user/projects/:projectId/logEnd", logWorkRoute StopWork), -- log_end.sh
+      ("user/projects/:projectId/newStartRequest", logRequestRoute StartWork), -- log_request_start.sh
+      ("user/projects/:projectId/newEndRequest", logRequestRoute StopWork), -- log_request_end.sh
       ("user/projects/:projectId/events", userEventsRoute), -- list_user_events.sh
       ("user/projects/:projectId/workIndex", userWorkIndexRoute), -- list_user_intervals.sh
       ("projects/:projectId/workIndex", projectWorkIndexRoute), -- list_project_intervals.sh

@@ -13,6 +13,7 @@ module Aftok.Database.PostgreSQL.Projects
   )
 where
 
+import qualified Aftok.Currency.Zcash as Z
 import Aftok.Database
   ( InvitedUID,
     InvitingUID,
@@ -28,10 +29,12 @@ import Aftok.Database.PostgreSQL.Types
     utcParser,
   )
 import Aftok.Project
-  ( Invitation (..),
+  ( EventSource (..),
+    Invitation (..),
     InvitationCode,
     Project (..),
     depRules,
+    eventSource,
     inceptionDate,
     initiator,
     projectName,
@@ -58,6 +61,18 @@ import Database.PostgreSQL.Simple.SqlQQ (sql)
 import Safe (headMay)
 import Prelude hiding (null)
 
+eventSourceData :: EventSource -> (Text, Maybe Text)
+eventSourceData = \case
+  UI -> ("ui", Nothing)
+  ZcashMemo ivk -> ("zmemo", Just (Z.ivkText ivk))
+
+eventSourceParser :: RowParser EventSource
+eventSourceParser =
+  (field :: RowParser Text) >>= \case
+    "ui" -> (field :: RowParser Text) *> pure UI
+    "zmemo" -> ZcashMemo . Z.IVK <$> field
+    _ -> empty
+
 projectParser :: RowParser Project
 projectParser =
   Project
@@ -68,6 +83,7 @@ projectParser =
             <$> (unSerDepFunction <$> fieldWith fromJSONField)
             <*> (fmap C.toThyme <$> field)
         )
+    <*> eventSourceParser
 
 invitationParser :: RowParser Invitation
 invitationParser =
@@ -82,13 +98,23 @@ createProject :: Project -> DBM ProjectId
 createProject p =
   pinsert
     ProjectId
-    [sql| INSERT INTO projects (project_name, inception_date, initiator_id, depreciation_fn)
-          VALUES (?, ?, ?, ?) RETURNING id |]
+    [sql| INSERT INTO projects
+          ( project_name,
+            inception_date,
+            initiator_id,
+            depreciation_fn,
+            event_source_type,
+            event_source)
+          VALUES (?, ?, ?, ?, ?) RETURNING id |]
     ( p ^. projectName,
       p ^. (inceptionDate . to C.fromThyme),
       p ^. (initiator . _UserId),
-      toJSON $ p ^. depRules . depf . to SerDepFunction
+      toJSON $ p ^. depRules . depf . to SerDepFunction,
+      esName,
+      esValue
     )
+  where
+    (esName, esValue) = p ^. eventSource . to eventSourceData
 
 listProjects :: DBM [ProjectId]
 listProjects =

@@ -57,6 +57,7 @@ import Aftok.TimeLog
     EventId (..),
     LogEntry (LogEntry),
     LogEvent (..),
+    LogStatus (..),
     WorkIndex,
     creditTo,
     event,
@@ -64,6 +65,8 @@ import Aftok.TimeLog
     eventName,
     leEventTime,
     nameEvent,
+    nameStatus,
+    statusName,
     workIndex,
     _AmendmentId,
     _EventId,
@@ -101,11 +104,26 @@ eventTypeParser f v = do
         )
         v
 
+logStatusParser :: FieldParser LogStatus
+logStatusParser f v = do
+  tn <- typename f
+  if tn /= "status_t"
+    then returnError Incompatible f "column was not of type status_t"
+    else
+      maybe
+        (returnError UnexpectedNull f "log status type may not be null")
+        ( maybe (returnError Incompatible f "unrecognized status type value") pure
+            . nameStatus
+            . decodeUtf8
+        )
+        v
+
 logEntryParser :: RowParser LogEntry
 logEntryParser =
   LogEntry
     <$> creditToParser
     <*> (fieldWith eventTypeParser <*> utcParser)
+    <*> fieldWith logStatusParser
     <*> field
 
 keyedLogEntryParser :: RowParser KeyedLogEntry
@@ -156,14 +174,14 @@ storeEventJSON uid etype v = do
     (fromThyme timestamp, preview (_Just . _UserId) uid, etype, v)
 
 createEvent :: ProjectId -> UserId -> LogEntry -> DBM EventId
-createEvent (ProjectId pid) (UserId uid) (LogEntry c e m) = case c of
+createEvent (ProjectId pid) (UserId uid) (LogEntry c e s m) = case c of
   CreditToAccount aid' -> do
     pinsert
       EventId
       [sql| INSERT INTO work_events
               ( project_id, user_id, credit_to_type, credit_to_account,
-              , event_type, event_time, event_metadata )
-              VALUES (?, ?, ?, ?, ?, ?, ?)
+              , event_type, event_time, event_status, event_metadata )
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
               RETURNING id |]
       ( pid,
         uid,
@@ -171,6 +189,7 @@ createEvent (ProjectId pid) (UserId uid) (LogEntry c e m) = case c of
         aid' ^. _AccountId,
         eventName e,
         fromThyme $ e ^. leEventTime,
+        statusName s,
         m
       )
   CreditToProject pid' ->
@@ -178,8 +197,8 @@ createEvent (ProjectId pid) (UserId uid) (LogEntry c e m) = case c of
       EventId
       [sql| INSERT INTO work_events
               ( project_id, user_id, credit_to_type, credit_to_project_id
-              , event_type, event_time, event_metadata )
-              VALUES (?, ?, ?, ?, ?, ?, ?)
+              , event_type, event_time, event_status, event_metadata )
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
               RETURNING id |]
       ( pid,
         uid,
@@ -187,6 +206,7 @@ createEvent (ProjectId pid) (UserId uid) (LogEntry c e m) = case c of
         pid' ^. _ProjectId,
         eventName e,
         fromThyme $ e ^. leEventTime,
+        statusName s,
         m
       )
   CreditToUser uid' ->
@@ -194,8 +214,8 @@ createEvent (ProjectId pid) (UserId uid) (LogEntry c e m) = case c of
       EventId
       [sql| INSERT INTO work_events
               ( project_id, user_id, credit_to_type, credit_to_user_id
-              , event_type, event_time, event_metadata)
-              VALUES (?, ?, ?, ?, ?, ?, ?)
+              , event_type, event_time, event_status, event_metadata)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
               RETURNING id |]
       ( pid,
         uid,
@@ -203,6 +223,7 @@ createEvent (ProjectId pid) (UserId uid) (LogEntry c e m) = case c of
         uid' ^. _UserId,
         eventName e,
         fromThyme $ e ^. leEventTime,
+        statusName s,
         m
       )
 
@@ -213,7 +234,7 @@ findEvent (EventId eid) = do
       ((,,) <$> idParser ProjectId <*> idParser UserId <*> keyedLogEntryParser)
       [sql| SELECT project_id, user_id, id,
                  credit_to_type, credit_to_account, credit_to_user_id, credit_to_project_id,
-                 event_type, event_time, event_metadata
+                 event_type, event_time, event_status, event_metadata
             FROM work_events
             WHERE id = ?
             AND replacement_id IS NULL
@@ -228,8 +249,7 @@ findEvents (ProjectId pid) (UserId uid) rquery (Limit limit) = do
         keyedLogEntryParser
         [sql| SELECT id, credit_to_type,
                      credit_to_account, credit_to_user_id, credit_to_project_id,
-                     event_type, event_time,
-                     event_metadata
+                     event_type, event_time, event_status, event_metadata
               FROM work_events
               WHERE project_id = ? AND user_id = ? AND event_time <= ?
               AND replacement_id IS NULL
@@ -242,7 +262,7 @@ findEvents (ProjectId pid) (UserId uid) rquery (Limit limit) = do
         keyedLogEntryParser
         [sql| SELECT id, credit_to_type,
                      credit_to_account, credit_to_user_id, credit_to_project_id,
-                     event_type, event_time, event_metadata
+                     event_type, event_time, event_status, event_metadata
               FROM work_events
               WHERE project_id = ? AND user_id = ?
               AND replacement_id IS NULL
@@ -256,7 +276,7 @@ findEvents (ProjectId pid) (UserId uid) rquery (Limit limit) = do
         keyedLogEntryParser
         [sql| SELECT id, credit_to_type,
                      credit_to_account, credit_to_user_id, credit_to_project_id,
-                     event_type, event_time, event_metadata
+                     event_type, event_time, event_status, event_metadata
               FROM work_events
               WHERE project_id = ? AND user_id = ? AND event_time >= ?
               AND replacement_id IS NULL
@@ -269,7 +289,7 @@ findEvents (ProjectId pid) (UserId uid) rquery (Limit limit) = do
         keyedLogEntryParser
         [sql| SELECT id, credit_to_type,
                      credit_to_account, credit_to_user_id, credit_to_project_id,
-                     event_type, event_time, event_metadata
+                     event_type, event_time, event_status, event_metadata
               FROM work_events
               WHERE project_id = ? AND user_id = ?
               AND replacement_id IS NULL
@@ -285,7 +305,7 @@ readWorkIndex (ProjectId pid) = do
       keyedLogEntryParser
       [sql| SELECT id, credit_to_type,
                  credit_to_account, credit_to_user_id, credit_to_project_id,
-                 event_type, event_time, event_metadata
+                 event_type, event_time, event_status, event_metadata
           FROM work_events
           WHERE project_id = ? |]
       (Only pid)

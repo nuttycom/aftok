@@ -75,6 +75,26 @@ logWorkHandler evCtr = do
         pure
         ev
 
+logRequestHandler ::
+  (C.UTCTime -> LogEvent) ->
+  S.Handler App App (ProjectId, UserId, KeyedLogEntry)
+logRequestHandler evCtr = do
+  uid <- requireUserId
+  pid <- requireProjectId
+  timestamp <- liftIO C.getCurrentTime
+  projectMay <- snapEval . runMaybeT $ findUserProject uid pid
+  project <- maybe (snapError 400 "Project not found.") pure projectMay
+  eid <- snapEval $ case _eventSource project of
+    Legacy -> createEvent pid uid (entry timestamp)
+    ZcashChain -> createProvisionalEvent pid uid (evCtr timestamp)
+  ev <- snapEval $ findEvent eid
+  maybe
+    ( snapError 500 $
+        "An error occured retrieving the newly created event record."
+    )
+    pure
+    ev
+
 amendEventHandler :: S.Handler App App (EventId, AmendmentId)
 amendEventHandler = do
   uid <- requireUserId

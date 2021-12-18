@@ -218,11 +218,12 @@ parseId p = fmap (review p) . parseUUID
 parseLogEntry ::
   UserId ->
   (UTCTime -> LogEvent) ->
+  LogStatus ->
   Value ->
   Parser (UTCTime -> LogEntry)
-parseLogEntry uid f = withObject "LogEntry" p
+parseLogEntry uid f leStatus = withObject "LogEntry" p
   where
     p o = do
       creditTo' <- o .:? "creditTo" >>= maybe (pure $ CreditToUser uid) (parseCreditToV2)
       eventMeta' <- o .:? "eventMeta"
-      pure $ \t -> LogEntry creditTo' (f t) eventMeta'
+      pure $ \t -> LogEntry creditTo' (f t) leStatus eventMeta'

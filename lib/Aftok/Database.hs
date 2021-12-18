@@ -260,6 +260,10 @@ createEvent ::
   (MonadDB m) => ProjectId -> UserId -> LogEntry -> m EventId
 createEvent p u l = withProjectAuth p u $ CreateEvent p u l
 
+createProvisionalEvent ::
+  (MonadDB m) => ProjectId -> UserId -> LogEntry -> m EventId
+createProvisionalEvent p u l = withProjectAuth p u $ CreateEvent p u l
+
 amendEvent ::
   (MonadDB m) => UserId -> EventId -> EventAmendment -> m (EventId, AmendmentId)
 amendEvent uid eid a = do

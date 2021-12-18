@@ -7,6 +7,7 @@
 module Aftok.TimeLog
   ( module Aftok.TimeLog,
     CreditTo (..),
+    LogStatus (..),
     _CreditToAccount,
     _CreditToUser,
     _CreditToProject,
@@ -70,9 +71,29 @@ nameEvent = \case
   "stop" -> Just StopWork
   _ -> Nothing
 
+data LogStatus
+  = Provisional
+  | Confirmed
+  | Amended
+  deriving (Show, Eq)
+
+statusName :: LogStatus -> Text
+statusName = \case
+  Provisional -> "provisional"
+  Confirmed -> "confirmed"
+  Amended -> "amended"
+
+nameStatus :: Text -> Maybe LogStatus
+nameStatus = \case
+  "provisional" -> Just Provisional
+  "confirmed" -> Just Confirmed
+  "amended" -> Just Amended
+  _ -> Nothing
+
 data LogEntry = LogEntry
   { _creditTo :: !CreditTo,
     _event :: !LogEvent,
+    _status :: !LogStatus,
     _eventMeta :: !(Maybe A.Value)
   }
   deriving (Show, Eq)

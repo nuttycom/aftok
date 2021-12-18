@@ -7,6 +7,8 @@ module Aftok.Project
     inceptionDate,
     initiator,
     depRules,
+    EventSource (..),
+    eventSource,
     InvitationCode,
     randomInvCode,
     parseInvCode,
@@ -20,6 +22,7 @@ module Aftok.Project
   )
 where
 
+import qualified Aftok.Currency.Zcash as Z
 import Aftok.Types
 import Control.Lens
   ( makeLenses,
@@ -29,16 +32,22 @@ import Crypto.Random.Types
   ( MonadRandom,
     getRandomBytes,
   )
-import Data.ByteString.Base64.URL as B64
-import Data.Thyme.Clock as C
+import qualified Data.ByteString.Base64.URL as B64
+import qualified Data.Thyme.Clock as C
 
 type ProjectName = Text
+
+data EventSource
+  = UI
+  | ZcashMemo Z.IVK
+  deriving (Eq, Show)
 
 data Project = Project
   { _projectName :: ProjectName,
     _inceptionDate :: C.UTCTime,
     _initiator :: UserId,
-    _depRules :: DepreciationRules
+    _depRules :: DepreciationRules,
+    _eventSource :: EventSource
   }
 
 makeLenses ''Project
