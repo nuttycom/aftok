@@ -17,6 +17,7 @@ pkgs.stdenv.mkDerivation{
     pkgs.cacert
     pkgs.ghc
     pkgs.git
+    pkgs.curl
     pkgs.nodejs
     pkgs.pkg-config
     pkgs.purescript
