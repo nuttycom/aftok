@@ -44,9 +44,9 @@ import Aftok.Types
     ProjectId (..),
     UserId (..),
     UserName (..),
+    depf,
     _ProjectId,
     _UserId,
-    depf,
   )
 import Control.Lens
 import Data.Aeson (toJSON)

@@ -15,9 +15,9 @@ import Aftok.Project (projectName)
 import Aftok.Types (AccountId)
 import qualified Bippy.Types as BT
 import Control.Lens
-  ( (^.),
-    makeLenses,
+  ( makeLenses,
     traverseOf,
+    (^.),
   )
 import Crypto.Random.Types
   ( MonadRandom,
@@ -58,13 +58,12 @@ readConnectInfo cfg =
     <*> C.require cfg "password"
     <*> C.require cfg "database"
 
-data SmtpConfig
-  = SmtpConfig
-      { _smtpHost :: NS.HostName,
-        _smtpPort :: Maybe NS.PortNumber,
-        _smtpUser :: SMTP.UserName,
-        _smtpPass :: SMTP.Password
-      }
+data SmtpConfig = SmtpConfig
+  { _smtpHost :: NS.HostName,
+    _smtpPort :: Maybe NS.PortNumber,
+    _smtpUser :: SMTP.UserName,
+    _smtpPass :: SMTP.Password
+  }
 
 makeLenses ''SmtpConfig
 
@@ -76,23 +75,21 @@ readSmtpConfig cfg =
     <*> C.require cfg "smtpUser"
     <*> C.require cfg "smtpKey"
 
-data BitcoinConfig
-  = BitcoinConfig
-      { _networkMode :: NetworkMode,
-        _signingKeyFile :: P.FilePath,
-        _certsFile :: P.FilePath,
-        _exchangeRateServiceURI :: String,
-        _minPayment :: Satoshi,
-        _bip70Host :: NS.HostName
-      }
+data BitcoinConfig = BitcoinConfig
+  { _networkMode :: NetworkMode,
+    _signingKeyFile :: P.FilePath,
+    _certsFile :: P.FilePath,
+    _exchangeRateServiceURI :: String,
+    _minPayment :: Satoshi,
+    _bip70Host :: NS.HostName
+  }
 
 makeLenses ''BitcoinConfig
 
-data BillingConfig
-  = BillingConfig
-      { _bitcoinConfig :: BitcoinConfig,
-        _zcashConfig :: Zcash.PaymentsConfig
-      }
+data BillingConfig = BillingConfig
+  { _bitcoinConfig :: BitcoinConfig,
+    _zcashConfig :: Zcash.PaymentsConfig
+  }
 
 makeLenses ''BillingConfig
 

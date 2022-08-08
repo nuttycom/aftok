@@ -20,8 +20,8 @@ module Aftok.Interval
 where
 
 import Control.Lens
-  ( (^.),
-    makeLenses,
+  ( makeLenses,
+    (^.),
   )
 import Data.Aeson
 import Data.Aeson.Types
@@ -30,11 +30,10 @@ import Data.Thyme.Clock as C
 import Data.Thyme.Format.Aeson ()
 import Data.Thyme.LocalTime ()
 
-data Interval t
-  = Interval
-      { _start :: t,
-        _end :: t
-      }
+data Interval t = Interval
+  { _start :: t,
+    _end :: t
+  }
   deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 makeLenses ''Interval

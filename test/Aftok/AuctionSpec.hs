@@ -84,11 +84,11 @@ spec = do
             InsufficientBids _ ->
               assertFailure
                 "Sufficinent bids were presented, but auction algorithm asserted otherwise."
-    it "ensures that the raise amount is fully consumed by the winning bids"
-      $ forAll ((,) <$> arbitrarySatoshi btc <*> listOf genBid)
-      $ \(raiseAmount', bids) -> case runAuction' raiseAmount' bids of
-        WinningBids xs -> bidsTotal xs == raiseAmount'
-        InsufficientBids t -> t == (raiseAmount' `subs` bidsTotal bids)
+    it "ensures that the raise amount is fully consumed by the winning bids" $
+      forAll ((,) <$> arbitrarySatoshi btc <*> listOf genBid) $
+        \(raiseAmount', bids) -> case runAuction' raiseAmount' bids of
+          WinningBids xs -> bidsTotal xs == raiseAmount'
+          InsufficientBids t -> t == (raiseAmount' `subs` bidsTotal bids)
 
 main :: IO ()
 main = hspec spec

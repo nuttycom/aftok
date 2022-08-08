@@ -9,10 +9,9 @@ newtype TxId = TxId Text
 
 makePrisms ''TxId
 
-data Payment
-  = Payment
-      { _amount :: Zatoshi,
-        _txid :: TxId
-      }
+data Payment = Payment
+  { _amount :: Zatoshi,
+    _txid :: TxId
+  }
 
 makeLenses ''Payment

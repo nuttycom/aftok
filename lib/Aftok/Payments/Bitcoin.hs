@@ -13,8 +13,8 @@ import Aftok.Billing
 import Aftok.Currency (Currency (BTC))
 import Aftok.Currency.Bitcoin
   ( NetworkMode,
-    _Satoshi,
     getNetwork,
+    _Satoshi,
   )
 import Aftok.Currency.Bitcoin.Payments (PaymentKey (..), PaymentRequest (..))
 import Aftok.Database (MonadDB)
@@ -37,8 +37,8 @@ import Bippy.Types
     getPaymentDetails,
   )
 import Control.Lens
-  ( (^.),
-    makeLenses,
+  ( makeLenses,
+    (^.),
   )
 import Control.Monad.Except (throwError)
 import Control.Monad.Trans.Except (except, withExceptT)
@@ -59,33 +59,31 @@ import Haskoin.Address (Address (..), encodeBase58Check)
 import Haskoin.Script (ScriptOutput (..))
 import Network.URI (URI)
 
-data BillingOps (m :: * -> *)
-  = BillingOps
-      { -- | generator for user memo
-        memoGen ::
-          Billable Satoshi -> -- template for the bill
-          C.Day -> -- billing date
-          C.UTCTime -> -- payment request generation time
-          m (Maybe Text),
-        -- | generator for payment response URL
-        uriGen ::
-          PaymentKey -> -- payment key to be included in the URL
-          m (Maybe URI),
-        -- | generator for merchant payload
-        payloadGen ::
-          Billable Satoshi -> -- template for the bill
-          C.Day -> -- billing date
-          C.UTCTime -> -- payment request generation time
-          m (Maybe ByteString)
-      }
+data BillingOps (m :: * -> *) = BillingOps
+  { -- | generator for user memo
+    memoGen ::
+      Billable Satoshi -> -- template for the bill
+      C.Day -> -- billing date
+      C.UTCTime -> -- payment request generation time
+      m (Maybe Text),
+    -- | generator for payment response URL
+    uriGen ::
+      PaymentKey -> -- payment key to be included in the URL
+      m (Maybe URI),
+    -- | generator for merchant payload
+    payloadGen ::
+      Billable Satoshi -> -- template for the bill
+      C.Day -> -- billing date
+      C.UTCTime -> -- payment request generation time
+      m (Maybe ByteString)
+  }
 
-data PaymentsConfig
-  = PaymentsConfig
-      { _networkMode :: !NetworkMode,
-        _signingKey :: !RSA.PrivateKey,
-        _pkiData :: !PKIData,
-        _minPayment :: !Satoshi
-      }
+data PaymentsConfig = PaymentsConfig
+  { _networkMode :: !NetworkMode,
+    _signingKey :: !RSA.PrivateKey,
+    _pkiData :: !PKIData,
+    _minPayment :: !Satoshi
+  }
 
 makeLenses ''PaymentsConfig
 

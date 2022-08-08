@@ -22,7 +22,6 @@ import Aftok.Payments.Types
     SomePaymentRequestDetail,
   )
 import Aftok.Project as P
-import qualified Aftok.TimeLog as TL
 import Aftok.TimeLog
   ( AmendmentId,
     EventAmendment,
@@ -31,6 +30,7 @@ import Aftok.TimeLog
     LogEntry,
     WorkIndex,
   )
+import qualified Aftok.TimeLog as TL
 import Aftok.Types
   ( AccountId,
     Email,
@@ -41,11 +41,11 @@ import Aftok.Types
   )
 import Aftok.Util (Program, fc, fromMaybeT)
 import Control.Lens
-  ( (^.),
-    makeClassy,
+  ( makeClassy,
     makeClassyPrisms,
     traverseOf,
     view,
+    (^.),
   )
 import Data.AffineSpace ((.-.))
 import Data.Thyme.Clock as C
@@ -54,11 +54,10 @@ import Data.Thyme.Time as T
   )
 import Safe (headMay)
 
-data KeyedLogEntry
-  = KeyedLogEntry
-      { _workId :: !EventId,
-        _logEntry :: !LogEntry
-      }
+data KeyedLogEntry = KeyedLogEntry
+  { _workId :: !EventId,
+    _logEntry :: !LogEntry
+  }
 
 makeClassy ''KeyedLogEntry
 

@@ -47,13 +47,12 @@ import Snap.Snaplet.PostgresqlSimple
   )
 import Snap.Snaplet.Session (SessionManager)
 
-data App
-  = App
-      { _networkMode :: NetworkMode,
-        _sess :: Snaplet SessionManager,
-        _db :: Snaplet Postgres,
-        _auth :: Snaplet (AU.AuthManager App)
-      }
+data App = App
+  { _networkMode :: NetworkMode,
+    _sess :: Snaplet SessionManager,
+    _db :: Snaplet Postgres,
+    _auth :: Snaplet (AU.AuthManager App)
+  }
 
 makeLenses ''App
 

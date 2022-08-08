@@ -22,11 +22,11 @@ import Aftok.TimeLog
     LogEvent,
     ModTime (..),
     WorkIndex (..),
-    _AmendmentId,
-    _EventId,
     eventName,
     eventTime,
     workIndex,
+    _AmendmentId,
+    _EventId,
   )
 import Aftok.Types
   ( CreditTo (..),
@@ -35,8 +35,8 @@ import Aftok.Types
     _ProjectId,
     _UserId,
   )
-import Control.Lens ((^.), view)
-import Data.Aeson ((.:), (.=), Value (Object), eitherDecode, object)
+import Control.Lens (view, (^.))
+import Data.Aeson (Value (Object), eitherDecode, object, (.:), (.=))
 import Data.Aeson.Types (Pair, Parser, parseEither)
 import qualified Data.List.NonEmpty as L
 import qualified Data.Map.Strict as MS

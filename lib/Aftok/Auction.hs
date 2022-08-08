@@ -20,17 +20,16 @@ newtype AuctionId = AuctionId UUID deriving (Show, Eq)
 
 makePrisms ''AuctionId
 
-data Auction c
-  = Auction
-      { _projectId :: ProjectId,
-        _initiator :: UserId,
-        _createdAt :: C.UTCTime,
-        _name :: Text,
-        _description :: Maybe Text,
-        _raiseAmount :: c,
-        _auctionStart :: C.UTCTime,
-        _auctionEnd :: C.UTCTime
-      }
+data Auction c = Auction
+  { _projectId :: ProjectId,
+    _initiator :: UserId,
+    _createdAt :: C.UTCTime,
+    _name :: Text,
+    _description :: Maybe Text,
+    _raiseAmount :: c,
+    _auctionStart :: C.UTCTime,
+    _auctionEnd :: C.UTCTime
+  }
 
 makeLenses ''Auction
 
@@ -38,23 +37,21 @@ newtype BidId = BidId UUID deriving (Show, Eq)
 
 makePrisms ''BidId
 
-data Bid c
-  = Bid
-      { _bidUser :: UserId,
-        _bidSeconds :: Seconds,
-        _bidAmount :: c,
-        _bidTime :: C.UTCTime
-      }
+data Bid c = Bid
+  { _bidUser :: UserId,
+    _bidSeconds :: Seconds,
+    _bidAmount :: c,
+    _bidTime :: C.UTCTime
+  }
   deriving (Eq, Show)
 
 makeLenses ''Bid
 
-data Commitment c
-  = Commitment
-      { _baseBid :: Bid c,
-        _commitmentSeconds :: Seconds,
-        _commitmentAmount :: c
-      }
+data Commitment c = Commitment
+  { _baseBid :: Bid c,
+    _commitmentSeconds :: Seconds,
+    _commitmentAmount :: c
+  }
 
 data AuctionResult c
   = WinningBids [Bid c]

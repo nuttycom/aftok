@@ -31,12 +31,11 @@ instance Eq (Currency' c) where
 instance Show (Currency' c) where
   show (Currency' c) = show c
 
-data Amount
-  = forall a c.
-    Amount
-      { currency :: !(Currency a c),
-        value :: !c
-      }
+data Amount = forall a c.
+  Amount
+  { currency :: !(Currency a c),
+    value :: !c
+  }
 
 class (Eq c, Ord c, Monoid c) => IsCurrency c where
   csub :: c -> c -> Maybe c

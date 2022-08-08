@@ -24,8 +24,8 @@ import Aftok.TimeLog
 import Aftok.Types (_ProjectId)
 import Control.Exception (try)
 import Control.Lens
-  ( (^.),
-    to,
+  ( to,
+    (^.),
   )
 import qualified Data.Aeson as A
 import Data.ProtocolBuffers (encodeMessage)

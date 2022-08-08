@@ -18,11 +18,10 @@ import Snap.Core
 import Snap.Snaplet as S
 import qualified Snap.Snaplet.Auth as AU
 
-data LoginRequest
-  = LoginRequest
-      { loginUser :: Text,
-        loginPass :: Text
-      }
+data LoginRequest = LoginRequest
+  { loginUser :: Text,
+    loginPass :: Text
+  }
 
 parseLoginRequest :: A.Value -> A.Parser LoginRequest
 parseLoginRequest (A.Object o) =

@@ -28,11 +28,10 @@ data RecoverBy z
 
 makePrisms ''RecoverBy
 
-data User
-  = User
-      { _username :: !UserName,
-        _userAccountRecovery :: !(RecoverBy Zcash.Address)
-      }
+data User = User
+  { _username :: !UserName,
+    _userAccountRecovery :: !(RecoverBy Zcash.Address)
+  }
 
 makeLenses ''User
 
@@ -63,10 +62,9 @@ makePrisms ''CreditTo
 data DepreciationFunction = LinearDepreciation C.Days C.Days
   deriving (Eq, Show)
 
-data DepreciationRules
-  = DepreciationRules
-      { _depf :: DepreciationFunction,
-        _firstRevenue :: Maybe C.UTCTime
-      }
+data DepreciationRules = DepreciationRules
+  { _depf :: DepreciationFunction,
+    _firstRevenue :: Maybe C.UTCTime
+  }
 
 makeLenses ''DepreciationRules

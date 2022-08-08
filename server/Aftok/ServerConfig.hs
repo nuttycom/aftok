@@ -7,8 +7,8 @@ import Aftok.Config
 import Aftok.Currency.Zcash (ZcashdConfig (..))
 import Aftok.Snaplet.Users (CaptchaConfig (..))
 import Control.Lens
-  ( (^.),
-    makeLenses,
+  ( makeLenses,
+    (^.),
   )
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.Configurator as C
@@ -24,20 +24,19 @@ import qualified Snap.Http.Server.Config as SC
 import Snap.Snaplet.PostgresqlSimple
 import System.Environment (getEnvironment)
 
-data ServerConfig
-  = ServerConfig
-      { _hostname :: C8.ByteString,
-        _port :: Int,
-        _authSiteKey :: P.FilePath,
-        _cookieTimeout :: Maybe Int,
-        _pgsConfig :: PGSConfig,
-        _smtpConfig :: SmtpConfig,
-        _billingConfig :: BillingConfig,
-        _templatePath :: P.FilePath,
-        _staticAssetPath :: P.FilePath,
-        _recaptchaSecret :: CaptchaConfig,
-        _zcashdConfig :: ZcashdConfig
-      }
+data ServerConfig = ServerConfig
+  { _hostname :: C8.ByteString,
+    _port :: Int,
+    _authSiteKey :: P.FilePath,
+    _cookieTimeout :: Maybe Int,
+    _pgsConfig :: PGSConfig,
+    _smtpConfig :: SmtpConfig,
+    _billingConfig :: BillingConfig,
+    _templatePath :: P.FilePath,
+    _staticAssetPath :: P.FilePath,
+    _recaptchaSecret :: CaptchaConfig,
+    _zcashdConfig :: ZcashdConfig
+  }
 
 makeLenses ''ServerConfig
 

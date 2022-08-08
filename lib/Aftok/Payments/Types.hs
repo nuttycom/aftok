@@ -20,9 +20,9 @@ import qualified Aftok.Currency.Zcash.Payments as Z
 import qualified Aftok.Currency.Zcash.Zip321 as Z
 import Aftok.Types (ProjectId, UserId)
 import Control.Lens
-  ( (^.),
-    makeLenses,
+  ( makeLenses,
     makePrisms,
+    (^.),
   )
 import Data.AffineSpace ((.+^))
 import Data.Thyme.Clock as C
@@ -55,22 +55,20 @@ data NativePayment currency where
   BitcoinPayment :: B.Payment -> NativePayment Satoshi
   ZcashPayment :: Z.Payment -> NativePayment Zatoshi
 
-data PaymentOps currency m
-  = PaymentOps
-      { newPaymentRequest ::
-          Billable currency -> -- billing information
-          C.Day -> -- payout date (billing date)
-          C.UTCTime -> -- timestamp of payment request creation
-          m (NativeRequest currency)
-      }
+data PaymentOps currency m = PaymentOps
+  { newPaymentRequest ::
+      Billable currency -> -- billing information
+      C.Day -> -- payout date (billing date)
+      C.UTCTime -> -- timestamp of payment request creation
+      m (NativeRequest currency)
+  }
 
-data PaymentRequest' (billable :: * -> *) currency
-  = PaymentRequest
-      { _billable :: billable currency,
-        _createdAt :: C.UTCTime,
-        _billingDate :: C.Day,
-        _nativeRequest :: NativeRequest currency
-      }
+data PaymentRequest' (billable :: * -> *) currency = PaymentRequest
+  { _billable :: billable currency,
+    _createdAt :: C.UTCTime,
+    _billingDate :: C.Day,
+    _nativeRequest :: NativeRequest currency
+  }
 
 makeLenses ''PaymentRequest'
 
@@ -92,12 +90,11 @@ isExpired now req =
   let expiresAt = (req ^. createdAt) .+^ (req ^. (billable . requestExpiryPeriod))
    in now >= expiresAt
 
-data Payment' (paymentRequest :: * -> *) currency
-  = Payment
-      { _paymentRequest :: paymentRequest currency,
-        _paymentDate :: C.UTCTime,
-        _nativePayment :: NativePayment currency
-      }
+data Payment' (paymentRequest :: * -> *) currency = Payment
+  { _paymentRequest :: paymentRequest currency,
+    _paymentDate :: C.UTCTime,
+    _nativePayment :: NativePayment currency
+  }
 
 makeLenses ''Payment'
 

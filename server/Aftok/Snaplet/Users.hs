@@ -14,8 +14,8 @@ module Aftok.Snaplet.Users
   )
 where
 
-import qualified Aftok.Currency.Zcash as Zcash
 import Aftok.Currency.Zcash (RPCError, ZValidateAddressErr)
+import qualified Aftok.Currency.Zcash as Zcash
 import Aftok.Database
   ( acceptInvitation,
     createUser,
@@ -34,7 +34,7 @@ import Aftok.Types
     _UserName,
   )
 import Control.FromSum (fromMaybeM)
-import Control.Lens ((^.), makeLenses)
+import Control.Lens (makeLenses, (^.))
 import Data.Aeson
   ( (.:),
     (.:?),
@@ -61,27 +61,24 @@ import qualified Snap.Core as S
 import qualified Snap.Snaplet as S
 import qualified Snap.Snaplet.Auth as AU
 
-data RegisterOps m
-  = RegisterOps
-      { validateZAddr :: Text -> m (Either (RPCError ZValidateAddressErr) Zcash.Address),
-        sendConfirmationEmail :: Email -> m ()
-      }
+data RegisterOps m = RegisterOps
+  { validateZAddr :: Text -> m (Either (RPCError ZValidateAddressErr) Zcash.Address),
+    sendConfirmationEmail :: Email -> m ()
+  }
 
-data RegUser
-  = RegUser
-      { _username :: !UserName,
-        _userAccountRecovery :: !(RecoverBy Text)
-      }
+data RegUser = RegUser
+  { _username :: !UserName,
+    _userAccountRecovery :: !(RecoverBy Text)
+  }
 
 makeLenses ''RegUser
 
-data RegisterRequest
-  = RegisterRequest
-      { _regUser :: RegUser,
-        _password :: ByteString,
-        _captchaToken :: Maybe Text,
-        _invitationCodes :: [InvitationCode]
-      }
+data RegisterRequest = RegisterRequest
+  { _regUser :: RegUser,
+    _password :: ByteString,
+    _captchaToken :: Maybe Text,
+    _invitationCodes :: [InvitationCode]
+  }
 
 makeLenses ''RegisterRequest
 
@@ -222,15 +219,13 @@ data CaptchaError
   | CaptchaError Text
   deriving (Eq, Show)
 
-data CaptchaConfig
-  = CaptchaConfig
-      {secretKey :: Text}
+data CaptchaConfig = CaptchaConfig
+  {secretKey :: Text}
 
-data CaptchaResponse
-  = CaptchaResponse
-      { success :: Bool,
-        errorCodes :: [CaptchaError]
-      }
+data CaptchaResponse = CaptchaResponse
+  { success :: Bool,
+    errorCodes :: [CaptchaError]
+  }
 
 instance A.FromJSON CaptchaResponse where
   parseJSON (A.Object v) =

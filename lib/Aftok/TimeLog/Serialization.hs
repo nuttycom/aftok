@@ -8,10 +8,10 @@ where
 
 import Aftok.Types
 import Data.Aeson
-  ( (.:),
-    (.=),
-    Value (..),
+  ( Value (..),
     object,
+    (.:),
+    (.=),
   )
 import Data.Aeson.Types (Parser)
 import Data.Text (unpack)

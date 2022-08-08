@@ -26,21 +26,19 @@ newtype PaymentKey = PaymentKey Text deriving (Eq)
 
 makePrisms ''PaymentKey
 
-data PaymentRequest
-  = PaymentRequest
-      { _paymentRequestKey :: PaymentKey,
-        _bip70Request :: B.PaymentRequest
-      }
+data PaymentRequest = PaymentRequest
+  { _paymentRequestKey :: PaymentKey,
+    _bip70Request :: B.PaymentRequest
+  }
 
 makeLenses ''PaymentRequest
 
-data Payment
-  = Payment
-      { _amount :: Maybe Satoshi,
-        _txid :: Maybe Text,
-        _address :: Maybe Address,
-        _paymentKey :: PaymentKey,
-        _bip70Payment :: B.Payment
-      }
+data Payment = Payment
+  { _amount :: Maybe Satoshi,
+    _txid :: Maybe Text,
+    _address :: Maybe Address,
+    _paymentKey :: PaymentKey,
+    _bip70Payment :: B.Payment
+  }
 
 makeLenses ''Payment

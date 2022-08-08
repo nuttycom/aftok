@@ -34,13 +34,12 @@ import Data.Thyme.Clock as C
 
 type ProjectName = Text
 
-data Project
-  = Project
-      { _projectName :: ProjectName,
-        _inceptionDate :: C.UTCTime,
-        _initiator :: UserId,
-        _depRules :: DepreciationRules
-      }
+data Project = Project
+  { _projectName :: ProjectName,
+    _inceptionDate :: C.UTCTime,
+    _initiator :: UserId,
+    _depRules :: DepreciationRules
+  }
 
 makeLenses ''Project
 
@@ -58,13 +57,12 @@ parseInvCode t =
 renderInvCode :: InvitationCode -> Text
 renderInvCode (InvitationCode bs) = B64.encodeBase64Unpadded bs
 
-data Invitation
-  = Invitation
-      { _projectId :: ProjectId,
-        _invitingUser :: UserId,
-        _invitedEmail :: Email,
-        _invitationTime :: C.UTCTime,
-        _acceptanceTime :: Maybe C.UTCTime
-      }
+data Invitation = Invitation
+  { _projectId :: ProjectId,
+    _invitingUser :: UserId,
+    _invitedEmail :: Email,
+    _invitationTime :: C.UTCTime,
+    _acceptanceTime :: Maybe C.UTCTime
+  }
 
 makeLenses ''Invitation

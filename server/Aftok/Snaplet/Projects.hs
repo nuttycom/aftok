@@ -35,17 +35,17 @@ import Aftok.TimeLog
     creditToShares,
     payouts,
     toDepF,
-    wsLogged,
     wsDepreciated,
+    wsLogged,
     wsShare,
   )
 import Aftok.TimeLog.Serialization (depfFromJSON)
 import Aftok.Types
 import Aftok.Util (fromMaybeT)
-import Control.Lens ((^.), _1, _2, makeLenses, to)
+import Control.Lens (makeLenses, to, (^.), _1, _2)
 import Control.Monad.Trans.Maybe (mapMaybeT)
+import Data.Aeson (Value (..), object, (.:), (.:?), (.=))
 import qualified Data.Aeson as A
-import Data.Aeson ((.:), (.:?), (.=), Value (..), object)
 import qualified Data.Map.Strict as M
 import qualified Data.Thyme.Clock as C
 import Filesystem.Path.CurrentOS (encodeString)
@@ -64,23 +64,21 @@ instance A.FromJSON ProjectCreateRequest where
     CP <$> v .: "projectName" <*> (depfFromJSON =<< v .: "depf")
   parseJSON _ = mzero
 
-data Contributor
-  = Contributor
-      { _userId :: UserId,
-        _handle :: UserName,
-        _joinedOn :: C.UTCTime,
-        _loggedHours :: Hours,
-        _depreciatedHours :: Hours,
-        _revenueShare :: Rational
-      }
+data Contributor = Contributor
+  { _userId :: UserId,
+    _handle :: UserName,
+    _joinedOn :: C.UTCTime,
+    _loggedHours :: Hours,
+    _depreciatedHours :: Hours,
+    _revenueShare :: Rational
+  }
 
 makeLenses ''Contributor
 
-data ProjectDetail
-  = ProjectDetail
-      { _pdProject :: Project,
-        _pdContributors :: M.Map UserId Contributor
-      }
+data ProjectDetail = ProjectDetail
+  { _pdProject :: Project,
+    _pdContributors :: M.Map UserId Contributor
+  }
 
 makeLenses ''ProjectDetail
 
@@ -160,12 +158,11 @@ data CommsAddress
   = EmailComms Text
   | ZcashComms Text
 
-data ProjectInviteRequest
-  = PIR
-      { greetName :: Text,
-        message :: Maybe Text,
-        inviteBy :: CommsAddress
-      }
+data ProjectInviteRequest = PIR
+  { greetName :: Text,
+    message :: Maybe Text,
+    inviteBy :: CommsAddress
+  }
 
 instance A.FromJSON ProjectInviteRequest where
   parseJSON (A.Object v) = do
@@ -179,10 +176,9 @@ instance A.FromJSON ProjectInviteRequest where
       Just addr -> pure $ PIR name message addr
   parseJSON _ = mzero
 
-data ProjectInviteResponse
-  = ProjectInviteResponse
-      { zip321URI :: Maybe Zip321.PaymentRequest
-      }
+data ProjectInviteResponse = ProjectInviteResponse
+  { zip321URI :: Maybe Zip321.PaymentRequest
+  }
 
 projectInviteResponseJSON :: ProjectInviteResponse -> Value
 projectInviteResponseJSON resp =
@@ -215,24 +211,24 @@ projectInviteHandler cfg = do
       pure (ProjectInviteResponse Nothing)
     ZcashComms zaddr -> do
       (Just p, invCode) <- invite (Email "")
-      pure . ProjectInviteResponse . Just
-        $ Zip321.PaymentRequest . pure
-        $ Zip321.PaymentItem
-          { _address = Zcash.Address zaddr,
-            _amount = Zcash.Zatoshi 1000,
-            _memo =
-              Just . Zcash.Memo . encodeUtf8 $
-                "Welcome to the " <> (p ^. projectName) <> " aftok, " <> greetName req <> "\n"
-                  <> maybe "" (<> "\n") (message req)
-                  <> "https://aftok.com/app/?invcode="
-                  <> renderInvCode invCode
-                  <> "&zaddr="
-                  <> zaddr
-                  <> "#signup",
-            _message = Nothing,
-            _label = Nothing,
-            _other = []
-          }
+      pure . ProjectInviteResponse . Just $
+        Zip321.PaymentRequest . pure $
+          Zip321.PaymentItem
+            { _address = Zcash.Address zaddr,
+              _amount = Zcash.Zatoshi 1000,
+              _memo =
+                Just . Zcash.Memo . encodeUtf8 $
+                  "Welcome to the " <> (p ^. projectName) <> " aftok, " <> greetName req <> "\n"
+                    <> maybe "" (<> "\n") (message req)
+                    <> "https://aftok.com/app/?invcode="
+                    <> renderInvCode invCode
+                    <> "&zaddr="
+                    <> zaddr
+                    <> "#signup",
+              _message = Nothing,
+              _label = Nothing,
+              _other = []
+            }
 
 sendProjectInviteEmail ::
   ServerConfig ->

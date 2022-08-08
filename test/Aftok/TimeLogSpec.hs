@@ -13,7 +13,7 @@ import Aftok.Generators (genUUID)
 import qualified Aftok.Interval as I
 import Aftok.TimeLog
 import Aftok.Types (DepreciationFunction (..), DepreciationRules (..), UserId (..))
-import Control.Lens ((^.), to, view)
+import Control.Lens (to, view, (^.))
 import Data.AffineSpace ((.+^))
 import Data.List (head, tail)
 import qualified Data.List.NonEmpty as L
@@ -22,8 +22,8 @@ import Data.Maybe (fromJust)
 import Data.Ratio ((%))
 import qualified Data.Thyme.Clock as C
 import qualified Data.Thyme.Time as C
-import qualified Data.UUID as U
 import Data.Time.ISO8601
+import qualified Data.UUID as U
 import Test.Hspec
 import Test.QuickCheck (Gen, arbitrary, choose, forAll, listOf, sample', suchThat)
 import Prelude hiding (head, tail)
@@ -89,26 +89,26 @@ spec = do
           expected = WorkIndex $ fmap (L.reverse . L.sort) expected'
           actual = view eventTime <$> workIndex id testLogEntries
       actual `shouldBe` expected
-    it "recovers a work index from events"
-      $ forAll genWorkIndex
-      $ \(WorkIndex widx) ->
-        let mergeAdjacent ((I.Interval s e) : (I.Interval s' e') : xs)
-              | e == s' = mergeAdjacent $ I.Interval s e' : xs
-            mergeAdjacent (x : xs) = x : mergeAdjacent xs
-            mergeAdjacent [] = []
-            ivalEntries addr ival =
-              LogEntry addr
-                <$> [StartWork (ival ^. I.start), StopWork (ival ^. I.end)]
-                <*> [Nothing]
-            acc k a b = b ++ (L.toList a >>= ivalEntries k)
-            widx' =
-              fmap
-                (L.fromList . mergeAdjacent . sortOn I._start . L.toList)
-                widx
-            logEntries = M.foldrWithKey acc [] widx
-            expected = (WorkIndex $ fmap (L.reverse . L.sort) widx')
-            actual = view eventTime <$> workIndex id logEntries
-         in actual `shouldBe` expected
+    it "recovers a work index from events" $
+      forAll genWorkIndex $
+        \(WorkIndex widx) ->
+          let mergeAdjacent ((I.Interval s e) : (I.Interval s' e') : xs)
+                | e == s' = mergeAdjacent $ I.Interval s e' : xs
+              mergeAdjacent (x : xs) = x : mergeAdjacent xs
+              mergeAdjacent [] = []
+              ivalEntries addr ival =
+                LogEntry addr
+                  <$> [StartWork (ival ^. I.start), StopWork (ival ^. I.end)]
+                  <*> [Nothing]
+              acc k a b = b ++ (L.toList a >>= ivalEntries k)
+              widx' =
+                fmap
+                  (L.fromList . mergeAdjacent . sortOn I._start . L.toList)
+                  widx
+              logEntries = M.foldrWithKey acc [] widx
+              expected = (WorkIndex $ fmap (L.reverse . L.sort) widx')
+              actual = view eventTime <$> workIndex id logEntries
+           in actual `shouldBe` expected
     it "computes correct work shares" $ do
       [u0, u1, u2] <- fmap CreditToUser . take 3 <$> sample' (UserId <$> genUUID)
       let initTime = C.toThyme . fromJust $ parseISO8601 "2014-01-01T00:08:00Z"
@@ -136,23 +136,23 @@ spec = do
     it "correctly handles fully depreciated work intervals" $ do
       now <- C.getCurrentTime
       let depf = toDepF $ DepreciationRules (LinearDepreciation 6 2) Nothing
-          raw = [
-            ("b3ff64b7-6699-45f2-acee-38751325bf46", StartWork, "2021-02-09T15:52:13.434308+00"),
-            ("b3ff64b7-6699-45f2-acee-38751325bf46", StopWork,  "2021-02-09T16:12:32.936579+00"),
-            ("d56ae5bd-8892-44c6-9a02-f6a8aca8636e", StartWork, "2021-02-09T16:23:10.637749+00"),
-            ("d56ae5bd-8892-44c6-9a02-f6a8aca8636e", StopWork,  "2021-02-09T16:27:00.082747+00"),
-            ("d56ae5bd-8892-44c6-9a02-f6a8aca8636e", StartWork, "2021-02-09T16:29:10.119337+00"),
-            ("d56ae5bd-8892-44c6-9a02-f6a8aca8636e", StopWork,  "2021-02-09T18:54:26.778107+00")]
+          raw =
+            [ ("b3ff64b7-6699-45f2-acee-38751325bf46", StartWork, "2021-02-09T15:52:13.434308+00"),
+              ("b3ff64b7-6699-45f2-acee-38751325bf46", StopWork, "2021-02-09T16:12:32.936579+00"),
+              ("d56ae5bd-8892-44c6-9a02-f6a8aca8636e", StartWork, "2021-02-09T16:23:10.637749+00"),
+              ("d56ae5bd-8892-44c6-9a02-f6a8aca8636e", StopWork, "2021-02-09T16:27:00.082747+00"),
+              ("d56ae5bd-8892-44c6-9a02-f6a8aca8636e", StartWork, "2021-02-09T16:29:10.119337+00"),
+              ("d56ae5bd-8892-44c6-9a02-f6a8aca8636e", StopWork, "2021-02-09T18:54:26.778107+00")
+            ]
           toEvent :: (String, C.UTCTime -> LogEvent, String) -> Maybe LogEntry
           toEvent (uuid, f, t) =
             LogEntry <$> (CreditToUser . UserId <$> U.fromString uuid)
-                     <*> (f . C.toThyme <$> parseISO8601 t)
-                     <*> pure Nothing
+              <*> (f . C.toThyme <$> parseISO8601 t)
+              <*> pure Nothing
           events = catMaybes $ fmap toEvent raw
           widx = workIndex (view event) events
           p = payouts depf now widx
       p `shouldBe` WorkShares 0 M.empty
-
 
   describe "depreciation functions" $ do
     it "computes linear depreciation" $ do

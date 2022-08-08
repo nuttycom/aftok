@@ -10,7 +10,7 @@ module Aftok.Json where
 
 import qualified Aftok.Billing as B
 import Aftok.Currency (Amount (..), Currency (..))
-import Aftok.Currency.Bitcoin (Address, NetworkMode, Satoshi, _Satoshi, getNetwork)
+import Aftok.Currency.Bitcoin (Address, NetworkMode, Satoshi, getNetwork, _Satoshi)
 import Aftok.Currency.Zcash (Zatoshi, _Zatoshi)
 import Aftok.TimeLog
 import Aftok.Types
@@ -35,11 +35,10 @@ import Haskoin.Address
 import qualified Language.Haskell.TH as TH
 import Language.Haskell.TH.Quote
 
-data Version
-  = Version
-      { majorVersion :: Word8,
-        minorVersion :: Word8
-      }
+data Version = Version
+  { majorVersion :: Word8,
+    minorVersion :: Word8
+  }
   deriving (Typeable, Data)
 
 failT :: Text -> Parser a

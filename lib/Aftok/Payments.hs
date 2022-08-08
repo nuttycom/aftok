@@ -56,12 +56,12 @@ import Aftok.Types
   )
 import Control.Error.Util (maybeT)
 import Control.Lens
-  ( (.~),
-    (^.),
-    makeClassyPrisms,
+  ( makeClassyPrisms,
     makeLenses,
     review,
     traverseOf,
+    (.~),
+    (^.),
   )
 import Control.Monad.Except
   ( throwError,
@@ -72,13 +72,12 @@ import Data.Thyme.Clock as C
 import Data.Thyme.Time as T
 import Network.URI ()
 
-data PaymentsConfig m
-  = PaymentsConfig
-      { _bitcoinBillingOps :: !(BTC.BillingOps m),
-        _bitcoinPaymentsConfig :: !BTC.PaymentsConfig,
-        _zcashBillingOps :: !(Zcash.MemoGen m),
-        _zcashPaymentsConfig :: !Zcash.PaymentsConfig
-      }
+data PaymentsConfig m = PaymentsConfig
+  { _bitcoinBillingOps :: !(BTC.BillingOps m),
+    _bitcoinPaymentsConfig :: !BTC.PaymentsConfig,
+    _zcashBillingOps :: !(Zcash.MemoGen m),
+    _zcashPaymentsConfig :: !Zcash.PaymentsConfig
+  }
 
 makeLenses ''PaymentsConfig
 

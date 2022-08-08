@@ -58,9 +58,6 @@ import Aftok.TimeLog
     LogEntry (LogEntry),
     LogEvent (..),
     WorkIndex,
-    _AmendmentId,
-    _EventId,
-    _ModTime,
     creditTo,
     event,
     eventMeta,
@@ -68,13 +65,16 @@ import Aftok.TimeLog
     leEventTime,
     nameEvent,
     workIndex,
+    _AmendmentId,
+    _EventId,
+    _ModTime,
   )
 import Aftok.Types
-import Control.Lens ((^.), _Just, preview, set, view)
+import Control.Lens (preview, set, view, (^.), _Just)
 import Control.Monad.Trans.Except (throwE)
 import Data.Aeson
-  ( (.=),
-    Value,
+  ( Value,
+    (.=),
   )
 import Data.Thyme.Clock as C
 import Data.Thyme.Time

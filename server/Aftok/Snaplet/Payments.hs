@@ -22,8 +22,8 @@ import Aftok.Snaplet
 import Aftok.Snaplet.Auth
 import Aftok.Util (fromMaybeT)
 import Control.Lens
-  ( (^.),
-    view,
+  ( view,
+    (^.),
   )
 import Control.Monad.Trans.Maybe (mapMaybeT)
 import Data.ProtocolBuffers (decodeMessage)

@@ -22,7 +22,7 @@ import Aftok.Types
     _CreditToProject,
     _CreditToUser,
   )
-import Control.Lens ((.~), Lens', (^.), makeClassy, makeLenses, makePrisms, view)
+import Control.Lens (Lens', makeClassy, makeLenses, makePrisms, view, (.~), (^.))
 import Data.Aeson as A
 import Data.AffineSpace ((.-.))
 import qualified Data.Foldable as F
@@ -30,7 +30,7 @@ import qualified Data.Map.Strict as MS
 import qualified Data.Thyme.Clock as C
 import qualified Data.Thyme.Time as C
 import Data.UUID (UUID)
-import Data.VectorSpace ((*^), Sum (..), (^+^), (^-^), getSum, zeroV)
+import Data.VectorSpace (Sum (..), getSum, zeroV, (*^), (^+^), (^-^))
 import Prelude hiding (Sum, getSum)
 
 type NDT = C.NominalDiffTime
@@ -70,12 +70,11 @@ nameEvent = \case
   "stop" -> Just StopWork
   _ -> Nothing
 
-data LogEntry
-  = LogEntry
-      { _creditTo :: !CreditTo,
-        _event :: !LogEvent,
-        _eventMeta :: !(Maybe A.Value)
-      }
+data LogEntry = LogEntry
+  { _creditTo :: !CreditTo,
+    _event :: !LogEvent,
+    _eventMeta :: !(Maybe A.Value)
+  }
   deriving (Show, Eq)
 
 makeClassy ''LogEntry
@@ -105,21 +104,19 @@ newtype AmendmentId = AmendmentId UUID deriving (Show, Eq, Ord)
 
 makePrisms ''AmendmentId
 
-data WorkShare a
-  = WorkShare
-      { _wsLogged :: NDT,
-        _wsDepreciated :: NDT,
-        _wsShare :: a
-      }
+data WorkShare a = WorkShare
+  { _wsLogged :: NDT,
+    _wsDepreciated :: NDT,
+    _wsShare :: a
+  }
   deriving (Show, Eq)
 
 makeLenses ''WorkShare
 
-data WorkShares
-  = WorkShares
-      { _loggedTotal :: NDT,
-        _creditToShares :: Map CreditTo (WorkShare Rational)
-      }
+data WorkShares = WorkShares
+  { _loggedTotal :: NDT,
+    _creditToShares :: Map CreditTo (WorkShare Rational)
+  }
   deriving (Show, Eq)
 
 makeLenses ''WorkShares
@@ -200,11 +197,11 @@ payouts depf payoutDate (WorkIndex widx) =
          in (total ^+^ depreciated, WorkShare logged depreciated ())
       (totalTime, keyTimes) = MS.mapAccum addIntervalDiff zeroV widx
       withShareFraction t =
-        t & wsShare .~ (
-          if totalTime == 0
-            then 0
-            else (C.toSeconds (t ^. wsDepreciated) / C.toSeconds totalTime)
-        )
+        t & wsShare
+          .~ ( if totalTime == 0
+                 then 0
+                 else (C.toSeconds (t ^. wsDepreciated) / C.toSeconds totalTime)
+             )
    in WorkShares totalTime (fmap withShareFraction keyTimes)
 
 workIndex :: (Foldable f, HasLogEntry le, Ord o) => (le -> o) -> f le -> WorkIndex le

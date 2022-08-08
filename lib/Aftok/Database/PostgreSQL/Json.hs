@@ -2,7 +2,7 @@
 
 module Aftok.Database.PostgreSQL.Json where
 
-import Aftok.Currency.Bitcoin (NetworkMode, Satoshi (..), _Satoshi, getNetwork)
+import Aftok.Currency.Bitcoin (NetworkMode, Satoshi (..), getNetwork, _Satoshi)
 import qualified Aftok.Currency.Bitcoin.Bip70 as Bip70
 import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
 import Aftok.Currency.Zcash (Zatoshi (..), _Zatoshi)
@@ -13,13 +13,13 @@ import Aftok.Payments.Types
   ( NativePayment (..),
     NativeRequest (..),
     Payment,
-    _PaymentRequestId,
     nativePayment,
     paymentDate,
     paymentRequest,
+    _PaymentRequestId,
   )
 -- import qualified Bippy.Proto as BP
-import Control.Lens ((^.), (^?), _Just, review, to, view)
+import Control.Lens (review, to, view, (^.), (^?), _Just)
 import Data.Aeson
 import Data.Aeson.Types (Parser)
 import Data.Text (unpack)

@@ -28,8 +28,6 @@ import Aftok.Billing
     Subscription,
     Subscription' (..),
     SubscriptionId (..),
-    _BillableId,
-    _SubscriptionId,
     amount,
     description,
     gracePeriod,
@@ -40,6 +38,8 @@ import Aftok.Billing
     recurrence,
     recurrenceCount,
     recurrenceName,
+    _BillableId,
+    _SubscriptionId,
   )
 import Aftok.Currency (Amount (..), Currency (..))
 import Aftok.Currency.Bitcoin (Satoshi)
@@ -74,16 +74,15 @@ import Aftok.Payments.Types
     PaymentRequest,
     PaymentRequest' (..),
     PaymentRequestId (..),
-    PaymentRequestId,
     SomePaymentRequest (..),
     SomePaymentRequestDetail,
-    _PaymentRequestId,
     billingDate,
     bip70Request,
     createdAt,
     nativeRequest,
     paymentDate,
     paymentRequest,
+    _PaymentRequestId,
   )
 import Aftok.TimeLog
   ( EventId (..),
@@ -96,7 +95,7 @@ import Aftok.Types
     _ProjectId,
     _UserId,
   )
-import Control.Lens ((.~), (^.), (^?), _Just, to, view)
+import Control.Lens (to, view, (.~), (^.), (^?), _Just)
 import Data.Aeson (encode)
 import Data.Aeson.Types (parseEither)
 import qualified Data.Thyme.Clock as C

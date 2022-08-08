@@ -14,22 +14,20 @@ import Filesystem.Path.CurrentOS
   )
 import qualified Filesystem.Path.CurrentOS as P
 
-data PaymentRequestConfig
-  = PaymentRequestConfig
-      { _aftokHost :: Text,
-        _templatePath :: P.FilePath,
-        _billingFromEmail :: Email
-      }
+data PaymentRequestConfig = PaymentRequestConfig
+  { _aftokHost :: Text,
+    _templatePath :: P.FilePath,
+    _billingFromEmail :: Email
+  }
 
 makeLenses ''PaymentRequestConfig
 
-data Config
-  = Config
-      { _smtpConfig :: AC.SmtpConfig,
-        _billingConfig :: AC.BillingConfig,
-        _dbConfig :: ConnectInfo,
-        _paymentRequestConfig :: PaymentRequestConfig
-      }
+data Config = Config
+  { _smtpConfig :: AC.SmtpConfig,
+    _billingConfig :: AC.BillingConfig,
+    _dbConfig :: ConnectInfo,
+    _paymentRequestConfig :: PaymentRequestConfig
+  }
 
 makeLenses ''Config
 

@@ -15,7 +15,6 @@ import Aftok.Auction
     AuctionId,
     Bid (Bid),
     BidId,
-    _BidId,
     auctionEnd,
     auctionStart,
     description,
@@ -23,6 +22,7 @@ import Aftok.Auction
     name,
     projectId,
     raiseAmount,
+    _BidId,
   )
 import Aftok.Currency (Amount)
 import Aftok.Database
@@ -38,7 +38,7 @@ import Aftok.Snaplet.Auth
 import Aftok.Snaplet.Util (decimalParam, rangeQueryParam)
 import Aftok.Types (UserId, _ProjectId, _UserId)
 import Aftok.Util (fromMaybeT)
-import Control.Lens ((^.), to)
+import Control.Lens (to, (^.))
 import Control.Monad.Trans.Maybe (mapMaybeT)
 import Data.Aeson
 import Data.Aeson.Types
@@ -46,14 +46,13 @@ import Data.Hourglass.Types (Seconds (..))
 import Data.Thyme.Clock as C
 import Snap.Snaplet as S
 
-data AuctionCreateRequest
-  = CA
-      { acrName :: Text,
-        acrDescription :: Maybe Text,
-        acrRaiseAmount :: Amount,
-        acrAuctionStart :: C.UTCTime,
-        acrAuctionEnd :: C.UTCTime
-      }
+data AuctionCreateRequest = CA
+  { acrName :: Text,
+    acrDescription :: Maybe Text,
+    acrRaiseAmount :: Amount,
+    acrAuctionStart :: C.UTCTime,
+    acrAuctionEnd :: C.UTCTime
+  }
 
 auctionCreateParser :: Value -> Parser AuctionCreateRequest
 auctionCreateParser = unv1 "auctions" p

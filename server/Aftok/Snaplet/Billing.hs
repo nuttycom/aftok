@@ -51,10 +51,10 @@ import Aftok.Payments
 import Aftok.Payments.Types
   ( NativeRequest (..),
     PaymentRequestError (..),
-    _PaymentRequestId,
     billable,
     createdAt,
     nativeRequest,
+    _PaymentRequestId,
   )
 import qualified Aftok.Payments.Zcash as Zcash
 import Aftok.Snaplet
@@ -69,7 +69,7 @@ import Aftok.Snaplet
 import Aftok.Snaplet.Auth (requireUserId)
 import Aftok.Snaplet.Json (zip321PaymentRequestJSON)
 import Aftok.Types (ProjectId, UserId)
-import Control.Lens ((.~), (^.), to)
+import Control.Lens (to, (.~), (^.))
 import Control.Monad.Trans.Except (mapExceptT)
 import Data.Aeson
 import Data.Aeson.Types

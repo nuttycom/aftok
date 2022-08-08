@@ -7,7 +7,6 @@
 
 module AftokD.AftokM where
 
-import qualified Aftok.Billing as B
 import Aftok.Billing
   ( Billable',
     ContactChannel (..),
@@ -17,6 +16,7 @@ import Aftok.Billing
     paymentRequestEmailTemplate,
     project,
   )
+import qualified Aftok.Billing as B
 import qualified Aftok.Config as AC
 import Aftok.Currency.Bitcoin (Satoshi, _Satoshi)
 import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
@@ -38,9 +38,7 @@ import Aftok.Types
 import qualified AftokD as D
 import Control.Error.Util (exceptT, maybeT)
 import Control.Lens
-  ( (.~),
-    Iso',
-    (^.),
+  ( Iso',
     from,
     iso,
     makeClassyPrisms,
@@ -49,6 +47,8 @@ import Control.Lens
     set,
     to,
     traverseOf,
+    (.~),
+    (^.),
   )
 import Control.Monad.Except
   ( MonadError,
@@ -88,12 +88,11 @@ makeClassyPrisms ''AftokDErr
 --   _Overdue = _PaymentErr . P._Overdue
 --   _SigningError = _PaymentErr . P._SigningError
 
-data AftokMEnv
-  = AftokMEnv
-      { _dcfg :: !D.Config,
-        _conn :: !Connection,
-        _pcfg :: !(P.PaymentsConfig AftokM)
-      }
+data AftokMEnv = AftokMEnv
+  { _dcfg :: !D.Config,
+    _conn :: !Connection,
+    _pcfg :: !(P.PaymentsConfig AftokM)
+  }
 
 -- instance P.HasPaymentsConfig AftokMEnv where
 --   networkMode = pcfg . P.networkMode
@@ -124,8 +123,8 @@ createAllPaymentRequests cfg = do
   let env = AftokMEnv cfg conn' pcfg'
   void
     . runExceptT
-    $ (runReaderT . runAftokM) createProjectsPaymentRequests
-    $ env
+    $ (runReaderT . runAftokM) createProjectsPaymentRequests $
+      env
 
 createProjectsPaymentRequests :: AftokM ()
 createProjectsPaymentRequests = do

@@ -3,7 +3,7 @@
 module Aftok.Currency.Zcash.Zip321 where
 
 import Aftok.Currency.Zcash.Types
-import Control.Lens ((^.), makeLenses, makePrisms)
+import Control.Lens (makeLenses, makePrisms, (^.))
 import Data.Attoparsec.Text
   ( Parser,
     char,
@@ -28,22 +28,20 @@ import Network.URI.Encode (decodeText, encodeTextWith)
 import Text.Printf (printf)
 import Prelude hiding (any, intercalate, zip)
 
-data PaymentItem
-  = PaymentItem
-      { _address :: Address,
-        _amount :: Zatoshi,
-        _memo :: Maybe Memo,
-        _message :: Maybe Text,
-        _label :: Maybe Text,
-        _other :: [(Text, Text)] -- TODO: param name restrictions
-      }
+data PaymentItem = PaymentItem
+  { _address :: Address,
+    _amount :: Zatoshi,
+    _memo :: Maybe Memo,
+    _message :: Maybe Text,
+    _label :: Maybe Text,
+    _other :: [(Text, Text)] -- TODO: param name restrictions
+  }
 
 makeLenses ''PaymentItem
 
-data PaymentRequest
-  = PaymentRequest
-      { _items :: NonEmpty PaymentItem
-      }
+data PaymentRequest = PaymentRequest
+  { _items :: NonEmpty PaymentItem
+  }
 
 makeLenses ''PaymentRequest
 

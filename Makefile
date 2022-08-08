@@ -1,7 +1,7 @@
 VERSION=$(shell git describe)
 
 format:
-	ormolu --mode inplace $(find lib server daemon test -name '*.hs')
+	ormolu --mode inplace $(shell find lib server daemon test -name '*.hs')
 
 build-server-image:
 	docker build -t aftok/aftok-server:latest .

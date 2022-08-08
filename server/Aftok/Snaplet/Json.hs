@@ -7,7 +7,7 @@ where
 import qualified Aftok.Currency.Zcash.Zip321 as Zip321
 import Aftok.Json (idValue, obj, v1)
 import Control.Lens (Getter)
-import Data.Aeson ((.=), Value, toJSON)
+import Data.Aeson (Value, toJSON, (.=))
 import Data.UUID (UUID)
 
 idJSON :: forall a. Text -> Getter a UUID -> a -> Value

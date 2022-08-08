@@ -17,7 +17,6 @@ import Aftok.Auction
     AuctionId (..),
     Bid (..),
     BidId (..),
-    _AuctionId,
     auctionEnd,
     auctionStart,
     bidAmount,
@@ -29,6 +28,7 @@ import Aftok.Auction
     name,
     projectId,
     raiseAmount,
+    _AuctionId,
   )
 import Aftok.Currency (Amount (..))
 import Aftok.Database (Limit (..))

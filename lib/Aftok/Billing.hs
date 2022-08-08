@@ -6,7 +6,7 @@
 module Aftok.Billing where
 
 import Aftok.Types (Email, ProjectId, UserId)
-import Control.Lens (_Just, makeLenses, makePrisms, preview, view)
+import Control.Lens (makeLenses, makePrisms, preview, view, _Just)
 import qualified Data.Thyme.Clock as C
 import qualified Data.Thyme.Time as T
 import Data.UUID (UUID)
@@ -50,20 +50,19 @@ annually :: Recurrence
 annually = Annually
 
 -- | A potentially recurring billable amount.
-data Billable' p u currency
-  = Billable
-      { _project :: p,
-        _creator :: u,
-        _name :: Text,
-        _description :: Maybe Text,
-        _messageText :: Maybe Text,
-        _recurrence :: Recurrence,
-        _amount :: currency,
-        _gracePeriod :: T.Days,
-        _requestExpiryPeriod :: T.NominalDiffTime,
-        _paymentRequestEmailTemplate :: Maybe Text,
-        _paymentRequestMemoTemplate :: Maybe Text
-      }
+data Billable' p u currency = Billable
+  { _project :: p,
+    _creator :: u,
+    _name :: Text,
+    _description :: Maybe Text,
+    _messageText :: Maybe Text,
+    _recurrence :: Recurrence,
+    _amount :: currency,
+    _gracePeriod :: T.Days,
+    _requestExpiryPeriod :: T.NominalDiffTime,
+    _paymentRequestEmailTemplate :: Maybe Text,
+    _paymentRequestMemoTemplate :: Maybe Text
+  }
 
 makeLenses ''Billable'
 
@@ -79,14 +78,13 @@ data ContactChannel
 -- | An association between a customer and a (potentially recurring) billable amount.
 --
 -- For one-time billing events, the end date should be the same as the start date.
-data Subscription' u b
-  = Subscription
-      { _customer :: u,
-        _billable :: b,
-        _contactChannel :: ContactChannel,
-        _startTime :: C.UTCTime,
-        _endTime :: Maybe C.UTCTime
-      }
+data Subscription' u b = Subscription
+  { _customer :: u,
+    _billable :: b,
+    _contactChannel :: ContactChannel,
+    _startTime :: C.UTCTime,
+    _endTime :: Maybe C.UTCTime
+  }
 
 makeLenses ''Subscription'
 

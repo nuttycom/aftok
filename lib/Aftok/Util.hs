@@ -9,9 +9,8 @@ import Data.Functor.Coyoneda
 import Data.Map.Strict as M
 import qualified Debug.Trace as T
 
-newtype Program (f :: * -> *) (a :: *)
-  = Program
-      {runProgram :: F (Coyoneda f) a}
+newtype Program (f :: * -> *) (a :: *) = Program
+  {runProgram :: F (Coyoneda f) a}
   deriving (Functor, Applicative, Monad)
 
 -- Shouldn't this exist already in a library somewhere?

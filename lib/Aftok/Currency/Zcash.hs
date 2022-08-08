@@ -23,7 +23,7 @@ import Aftok.Currency.Zcash.Types as Z
 import Aftok.Types (UserId)
 import Control.Exception (catch)
 import Control.Monad.Trans.Except (except)
-import Data.Aeson ((.:), (.:?), (.=), Value, encode, object)
+import Data.Aeson (Value, encode, object, (.:), (.:?), (.=))
 import qualified Data.Aeson as A
 import Data.Aeson.Types (Parser)
 import qualified Data.Text.Encoding as T
@@ -43,13 +43,12 @@ import Network.HTTP.Client
   )
 import Network.HTTP.Types (Status, statusCode)
 
-data ZcashdConfig
-  = ZcashdConfig
-      { zcashdHost :: Text,
-        zcashdPort :: Int,
-        rpcUser :: Text,
-        rpcPassword :: Text
-      }
+data ZcashdConfig = ZcashdConfig
+  { zcashdHost :: Text,
+    zcashdPort :: Int,
+    rpcUser :: Text,
+    rpcPassword :: Text
+  }
 
 data RPCCall a where
   ZValidateAddress :: Text -> RPCCall ZValidateAddressResp
@@ -95,12 +94,11 @@ data ZValidateAddressErr
   | DataMissing
   deriving (Eq, Show)
 
-data ZValidateAddressResp
-  = ZValidateAddressResp
-      { vzrIsValid :: Bool,
-        --, vzrAddress  :: Maybe Text
-        vzrAddrType :: Maybe Z.ZAddrType
-      }
+data ZValidateAddressResp = ZValidateAddressResp
+  { vzrIsValid :: Bool,
+    --, vzrAddress  :: Maybe Text
+    vzrAddrType :: Maybe Z.ZAddrType
+  }
 
 instance A.FromJSON ZValidateAddressResp where
   parseJSON = parseValidateZAddrResponse
@@ -143,11 +141,10 @@ rpcValidateZAddr mgr cfg addr = runExceptT $ do
 
 -- Viewing Keys
 
-data ZImportViewingKeyResp
-  = ZImportViewingKeyResp
-      { addressType :: Z.ZAddrType
-        -- , address :: Z.Address
-      }
+data ZImportViewingKeyResp = ZImportViewingKeyResp
+  { addressType :: Z.ZAddrType
+  -- , address :: Z.Address
+  }
 
 parseImportViewingKeyResponse :: Value -> Parser ZImportViewingKeyResp
 parseImportViewingKeyResponse = \case
