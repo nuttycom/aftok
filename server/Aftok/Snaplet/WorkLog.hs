@@ -37,14 +37,15 @@ import Aftok.Types
   )
 import Control.Lens (view, (^.))
 import Data.Aeson (Value (Object), eitherDecode, object, (.:), (.=))
+import Data.Aeson.Key (fromText)
 import Data.Aeson.Types (Pair, Parser, parseEither)
 import qualified Data.List.NonEmpty as L
 import qualified Data.Map.Strict as MS
 import qualified Data.Text as T
-import Data.Thyme.Clock as C
-import Data.UUID as U
+import qualified Data.Thyme.Clock as C
+import qualified Data.UUID as U
 import Snap.Core
-import Snap.Snaplet as S
+import qualified Snap.Snaplet as S
 
 ----------------------
 -- Handlers
@@ -134,7 +135,7 @@ parseEventAmendment t = \case
 
 logEventJSON :: LogEvent -> Value
 logEventJSON ev =
-  object [eventName ev .= object ["eventTime" .= (ev ^. eventTime)]]
+  object [fromText (eventName ev) .= object ["eventTime" .= (ev ^. eventTime)]]
 
 logEntryFields :: LogEntry -> [Pair]
 logEntryFields (LogEntry c ev m) =

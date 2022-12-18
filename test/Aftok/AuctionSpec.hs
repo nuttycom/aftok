@@ -77,7 +77,7 @@ spec = do
       let result =
             runAuction' (Satoshi 1250) [testB0, testB1, testB2, testB3, testB4]
           split =
-            Bid (users !! 4) (Seconds 31) (Satoshi 50) (testB4 ^. bidTime)
+            Bid (users !! 4) (Seconds 30) (Satoshi 50) (testB4 ^. bidTime)
           expected = sortBy bidOrder [testB0, testB1, testB2, split]
        in case result of
             WinningBids winners -> sortBy bidOrder winners `shouldBe` expected

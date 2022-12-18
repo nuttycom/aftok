@@ -17,7 +17,7 @@ import qualified Aftok.Payments.Types as PT
 import Aftok.Payments.Util (MinPayout (..), getPayouts, getProjectPayoutFractions)
 import Aftok.Types (AccountId)
 import Control.Error.Safe (tryJust)
-import Control.Lens (makeLenses, (^.))
+import Control.Lens (makeLenses, (^.), review)
 import Data.Map.Strict (assocs)
 import Data.Thyme.Clock as C
 import Data.Thyme.Time as C
@@ -61,7 +61,7 @@ zip321PaymentRequest ::
   C.UTCTime ->
   ExceptT PT.PaymentRequestError m PaymentRequest
 zip321PaymentRequest cfg memoGen billable billingDay billTime = do
-  let payoutTime = C.mkUTCTime billingDay (fromInteger 0)
+  let payoutTime = review C.utcTime $ C.UTCView billingDay (fromInteger 0)
       billTotal = billable ^. amount
   payoutFractions <- lift $ getProjectPayoutFractions payoutTime (billable ^. project)
   payouts <- getPayouts payoutTime ZEC (MinPayout $ cfg ^. minAmt) billTotal payoutFractions
