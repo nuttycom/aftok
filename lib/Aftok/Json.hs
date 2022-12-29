@@ -5,6 +5,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Aftok.Json where
 
@@ -20,11 +21,11 @@ import Control.FromSum
   )
 import Control.Lens hiding ((.=))
 import Data.Aeson
+import qualified Data.Aeson.KeyMap as O
 import Data.Aeson.Types
 import qualified Data.Attoparsec.ByteString.Char8 as PC
 import qualified Data.ByteString.Char8 as C
 import Data.Data
-import Data.HashMap.Strict as O
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Thyme.Clock as Clock
@@ -116,7 +117,7 @@ obj = O.fromList
 idValue :: forall a. Getter a UUID -> a -> Value
 idValue l a = toJSON . U.toText $ view l a
 
-identifiedJSON :: Text -> Getter a UUID -> Getter a Value -> a -> Value
+identifiedJSON :: Key -> Getter a UUID -> Getter a Value -> a -> Value
 identifiedJSON name _id _value x =
   object [(name <> "Id") .= idValue _id x, name .= (x ^. _value)]
 

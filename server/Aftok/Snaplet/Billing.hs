@@ -78,7 +78,7 @@ import Data.Aeson.Types
     parseEither,
   )
 import Data.AffineSpace ((.+^))
-import qualified Data.HashMap.Strict as O
+import qualified Data.Aeson.KeyMap as O
 import qualified Data.Thyme.Clock as C
 import Data.Thyme.Time.Core (toThyme)
 import qualified Snap.Snaplet as S

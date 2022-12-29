@@ -39,6 +39,7 @@ import Bippy.Types
 import Control.Lens
   ( makeLenses,
     (^.),
+    review
   )
 import Control.Monad.Except (throwError)
 import Control.Monad.Trans.Except (except, withExceptT)
@@ -53,13 +54,13 @@ import Crypto.Random.Types
 import Data.AffineSpace ((.+^))
 import Data.Map.Strict (assocs)
 import qualified Data.Text as T
-import Data.Thyme.Clock as C
-import Data.Thyme.Time as C
+import qualified Data.Thyme.Clock as C
+import qualified Data.Thyme.Time as C
 import Haskoin.Address (Address (..), encodeBase58Check)
 import Haskoin.Script (ScriptOutput (..))
 import Network.URI (URI)
 
-data BillingOps (m :: * -> *) = BillingOps
+data BillingOps (m :: Type -> Type) = BillingOps
   { -- | generator for user memo
     memoGen ::
       Billable Satoshi -> -- template for the bill
@@ -126,11 +127,11 @@ bip70PaymentRequest ::
   -- | billing base date
   C.Day ->
   -- | time at which the bill is being issued
-  UTCTime ->
+  C.UTCTime ->
   ExceptT PaymentError m PaymentRequest
 bip70PaymentRequest ops cfg billable billingDay billingTime = do
   let billTotal = billable ^. amount
-      payoutTime = C.mkUTCTime billingDay (fromInteger 0)
+      payoutTime = review C.utcTime $ C.UTCView billingDay (fromInteger 0)
   payoutFractions <- lift $ getProjectPayoutFractions payoutTime (billable ^. project)
   payouts <- withExceptT RequestError $ getPayouts payoutTime BTC (MinPayout $ cfg ^. minPayment) billTotal payoutFractions
   outputs <- except $ traverse toOutput (assocs payouts)

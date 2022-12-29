@@ -24,6 +24,9 @@ common buildenv
   build-depends:      
       base                
     , relude
+    , aeson
+    , lens
+    , thyme >= 0.3.5.6
   mixins: base hiding (Prelude)
         , relude (Relude as Prelude)
 
@@ -67,7 +70,6 @@ library
     , basement
     , bippy               
     , blake2
-    , aeson              
     , attoparsec         
     , base64
     , bifunctors
@@ -89,7 +91,6 @@ library
     , http-client
     , http-types
     , kan-extensions
-    , lens     
     , lens-aeson
     , MonadRandom
     , mtl
@@ -107,7 +108,6 @@ library
     , system-filepath
     , template-haskell
     , text           
-    , thyme
     , transformers
     , uuid         
     , unordered-containers
@@ -129,7 +129,6 @@ Test-Suite spec
 
   build-depends:    
       aftok
-    , aeson
     , attoparsec
     , bifunctors
     , bippy
@@ -139,11 +138,9 @@ Test-Suite spec
     , haskoin-core 
     , hourglass
     , iso8601-time
-    , lens
     , QuickCheck 
     , semigroups
     , text
-    , thyme
     , uuid
     , vector-space
 
@@ -170,7 +167,6 @@ Executable aftok-server
 
   build-depends:      
       aftok
-    , aeson
     , attoparsec
     , base64-bytestring
     , bytestring
@@ -192,7 +188,6 @@ Executable aftok-server
     , http-client-tls
     , http-client-openssl
     , http-types
-    , lens
     , mime-mail
     , mtl                     
     , network                   
@@ -203,10 +198,9 @@ Executable aftok-server
     , snap                    
     , snap-core              
     , snap-server           
-    , snaplet-postgresql-simple
+    , snaplet-postgresql-simple >= 1.3.0.0
     , system-filepath
     , text
-    , thyme
     , transformers
     , unordered-containers
     , uuid                
@@ -224,7 +218,6 @@ Executable aftok-daemon
                     , AftokD.AftokM
   build-depends:      
       aftok
-    , aeson
     , attoparsec
     , base64-bytestring
     , bytestring
@@ -242,7 +235,6 @@ Executable aftok-daemon
     , HsOpenSSL
     , http-client
     , http-client-openssl
-    , lens
     , mime-mail
     , mtl                     
     , network                   
@@ -253,7 +245,6 @@ Executable aftok-daemon
     , smtp-mail               
     , system-filepath
     , text
-    , thyme
     , transformers
     , uuid                
     , wreq        

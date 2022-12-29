@@ -137,7 +137,7 @@ makeClassyPrisms ''DBError
 
 instance Exception DBError
 
-class (Monad m) => MonadDB (m :: * -> *) where
+class (Monad m) => MonadDB (m :: Type -> Type) where
   liftdb :: DBOp x -> m x
 
 instance MonadDB (Program DBOp) where

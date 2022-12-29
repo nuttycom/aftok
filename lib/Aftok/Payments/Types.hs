@@ -63,7 +63,7 @@ data PaymentOps currency m = PaymentOps
       m (NativeRequest currency)
   }
 
-data PaymentRequest' (billable :: * -> *) currency = PaymentRequest
+data PaymentRequest' (billable :: Type -> Type) currency = PaymentRequest
   { _billable :: billable currency,
     _createdAt :: C.UTCTime,
     _billingDate :: C.Day,
@@ -76,7 +76,7 @@ type PaymentRequest currency = PaymentRequest' (Const BillableId) currency
 
 type PaymentRequestDetail currency = PaymentRequest' (Billable' ProjectId UserId) currency
 
-data SomePaymentRequest (b :: * -> *) = forall c. SomePaymentRequest (PaymentRequest' b c)
+data SomePaymentRequest (b :: Type -> Type) = forall c. SomePaymentRequest (PaymentRequest' b c)
 
 type SomePaymentRequestDetail = SomePaymentRequest (Billable' ProjectId UserId)
 
@@ -90,7 +90,7 @@ isExpired now req =
   let expiresAt = (req ^. createdAt) .+^ (req ^. (billable . requestExpiryPeriod))
    in now >= expiresAt
 
-data Payment' (paymentRequest :: * -> *) currency = Payment
+data Payment' (paymentRequest :: Type -> Type) currency = Payment
   { _paymentRequest :: paymentRequest currency,
     _paymentDate :: C.UTCTime,
     _nativePayment :: NativePayment currency

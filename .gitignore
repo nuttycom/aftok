@@ -3,6 +3,7 @@ cabal.sandbox.config
 .stack-work
 Setup
 dist-newstyle
+result
 
 *.swp
 tags
@@ -24,3 +25,4 @@ client/.pulp-cache
 moo.cfg
 site_key.txt
 .env*
+
