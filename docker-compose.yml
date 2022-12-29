@@ -69,9 +69,9 @@ services:
     image: postgres:9.4
     container_name: aftok-db
     expose:
-      - "5432"
+      - "15432"
     ports:
-      - "5432:5432"
+      - "15432:5432"
     environment:
       POSTGRES_DB: "postgres"
       POSTGRES_USER: "postgres"
@@ -87,23 +87,23 @@ services:
     networks:
       - back-tier
 
-  zcashd:
-    image: electriccoinco/zcashd:v4.5.1-1
-    container_name: aftok-zcashd
-    expose:
-      - "18232"
-    ports:
-      - "18233:18233"
-    volumes:
-      - type: bind
-        source: ./local/zcashd/zcash-data
-        target: /srv/zcashd/.zcash
-      - type: bind
-        source: ./local/zcashd/zcash-params
-        target: /srv/zcashd/.zcash-params
-        read_only: true
-    networks:
-      - back-tier
+        #  zcashd:
+        #    image: electriccoinco/zcashd:v4.5.1-1
+        #    container_name: aftok-zcashd
+        #    expose:
+        #      - "18232"
+        #    ports:
+        #      - "18233:18233"
+        #    volumes:
+        #      - type: bind
+        #        source: ./local/zcashd/zcash-data
+        #        target: /srv/zcashd/.zcash
+        #      - type: bind
+        #        source: ./local/zcashd/zcash-params
+        #        target: /srv/zcashd/.zcash-params
+        #        read_only: true
+        #    networks:
+        #      - back-tier
 
 volumes:
   v_aftok-data:

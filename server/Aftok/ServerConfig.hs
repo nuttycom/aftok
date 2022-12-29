@@ -43,6 +43,7 @@ makeLenses ''ServerConfig
 loadServerConfig :: P.FilePath -> IO ServerConfig
 loadServerConfig cfgFile = do
   env <- getEnvironment
+  putStrLn $ "Loading config from file " <> show cfgFile
   cfg <- C.load [C.Required $ encodeString cfgFile]
   let dbEnvCfg = pgsDefaultConfig . C8.pack <$> L.lookup "DATABASE_URL" env
   readServerConfig cfg dbEnvCfg

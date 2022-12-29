@@ -78,7 +78,8 @@
         packages = {
           aftok-server = hspkgs.callCabal2nix "aftok" ./. {};
           aftok-server-dockerImage = pkgs.dockerTools.buildImage {
-            name = "aftok-server";
+            name = "aftok/aftok-server";
+            tag = "latest";
             config = {
               Entrypoint = ["${self.packages.${system}.aftok-server}/bin/aftok-server" "--conf=/etc/aftok/aftok-server.cfg"];
             };

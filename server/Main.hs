@@ -22,11 +22,12 @@ import Aftok.Snaplet.Users
 import Aftok.Snaplet.WorkLog
 import Aftok.TimeLog
 import Aftok.Types (_ProjectId)
-import Control.Exception (try)
 import Control.Lens
   ( to,
     (^.),
   )
+import Options.Applicative (Parser, execParser, header, help, helper, info, long, short, strOption)
+
 import qualified Data.Aeson as A
 import Data.ProtocolBuffers (encodeMessage)
 import Data.Serialize.Put (runPutLazy)
@@ -36,21 +37,25 @@ import Filesystem.Path.CurrentOS
   )
 import Network.HTTP.Client (Manager, defaultManagerSettings, newManager)
 import Snap.Core
+import qualified Snap.Http.Server.Config as SC
 import Snap.Snaplet
 import qualified Snap.Snaplet.Auth as AU
 import Snap.Snaplet.Auth.Backends.PostgresqlSimple
 import Snap.Snaplet.PostgresqlSimple
 import Snap.Snaplet.Session.Backends.CookieSession
 import Snap.Util.FileServe (serveDirectory)
-import System.Environment
-import System.IO.Error (IOError)
+
+data CmdArgs = CmdArgs {cfgFile :: String}
+
+args :: Parser CmdArgs
+args = CmdArgs <$> strOption (long "conf" <> short 'c' <> help "Configuration file")
 
 main :: IO ()
 main = do
-  cfgPath <- try @IOError $ getEnv "AFTOK_CFG"
-  cfg <- loadServerConfig . decodeString $ fromRight "conf/aftok.cfg" cfgPath
-  sconf <- snapConfig cfg
-  serveSnaplet sconf $ appInit cfg
+  opts <- execParser $ info (args <**> helper) (header "The Aftok collaboration server")
+  cfg <- loadServerConfig . decodeString $ cfgFile opts
+  let sconf = baseSnapConfig cfg SC.emptyConfig
+  serveSnapletNoArgParsing sconf $ appInit cfg
 
 registerOps :: Manager -> ServerConfig -> RegisterOps IO
 registerOps mgr cfg =
