@@ -66,7 +66,7 @@
       haskellPackages = prev.haskellPackages.extend haskell-overlay;
     };
   in
-    flake-utils.lib.eachDefaultSystem (
+    flake-utils.lib.eachSystem [flake-utils.lib.system.x86_64-linux] (
       system: let
         pkgs = import nixpkgs {
           inherit system;
@@ -74,39 +74,36 @@
         };
 
         hspkgs = pkgs.haskellPackages;
-
-        aftok = hspkgs.callCabal2nix "aftok" ./. {};
-
-        aftok-server-dockerImage = pkgs.dockerTools.buildImage {
-          name = "aftok-server";
-          config = {
-            Entrypoint = ["${aftok}/bin/aftok-server" "--conf=/etc/aftok/aftok-server.cfg"];
-          };
-        };
       in {
         packages = {
-          aftok-server = aftok;
-          aftok-server-dockerImage = aftok-server-dockerImage;
+          aftok-server = hspkgs.callCabal2nix "aftok" ./. {};
+          aftok-server-dockerImage = pkgs.dockerTools.buildImage {
+            name = "aftok-server";
+            config = {
+              Entrypoint = ["${self.packages.${system}.aftok-server}/bin/aftok-server" "--conf=/etc/aftok/aftok-server.cfg"];
+            };
+          };
+          default = self.packages.${system}.aftok-server-dockerImage;
         };
 
-        defaultPackage = aftok-server-dockerImage;
-
-        devShell = pkgs.mkShell {
-          buildInputs = [
-            hspkgs.cabal-install
-            hspkgs.ghc
-            hspkgs.ghcid
-            hspkgs.ormolu
-            (pkgs.haskell.lib.dontCheck dbmigrations-postgresql.defaultPackage.${system})
-          ];
-          nativeBuildInputs = [
-            pkgs.binutils
-            pkgs.openssl
-            pkgs.postgresql
-            pkgs.secp256k1
-            pkgs.zlib
-          ];
-          inputsFrom = builtins.attrValues self.packages.${system};
+        devShells = {
+          default = pkgs.mkShell {
+            buildInputs = [
+              hspkgs.cabal-install
+              hspkgs.ghc
+              hspkgs.ghcid
+              hspkgs.ormolu
+              (pkgs.haskell.lib.dontCheck dbmigrations-postgresql.defaultPackage.${system})
+            ];
+            nativeBuildInputs = [
+              pkgs.binutils
+              pkgs.openssl
+              pkgs.postgresql
+              pkgs.secp256k1
+              pkgs.zlib
+            ];
+            inputsFrom = builtins.attrValues self.packages.${system};
+          };
         };
 
         formatter = pkgs.alejandra;
