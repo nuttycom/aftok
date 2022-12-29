@@ -117,21 +117,6 @@
         "type": "github"
       }
     },
-    "flake-utils_10": {
-      "locked": {
-        "lastModified": 1667395993,
-        "narHash": "sha256-nuEHfE/LcWyuSWnS8t12N1wc105Qtau+/OdUAjtQ0rA=",
-        "owner": "numtide",
-        "repo": "flake-utils",
-        "rev": "5aed5285a952e0b949eb3ba02c12fa4fcfef535f",
-        "type": "github"
-      },
-      "original": {
-        "owner": "numtide",
-        "repo": "flake-utils",
-        "type": "github"
-      }
-    },
     "flake-utils_2": {
       "locked": {
         "lastModified": 1667395993,
@@ -237,21 +222,6 @@
         "type": "github"
       }
     },
-    "flake-utils_9": {
-      "locked": {
-        "lastModified": 1667395993,
-        "narHash": "sha256-nuEHfE/LcWyuSWnS8t12N1wc105Qtau+/OdUAjtQ0rA=",
-        "owner": "numtide",
-        "repo": "flake-utils",
-        "rev": "5aed5285a952e0b949eb3ba02c12fa4fcfef535f",
-        "type": "github"
-      },
-      "original": {
-        "owner": "numtide",
-        "repo": "flake-utils",
-        "type": "github"
-      }
-    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1669597314,
@@ -263,22 +233,6 @@
       },
       "original": {
         "owner": "NixOS",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
-    "nixpkgs_10": {
-      "locked": {
-        "lastModified": 1671391912,
-        "narHash": "sha256-W8sbJuN/i+OZdRuIzDiIyKOqVB/G26zh9DQL1rfp2xk=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "09e8ac77744dd036e58ab2284e6f5c03a6d6ed41",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOS",
-        "ref": "release-22.11",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -391,22 +345,6 @@
         "type": "github"
       }
     },
-    "nixpkgs_9": {
-      "locked": {
-        "lastModified": 1671391912,
-        "narHash": "sha256-W8sbJuN/i+OZdRuIzDiIyKOqVB/G26zh9DQL1rfp2xk=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "09e8ac77744dd036e58ab2284e6f5c03a6d6ed41",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOS",
-        "ref": "release-22.11",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
     "root": {
       "inputs": {
         "dbmigrations": "dbmigrations",
@@ -414,55 +352,13 @@
         "dbmigrations-postgresql-simple": "dbmigrations-postgresql-simple",
         "flake-utils": "flake-utils_6",
         "nixpkgs": "nixpkgs_6",
-        "secp256k1-haskell": "secp256k1-haskell",
-        "snaplet-postgresql-simple": "snaplet-postgresql-simple",
         "thyme": "thyme"
-      }
-    },
-    "secp256k1-haskell": {
-      "inputs": {
-        "flake-utils": "flake-utils_7",
-        "nixpkgs": "nixpkgs_7"
-      },
-      "locked": {
-        "lastModified": 1671399915,
-        "narHash": "sha256-pm4od1/UIhtlt+XQCLqEkbDT4oFX5VKLAl7+dC2gPbg=",
-        "owner": "nuttycom",
-        "repo": "secp256k1-haskell",
-        "rev": "610780ee4c0c74bb1b66169d863a47e5fb49211e",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nuttycom",
-        "repo": "secp256k1-haskell",
-        "rev": "610780ee4c0c74bb1b66169d863a47e5fb49211e",
-        "type": "github"
-      }
-    },
-    "snaplet-postgresql-simple": {
-      "inputs": {
-        "flake-utils": "flake-utils_8",
-        "nixpkgs": "nixpkgs_8"
-      },
-      "locked": {
-        "lastModified": 1671469830,
-        "narHash": "sha256-bpfuXApZ3WKSSzM+bclt5G91CZba1mj2aA6clwfwxgk=",
-        "owner": "nuttycom",
-        "repo": "snaplet-postgresql-simple",
-        "rev": "c314c6f64bc00d05dab9630f30f269740da6ea9e",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nuttycom",
-        "repo": "snaplet-postgresql-simple",
-        "rev": "c314c6f64bc00d05dab9630f30f269740da6ea9e",
-        "type": "github"
       }
     },
     "thyme": {
       "inputs": {
-        "flake-utils": "flake-utils_9",
-        "nixpkgs": "nixpkgs_9",
+        "flake-utils": "flake-utils_7",
+        "nixpkgs": "nixpkgs_7",
         "true-name": "true-name"
       },
       "locked": {
@@ -482,8 +378,8 @@
     },
     "true-name": {
       "inputs": {
-        "flake-utils": "flake-utils_10",
-        "nixpkgs": "nixpkgs_10"
+        "flake-utils": "flake-utils_8",
+        "nixpkgs": "nixpkgs_8"
       },
       "locked": {
         "lastModified": 1671422176,

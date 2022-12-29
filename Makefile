@@ -4,7 +4,8 @@ format:
 	ormolu --mode inplace $(shell find lib server daemon test -name '*.hs')
 
 build-server-image:
-	docker build -t aftok/aftok-server:latest .
+	nix build
+	sudo docker load < result
 
 build-client-image:
 	docker build -t aftok/aftok-client:latest -f ./client/Dockerfile .

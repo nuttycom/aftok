@@ -198,7 +198,7 @@ Executable aftok-server
     , snap                    
     , snap-core              
     , snap-server           
-    , snaplet-postgresql-simple >= 1.3.0.0
+    , snaplet-postgresql-simple
     , system-filepath
     , text
     , transformers
