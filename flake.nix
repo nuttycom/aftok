@@ -98,7 +98,6 @@
             hspkgs.ghcid
             hspkgs.ormolu
             (pkgs.haskell.lib.dontCheck dbmigrations-postgresql.defaultPackage.${system})
-            pkgs.alejandra
           ];
           nativeBuildInputs = [
             pkgs.binutils
@@ -109,6 +108,8 @@
           ];
           inputsFrom = builtins.attrValues self.packages.${system};
         };
+
+        formatter = pkgs.alejandra;
       }
     );
 }
