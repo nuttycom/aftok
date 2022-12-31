@@ -7,7 +7,7 @@
     dbmigrations.url = "github:nuttycom/dbmigrations/74ef9388b45ae73a1d9c737d9644e076fe832672";
     dbmigrations-postgresql.url = "github:nuttycom/dbmigrations-postgresql/3c9477e45e923b28d9677dc6291e35bb7c833c28";
     dbmigrations-postgresql-simple.url = "github:nuttycom/dbmigrations-postgresql-simple/d51bbc5a0b7d91f7c8a12fc28e5ecbe7ac326221";
-    thyme.url = "github:nuttycom/thyme/6fc5b0f5da0a20007db8fac8c225a85bb780aee1";
+    thyme.url = "github:nuttycom/thyme/14422f2dd5ba369cf68b1c42363dcb6f92860ccc";
   };
 
   outputs = {
@@ -54,8 +54,6 @@
         haskoin-core = dontCheck (jailbreakUnbreak hprev.haskoin-core);
         bippy = dontCheck (hfinal.callCabal2nix "bippy" bippy-src {});
 
-        thyme = thyme.defaultPackage.${final.system};
-
         HsOpenSSL = hfinal.callCabal2nix "HsOpenSSL" HsOpenSSL-src {};
         snaplet-postgresql-simple = jailbreakUnbreak hprev.snaplet-postgresql-simple;
 
@@ -70,7 +68,7 @@
       system: let
         pkgs = import nixpkgs {
           inherit system;
-          overlays = [overlay];
+          overlays = [thyme.overlays.${system}.default overlay];
         };
 
         hspkgs = pkgs.haskellPackages;
