@@ -72,13 +72,13 @@ import Aftok.Types (ProjectId, UserId)
 import Control.Lens (to, (.~), (^.))
 import Control.Monad.Trans.Except (mapExceptT)
 import Data.Aeson
+import qualified Data.Aeson.KeyMap as O
 import Data.Aeson.Types
   ( Pair,
     Parser,
     parseEither,
   )
 import Data.AffineSpace ((.+^))
-import qualified Data.Aeson.KeyMap as O
 import qualified Data.Thyme.Clock as C
 import Data.Thyme.Time.Core (toThyme)
 import qualified Snap.Snaplet as S

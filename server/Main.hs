@@ -26,8 +26,6 @@ import Control.Lens
   ( to,
     (^.),
   )
-import Options.Applicative (Parser, execParser, header, help, helper, info, long, short, strOption)
-
 import qualified Data.Aeson as A
 import Data.ProtocolBuffers (encodeMessage)
 import Data.Serialize.Put (runPutLazy)
@@ -36,6 +34,7 @@ import Filesystem.Path.CurrentOS
     encodeString,
   )
 import Network.HTTP.Client (Manager, defaultManagerSettings, newManager)
+import Options.Applicative (Parser, execParser, header, help, helper, info, long, short, strOption)
 import Snap.Core
 import qualified Snap.Http.Server.Config as SC
 import Snap.Snaplet

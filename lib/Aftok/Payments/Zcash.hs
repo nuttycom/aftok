@@ -17,7 +17,7 @@ import qualified Aftok.Payments.Types as PT
 import Aftok.Payments.Util (MinPayout (..), getPayouts, getProjectPayoutFractions)
 import Aftok.Types (AccountId)
 import Control.Error.Safe (tryJust)
-import Control.Lens (makeLenses, (^.), review)
+import Control.Lens (makeLenses, review, (^.))
 import Data.Map.Strict (assocs)
 import Data.Thyme.Clock as C
 import Data.Thyme.Time as C

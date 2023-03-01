@@ -38,8 +38,8 @@ import Bippy.Types
   )
 import Control.Lens
   ( makeLenses,
+    review,
     (^.),
-    review
   )
 import Control.Monad.Except (throwError)
 import Control.Monad.Trans.Except (except, withExceptT)
