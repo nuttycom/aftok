@@ -9,7 +9,7 @@ source-repository-package
 source-repository-package
     type: git
     location: https://github.com/nuttycom/thyme.git
-    tag: 6fc5b0f5da0a20007db8fac8c225a85bb780aee1
+    tag: 14422f2dd5ba369cf68b1c42363dcb6f92860ccc
 
 source-repository-package
     type: git
@@ -24,7 +24,7 @@ source-repository-package
 source-repository-package
     type: git
     location: https://github.com/nuttycom/true-name.git
-    tag: b245b56a77f30fed0df7f74f9b36fd4c9bba026c
+    tag: 6ec32f4170a4bf823f6d80d1e3b6dc3e18746d87
 
 source-repository-package
     type: git
