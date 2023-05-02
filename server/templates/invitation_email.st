@@ -35,5 +35,5 @@ For an existing account:
 To accept the invitation using your current aftok.com account, you'll simply need to
 replace the <USER> token in the command below with your username:
 
-curl -k -v -u <USER> -d '' https://aftok.com/accept_invitation?invCode=$inv_code$
+curl -k -v -u <USER> -d '' https://aftok.com/api/accept_invitation?invCode=$inv_code$
 
