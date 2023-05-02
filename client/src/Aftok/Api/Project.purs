@@ -5,7 +5,7 @@ import Control.Monad.Except.Trans (ExceptT, runExceptT)
 -- import Control.Monad.Except.Trans (ExceptT, runExceptT, except, withExceptT)
 -- import Control.Monad.Error.Class (throwError)
 import Data.Argonaut.Core (Json, fromString, jsonEmptyObject)
-import Data.Argonaut.Decode (class DecodeJson, JsonDecodeError(..), decodeJson, (.:))
+import Data.Argonaut.Decode (class DecodeJson, JsonDecodeError(..), decodeJson, (.:), (.:?))
 import Data.Argonaut.Encode (encodeJson, (:=), (~>))
 import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant, toDateTime)
@@ -215,7 +215,10 @@ type InvResult =
   }
 
 decodeInvResult :: Json -> Either JsonDecodeError InvResult
-decodeInvResult = decodeJson
+decodeInvResult json = do
+    x <- decodeJson json
+    zip321_request <- x .:? "zip321_request"
+    pure $ { zip321_request: zip321_request }
 
 invite :: ProjectId -> Invitation -> Aff (Either APIError (Maybe Zip321Request))
 invite pid inv = do
