@@ -88,9 +88,6 @@
         devShells = {
           default = pkgs.mkShell {
             buildInputs = [
-              hspkgs.cabal-install
-              hspkgs.ghc
-              hspkgs.ghcid
               hspkgs.ormolu
               (pkgs.haskell.lib.dontCheck dbmigrations-postgresql.defaultPackage.${system})
             ];
