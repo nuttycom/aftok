@@ -17,6 +17,14 @@ The easiest way to run local aftok infrastructure is using Docker and
 docker-compose. Several steps are necessary to set up your local environment
 for development.
 
+Docker Permissions
+------------------
+
+The first step is to ensure that you have proper permissions to access and
+execute docker commands. On OSX, if you've installed Docker Desktop then this
+should already be the case. On Linux, you can either add your user to the
+`docker` group, or you can use `sudo` for commands.
+
 Obtaining Docker Images
 -----------------------
 
@@ -27,8 +35,7 @@ The docker-compose setup requires 4 images:
 * `postgres/postgres:latest`
 * `electriccoinco/zcashd:v4.2.0`
 
-You can obtain these images by running the following. This assumes the use of
-`sudo` under Linux; this may not be necessary on other platforms (e.g. OSX).
+You can obtain these images by running the following:
 
 ~~~bash
 make build-image # build the aftok-server image(s)
@@ -100,24 +107,37 @@ but that's okay.
 Also, if you have a copy of postgres already running at localhost:5432 you may
 need to change the exposed port in docker-compose.yml so as to avoid conflicts.
 
-If you're using docker on OSX, the `sudo` in the lines below (which is required
-on linux) should be omitted.
-
 ~~~bash
-sudo docker-compose up
-sudo docker ps
+docker-compose up
+docker ps
 ~~~
 
 At this point, the `aftok-db` container should be the only one that's running;
 the other two will have failed on startup.
 
+Initializing With an Existing Dump
+----------------------------------
+
 Assuming that you have such a dump at `local/postgres/db-dumps/aftok.dump`, use the
 `deploy/dbinit.sh` script to initialize the database. The postgres user's password 
-can be specified in the docker-compose file.
+can be specified in the docker-compose file. 
 
 ~~~bash
 ./deploy/dbinit.sh local/postgres/db-dumps/aftok.dump
 ~~~
+
+Initializing From Scratch
+-------------------------
+
+We first need to create the PostgreSQL accounts, which you can do with the
+`dbinit.sh` script:
+
+~~~bash
+./deploy/dbinit.sh
+~~~
+
+Restarting the Application
+--------------------------
 
 Now, you should be able to shut down docker-compose using ^C and 
 restart it with `docker-compose up`.
