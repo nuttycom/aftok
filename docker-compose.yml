@@ -72,10 +72,8 @@ services:
       - "15432"
     ports:
       - "15432:5432"
-    environment:
-      POSTGRES_DB: "postgres"
-      POSTGRES_USER: "postgres"
-      POSTGRES_PASSWORD: "postgres"
+    env_file:
+      - pg.env
     volumes:
       - type: volume
         source: v_aftok-data
