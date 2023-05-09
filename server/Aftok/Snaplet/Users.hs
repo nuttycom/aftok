@@ -14,7 +14,7 @@ module Aftok.Snaplet.Users
   )
 where
 
-import Aftok.Currency.Zcash (RPCError, ZValidateAddressErr)
+import Aftok.Currency.Zcash (ZValidateAddressErr)
 import qualified Aftok.Currency.Zcash as Zcash
 import Aftok.Database
   ( acceptInvitation,
@@ -62,7 +62,7 @@ import qualified Snap.Snaplet as S
 import qualified Snap.Snaplet.Auth as AU
 
 data RegisterOps m = RegisterOps
-  { validateZAddr :: Text -> m (Either (RPCError ZValidateAddressErr) Zcash.Address),
+  { validateZAddr :: Text -> m (Either ZValidateAddressErr Zcash.Address),
     sendConfirmationEmail :: Email -> m ()
   }
 
@@ -107,7 +107,7 @@ instance A.FromJSON RegisterRequest where
 data RegisterError
   = RegParseError String
   | RegCaptchaError [CaptchaError]
-  | RegZAddrError (RPCError ZValidateAddressErr)
+  | RegZAddrError ZValidateAddressErr
   deriving (Show)
 
 instance A.ToJSON RegisterError where

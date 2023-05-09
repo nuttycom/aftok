@@ -7,6 +7,7 @@ module Aftok.Currency.Zcash
     Z._IVK,
     RPCError (..),
     ZValidateAddressErr (..),
+    ZcashConfig (..),
     ZcashdConfig (..),
     Z.Zatoshi (..),
     Z._Zatoshi,
@@ -27,6 +28,7 @@ import Data.Aeson (Value, encode, object, (.:), (.:?), (.=))
 import qualified Data.Aeson as A
 import Data.Aeson.Types (Parser)
 import qualified Data.Text.Encoding as T
+import qualified Lrzhs.Types
 import Network.HTTP.Client
   ( HttpException,
     Manager,
@@ -48,6 +50,11 @@ data ZcashdConfig = ZcashdConfig
     zcashdPort :: Int,
     rpcUser :: Text,
     rpcPassword :: Text
+  }
+
+data ZcashConfig = ZcashConfig
+  { zcashNetwork :: Lrzhs.Types.Network,
+    zcashdConfig :: Maybe ZcashdConfig
   }
 
 data RPCCall a where
@@ -137,7 +144,7 @@ rpcValidateZAddr mgr cfg addr = runExceptT $ do
         Nothing -> Left (RPCError DataMissing)
         Just Z.Sprout -> Left (RPCError SproutAddress)
         Just Z.Sapling -> Right (Z.Address addr)
-      else Left $ RPCError ZAddrInvalid
+      else Left (RPCError ZAddrInvalid)
 
 -- Viewing Keys
 

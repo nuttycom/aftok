@@ -28,6 +28,11 @@ source-repository-package
 
 source-repository-package
     type: git
+    location: https://github.com/nuttycom/lrzhs.git
+    tag: b10c8cc245f2353dfe3f5cbd6e231082a23ced7d
+
+source-repository-package
+    type: git
     location: https://github.com/haskell-cryptography/HsOpenSSL.git
     tag: 094f7ef6c9ef4dc3eea56802382b1d50c99572d6
 

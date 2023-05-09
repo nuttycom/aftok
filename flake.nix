@@ -8,6 +8,7 @@
     dbmigrations-postgresql.url = "github:nuttycom/dbmigrations-postgresql/3c9477e45e923b28d9677dc6291e35bb7c833c28";
     dbmigrations-postgresql-simple.url = "github:nuttycom/dbmigrations-postgresql-simple/d51bbc5a0b7d91f7c8a12fc28e5ecbe7ac326221";
     thyme.url = "github:nuttycom/thyme/14422f2dd5ba369cf68b1c42363dcb6f92860ccc";
+    lrzhs.url = "github:nuttycom/lrzhs/b10c8cc245f2353dfe3f5cbd6e231082a23ced7d";
   };
 
   outputs = {
@@ -18,6 +19,7 @@
     dbmigrations-postgresql,
     dbmigrations-postgresql-simple,
     thyme,
+    lrzhs
   }: let
     overlay = final: prev: let
       jailbreakUnbreak = pkg:
@@ -59,6 +61,8 @@
 
         dbmigrations = dbmigrations.defaultPackage.${final.system};
         dbmigrations-postgresql-simple = dbmigrations-postgresql-simple.defaultPackage.${final.system};
+
+        lrzhs = lrzhs.packages.${final.system}.default;
       };
     in {
       haskellPackages = prev.haskellPackages.extend haskell-overlay;
@@ -87,18 +91,29 @@
 
         devShells = {
           default = pkgs.mkShell {
+            inputsFrom =
+              builtins.attrValues self.packages.${system};
+
             buildInputs = [
-              hspkgs.ormolu
-              (pkgs.haskell.lib.dontCheck dbmigrations-postgresql.defaultPackage.${system})
-            ];
-            nativeBuildInputs = [
-              pkgs.binutils
-              pkgs.openssl
-              pkgs.postgresql
+              lrzhs.packages.${system}.lrzhs_ffi
               pkgs.secp256k1
               pkgs.zlib
+              pkgs.openssl
             ];
-            inputsFrom = builtins.attrValues self.packages.${system};
+
+            nativeBuildInputs = [
+              hspkgs.ormolu
+              (pkgs.haskell.lib.dontCheck dbmigrations-postgresql.defaultPackage.${system})
+              pkgs.alejandra
+              pkgs.binutils
+              pkgs.postgresql
+            ];
+
+            LD_LIBRARY_PATH = [
+              "${pkgs.zlib}/lib/"
+              "${pkgs.openssl}/lib/"
+              "${pkgs.secp256k1}/lib/"
+            ];
           };
         };
 

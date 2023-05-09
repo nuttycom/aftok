@@ -6,7 +6,8 @@ import Aftok.Auction (_AuctionId)
 import Aftok.Billing (_BillableId, _SubscriptionId)
 import qualified Aftok.Config as C
 import Aftok.Currency.Bitcoin.Payments (_bip70Request)
-import Aftok.Currency.Zcash (rpcValidateZAddr)
+import Aftok.Currency.Zcash (zcashNetwork)
+import qualified Aftok.Currency.Zcash as Zcash
 import Aftok.Database.PostgreSQL (QDBM)
 import Aftok.Json
 import Aftok.Payments.Types (_PaymentId)
@@ -33,7 +34,7 @@ import Filesystem.Path.CurrentOS
   ( decodeString,
     encodeString,
   )
-import Network.HTTP.Client (Manager, defaultManagerSettings, newManager)
+import Lrzhs (isValidSaplingAddress)
 import Options.Applicative (Parser, execParser, header, help, helper, info, long, short, strOption)
 import Snap.Core
 import qualified Snap.Http.Server.Config as SC
@@ -56,19 +57,22 @@ main = do
   let sconf = baseSnapConfig cfg SC.emptyConfig
   serveSnapletNoArgParsing sconf $ appInit cfg
 
-registerOps :: Manager -> ServerConfig -> RegisterOps IO
-registerOps mgr cfg =
+registerOps :: ServerConfig -> RegisterOps IO
+registerOps cfg =
   RegisterOps
-    { validateZAddr = rpcValidateZAddr mgr (_zcashdConfig cfg),
+    { validateZAddr = \zaddr ->
+        isValidSaplingAddress (zcashNetwork . _zcashConfig $ cfg) zaddr <&> \valid ->
+          if valid
+            then Right (Zcash.Address zaddr)
+            else Left (Zcash.ZAddrInvalid),
       sendConfirmationEmail = const $ pure ()
     }
 
 appInit :: ServerConfig -> SnapletInit App App
 appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
-  mgr <- liftIO $ newManager defaultManagerSettings
   paymentsConfig <- liftIO $ C.toPaymentsConfig @QDBM (cfg ^. billingConfig)
   let cookieKey = cfg ^. authSiteKey . to encodeString
-      rops = registerOps mgr cfg
+      rops = registerOps cfg
   sesss <-
     nestSnaplet "sessions" sess $
       initCookieSessionManager

@@ -92,6 +92,7 @@ library
     , http-types
     , kan-extensions
     , lens-aeson
+    , lrzhs
     , MonadRandom
     , mtl
     , network                   
@@ -188,6 +189,7 @@ Executable aftok-server
     , http-client-tls
     , http-client-openssl
     , http-types
+    , lrzhs
     , mime-mail
     , mtl                     
     , network                   
