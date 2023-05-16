@@ -93,6 +93,7 @@
             ];
             nativeBuildInputs = [
               pkgs.binutils
+              pkgs.exa
               pkgs.openssl
               pkgs.postgresql
               pkgs.secp256k1
