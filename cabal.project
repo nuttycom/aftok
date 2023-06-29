@@ -8,23 +8,8 @@ source-repository-package
 
 source-repository-package
     type: git
-    location: https://github.com/nuttycom/thyme.git
-    tag: 14422f2dd5ba369cf68b1c42363dcb6f92860ccc
-
-source-repository-package
-    type: git
     location: https://github.com/nuttycom/snaplet-postgresql-simple.git
     tag: c314c6f64bc00d05dab9630f30f269740da6ea9e
-
-source-repository-package
-    type: git
-    location: https://github.com/nuttycom/secp256k1-haskell.git
-    tag: 610780ee4c0c74bb1b66169d863a47e5fb49211e
-
-source-repository-package
-    type: git
-    location: https://github.com/nuttycom/true-name.git
-    tag: 6ec32f4170a4bf823f6d80d1e3b6dc3e18746d87
 
 source-repository-package
     type: git

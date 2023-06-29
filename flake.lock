@@ -192,36 +192,6 @@
         "type": "github"
       }
     },
-    "flake-utils_7": {
-      "locked": {
-        "lastModified": 1667395993,
-        "narHash": "sha256-nuEHfE/LcWyuSWnS8t12N1wc105Qtau+/OdUAjtQ0rA=",
-        "owner": "numtide",
-        "repo": "flake-utils",
-        "rev": "5aed5285a952e0b949eb3ba02c12fa4fcfef535f",
-        "type": "github"
-      },
-      "original": {
-        "owner": "numtide",
-        "repo": "flake-utils",
-        "type": "github"
-      }
-    },
-    "flake-utils_8": {
-      "locked": {
-        "lastModified": 1667395993,
-        "narHash": "sha256-nuEHfE/LcWyuSWnS8t12N1wc105Qtau+/OdUAjtQ0rA=",
-        "owner": "numtide",
-        "repo": "flake-utils",
-        "rev": "5aed5285a952e0b949eb3ba02c12fa4fcfef535f",
-        "type": "github"
-      },
-      "original": {
-        "owner": "numtide",
-        "repo": "flake-utils",
-        "type": "github"
-      }
-    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1669597314,
@@ -299,48 +269,16 @@
     },
     "nixpkgs_6": {
       "locked": {
-        "lastModified": 1677447818,
-        "narHash": "sha256-dgXEUbz2hgaJL4xCD/5JLhA36UJOhP4qn7Cp6UZhB0I=",
+        "lastModified": 1688046951,
+        "narHash": "sha256-mZPRzl2gh/jfnukWTA9nOdkZ+UTlLXPXGlSOoeHjtbE=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "8bd260eb578e3fea6bce158b24c93ab158d031e7",
+        "rev": "3277aaf590524399a22fca5dfb41f08d25e27248",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "release-22.11",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
-    "nixpkgs_7": {
-      "locked": {
-        "lastModified": 1671391912,
-        "narHash": "sha256-W8sbJuN/i+OZdRuIzDiIyKOqVB/G26zh9DQL1rfp2xk=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "09e8ac77744dd036e58ab2284e6f5c03a6d6ed41",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOS",
-        "ref": "release-22.11",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
-    "nixpkgs_8": {
-      "locked": {
-        "lastModified": 1672445539,
-        "narHash": "sha256-wb92a4hgDiLV1Zb9f+Pjd5ORmo3IxxI4AkJC/Ig6gqg=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "52320d9779090d5f3427afca688b4246351c2b12",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOS",
-        "ref": "haskell-updates",
+        "ref": "release-23.05",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -351,49 +289,7 @@
         "dbmigrations-postgresql": "dbmigrations-postgresql",
         "dbmigrations-postgresql-simple": "dbmigrations-postgresql-simple",
         "flake-utils": "flake-utils_6",
-        "nixpkgs": "nixpkgs_6",
-        "thyme": "thyme"
-      }
-    },
-    "thyme": {
-      "inputs": {
-        "flake-utils": "flake-utils_7",
-        "nixpkgs": "nixpkgs_7",
-        "true-name": "true-name"
-      },
-      "locked": {
-        "lastModified": 1672449320,
-        "narHash": "sha256-PGuITPgJoeGtdl6fjg6s6G9MJeBOE+2qWQzcpXCiEdI=",
-        "owner": "nuttycom",
-        "repo": "thyme",
-        "rev": "14422f2dd5ba369cf68b1c42363dcb6f92860ccc",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nuttycom",
-        "repo": "thyme",
-        "rev": "14422f2dd5ba369cf68b1c42363dcb6f92860ccc",
-        "type": "github"
-      }
-    },
-    "true-name": {
-      "inputs": {
-        "flake-utils": "flake-utils_8",
-        "nixpkgs": "nixpkgs_8"
-      },
-      "locked": {
-        "lastModified": 1672447106,
-        "narHash": "sha256-RJerQdGjz5mbslnzPgO+2v+G/9QOeaa155VKKAxyrVg=",
-        "owner": "nuttycom",
-        "repo": "true-name",
-        "rev": "6ec32f4170a4bf823f6d80d1e3b6dc3e18746d87",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nuttycom",
-        "repo": "true-name",
-        "rev": "6ec32f4170a4bf823f6d80d1e3b6dc3e18746d87",
-        "type": "github"
+        "nixpkgs": "nixpkgs_6"
       }
     }
   },
