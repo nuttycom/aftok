@@ -6,9 +6,12 @@ The simplest way to get the server building is currently to use [nix](https://ni
 Once you've installed nix, from the root of the project, run:
 
 ~~~bash
-nix-shell --pure
-cabal new-build
+nix build
 ~~~
+
+This will download and compile all dependencies, the aftok source, and create a server docker image (located in the `result`
+file). To load the resulting docker file into docker, run `docker load < result`. For convenience, this set of steps is
+already defined for the `build-server-image` target in the `Makefile`.
 
 Local Development with docker-compose
 =====================================
@@ -24,32 +27,6 @@ The first step is to ensure that you have proper permissions to access and
 execute docker commands. On OSX, if you've installed Docker Desktop then this
 should already be the case. On Linux, you can either add your user to the
 `docker` group, or you can use `sudo` for commands.
-
-Obtaining Docker Images
------------------------
-
-The docker-compose setup requires 4 images:
-
-* `aftok/aftok-server:latest`
-* `nginx/nginx:latest`
-* `postgres/postgres:latest`
-* `electriccoinco/zcashd:v4.2.0`
-
-You can obtain these images by running the following:
-
-~~~bash
-make build-image # build the aftok-server image(s)
-docker pull nginx/nginx:latest
-docker pull postgres/postgres:latest
-docker pull electriccoinco/zcashd:v4.2.0
-~~~
-
-If you have problems building the aftok-server image, you can also obtain
-a prebuilt image by running
-
-~~~bash
-docker pull aftok/aftok-server:latest
-~~~
 
 Configuration Files
 -------------------
@@ -67,16 +44,12 @@ local
 │   ├── nginx-certs
 │   │   ├── aftok.crt
 │   │   └── aftok.key
-│   ├── server
-│   │   ├── aftok.bip70-chain.cert.pem
-│   │   ├── aftok.bip70.key.pem
-│   │   ├── aftok.cfg
-│   │   ├── aftok-migrations.cfg
-│   │   └── snap-site-key
-│   └── zcashd
-│       ├── zcash-data
-│       │   └── zcash.conf
-│       └── zcash-params
+│   └── server
+│       ├── aftok.bip70-chain.cert.pem
+│       ├── aftok.bip70.key.pem
+│       ├── aftok.cfg
+│       ├── aftok-migrations.cfg
+│       └── snap-site-key
 └── db-dumps
     └── aftok.sample.plsql
 ~~~
@@ -87,10 +60,6 @@ directory; you can simply use the following to set up your local environment:
 ~~~bash
 mkdir local
 cp -r conf local
-
-# The aftok-zcashd container runs zcashd as user 2001, so we change the
-# owner of the zcashd configuration directories to this user.
-sudo chown -R 2001.2001 local/zcashd
 ~~~
 
 Database Initialization
