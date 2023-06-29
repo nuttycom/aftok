@@ -2,12 +2,11 @@
   description = "The Aftok Collaboration Server";
 
   inputs = {
-    nixpkgs.url = github:NixOS/nixpkgs/release-22.11;
+    nixpkgs.url = github:NixOS/nixpkgs/release-23.05;
     flake-utils.url = "github:numtide/flake-utils";
     dbmigrations.url = "github:nuttycom/dbmigrations/74ef9388b45ae73a1d9c737d9644e076fe832672";
     dbmigrations-postgresql.url = "github:nuttycom/dbmigrations-postgresql/3c9477e45e923b28d9677dc6291e35bb7c833c28";
     dbmigrations-postgresql-simple.url = "github:nuttycom/dbmigrations-postgresql-simple/d51bbc5a0b7d91f7c8a12fc28e5ecbe7ac326221";
-    thyme.url = "github:nuttycom/thyme/14422f2dd5ba369cf68b1c42363dcb6f92860ccc";
   };
 
   outputs = {
@@ -17,7 +16,6 @@
     dbmigrations,
     dbmigrations-postgresql,
     dbmigrations-postgresql-simple,
-    thyme,
   }: let
     overlay = final: prev: let
       jailbreakUnbreak = pkg:
@@ -52,6 +50,9 @@
         secp256k1 = final.secp256k1;
         secp256k1-haskell = hfinal.callCabal2nix "secp256k1-haskell" secp256k1-haskell-src {};
         haskoin-core = dontCheck (jailbreakUnbreak hprev.haskoin-core);
+        http-streams = dontCheck hprev.http-streams;
+        openssl-streams = dontCheck hprev.openssl-streams;
+        snap = dontCheck hprev.snap;
         bippy = dontCheck (hfinal.callCabal2nix "bippy" bippy-src {});
 
         HsOpenSSL = hfinal.callCabal2nix "HsOpenSSL" HsOpenSSL-src {};
@@ -68,7 +69,7 @@
       system: let
         pkgs = import nixpkgs {
           inherit system;
-          overlays = [thyme.overlays.${system}.default overlay];
+          overlays = [overlay];
         };
 
         hspkgs = pkgs.haskellPackages;
