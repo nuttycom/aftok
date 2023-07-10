@@ -4,7 +4,16 @@ uname_s := $(shell uname -s)
 uname_m := $(shell uname -m)
 
 # system specific variables, add more here
-DOCKER.Linux.x86_64 := sudo docker
+
+# On linux systems, you can access docker directly if you're in the docker group.
+DOCKER_GROUP := $(shell groups | tr ' ' '\n' | grep -w docker)
+
+ifeq ($(DOCKER_GROUP),docker)
+	DOCKER.Linux.x86_64 := docker
+else
+	DOCKER.Linux.x86_64 := sudo docker
+endif
+
 DOCKER.Darwin.x86_64 := docker
 DOCKER += $(DOCKER.$(uname_s).$(uname_m))
 
