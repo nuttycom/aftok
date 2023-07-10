@@ -29,14 +29,20 @@ build-client-image:
 
 build-images: build-server-image build-client-image
 
-deploy-server-image: build-server-image
+deploy-local-server-image: build-server-image
 	$(DOCKER) tag aftok/aftok-server:latest aftok/aftok-server:$(VERSION)
+
+deploy-local-client-image: build-client-image
+	$(DOCKER) tag aftok/aftok-client:latest aftok/aftok-client:$(VERSION)
+
+deploy-server-image: deploy-local-server-image
 	$(DOCKER) push docker.io/aftok/aftok-server:latest
 	$(DOCKER) push docker.io/aftok/aftok-server:$(VERSION)
 
-deploy-client-image: build-client-image
-	$(DOCKER) tag aftok/aftok-client:latest aftok/aftok-client:$(VERSION)
+deploy-client-image: deploy-local-client-image
 	$(DOCKER) push docker.io/aftok/aftok-client:latest
 	$(DOCKER) push docker.io/aftok/aftok-client:$(VERSION)
 
 deploy-images: deploy-server-image deploy-client-image
+
+deploy-local-images: deploy-local-server-image deploy-local-client-image
