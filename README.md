@@ -315,7 +315,7 @@ sorts can be perpetrated is greatly reduced.
 How Things Should Work
 ----------------------
 
-Given all of this, it should be obvious that (Aftok.com)[http://aftok.com] is
+Given all of this, it should be obvious that [Aftok.com](http://aftok.com) is
 itself being built by an aftok, rather than some ordinary corporate entity. As
 such, I'm now going to slip into first-person for a moment to express my
 personal motivation for initiating this project. My name is Kris Nuttycombe,
