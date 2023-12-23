@@ -180,10 +180,7 @@ parseAmountJSON = \case
   val -> fail $ "Value " <> show val <> " is not a JSON object."
 
 billableJSON :: B.Billable Amount -> Value
-billableJSON = v1 . obj . billableKV
-
-billableKV :: (KeyValue kv) => B.Billable Amount -> [kv]
-billableKV b =
+billableJSON b = v1 . obj $
   [ "projectId" .= idValue (B.project . _ProjectId) b,
     "name" .= (b ^. B.name),
     "description" .= (b ^. B.description),

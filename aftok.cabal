@@ -2,7 +2,7 @@ cabal-version: 3.0
 Name:          aftok
 Version:       0.1
 Synopsis:      The Aftok Collaboration Platform
-Description:   A time logging and payment distribution service to enable groups of trusted contributors 
+Description:   A time logging and payment distribution service to enable groups of trusted contributors
                to collaboratively develop commercial applications.
 License:       NONE
 Author:        Kris Nuttycombe
@@ -21,14 +21,94 @@ common buildenv
                     , OverloadedStrings
                     , RankNTypes
                     , ScopedTypeVariables
-  build-depends:      
-      base                
+  build-depends:
+      base
     , relude
     , aeson
+    , attoparsec
+    , bifunctors
+    , bippy
+    , bytestring
+    , cereal
+    , configurator
+    , containers
+    , cryptonite
+    , either
+    , errors
+    , from-sum
+    , HStringTemplate                   >= 0.8.8 && < 0.9
+    , HsOpenSSL
+    , haskoin-core
+    , hourglass
+    , iso8601-time
     , lens
-    , thyme 
+    , postgresql-simple
+    , semigroups
+    , template-haskell                  >= 2.18.0 && < 2.19
+    , text
+    , thyme                             >= 0.4 && < 0.5
+    , transformers
+    , uuid
+    , unordered-containers
+    , vector-space
+    , x509
+    , x509-store
   mixins: base hiding (Prelude)
         , relude (Relude as Prelude)
+
+-- blaze-builder                     >= 0.4.2 && < 0.5,
+-- bytestring                        >= 0.11.4 && < 0.12,
+-- text                              >= 1.2.5 && < 1.3,
+-- containers                        >= 0.6.5 && < 0.7,
+-- directory                         >= 1.3.6 && < 1.4,
+-- mtl                               >= 2.2.2 && < 2.3,
+-- transformers                      >= 0.5.6 && < 0.6,
+-- old-locale                        >= 1.0.0 && < 1.1,
+-- semigroups                        >= 0.20 && < 0.21,
+-- MonadRandom                       >= 0.6 && < 0.7,
+-- network-uri                       >= 2.6.4 && < 2.7,
+-- scientific                        >= 0.3.7 && < 0.4,
+-- unordered-containers              >= 0.2.19 && < 0.3,
+-- semigroupoids                     >= 6.0.0 && < 6.1,
+-- bifunctors                        >= 5.6.1 && < 5.7,
+-- attoparsec                        >= 0.14.4 && < 0.15,
+-- base64                            >= 0.4.2 && < 0.5,
+-- basement                          >= 0.0.16 && < 0.1,
+-- blake2                            >= 0.3.0 && < 0.4,
+-- cereal                            >= 0.5.8 && < 0.6,
+-- configurator                      >= 0.3.0 && < 0.4,
+-- cryptonite                        >= 0.30 && < 0.31,
+-- either                            >= 5.0.2 && < 5.1,
+-- errors                            >= 2.3.0 && < 2.4,
+-- safe                              >= 0.3.19 && < 0.4,
+-- free                              >= 5.2 && < 5.3,
+-- from-sum                          >= 0.2.3 && < 0.3,
+-- groups                            >= 0.5.3 && < 0.6,
+-- haskoin-core                      >= 0.19.0 && < 0.20,
+-- network                           >= 3.1.4 && < 3.2,
+-- heaps                             >= 0.4 && < 0.5,
+-- hourglass                         >= 0.2.12 && < 0.3,
+-- http-client                       >= 0.7.15 && < 0.8,
+-- base64-bytestring                 >= 1.2.1 && < 1.3,
+-- http-types                        >= 0.12.4 && < 0.13,
+-- kan-extensions                    >= 5.2.5 && < 5.3,
+-- postgresql-simple                 >= 0.7.0 && < 0.8,
+-- protobuf                          >= 0.2.1 && < 0.3,
+-- relude                            >= 1.2.1 && < 1.3,
+-- smtp-mail                         >= 0.3.0 && < 0.4,
+-- x509                              >= 1.7.7 && < 1.8,
+-- x509-store                        >= 1.6.9 && < 1.7,
+-- mime-mail                         >= 0.5.1 && < 0.6,
+-- system-filepath                   >= 0.4.14 && < 0.5,
+-- vector-space                      >= 0.16 && < 0.17,
+-- uri-encode                        >= 1.5.0 && < 1.6,
+-- uuid                              >= 1.3.15 && < 1.4,
+-- HsOpenSSL                         >= 0.11.7 && < 0.12,
+-- http-client-openssl               >= 0.3.3 && < 0.4,
+-- iso8601-time                      >= 0.1.5 && < 0.2,
+-- optparse-applicative              >= 0.18.1 && < 0.19,
+-- wreq                              >= 0.5.4 && < 0.6,
+-- http-client-tls                   >= 0.3.6 && < 0.4,
 
 library
   import:             buildenv
@@ -66,55 +146,32 @@ library
                       Aftok.Types
                       Aftok.Util
                       Aftok.Util.Http
-  build-depends:      
+  build-depends:
     , basement
-    , bippy               
     , blake2
-    , attoparsec         
     , base64
-    , bifunctors
-    , blaze-builder       
-    , bytestring
-    , cereal
-    , containers       
-    , configurator             
-    , cryptonite
-    , either          
-    , errors         
+    , blaze-builder
     , free
-    , from-sum
-    , groups        
-    , HStringTemplate          
-    , haskoin-core 
-    , heaps       
-    , hourglass  
+    , groups
+    , heaps
     , http-client
     , http-types
     , kan-extensions
     , lens-aeson
     , MonadRandom
     , mtl
-    , network                   
+    , network
     , network-uri
-    , old-locale        
-    , postgresql-simple
+    , old-locale
     , protobuf
     , relude
-    , safe            
+    , safe
     , scientific
-    , semigroups
     , semigroupoids
-    , smtp-mail               
+    , smtp-mail
     , system-filepath
     , template-haskell
-    , text           
-    , transformers
-    , uuid         
-    , unordered-containers
     , uri-encode
-    , vector-space
-    , x509
-    , x509-store
 
 Test-Suite spec
   import:             buildenv
@@ -127,22 +184,11 @@ Test-Suite spec
                , Aftok.TimeLogSpec
                , Aftok.Util.HttpSpec
 
-  build-depends:    
+  build-depends:
       aftok
-    , attoparsec
-    , bifunctors
-    , bippy
-    , containers
-    , hspec      
+    , hspec
     , HUnit
-    , haskoin-core 
-    , hourglass
-    , iso8601-time
-    , QuickCheck 
-    , semigroups
-    , text
-    , uuid
-    , vector-space
+    , QuickCheck
 
   build-tool-depends: hspec-discover:hspec-discover
 
@@ -165,49 +211,26 @@ Executable aftok-server
                , Aftok.Snaplet.Util
                , Aftok.Snaplet.WorkLog
 
-  build-depends:      
+  build-depends:
       aftok
-    , attoparsec
     , base64-bytestring
-    , bytestring
-    , bippy
-    , cereal
-    , containers
-    , configurator              
-    , cryptonite
     , directory
-    , either
-    , errors
-    , from-sum
-    , hourglass
-    , HStringTemplate          
-    , iso8601-time
-    , haskoin-core 
-    , HsOpenSSL
     , http-client
     , http-client-tls
     , http-client-openssl
     , http-types
     , mime-mail
-    , mtl                     
-    , network                   
-    , optparse-applicative      
-    , postgresql-simple
+    , mtl
+    , network
+    , optparse-applicative
     , protobuf
-    , smtp-mail               
-    , snap                    
-    , snap-core              
-    , snap-server           
+    , smtp-mail
+    , snap                              >= 1.1.3 && < 1.2
+    , snap-core                         >= 1.0.5 && < 1.1
+    , snap-server                       >= 1.1.2 && < 1.2
     , snaplet-postgresql-simple
     , system-filepath
-    , text
-    , transformers
-    , unordered-containers
-    , uuid                
-    , vector-space
-    , wreq        
-    , x509
-    , x509-store
+    , wreq
 
 Executable aftok-daemon
   import:             buildenv
@@ -216,37 +239,17 @@ Executable aftok-daemon
   main-is:            Main.hs
   other-modules:      AftokD
                     , AftokD.AftokM
-  build-depends:      
+  build-depends:
       aftok
-    , attoparsec
     , base64-bytestring
-    , bytestring
-    , bippy
-    , cereal
-    , containers
-    , configurator              
-    , cryptonite
-    , either
-    , errors
-    , haskoin-core 
-    , hourglass
-    , HStringTemplate          
-    , iso8601-time
-    , HsOpenSSL
     , http-client
     , http-client-openssl
     , mime-mail
-    , mtl                     
-    , network                   
+    , mtl
+    , network
     , network-uri
-    , optparse-applicative      
-    , postgresql-simple
+    , optparse-applicative
     , protobuf
-    , smtp-mail               
+    , smtp-mail
     , system-filepath
-    , text
-    , transformers
-    , uuid                
-    , wreq        
-    , x509
-    , x509-store
+    , wreq

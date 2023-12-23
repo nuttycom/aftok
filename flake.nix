@@ -26,36 +26,20 @@
       bippy-src = final.fetchFromGitHub {
         owner = "aftok";
         repo = "bippy";
-        rev = "1f373039ff22d51c54b41cda57e688e74d00a642";
+        rev = "6b1234f69eb5a2781644640044f05f046089da89";
         hash = "sha256-F7KrbKKU1BNLxNXu4faGpdYwB0HRC3+opuQB0d4eLhs=";
-      };
-
-      secp256k1-haskell-src = final.fetchFromGitHub {
-        owner = "haskoin";
-        repo = "secp256k1-haskell";
-        rev = "3df963ab6ae14ec122691a97af09a7331511a387";
-        hash = "sha256-XrjiqCC7cNTFib78gdMPGNettAkwAxQlbC/n+/mRFt4=";
-      };
-
-      HsOpenSSL-src = final.fetchFromGitHub {
-        owner = "haskell-cryptography";
-        repo = "HsOpenSSL";
-        rev = "094f7ef6c9ef4dc3eea56802382b1d50c99572d6";
-        hash = "sha256-l2TZzGehqvQ3cB9UlfEg5SuiLkvu6ncwqV4Kdto1zOc=";
       };
 
       haskell-overlay = hfinal: hprev: {
         base16 = jailbreakUnbreak hprev.base16;
         murmur3 = jailbreakUnbreak hprev.murmur3;
         secp256k1 = final.secp256k1;
-        secp256k1-haskell = hfinal.callCabal2nix "secp256k1-haskell" secp256k1-haskell-src {};
         haskoin-core = dontCheck (jailbreakUnbreak hprev.haskoin-core);
         http-streams = dontCheck hprev.http-streams;
         openssl-streams = dontCheck hprev.openssl-streams;
         snap = dontCheck hprev.snap;
         bippy = dontCheck (hfinal.callCabal2nix "bippy" bippy-src {});
 
-        HsOpenSSL = hfinal.callCabal2nix "HsOpenSSL" HsOpenSSL-src {};
         snaplet-postgresql-simple = jailbreakUnbreak hprev.snaplet-postgresql-simple;
 
         dbmigrations = dbmigrations.defaultPackage.${final.system};

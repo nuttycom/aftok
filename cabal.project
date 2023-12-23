@@ -4,29 +4,13 @@ packages:
 source-repository-package
     type: git
     location: https://github.com/aftok/bippy.git
-    tag: 1f373039ff22d51c54b41cda57e688e74d00a642
+    tag: 6b1234f69eb5a2781644640044f05f046089da89
 
 source-repository-package
     type: git
     location: https://github.com/nuttycom/snaplet-postgresql-simple.git
     tag: c314c6f64bc00d05dab9630f30f269740da6ea9e
 
-source-repository-package
-    type: git
-    location: https://github.com/haskell-cryptography/HsOpenSSL.git
-    tag: 094f7ef6c9ef4dc3eea56802382b1d50c99572d6
-
-source-repository-package
-    type: git
-    location: https://github.com/snapframework/snap.git
-    tag: 61da7624f966d80bc51245f25d31f10cc7c4dd41
-
-source-repository-package
-    type: git
-    location: https://github.com/snapframework/snap-server.git
-    tag: 342822c043d644c7faecfd97ae0f4306692fc73a
-
-source-repository-package
-    type: git
-    location: https://github.com/snapframework/snap-core.git
-    tag: b87b2ffa52bf58867a7239ebe74f61b1a2c762d2
+allow-newer:
+    snaplet-postgresql-simple:lens,
+    snaplet-postgresql-simple:bytestring
