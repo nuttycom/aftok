@@ -42,7 +42,7 @@ runQDBM mode conn (QDBM r) = runReaderT r (mode, conn)
 pgEval :: DBOp a -> QDBM a
 pgEval =
   QDBM . \case
-    (CreateEvent pid uid lentry) -> Q.createEvent pid uid lentry
+    (CreateEvent pid uid lentry) -> Q.pgCreateEvent pid uid lentry
     (FindEvent eid) -> Q.findEvent eid
     (FindEvents pid uid rquery limit) -> Q.findEvents pid uid rquery limit
     (AmendEvent pid uid kle amendment) -> Q.amendEvent pid uid kle amendment
@@ -52,13 +52,13 @@ pgEval =
     (ListAuctions pid rq l) -> Q.listAuctions pid rq l
     (CreateBid aucId bid) -> Q.createBid aucId bid
     (FindBids aucId) -> Q.findBids aucId
-    (CreateUser user') -> Q.createUser user'
-    (FindUser uid) -> Q.findUser uid
-    (FindUserProjectDetail uid pid) -> Q.findUserProjectDetail uid pid
-    (FindUserByName n) -> Q.findUserByName n
-    (FindUserPaymentAddress uid currency) -> Q.findUserPaymentAddress uid currency
-    (FindAccountPaymentAddress aid currency) -> Q.findAccountPaymentAddress aid currency
-    (FindAccountZcashIVK aid) -> Q.findAccountZcashIVK aid
+    (CreateUser user') -> Q.pgCreateUser user'
+    (FindUser uid) -> Q.pgFindUser uid
+    (FindUserProjectDetail uid pid) -> Q.pgFindUserProjectDetail uid pid
+    (FindUserByName n) -> Q.pgFindUserByName n
+    (FindUserPaymentAddress uid currency) -> Q.pgFindUserPaymentAddress uid currency
+    (FindAccountPaymentAddress aid currency) -> Q.pgFindAccountPaymentAddress aid currency
+    (FindAccountZcashIVK aid) -> Q.pgFindAccountZcashIVK aid
     (CreateProject p) -> Q.createProject p
     ListProjects -> Q.listProjects
     (ListProjectContributors pid) -> Q.listProjectContributors pid

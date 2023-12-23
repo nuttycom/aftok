@@ -26,7 +26,7 @@ genBid =
     <$> (UserId <$> genUUID)
     <*> (Seconds <$> arbitrary `suchThat` (>= 0))
     <*> arbitrarySatoshi btc
-    `suchThat` (> Satoshi 0)
+      `suchThat` (> Satoshi 0)
     <*> arbitrary
 
 subs :: Satoshi -> Satoshi -> Satoshi

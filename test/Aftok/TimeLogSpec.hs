@@ -42,8 +42,8 @@ genIntervals =
       buildIntervals :: C.UTCTime -> [C.NominalDiffTime] -> [I.Interval C.UTCTime]
       buildIntervals t (d : s : dx)
         | d > 0 =
-          let ival = I.interval t (t .+^ d)
-           in ival : buildIntervals (ival ^. I.end .+^ s) dx
+            let ival = I.interval t (t .+^ d)
+             in ival : buildIntervals (ival ^. I.end .+^ s) dx
       buildIntervals _ _ = []
    in do
         startTime <- arbitrary
@@ -146,7 +146,8 @@ spec = do
             ]
           toEvent :: (String, C.UTCTime -> LogEvent, String) -> Maybe LogEntry
           toEvent (uuid, f, t) =
-            LogEntry <$> (CreditToUser . UserId <$> U.fromString uuid)
+            LogEntry
+              <$> (CreditToUser . UserId <$> U.fromString uuid)
               <*> (f . C.toThyme <$> parseISO8601 t)
               <*> pure Nothing
           events = catMaybes $ fmap toEvent raw

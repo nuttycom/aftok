@@ -9,7 +9,12 @@ import qualified Aftok.Currency.Zcash as Z
 import Control.Lens (Iso')
 import qualified Text.Show
 
-data Currency a c where
+-- | The currency in which a payment may be made.
+data
+  Currency
+    a -- \^ The type of address used for payments in the currency.
+    c -- \^ The type in which payment amounts are denominated.
+  where
   BTC :: Currency B.Address B.Satoshi
   ZEC :: Currency Z.Address Z.Zatoshi
 

@@ -136,7 +136,7 @@ recurrenceParser' f v = do
     parser = \case
       "annually" -> nullField *> pure Annually
       "monthly" -> Monthly <$> field
-      --"semimonthly" = nullField *> pure SemiMonthly
+      -- "semimonthly" = nullField *> pure SemiMonthly
       "weekly" -> Weekly <$> field
       "onetime" -> nullField *> pure OneTime
       _ -> empty

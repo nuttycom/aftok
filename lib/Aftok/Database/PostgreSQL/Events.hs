@@ -4,9 +4,10 @@
 {-# LANGUAGE QuasiQuotes #-}
 
 module Aftok.Database.PostgreSQL.Events
-  ( storeEvent,
+  ( pgEventCaps,
+    storeEvent,
     storeEvent',
-    createEvent,
+    pgCreateEvent,
     findEvent,
     findEvents,
     amendEvent,
@@ -15,6 +16,7 @@ module Aftok.Database.PostgreSQL.Events
 where
 
 import qualified Aftok.Billing as B
+import qualified Aftok.Currency.Bitcoin as Bitcoin
 import Aftok.Database
   ( DBError (EventStorageFailed),
     DBOp
@@ -28,6 +30,7 @@ import Aftok.Database
     logEntry,
     workId,
   )
+import Aftok.Database.Events (EventCaps (..))
 import Aftok.Database.PostgreSQL.Json
   ( nativeRequestJSON,
     paymentJSON,
@@ -86,6 +89,12 @@ import Database.PostgreSQL.Simple.SqlQQ
   )
 import Safe (headMay)
 import Prelude hiding (null)
+
+pgEventCaps :: EventCaps (ReaderT (Bitcoin.NetworkMode, Connection) (ExceptT DBError IO))
+pgEventCaps =
+  EventCaps
+    { createEvent = pgCreateEvent
+    }
 
 eventTypeParser :: FieldParser (C.UTCTime -> LogEvent)
 eventTypeParser f v = do
@@ -155,8 +164,8 @@ storeEventJSON uid etype v = do
           VALUES (?, ?, ?, ?) RETURNING id |]
     (fromThyme timestamp, preview (_Just . _UserId) uid, etype, v)
 
-createEvent :: ProjectId -> UserId -> LogEntry -> DBM EventId
-createEvent (ProjectId pid) (UserId uid) (LogEntry c e m) = case c of
+pgCreateEvent :: ProjectId -> UserId -> LogEntry -> DBM EventId
+pgCreateEvent (ProjectId pid) (UserId uid) (LogEntry c e m) = case c of
   CreditToAccount aid' -> do
     pinsert
       EventId
@@ -294,7 +303,7 @@ readWorkIndex (ProjectId pid) = do
 amendEvent :: ProjectId -> UserId -> KeyedLogEntry -> EventAmendment -> DBM (EventId, AmendmentId)
 amendEvent pid uid kle amendment = ptransact $ do
   (amendId, replacement, amend_t :: Text) <- amend
-  newEventId <- createEvent pid uid (replacement ^. logEntry)
+  newEventId <- pgCreateEvent pid uid (replacement ^. logEntry)
   void $
     pexec
       [sql| UPDATE work_events

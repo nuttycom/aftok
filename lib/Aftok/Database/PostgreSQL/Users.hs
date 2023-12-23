@@ -4,19 +4,21 @@
 {-# LANGUAGE QuasiQuotes #-}
 
 module Aftok.Database.PostgreSQL.Users
-  ( createUser,
-    findUser,
-    findUserByName,
-    findUserPaymentAddress,
-    findUserProjectDetail,
-    findAccountPaymentAddress,
-    findAccountZcashIVK,
+  ( pgCreateUser,
+    pgFindUser,
+    pgFindUserByName,
+    pgFindUserPaymentAddress,
+    pgFindUserProjectDetail,
+    pgFindAccountPaymentAddress,
+    pgFindAccountZcashIVK,
+    pgUserCaps,
   )
 where
 
 import Aftok.Currency (Currency (..))
+import qualified Aftok.Currency.Bitcoin as Bitcoin
 import qualified Aftok.Currency.Zcash as Zcash
-import Aftok.Database ()
+import Aftok.Database (DBError (..))
 import Aftok.Database.PostgreSQL.Types
   ( DBM,
     askNetworkMode,
@@ -29,6 +31,7 @@ import Aftok.Database.PostgreSQL.Types
     zcashAddressParser,
     zcashIvkParser,
   )
+import Aftok.Database.Users (UserCaps (..))
 import Aftok.Types
 import Control.Lens
 import qualified Data.Thyme.Clock as C
@@ -45,10 +48,22 @@ userParser = do
   uname <- UserName <$> field
   remail <- fmap (RecoverByEmail . Email) <$> field
   rzaddr <- fmap (RecoverByZAddr . Zcash.Address) <$> field
-  User uname <$> maybe empty pure (remail <|> rzaddr)
+  User uname <$> maybe empty pure (remail <|> rzaddr) <*> field
 
-createUser :: User -> DBM UserId
-createUser user' = do
+pgUserCaps :: UserCaps (ReaderT (Bitcoin.NetworkMode, Connection) (ExceptT DBError IO))
+pgUserCaps =
+  UserCaps
+    { createUser = pgCreateUser,
+      findUser = pgFindUser,
+      findUserProjectDetail = pgFindUserProjectDetail,
+      findUserByName = pgFindUserByName,
+      findUserPaymentAddress = pgFindUserPaymentAddress,
+      findAccountPaymentAddress = pgFindAccountPaymentAddress,
+      findAccountZcashIVK = pgFindAccountZcashIVK
+    }
+
+pgCreateUser :: User -> DBM UserId
+pgCreateUser user' = do
   uid <-
     pinsert
       UserId
@@ -74,35 +89,38 @@ linkZcashAccount uid addr =
         addr ^. Zcash._Address
       )
 
-findUser :: UserId -> DBM (Maybe User)
-findUser (UserId uid) = do
+pgFindUser :: UserId -> DBM (Maybe User)
+pgFindUser (UserId uid) = do
   headMay
     <$> pquery
       userParser
+      -- FIXME: password hash
       [sql| SELECT handle, recovery_email, recovery_zaddr FROM users WHERE id = ? |]
       (Only uid)
 
-findUserProjectDetail :: UserId -> ProjectId -> DBM (Maybe (User, C.UTCTime))
-findUserProjectDetail (UserId uid) (ProjectId pid) = do
+pgFindUserProjectDetail :: UserId -> ProjectId -> DBM (Maybe (User, C.UTCTime))
+pgFindUserProjectDetail (UserId uid) (ProjectId pid) = do
   headMay
     <$> pquery
       ((,) <$> userParser <*> utcParser)
+      -- FIXME: password hash
       [sql| SELECT u.handle, u.recovery_email, u.recovery_zaddr, p.joined_at
             FROM users u
             JOIN project_companions p on p.user_id = u.id
             WHERE u.id = ? AND p.project_id = ? |]
       (uid, pid)
 
-findUserByName :: UserName -> DBM (Maybe (UserId, User))
-findUserByName (UserName h) = do
+pgFindUserByName :: UserName -> DBM (Maybe (UserId, User))
+pgFindUserByName (UserName h) = do
   headMay
     <$> pquery
       ((,) <$> idParser UserId <*> userParser)
+      -- FIXME: password hash
       [sql| SELECT id, handle, recovery_email, recovery_zaddr FROM users WHERE handle = ? |]
       (Only h)
 
-findUserPaymentAddress :: UserId -> Currency a c -> DBM (Maybe (AccountId, a))
-findUserPaymentAddress uid = \case
+pgFindUserPaymentAddress :: UserId -> Currency a c -> DBM (Maybe (AccountId, a))
+pgFindUserPaymentAddress uid = \case
   BTC -> do
     mode <- askNetworkMode
     headMay
@@ -123,8 +141,8 @@ findUserPaymentAddress uid = \case
             AND zcash_addr IS NOT NULL |]
         (Only $ view _UserId uid)
 
-findAccountPaymentAddress :: AccountId -> Currency a c -> DBM (Maybe a)
-findAccountPaymentAddress aid = \case
+pgFindAccountPaymentAddress :: AccountId -> Currency a c -> DBM (Maybe a)
+pgFindAccountPaymentAddress aid = \case
   BTC -> do
     mode <- askNetworkMode
     headMay
@@ -146,8 +164,8 @@ findAccountPaymentAddress aid = \case
 -- TODO: rework this for the case where someone wants to
 -- use new diversified addresses for each purchase?
 
-findAccountZcashIVK :: AccountId -> DBM (Maybe Zcash.IVK)
-findAccountZcashIVK aid =
+pgFindAccountZcashIVK :: AccountId -> DBM (Maybe Zcash.IVK)
+pgFindAccountZcashIVK aid =
   headMay
     <$> pquery
       (zcashIvkParser)

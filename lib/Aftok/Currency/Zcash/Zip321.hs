@@ -104,7 +104,9 @@ toURI :: PaymentRequest -> Text
 toURI req =
   case req ^. items of
     i :| [] ->
-      "zcash:" <> zaddrText (i ^. address) <> "?"
+      "zcash:"
+        <> zaddrText (i ^. address)
+        <> "?"
         <> intercalate "&" (itemPartial Nothing i)
     xs ->
       "zcash:?" <> intercalate "&" (toList $ itemsParams xs)
@@ -148,7 +150,7 @@ zip321Parser = do
           parseOtherParam
         ]
     toPaymentItem :: [Zip321Param] -> Either Text PaymentItem
-    toPaymentItem = error "Not yet implemented." --PaymentItem <$> note "Payment address is required"
+    toPaymentItem = error "Not yet implemented." -- PaymentItem <$> note "Payment address is required"
 
 indexedParam :: Text -> Parser Zip321Param -> Parser IndexedParam
 indexedParam name valuep = do

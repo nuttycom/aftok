@@ -39,6 +39,7 @@ import Filesystem.Path.CurrentOS
   )
 import qualified Filesystem.Path.CurrentOS as P
 import Haskoin.Address (encodeBase58Check)
+import Lrzhs.Types as Lrzhs
 import qualified Network.Mail.SMTP as SMTP
 import qualified Network.Socket as NS
 import Network.URI (URI, parseURI)
@@ -112,7 +113,14 @@ readBitcoinConfig cfg =
 readZcashPaymentsConfig :: C.Config -> IO Zcash.PaymentsConfig
 readZcashPaymentsConfig cfg =
   Zcash.PaymentsConfig
-    <$> (Zatoshi <$> C.require cfg "minPayment")
+    <$> (parseNetwork <$> C.require cfg "network")
+    <*> (Zatoshi <$> C.require cfg "minPayment")
+  where
+    parseNetwork :: Text -> Network
+    parseNetwork = \case
+      "mainnet" -> Lrzhs.Mainnet
+      "testnet" -> Lrzhs.Testnet
+      _ -> Lrzhs.Regtest
 
 toBitcoinPaymentsConfig :: BitcoinConfig -> IO Bitcoin.PaymentsConfig
 toBitcoinPaymentsConfig c = do

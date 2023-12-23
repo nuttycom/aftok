@@ -11,6 +11,21 @@ source-repository-package
     location: https://github.com/nuttycom/snaplet-postgresql-simple.git
     tag: c314c6f64bc00d05dab9630f30f269740da6ea9e
 
+source-repository-package
+    type: git
+    location: https://github.com/nuttycom/dbmigrations.git
+    tag: 7cf4fd09caeeb4d7e19838ba7b29667ec7caf690
+
+source-repository-package
+    type: git
+    location: https://github.com/nuttycom/dbmigrations-postgresql-simple.git
+    tag: 70fd2f551cbd5b3b2bdad4439202435ef9b71417
+
+source-repository-package
+    type: git
+    location: https://github.com/nuttycom/lrzhs.git
+    tag: 10f022afee397cb8e2926bf3c1d34ff905e33c81
+
 allow-newer:
     snaplet-postgresql-simple:lens,
     snaplet-postgresql-simple:bytestring

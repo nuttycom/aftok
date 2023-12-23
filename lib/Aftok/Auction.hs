@@ -86,19 +86,19 @@ runAuction' raiseAmount' bids =
   let takeWinningBids :: c -> [Bid c] -> [Bid c]
       takeWinningBids total (bid : xs)
         | total <> (bid ^. bidAmount) < raiseAmount' =
-          -- if the total is fully within the raise amount
-          bid : takeWinningBids (total <> (bid ^. bidAmount)) xs
+            -- if the total is fully within the raise amount
+            bid : takeWinningBids (total <> (bid ^. bidAmount)) xs
         | total < raiseAmount' =
-          -- if the last bid will exceed the raise amount, reduce it to fit
-          let winFraction r =
-                (r ^. _Units) % (bid ^. bidAmount . _Units)
-              remainderSeconds r =
-                Seconds . round $ winFraction r * fromIntegral (bid ^. bidSeconds)
-              adjustBid r =
-                bid & bidSeconds .~ remainderSeconds r & bidAmount .~ r
-           in toList $ adjustBid <$> raiseAmount' `csub` total
+            -- if the last bid will exceed the raise amount, reduce it to fit
+            let winFraction r =
+                  (r ^. _Units) % (bid ^. bidAmount . _Units)
+                remainderSeconds r =
+                  Seconds . round $ winFraction r * fromIntegral (bid ^. bidSeconds)
+                adjustBid r =
+                  bid & bidSeconds .~ remainderSeconds r & bidAmount .~ r
+             in toList $ adjustBid <$> raiseAmount' `csub` total
         | otherwise =
-          []
+            []
       takeWinningBids _ [] = []
       submittedTotal = bidsTotal bids
    in maybe

@@ -7,7 +7,10 @@ import Aftok.Billing (_BillableId, _SubscriptionId)
 import qualified Aftok.Config as C
 import Aftok.Currency.Bitcoin.Payments (_bip70Request)
 import Aftok.Currency.Zcash (rpcValidateZAddr)
+import qualified Aftok.Database as DB
 import Aftok.Database.PostgreSQL (QDBM)
+import Aftok.Http.Auth (RegisterCaps(..), checkReCaptcha)
+import Aftok.Http.Json (amendEventResultJSON, extendedLogEntryJSON, keyedLogEntryJSON, workIndexJSON)
 import Aftok.Json
 import Aftok.Payments.Types (_PaymentId)
 import Aftok.ServerConfig
@@ -33,6 +36,7 @@ import Filesystem.Path.CurrentOS
   ( decodeString,
     encodeString,
   )
+import Lrzhs (isValidSaplingAddress)
 import Network.HTTP.Client (Manager, defaultManagerSettings, newManager)
 import Options.Applicative (Parser, execParser, header, help, helper, info, long, short, strOption)
 import Snap.Core
@@ -56,11 +60,15 @@ main = do
   let sconf = baseSnapConfig cfg SC.emptyConfig
   serveSnapletNoArgParsing sconf $ appInit cfg
 
-registerOps :: Manager -> ServerConfig -> RegisterOps IO
+registerOps :: Manager -> ServerConfig -> RegisterCaps QDBM
 registerOps mgr cfg =
-  RegisterOps
-    { validateZAddr = rpcValidateZAddr mgr (_zcashdConfig cfg),
-      sendConfirmationEmail = const $ pure ()
+  RegisterCaps
+    { validateZAddr = liftIO . rpcValidateZAddr mgr (_zcashdConfig cfg),
+      sendConfirmationEmail = const $ pure (), -- FIXME
+      checkCaptcha = liftIO . checkReCaptcha (cfg ^. recaptchaSecret),
+      findCurrentInvitation = DB.findCurrentInvitation,
+      createUser = DB.createUser,
+      acceptInvitation = DB.acceptInvitation
     }
 
 appInit :: ServerConfig -> SnapletInit App App
@@ -89,7 +97,7 @@ appInit cfg = makeSnaplet "aftok" "Aftok Time Tracker" Nothing $ do
       inviteRoute =
         serveJSON (projectInviteResponseJSON) $ method POST (projectInviteHandler cfg)
       acceptInviteRoute =
-        void $ method POST acceptInvitationHandler
+        void $ method POST (acceptInvitationHandler rops)
       projectDetailRoute =
         serveJSON (v1 . projectDetailJSON) $ method GET projectDetailGetHandler
       projectCreateRoute =

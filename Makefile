@@ -18,7 +18,7 @@ DOCKER.Darwin.x86_64 := docker
 DOCKER += $(DOCKER.$(uname_s).$(uname_m))
 
 format:
-	ormolu --mode inplace $(shell find lib server daemon test -name '*.hs')
+	ormolu --mode inplace $(shell find lib "http-api" server servant daemon test -name '*.hs')
 
 build-server-image:
 	nix build

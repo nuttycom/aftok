@@ -197,11 +197,12 @@ payouts depf payoutDate (WorkIndex widx) =
          in (total ^+^ depreciated, WorkShare logged depreciated ())
       (totalTime, keyTimes) = MS.mapAccum addIntervalDiff zeroV widx
       withShareFraction t =
-        t & wsShare
-          .~ ( if totalTime == 0
-                 then 0
-                 else (C.toSeconds (t ^. wsDepreciated) / C.toSeconds totalTime)
-             )
+        t
+          & wsShare
+            .~ ( if totalTime == 0
+                   then 0
+                   else (C.toSeconds (t ^. wsDepreciated) / C.toSeconds totalTime)
+               )
    in WorkShares totalTime (fmap withShareFraction keyTimes)
 
 workIndex :: (Foldable f, HasLogEntry le, Ord o) => (le -> o) -> f le -> WorkIndex le
@@ -249,8 +250,8 @@ appendLogEntry idx logEvent =
     combine e e' = case (e ^. event, e' ^. event) of
       (StartWork t, StopWork t')
         | t' > t ->
-          -- complete interval found
-          Right $ Interval e e'
+            -- complete interval found
+            Right $ Interval e e'
       (StartWork t, StartWork t') ->
         -- ignore redundant starts
         Left $ if t > t' then e else e'
@@ -262,6 +263,6 @@ appendLogEntry idx logEvent =
     extension :: (Interval C.UTCTime) -> le -> Maybe le
     extension ival newEvent@(view event -> StartWork t)
       | containsInclusive t ival =
-        Just newEvent -- replace the end of the interval with the new event
+          Just newEvent -- replace the end of the interval with the new event
     extension _ _ =
       Nothing

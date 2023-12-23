@@ -218,7 +218,11 @@ projectInviteHandler cfg = do
               _amount = Zcash.Zatoshi 1000,
               _memo =
                 Just . Zcash.Memo . encodeUtf8 $
-                  "Welcome to the " <> (p ^. projectName) <> " aftok, " <> greetName req <> "\n"
+                  "Welcome to the "
+                    <> (p ^. projectName)
+                    <> " aftok, "
+                    <> greetName req
+                    <> "\n"
                     <> maybe "" (<> "\n") (message req)
                     <> "https://aftok.com/app/?invcode="
                     <> renderInvCode invCode

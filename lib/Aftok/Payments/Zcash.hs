@@ -21,9 +21,11 @@ import Control.Lens (makeLenses, review, (^.))
 import Data.Map.Strict (assocs)
 import Data.Thyme.Clock as C
 import Data.Thyme.Time as C
+import Lrzhs.Types (Network)
 
 data PaymentsConfig = PaymentsConfig
-  { _minAmt :: Zatoshi
+  { _networkMode :: Network,
+    _minPayment :: Zatoshi
   }
 
 makeLenses ''PaymentsConfig
@@ -64,7 +66,7 @@ zip321PaymentRequest cfg memoGen billable billingDay billTime = do
   let payoutTime = review C.utcTime $ C.UTCView billingDay (fromInteger 0)
       billTotal = billable ^. amount
   payoutFractions <- lift $ getProjectPayoutFractions payoutTime (billable ^. project)
-  payouts <- getPayouts payoutTime ZEC (MinPayout $ cfg ^. minAmt) billTotal payoutFractions
+  payouts <- getPayouts payoutTime ZEC (MinPayout $ cfg ^. minPayment) billTotal payoutFractions
   itemsMay <- lift $ nonEmpty <$> traverse toPaymentItem (assocs payouts)
   PaymentRequest <$> tryJust PT.NoRecipients itemsMay
   where

@@ -96,7 +96,7 @@ data ZValidateAddressErr
 
 data ZValidateAddressResp = ZValidateAddressResp
   { vzrIsValid :: Bool,
-    --, vzrAddress  :: Maybe Text
+    -- , vzrAddress  :: Maybe Text
     vzrAddrType :: Maybe Z.ZAddrType
   }
 
@@ -122,7 +122,8 @@ parseValidateZAddrResponse :: Value -> Parser ZValidateAddressResp
 parseValidateZAddrResponse = \case
   (A.Object v) -> do
     res <- v .: "result"
-    ZValidateAddressResp <$> res .: "isvalid"
+    ZValidateAddressResp
+      <$> res .: "isvalid"
       -- <*> res .:? "address"
       <*> parseAddrType res
   _ ->

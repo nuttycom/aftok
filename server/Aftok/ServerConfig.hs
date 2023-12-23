@@ -4,8 +4,7 @@
 module Aftok.ServerConfig where
 
 import Aftok.Config
-import Aftok.Currency.Zcash (ZcashdConfig (..))
-import Aftok.Snaplet.Users (CaptchaConfig (..))
+import Aftok.Http.Auth (CaptchaConfig (..), AuthConfig(..))
 import Control.Lens
   ( makeLenses,
     (^.),
@@ -35,7 +34,7 @@ data ServerConfig = ServerConfig
     _templatePath :: P.FilePath,
     _staticAssetPath :: P.FilePath,
     _recaptchaSecret :: CaptchaConfig,
-    _zcashdConfig :: ZcashdConfig
+    _authConfig :: AuthConfig
   }
 
 makeLenses ''ServerConfig
@@ -71,14 +70,7 @@ readServerConfig cfg pc =
               "staticAssetPath"
         )
     <*> (CaptchaConfig <$> C.require cfg "recaptchaSecret")
-    <*> (readZcashdConfig $ C.subconfig "zcashd" cfg)
-
-readZcashdConfig :: CT.Config -> IO ZcashdConfig
-readZcashdConfig cfg =
-  ZcashdConfig <$> C.require cfg "rpcHost"
-    <*> C.require cfg "rpcPort"
-    <*> C.require cfg "rpcUser"
-    <*> C.require cfg "rpcPassword"
+    <*> (AuthConfig <$> C.lookupDefault 17 cfg "hashingCost")
 
 baseSnapConfig :: ServerConfig -> SC.Config m a -> SC.Config m a
 baseSnapConfig qc = SC.setHostname (qc ^. hostname) . SC.setPort (qc ^. port)

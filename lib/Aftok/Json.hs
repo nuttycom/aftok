@@ -102,7 +102,9 @@ unv1 name f = unversion name $ p
 badVersion :: forall v a. String -> Version -> v -> Parser a
 badVersion name ver =
   const . fail $
-    "Unrecognized " <> name <> " schema version: "
+    "Unrecognized "
+      <> name
+      <> " schema version: "
       <> T.unpack
         (printVersion ver)
 
@@ -180,15 +182,16 @@ parseAmountJSON = \case
   val -> fail $ "Value " <> show val <> " is not a JSON object."
 
 billableJSON :: B.Billable Amount -> Value
-billableJSON b = v1 . obj $
-  [ "projectId" .= idValue (B.project . _ProjectId) b,
-    "name" .= (b ^. B.name),
-    "description" .= (b ^. B.description),
-    "recurrence" .= (b ^. B.recurrence . to recurrenceJSON'),
-    "amount" .= (b ^. (B.amount . to amountJSON)),
-    "gracePeriod" .= (b ^. B.gracePeriod),
-    "requestExpiryPeriod" .= (b ^. B.requestExpiryPeriod . to Clock.toSeconds')
-  ]
+billableJSON b =
+  v1 . obj $
+    [ "projectId" .= idValue (B.project . _ProjectId) b,
+      "name" .= (b ^. B.name),
+      "description" .= (b ^. B.description),
+      "recurrence" .= (b ^. B.recurrence . to recurrenceJSON'),
+      "amount" .= (b ^. (B.amount . to amountJSON)),
+      "gracePeriod" .= (b ^. B.gracePeriod),
+      "requestExpiryPeriod" .= (b ^. B.requestExpiryPeriod . to Clock.toSeconds')
+    ]
 
 qdbBillableJSON :: (B.BillableId, B.Billable Amount) -> Value
 qdbBillableJSON =
@@ -197,7 +200,7 @@ qdbBillableJSON =
 recurrenceJSON' :: B.Recurrence -> Value
 recurrenceJSON' B.Annually = object ["annually" .= object []]
 recurrenceJSON' (B.Monthly i) = object ["monthly" .= object ["months" .= i]]
---recurrenceJSON' B.SemiMonthly = object [ "semimonthly" .= Null ]
+-- recurrenceJSON' B.SemiMonthly = object [ "semimonthly" .= Null ]
 recurrenceJSON' (B.Weekly i) = object ["weekly" .= object ["weeks" .= i]]
 recurrenceJSON' B.OneTime = object ["onetime" .= object []]
 

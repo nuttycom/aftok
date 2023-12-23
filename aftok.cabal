@@ -14,47 +14,51 @@ Build-type:    Simple
 common buildenv
   default-language:   Haskell2010
   ghc-options:        -Wall -Werror
-  default-extensions: GADTs
-                    , KindSignatures
-                    , LambdaCase
-                    , MultiParamTypeClasses
-                    , OverloadedStrings
-                    , RankNTypes
-                    , ScopedTypeVariables
+  default-extensions: 
+    GADTs,
+    KindSignatures,
+    LambdaCase,
+    MultiParamTypeClasses,
+    OverloadedStrings,
+    RankNTypes,
+    ScopedTypeVariables,
   build-depends:
-      base
-    , relude
-    , aeson
-    , attoparsec
-    , bifunctors
-    , bippy
-    , bytestring
-    , cereal
-    , configurator
-    , containers
-    , cryptonite
-    , either
-    , errors
-    , from-sum
-    , HStringTemplate                   >= 0.8.8 && < 0.9
-    , HsOpenSSL
-    , haskoin-core
-    , hourglass
-    , iso8601-time
-    , lens
-    , postgresql-simple
-    , semigroups
-    , template-haskell                  >= 2.18.0 && < 2.19
-    , text
-    , thyme                             >= 0.4 && < 0.5
-    , transformers
-    , uuid
-    , unordered-containers
-    , vector-space
-    , x509
-    , x509-store
-  mixins: base hiding (Prelude)
-        , relude (Relude as Prelude)
+    base,
+    relude,
+    aeson,
+    attoparsec,
+    bifunctors,
+    bippy,
+    bytestring,
+    cereal,
+    configurator,
+    containers,
+    cryptonite,
+    either,
+    errors,
+    from-sum,
+    HStringTemplate                   >= 0.8.8 && < 0.9,
+    HsOpenSSL,
+    haskoin-core,
+    hourglass,
+    iso8601-time,
+    lens,
+    lrzhs,
+    mtl,
+    postgresql-simple,
+    semigroups,
+    template-haskell                  >= 2.18.0 && < 2.19,
+    text,
+    thyme                             >= 0.4 && < 0.5,
+    transformers,
+    uuid,
+    unordered-containers,
+    vector-space,
+    x509,
+    x509-store,
+  mixins: 
+    base hiding (Prelude),
+    relude (Relude as Prelude),
 
 -- blaze-builder                     >= 0.4.2 && < 0.5,
 -- bytestring                        >= 0.11.4 && < 0.12,
@@ -113,82 +117,100 @@ common buildenv
 library
   import:             buildenv
   hs-source-dirs:     lib
-  exposed-modules:    Aftok.Auction
-                      Aftok.Billing
-                      Aftok.Config
-                      Aftok.Currency
-                      Aftok.Currency.Bitcoin
-                      Aftok.Currency.Bitcoin.Payments
-                      Aftok.Currency.Bitcoin.Bip70
-                      Aftok.Currency.Zcash
-                      Aftok.Currency.Zcash.Types
-                      Aftok.Currency.Zcash.Payments
-                      Aftok.Currency.Zcash.Zip321
-                      Aftok.Database
-                      Aftok.Database.PostgreSQL
-                      Aftok.Database.PostgreSQL.Json
-                      Aftok.Database.PostgreSQL.Types
-                      Aftok.Database.PostgreSQL.Auctions
-                      Aftok.Database.PostgreSQL.Billing
-                      Aftok.Database.PostgreSQL.Events
-                      Aftok.Database.PostgreSQL.Projects
-                      Aftok.Database.PostgreSQL.Users
-                      Aftok.Interval
-                      Aftok.Json
-                      Aftok.Payments
-                      Aftok.Payments.Types
-                      Aftok.Payments.Bitcoin
-                      Aftok.Payments.Zcash
-                      Aftok.Payments.Util
-                      Aftok.Project
-                      Aftok.TimeLog
-                      Aftok.TimeLog.Serialization
-                      Aftok.Types
-                      Aftok.Util
-                      Aftok.Util.Http
+  exposed-modules:    
+    Aftok.Auction
+    Aftok.Billing
+    Aftok.Config
+    Aftok.Currency
+    Aftok.Currency.Bitcoin
+    Aftok.Currency.Bitcoin.Payments
+    Aftok.Currency.Bitcoin.Bip70
+    Aftok.Currency.Zcash
+    Aftok.Currency.Zcash.Types
+    Aftok.Currency.Zcash.Payments
+    Aftok.Currency.Zcash.Zip321
+    Aftok.Database
+    Aftok.Database.Events
+    Aftok.Database.Users
+    Aftok.Database.PostgreSQL
+    Aftok.Database.PostgreSQL.Json
+    Aftok.Database.PostgreSQL.Types
+    Aftok.Database.PostgreSQL.Auctions
+    Aftok.Database.PostgreSQL.Billing
+    Aftok.Database.PostgreSQL.Events
+    Aftok.Database.PostgreSQL.Projects
+    Aftok.Database.PostgreSQL.Users
+    Aftok.Interval
+    Aftok.Json
+    Aftok.Payments
+    Aftok.Payments.Types
+    Aftok.Payments.Bitcoin
+    Aftok.Payments.Zcash
+    Aftok.Payments.Util
+    Aftok.Project
+    Aftok.Time
+    Aftok.TimeLog
+    Aftok.TimeLog.Serialization
+    Aftok.Types
+    Aftok.Util
+    Aftok.Util.Http
   build-depends:
-    , basement
-    , blake2
-    , base64
-    , blaze-builder
-    , free
-    , groups
-    , heaps
-    , http-client
-    , http-types
-    , kan-extensions
-    , lens-aeson
-    , MonadRandom
-    , mtl
-    , network
-    , network-uri
-    , old-locale
-    , protobuf
-    , relude
-    , safe
-    , scientific
-    , semigroupoids
-    , smtp-mail
-    , system-filepath
-    , template-haskell
-    , uri-encode
+    basement,
+    blake2,
+    base64,
+    blaze-builder,
+    free,
+    groups,
+    heaps,
+    http-client,
+    http-types,
+    kan-extensions,
+    lens-aeson,
+    MonadRandom,
+    mtl,
+    network,
+    network-uri,
+    old-locale,
+    protobuf,
+    relude,
+    safe,
+    scientific,
+    semigroupoids,
+    smtp-mail,
+    system-filepath,
+    template-haskell,
+    uri-encode,
+
+library aftok-http-api
+  import:             buildenv
+  hs-source-dirs:     http-api
+  build-depends:
+    base,
+    aftok,
+    cryptonite,
+    http-client,
+    http-client-tls,
+    http-types,
+  exposed-modules:    
+    Aftok.Http.Json
+    Aftok.Http.Auth
 
 Test-Suite spec
   import:             buildenv
   type:               exitcode-stdio-1.0
   hs-source-dirs:     test
   main-is:            Spec.hs
-  other-modules: Aftok.AuctionSpec
-               , Aftok.Generators
-               , Aftok.PaymentsSpec
-               , Aftok.TimeLogSpec
-               , Aftok.Util.HttpSpec
-
+  other-modules: 
+    Aftok.AuctionSpec,
+    Aftok.Generators,
+    Aftok.PaymentsSpec,
+    Aftok.TimeLogSpec,
+    Aftok.Util.HttpSpec,
   build-depends:
-      aftok
-    , hspec
-    , HUnit
-    , QuickCheck
+    aftok,
+    hspec,
+    HUnit,
+    QuickCheck,
 
   build-tool-depends: hspec-discover:hspec-discover
 
@@ -196,60 +218,90 @@ Executable aftok-server
   import:             buildenv
   ghc-options:        -Wall -Werror
   hs-source-dirs:     server
-
   main-is:            Main.hs
-
-  other-modules: Aftok.ServerConfig
-               , Aftok.Snaplet
-               , Aftok.Snaplet.Auctions
-               , Aftok.Snaplet.Auth
-               , Aftok.Snaplet.Billing
-               , Aftok.Snaplet.Json
-               , Aftok.Snaplet.Payments
-               , Aftok.Snaplet.Projects
-               , Aftok.Snaplet.Users
-               , Aftok.Snaplet.Util
-               , Aftok.Snaplet.WorkLog
-
+  other-modules: 
+    Aftok.ServerConfig,
+    Aftok.Snaplet,
+    Aftok.Snaplet.Auctions,
+    Aftok.Snaplet.Auth,
+    Aftok.Snaplet.Billing,
+    Aftok.Snaplet.Json,
+    Aftok.Snaplet.Payments,
+    Aftok.Snaplet.Projects,
+    Aftok.Snaplet.Users,
+    Aftok.Snaplet.Util,
+    Aftok.Snaplet.WorkLog,
   build-depends:
-      aftok
-    , base64-bytestring
-    , directory
-    , http-client
-    , http-client-tls
-    , http-client-openssl
-    , http-types
-    , mime-mail
-    , mtl
-    , network
-    , optparse-applicative
-    , protobuf
-    , smtp-mail
-    , snap                              >= 1.1.3 && < 1.2
-    , snap-core                         >= 1.0.5 && < 1.1
-    , snap-server                       >= 1.1.2 && < 1.2
-    , snaplet-postgresql-simple
-    , system-filepath
-    , wreq
+    aftok,
+    aftok-http-api,
+    base64-bytestring,
+    directory,
+    http-client,
+    http-client-tls,
+    http-client-openssl,
+    http-types,
+    mime-mail,
+    mtl,
+    network,
+    optparse-applicative,
+    protobuf,
+    smtp-mail,
+    snap                              >= 1.1.3 && < 1.2,
+    snap-core                         >= 1.0.5 && < 1.1,
+    snap-server                       >= 1.1.2 && < 1.2,
+    snaplet-postgresql-simple,
+    system-filepath,
+    wreq,
+
+Executable aftok-servant
+  import:             buildenv
+  ghc-options:        -Wall -Werror
+  hs-source-dirs:     servant
+  main-is:            Main.hs
+  other-modules: 
+    Aftok.Server,
+    Aftok.Server.Auth,
+    Aftok.Server.Orphans,
+  build-depends:
+    aftok,
+    aftok-http-api,
+    base64-bytestring,
+    cryptonite                      >= 0.28 && < 0.31,
+    dbmigrations                    >= 2.2 && < 2.3,
+    dbmigrations-postgresql-simple  >= 0.1 && < 0.2,
+    http-client,
+    http-client-tls,
+    http-client-openssl,
+    http-types,
+    jose,
+    optparse-applicative,
+    resource-pool,
+    servant                         >= 0.19 && < 0.20,
+    servant-auth                    >= 0.4.1 && < 0.5,
+    servant-auth-server             >= 0.4.7 && < 0.5,
+    servant-server                  >= 0.19.1 && < 0.20,
+    wai                             >= 3.2.3 && < 3.3,
+    warp                            >= 3.3.20 && < 3.4,
 
 Executable aftok-daemon
   import:             buildenv
   hs-source-dirs:     daemon
 
   main-is:            Main.hs
-  other-modules:      AftokD
-                    , AftokD.AftokM
+  other-modules:      
+    AftokD, 
+    AftokD.AftokM
   build-depends:
-      aftok
-    , base64-bytestring
-    , http-client
-    , http-client-openssl
-    , mime-mail
-    , mtl
-    , network
-    , network-uri
-    , optparse-applicative
-    , protobuf
-    , smtp-mail
-    , system-filepath
-    , wreq
+    aftok,
+    base64-bytestring,
+    http-client,
+    http-client-openssl,
+    mime-mail,
+    mtl,
+    network,
+    network-uri,
+    optparse-applicative,
+    protobuf,
+    smtp-mail,
+    system-filepath,
+    wreq,

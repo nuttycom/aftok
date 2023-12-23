@@ -7,20 +7,25 @@ import Control.Lens
   ( makeLenses,
     makePrisms,
   )
+import Data.Aeson (defaultOptions)
+import Data.Aeson.TH (deriveJSON)
 import qualified Data.Thyme.Time as C
 import Data.UUID (UUID)
 
 newtype UserId = UserId UUID deriving (Show, Eq, Ord)
 
 makePrisms ''UserId
+$(deriveJSON defaultOptions ''UserId)
 
 newtype UserName = UserName Text deriving (Show, Eq)
 
 makePrisms ''UserName
+$(deriveJSON defaultOptions ''UserName)
 
 newtype Email = Email Text deriving (Show, Eq)
 
 makePrisms ''Email
+$(deriveJSON defaultOptions ''Email)
 
 data RecoverBy z
   = RecoverByEmail Email
@@ -30,7 +35,8 @@ makePrisms ''RecoverBy
 
 data User = User
   { _username :: !UserName,
-    _userAccountRecovery :: !(RecoverBy Zcash.Address)
+    _userAccountRecovery :: !(RecoverBy Zcash.Address),
+    _passwordHash :: ByteString
   }
 
 makeLenses ''User
@@ -38,6 +44,7 @@ makeLenses ''User
 newtype ProjectId = ProjectId UUID deriving (Show, Eq, Ord)
 
 makePrisms ''ProjectId
+$(deriveJSON defaultOptions ''ProjectId)
 
 -- Identifier for a cryptocurrency account. An account
 -- is a mapping from cryptocurrency network to address;

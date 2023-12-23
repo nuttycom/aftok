@@ -23,14 +23,14 @@ makeLenses ''Recurrence
 recurrenceName :: Recurrence -> Text
 recurrenceName Annually = "annually"
 recurrenceName (Monthly _) = "monthly"
---recurrenceName SemiMonthly = "semimonthly"
+-- recurrenceName SemiMonthly = "semimonthly"
 recurrenceName (Weekly _) = "weekly"
 recurrenceName OneTime = "onetime"
 
 recurrenceCount :: Recurrence -> Maybe Int
 recurrenceCount Annually = Nothing
 recurrenceCount (Monthly i) = Just i
---recurrenceCount SemiMonthly = Nothing
+-- recurrenceCount SemiMonthly = Nothing
 recurrenceCount (Weekly i) = Just i
 recurrenceCount OneTime = Nothing
 

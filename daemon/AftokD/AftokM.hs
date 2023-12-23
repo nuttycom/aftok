@@ -123,8 +123,8 @@ createAllPaymentRequests cfg = do
   let env = AftokMEnv cfg conn' pcfg'
   void
     . runExceptT
-    $ (runReaderT . runAftokM) createProjectsPaymentRequests $
-      env
+    $ (runReaderT . runAftokM) createProjectsPaymentRequests
+    $ env
 
 createProjectsPaymentRequests :: AftokM ()
 createProjectsPaymentRequests = do
