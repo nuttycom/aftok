@@ -1,0 +1,41 @@
+# Dockerfile for Aftok PureScript client (Kubernetes deployment)
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy PureScript config and source
+COPY spago.yaml ./
+COPY src/ ./src/
+
+# Build the application
+RUN npm run build-parcel
+
+# Final stage - just the built application
+FROM alpine:latest
+
+# Install basic tools
+RUN apk add --no-cache ca-certificates
+
+# Create directory for app files
+RUN mkdir -p /app/dist
+
+# Copy built app from builder stage
+COPY --from=builder /app/dist /app/dist
+
+# Create non-root user
+RUN addgroup -g 1000 aftok && \
+    adduser -D -s /bin/sh -u 1000 -G aftok aftok
+
+# Change ownership
+RUN chown -R aftok:aftok /app
+
+USER aftok
+
+# Default command (not really used, init container will copy files)
+CMD ["sh", "-c", "echo 'Aftok client app ready'"]
