@@ -28,37 +28,33 @@ import Halogen.HTML.Core (ClassName(..))
 import Halogen.HTML.Events as E
 import Halogen.HTML.Properties as P
 
-type Input
-  = Maybe ProjectId
+type Input = Maybe ProjectId
 
-data Query a
-  = ProjectCreated ProjectId a
+data Query a = ProjectCreated ProjectId a
 
-data Output
-  = ProjectChange ProjectId
+data Output = ProjectChange ProjectId
 
-type Slot id
-  = H.Slot Query Output id
+type Slot id = H.Slot Query Output id
 
-type CState
-  = { selectedPid :: Maybe ProjectId
-    , projects :: Array Project
-    }
+type CState =
+  { selectedPid :: Maybe ProjectId
+  , projects :: Array Project
+  }
 
 data Action
   = Initialize (Maybe ProjectId)
   | Select Int
 
-type Capability m
-  = { listProjects :: m (Either APIError (Array Project))
-    }
+type Capability m =
+  { listProjects :: m (Either APIError (Array Project))
+  }
 
-component ::
-  forall m.
-  Monad m =>
-  System m ->
-  Capability m ->
-  H.Component HH.HTML Query Input Output m
+component
+  :: forall m
+   . Monad m
+  => System m
+  -> Capability m
+  -> H.Component Query Input Output m
 component console caps =
   H.mkComponent
     { initialState
@@ -87,8 +83,8 @@ component console caps =
           [ HH.text "Project" ]
       , HH.select
           [ P.classes (ClassName <$> [ "form-control" ])
-          , P.id_ "projectSelect"
-          , E.onSelectedIndexChange (Just <<< Select)
+          , P.id "projectSelect"
+          , E.onSelectedIndexChange Select
           ]
           ( [ HH.option [ P.selected (isNothing st.selectedPid), P.disabled true ] [ HH.text "Select a project" ] ]
               <> map renderOption st.projects
@@ -119,10 +115,10 @@ component console caps =
       projects <- H.gets (_.projects)
       traverse_ projectSelected (index projects (i - 1))
     where
-      projectSelected p = do
-        let pid = (unwrap p).projectId
-        H.modify_ (_ { selectedPid = Just pid })
-        H.raise $ ProjectChange pid
+    projectSelected p = do
+      let pid = (unwrap p).projectId
+      H.modify_ (_ { selectedPid = Just pid })
+      H.raise $ ProjectChange pid
 
 apiCapability :: Capability Aff
 apiCapability = { listProjects }

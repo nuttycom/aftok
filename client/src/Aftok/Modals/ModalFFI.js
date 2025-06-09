@@ -1,3 +1,3 @@
-exports.toggleModalInternal = modalId => toggle => () => {
+export const toggleModalInternal = modalId => toggle => () => {
   $('#' + modalId).modal(toggle)
 }

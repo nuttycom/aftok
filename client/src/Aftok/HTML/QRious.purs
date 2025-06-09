@@ -1,15 +1,14 @@
 module Aftok.HTML.QRious
   ( renderQR
   , QROpts
-  )
-  where
+  ) where
 
 import Effect (Effect)
 
 renderQR :: QROpts -> Effect String
 renderQR = renderQRInternal
 
-type QROpts = 
+type QROpts =
   { value :: String
   , size :: Int
   }

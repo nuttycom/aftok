@@ -8,7 +8,7 @@
 /.purs*
 /.psa*
 /.spago
-/.cache/
+/.parcel-cache/
 .nvimrc
 /dist/
 /prod/*

@@ -11,11 +11,12 @@ import CSS.Display (display, flex)
 import CSS.Flexbox (flexFlow, row, nowrap)
 import Aftok.Api.Types (CommsType(..))
 
-type CommsState r = 
+type CommsState r =
   { channel :: CommsType
   , email :: Maybe String
   , zaddr :: Maybe String
-  | r }
+  | r
+  }
 
 type SetCommsType action = CommsType -> action
 type SetEmail action = String -> action
@@ -42,9 +43,9 @@ commsSwitch setCommsType rt =
             [ HH.input
                 [ P.type_ P.InputCheckbox
                 , P.classes (ClassName <$> [ "custom-control-input" ])
-                , P.id_ "commsSwitch"
+                , P.id "commsSwitch"
                 , P.checked (rt == ZcashComms)
-                , E.onChecked (\b -> Just <<< setCommsType $ if b then ZcashComms else EmailComms)
+                , E.onChecked (\b -> setCommsType (if b then ZcashComms else EmailComms))
                 ]
             , HH.label [ P.classes (ClassName <$> [ "custom-control-label" ]), P.for "commsSwitch" ] []
             ]
@@ -56,27 +57,27 @@ commsSwitch setCommsType rt =
 
 type CommsErrors i a = CommsType -> Array (HH.HTML i a)
 
-commsField :: 
-  forall i a r. 
-  SetEmail a -> 
-  SetZaddr a -> 
-  CommsState r -> 
-  CommsErrors i a -> 
-  HH.HTML i a
+commsField
+  :: forall i a r
+   . SetEmail a
+  -> SetZaddr a
+  -> CommsState r
+  -> CommsErrors i a
+  -> HH.HTML i a
 commsField setEmail setZAddr st errs = case st.channel of
   EmailComms ->
-    HH.div_ $ 
+    HH.div_ $
       [ HH.label [ P.for "email" ] [ HH.text "Email Address" ]
       , HH.input
           [ P.type_ P.InputEmail
           , P.classes (ClassName <$> [ "form-control" ])
-          , P.id_ "email"
+          , P.id "email"
           , P.placeholder "name@address.com"
           , P.value (fromMaybe "" st.email)
-          , E.onValueInput (Just <<< setEmail)
+          , E.onValueInput setEmail
           ]
       ]
-      <> errs EmailComms 
+        <> errs EmailComms
   ZcashComms ->
     HH.div_ $
       [ HH.label
@@ -92,10 +93,10 @@ commsField setEmail setZAddr st errs = case st.channel of
       , HH.input
           [ P.type_ P.InputText
           , P.classes (ClassName <$> [ "form-control" ])
-          , P.id_ "email"
+          , P.id "email"
           , P.placeholder "Enter a Zcash shielded address"
           , P.value (fromMaybe "" st.zaddr)
-          , E.onValueInput (Just <<< setZAddr)
+          , E.onValueInput setZAddr
           ]
       ]
-      <> errs ZcashComms
+        <> errs ZcashComms

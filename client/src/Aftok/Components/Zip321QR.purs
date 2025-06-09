@@ -14,28 +14,26 @@ import Aftok.Api.Types (Zip321Request)
 
 type Input = Zip321Request
 
-type CState = 
+type CState =
   { req :: Zip321Request
   , dataUrl :: Maybe String
   }
 
-data Action 
-  = QrInit
+data Action = QrInit
 
-type Slot id
-  = forall query. H.Slot query Unit id
+type Slot id = forall query. H.Slot query Unit id
 
-component ::
-  forall m output query.
-  Monad m =>
-  System m ->
-  H.Component HH.HTML query Input output m
+component
+  :: forall m output query
+   . Monad m
+  => System m
+  -> H.Component query Input output m
 component system =
   H.mkComponent
     { initialState
     , render
     , eval:
-        H.mkEval 
+        H.mkEval
           $ H.defaultEval
               { handleAction = handleAction
               , initialize = Just QrInit
@@ -43,19 +41,19 @@ component system =
     }
   where
   initialState :: Input -> CState
-  initialState input = 
+  initialState input =
     { req: input, dataUrl: Nothing }
 
   render :: forall slots. CState -> H.ComponentHTML Action slots m
   render st =
     HH.div_
       [ HH.div_
-        ((\url -> HH.img [P.src url]) <$> U.fromMaybe st.dataUrl)
+          ((\url -> HH.img [ P.src url ]) <$> U.fromMaybe st.dataUrl)
       , HH.div_
-        [ HH.span
-            [ P.classes (ClassName <$> ["code", "zip321uri"]) ]
-            [HH.text <<< unwrap $ st.req]
-        ]
+          [ HH.span
+              [ P.classes (ClassName <$> [ "code", "zip321uri" ]) ]
+              [ HH.text <<< unwrap $ st.req ]
+          ]
       ]
 
   handleAction :: forall slots. Action -> H.HalogenM CState Action slots output m Unit

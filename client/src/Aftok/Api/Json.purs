@@ -25,8 +25,7 @@ import Affjax.StatusCode (StatusCode(..))
 import Aftok.Api.Types (APIError(..))
 import Aftok.Zcash (Zatoshi(..))
 
-newtype JsonCompose f g a
-  = JsonCompose (Compose f g a)
+newtype JsonCompose f g a = JsonCompose (Compose f g a)
 
 derive instance jsonComposeNewtype :: Newtype (JsonCompose f g a) _
 
@@ -60,38 +59,37 @@ parseDate str = do
     $ note ("Unable to convert date " <> show jsDate <> " to a valid DateTime value.")
         (JD.toDateTime jsDate)
 
-type Decode a
-  = Json -> Either JsonDecodeError a
+type Decode a = Json -> Either JsonDecodeError a
 
-parseResponse ::
-  forall a.
-  Decode a -> 
-  Either AJAX.Error (Response Json) ->
-  Aff (Either APIError a)
-parseResponse decode response = 
-  runExceptT $ case response of 
+parseResponse
+  :: forall a
+   . Decode a
+  -> Either AJAX.Error (Response Json)
+  -> Aff (Either APIError a)
+parseResponse decode response =
+  runExceptT $ case response of
     Left err -> throwError $ Error { status: Nothing, message: printError err }
     Right r -> case r.status of
       StatusCode 403 -> throwError $ Forbidden
       StatusCode 200 -> withExceptT ParseFailure <<< except $ decode r.body
       other -> throwError $ Error { status: Just other, message: r.statusText }
 
-decodeDatedJson :: 
-  forall t. 
-  Traversable t => 
-  Decode (t String) -> 
-  Json -> 
-  ExceptT JsonDecodeError Effect (t DateTime)
+decodeDatedJson
+  :: forall t
+   . Traversable t
+  => Decode (t String)
+  -> Json
+  -> ExceptT JsonDecodeError Effect (t DateTime)
 decodeDatedJson decode json = do
   decoded <- except $ decode json
   (withExceptT TypeMismatch $ traverse parseDate decoded)
 
-parseDatedResponse ::
-  forall t.
-  Traversable t =>
-  Decode (t String) ->
-  Either AJAX.Error (Response Json) ->
-  ExceptT APIError Effect (t Instant)
+parseDatedResponse
+  :: forall t
+   . Traversable t
+  => Decode (t String)
+  -> Either AJAX.Error (Response Json)
+  -> ExceptT APIError Effect (t Instant)
 parseDatedResponse decode = case _ of
   Left err -> throwError $ Error { status: Nothing, message: printError err }
   Right r -> case r.status of
@@ -99,12 +97,12 @@ parseDatedResponse decode = case _ of
     StatusCode 200 -> withExceptT ParseFailure $ map fromDateTime <$> decodeDatedJson decode r.body
     other -> throwError $ Error { status: Just other, message: r.statusText }
 
-parseDatedResponseMay ::
-  forall t.
-  Traversable t =>
-  Decode (t String) ->
-  Either AJAX.Error (Response Json) ->
-  ExceptT APIError Effect (Maybe (t Instant))
+parseDatedResponseMay
+  :: forall t
+   . Traversable t
+  => Decode (t String)
+  -> Either AJAX.Error (Response Json)
+  -> ExceptT APIError Effect (Maybe (t Instant))
 parseDatedResponseMay decode = case _ of
   Left err -> throwError $ Error { status: Nothing, message: printError err }
   Right r -> case r.status of
@@ -112,14 +110,14 @@ parseDatedResponseMay decode = case _ of
     StatusCode 404 -> pure Nothing
     StatusCode 200 ->
       map Just
-      <<< withExceptT ParseFailure
-      <<< map (map fromDateTime)
-      $ decodeDatedJson decode r.body
-    other -> 
+        <<< withExceptT ParseFailure
+        <<< map (map fromDateTime)
+        $ decodeDatedJson decode r.body
+    other ->
       throwError $ Error { status: Just other, message: r.statusText }
 
 parseZatoshi :: Object Json -> Either JsonDecodeError Zatoshi
-parseZatoshi obj = 
-  map Zatoshi 
-    $   (note (TypeMismatch "Failed to decode as Zatoshi") <<< BigInt.fromNumber) 
-    =<< (obj .: "zatoshi")
+parseZatoshi obj =
+  map Zatoshi
+    $ (note (TypeMismatch "Failed to decode as Zatoshi") <<< BigInt.fromNumber)
+        =<< (obj .: "zatoshi")

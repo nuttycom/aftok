@@ -7,10 +7,11 @@ import Data.Array (filter)
 import Data.Either (Either(..), note)
 import Data.Foldable (any)
 import Data.Maybe (Maybe(..))
-import Data.Symbol (SProxy(..))
 import Data.Tuple (Tuple(..))
 import Data.Validation.Semigroup (V(..), toEither)
 import Effect.Aff (Aff)
+import Type.Proxy (Proxy(..))
+
 import DOM.HTML.Indexed.ButtonType (ButtonType(..))
 import Halogen as H
 import Halogen.HTML as HH
@@ -37,10 +38,9 @@ data Field
 derive instance fieldEq :: Eq Field
 derive instance fieldOrd :: Ord Field
 
-data Query a 
-  = OpenModal ProjectId a
+data Query a = OpenModal ProjectId a
 
-data Mode 
+data Mode
   = Form
   | QrScan Zip321Request
 
@@ -63,30 +63,30 @@ data Action
   | SetZAddr String
   | CreateInvitation
   | Close
+  | Pass
 
-type Slot id
-  = forall output. H.Slot Query output id
+type Slot id = forall output. H.Slot Query output id
 
-type Slots
-  = ( inviteQR :: Zip321QR.Slot Unit
-    )
+type Slots =
+  ( inviteQR :: Zip321QR.Slot Unit
+  )
 
-_inviteQR = SProxy :: SProxy "inviteQR"
+_inviteQR = Proxy :: Proxy "inviteQR"
 
-type Capability (m :: Type -> Type)
-  = { createInvitation :: ProjectId -> Invitation' CommsAddress -> m (Either APIError (Maybe Zip321Request))
-    , checkZAddr :: String -> m Acc.ZAddrCheckResponse
-    }
+type Capability (m :: Type -> Type) =
+  { createInvitation :: ProjectId -> Invitation' CommsAddress -> m (Either APIError (Maybe Zip321Request))
+  , checkZAddr :: String -> m Acc.ZAddrCheckResponse
+  }
 
 modalId :: String
 modalId = "createInvitation"
 
-component ::
-  forall input output m.
-  Monad m =>
-  System m ->
-  Capability m ->
-  H.Component HH.HTML Query input output m
+component
+  :: forall input output m
+   . Monad m
+  => System m
+  -> Capability m
+  -> H.Component Query input output m
 component system caps =
   H.mkComponent
     { initialState: const initialState
@@ -102,8 +102,8 @@ component system caps =
   initialState :: CState
   initialState =
     { projectId: Nothing
-    , greetName : Nothing
-    , message : Nothing
+    , greetName: Nothing
+    , message: Nothing
     , channel: ZcashComms
     , email: Nothing
     , zaddr: Nothing
@@ -115,114 +115,113 @@ component system caps =
   render st =
     HH.div
       [ P.classes [ C.modal ]
-      , P.id_ modalId
+      , P.id modalId
       , P.tabIndex (negate 1)
       , ARIA.role "dialog"
       , ARIA.labelledBy (modalId <> "Title")
       , ARIA.hidden "true"
       ]
       [ HH.div
-        [ P.classes [C.modalDialog], ARIA.role "document" ]
-        [ HH.div
-          [ P.classes [C.modalContent] ]
+          [ P.classes [ C.modalDialog ], ARIA.role "document" ]
           [ HH.div
-            [ P.classes [C.modalHeader] ]
-            [ HH.h5 [P.classes [C.modalTitle], P.id_ (modalId <>"Title") ] [HH.text "Invite a collaborator"]
-            , HH.button
-              [ P.classes [ C.close ]
-              , ARIA.label "Close"
-              , P.type_ ButtonButton
-              , E.onClick (\_ -> Just Close)
+              [ P.classes [ C.modalContent ] ]
+              [ HH.div
+                  [ P.classes [ C.modalHeader ] ]
+                  [ HH.h5 [ P.classes [ C.modalTitle ], P.id (modalId <> "Title") ] [ HH.text "Invite a collaborator" ]
+                  , HH.button
+                      [ P.classes [ C.close ]
+                      , ARIA.label "Close"
+                      , P.type_ ButtonButton
+                      , E.onClick (\_ -> Close)
+                      ]
+                      [ HH.span [ ARIA.hidden "true" ] [ HH.text "×" ] ]
+                  ]
+              , HH.div
+                  [ P.classes [ C.modalBody ] ]
+                  case st.mode of
+                    Form ->
+                      [ inviteForm st ]
+                    QrScan req ->
+                      [ HH.slot _inviteQR unit (Zip321QR.component system) req (const Pass) ]
+              , HH.div
+                  [ P.classes [ C.modalFooter ] ] $
+                  case st.mode of
+                    Form ->
+                      [ HH.button
+                          [ P.type_ ButtonButton
+                          , P.classes [ C.btn, C.btnSecondary ]
+                          , E.onClick (\_ -> Close)
+                          ]
+                          [ HH.text "Close" ]
+                      , HH.button
+                          [ P.type_ ButtonButton
+                          , P.classes [ C.btn, C.btnPrimary ]
+                          , E.onClick (\_ -> CreateInvitation)
+                          ]
+                          [ HH.text "Send invitation" ]
+                      ]
+
+                    QrScan _ ->
+                      [ HH.button
+                          [ P.type_ ButtonButton
+                          , P.classes [ C.btn, C.btnPrimary ]
+                          , E.onClick (\_ -> Close)
+                          ]
+                          [ HH.text "Close" ]
+                      ]
+
               ]
-              [ HH.span [ARIA.hidden "true"] [HH.text "×"]]
-            ]
-          , HH.div
-            [ P.classes [C.modalBody] ]
-            case st.mode of
-              Form -> 
-                [ inviteForm st ]
-              QrScan req -> 
-                [ HH.slot _inviteQR unit (Zip321QR.component system) req (const Nothing) ]
-          , HH.div
-            [ P.classes [C.modalFooter] ] $
-            case st.mode of 
-              Form -> 
-                [ HH.button
-                  [ P.type_ ButtonButton
-                  , P.classes [ C.btn, C.btnSecondary]
-                  , E.onClick (\_ -> Just Close)
-                  ]
-                  [ HH.text "Close" ]
-                , HH.button
-                  [ P.type_ ButtonButton
-                  , P.classes [ C.btn, C.btnPrimary ]
-                  , E.onClick (\_ -> Just CreateInvitation)
-                  ]
-                  [ HH.text "Send invitation" ]
-                ]
-
-              QrScan _ -> 
-                [ HH.button
-                  [ P.type_ ButtonButton
-                  , P.classes [ C.btn, C.btnPrimary]
-                  , E.onClick (\_ -> Just Close)
-                  ]
-                  [ HH.text "Close" ]
-                ]
-
           ]
-        ]
       ]
 
-  inviteForm st = 
+  inviteForm st =
     HH.form_
       [ formGroup st
-        [ NameField ]
-        [ HH.label
-          [ P.for "greetName"]
-          [ HH.text "Name" ]
-        , HH.input
-          [ P.type_ P.InputText
-          , P.classes [ C.formControl, C.formControlSm ]
-          , P.id_ "greetName"
-          , P.placeholder "Who are you inviting?"
-          , E.onValueInput (Just <<< SetGreetName)
+          [ NameField ]
+          [ HH.label
+              [ P.for "greetName" ]
+              [ HH.text "Name" ]
+          , HH.input
+              [ P.type_ P.InputText
+              , P.classes [ C.formControl, C.formControlSm ]
+              , P.id "greetName"
+              , P.placeholder "Who are you inviting?"
+              , E.onValueInput SetGreetName
+              ]
           ]
-        ]
       , formGroup st
-        [ ]
-        [ HH.label
-            [ P.for "message"]
-            [ HH.text "Message" ]
-        , HH.input
-            [ P.type_ P.InputText
-            , P.classes [C.formControl, C.formControlSm]
-            , P.id_ "message"
-            , P.placeholder "Enter your message here"
-            , E.onValueInput (Just <<< SetMessage)
-            ]
-        ]
+          []
+          [ HH.label
+              [ P.for "message" ]
+              [ HH.text "Message" ]
+          , HH.input
+              [ P.type_ P.InputText
+              , P.classes [ C.formControl, C.formControlSm ]
+              , P.id "message"
+              , P.placeholder "Enter your message here"
+              , E.onValueInput SetMessage
+              ]
+          ]
       , commsSwitch SetCommsType st.channel
       , commsField SetEmail SetZAddr st $ case _ of
-          EmailComms -> fieldError st EmailField    
+          EmailComms -> fieldError st EmailField
           ZcashComms -> fieldError st ZAddrField
       ]
 
   formGroup :: forall i a. CState -> Array Field -> Array (HH.HTML i a) -> HH.HTML i a
   formGroup st fields body =
     HH.div
-     [ P.classes [C.formGroup] ]
-     (body <> (fieldError st =<< fields))
+      [ P.classes [ C.formGroup ] ]
+      (body <> (fieldError st =<< fields))
 
   fieldError :: forall i a. CState -> Field -> Array (HH.HTML i a)
   fieldError st field =
-    if any (_ == field) st.fieldErrors
-       then case field of
-            PidField -> err "No project id found; please report an error"
-            NameField -> err "The name field is required"
-            EmailField -> err "An email value is required when email comms are selected"
-            ZAddrField -> err "Not a valid Zcash shielded address"
-       else []
+    if any (_ == field) st.fieldErrors then case field of
+      PidField -> err "No project id found; please report an error"
+      NameField -> err "The name field is required"
+      EmailField -> err "An email value is required when email comms are selected"
+      ZAddrField -> err "Not a valid Zcash shielded address"
+    else []
     where
     err str = [ HH.div_ [ HH.span [ P.classes (ClassName <$> [ "badge", "badge-danger-soft" ]) ] [ HH.text str ] ] ]
 
@@ -240,51 +239,57 @@ component system caps =
       H.modify_ (_ { greetName = Just name })
     SetMessage msg ->
       H.modify_ (_ { message = Just msg })
-    SetCommsType t -> 
+    SetCommsType t ->
       H.modify_ (_ { channel = t })
-    SetEmail email -> 
+    SetEmail email ->
       H.modify_ (_ { email = Just email })
     SetZAddr addr -> do
-      let setZAddr addr' = do
-            zres <- lift $ caps.checkZAddr addr'
-            H.modify_ (_ { zaddr = Just addr' })
-            case zres of
-              Acc.ZAddrCheckValid -> 
-                H.modify_ (\st -> st { fieldErrors = filter (_ /= ZAddrField) st.fieldErrors
-                                     , channel = ZcashComms 
-                                     })
-              Acc.ZAddrCheckInvalid -> 
-                H.modify_ (\st -> st { fieldErrors = st.fieldErrors <> [ZAddrField] })
+      let
+        setZAddr addr' = do
+          zres <- lift $ caps.checkZAddr addr'
+          H.modify_ (_ { zaddr = Just addr' })
+          case zres of
+            Acc.ZAddrCheckValid ->
+              H.modify_
+                ( \st -> st
+                    { fieldErrors = filter (_ /= ZAddrField) st.fieldErrors
+                    , channel = ZcashComms
+                    }
+                )
+            Acc.ZAddrCheckInvalid ->
+              H.modify_ (\st -> st { fieldErrors = st.fieldErrors <> [ ZAddrField ] })
       when (addr /= "") (setZAddr addr)
     CreateInvitation -> do
-      pidV <- V <<< note [PidField] <$> H.gets (_.projectId)
-      nameV <- V <<< note [NameField] <$> H.gets (_.greetName)
+      pidV <- V <<< note [ PidField ] <$> H.gets (_.projectId)
+      nameV <- V <<< note [ NameField ] <$> H.gets (_.greetName)
       message <- H.gets (_.message)
       channel <- H.gets (_.channel)
-      addrV <- 
+      addrV <-
         case channel of
-             EmailComms -> map EmailCommsAddr <<< V <<< note [EmailField] <$> H.gets (_.email)
-             ZcashComms -> map ZcashCommsAddr <<< V <<< note [ZAddrField] <$> H.gets (_.zaddr)
-      let reqV :: V (Array Field) (Invitation' CommsAddress)
-          reqV = { greetName: _, message: _, inviteBy: _ }
-            <$> nameV
-            <*> pure message
-            <*> addrV
+          EmailComms -> map EmailCommsAddr <<< V <<< note [ EmailField ] <$> H.gets (_.email)
+          ZcashComms -> map ZcashCommsAddr <<< V <<< note [ ZAddrField ] <$> H.gets (_.zaddr)
+      let
+        reqV :: V (Array Field) (Invitation' CommsAddress)
+        reqV = { greetName: _, message: _, inviteBy: _ }
+          <$> nameV
+          <*> pure message
+          <*> addrV
       case toEither (Tuple <$> pidV <*> reqV) of
         Right (Tuple pid invitation) -> do
           res <- lift $ caps.createInvitation pid invitation
           case res of
             Right (Just req) -> H.modify_ (_ { mode = QrScan req })
-            Right Nothing    -> handleAction Close
-            Left errs        -> lift $ system.error (show errs)
+            Right Nothing -> handleAction Close
+            Left errs -> lift $ system.error (show errs)
         Left errors -> do
           H.modify_ (_ { fieldErrors = errors })
     Close -> do
       H.modify_ (const initialState) -- wipe the state for safety
       lift $ system.toggleModal modalId ModalFFI.HideModal
+    Pass -> pure unit
 
 apiCapability :: Capability Aff
-apiCapability 
-  = { createInvitation: Project.invite
-    , checkZAddr: Acc.checkZAddr
-    }
+apiCapability =
+  { createInvitation: Project.invite
+  , checkZAddr: Acc.checkZAddr
+  }

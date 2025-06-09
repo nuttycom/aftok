@@ -13,11 +13,13 @@ data Toggle
 
 toggleModal :: String -> Toggle -> Effect Unit
 toggleModal modalId t =
-  let toggleStr = case t of
-        ShowModal -> "show"
-        ToggleModal -> "toggle"
-        HideModal -> "hide"
-   in toggleModalInternal modalId toggleStr
+  let
+    toggleStr = case t of
+      ShowModal -> "show"
+      ToggleModal -> "toggle"
+      HideModal -> "hide"
+  in
+    toggleModalInternal modalId toggleStr
 
 foreign import toggleModalInternal :: String -> String -> Effect Unit
 

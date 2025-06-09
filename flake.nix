@@ -103,6 +103,7 @@
             buildInputs = [
               pkgs.purs
               pkgs.spago-unstable
+              pkgs.purescript-language-server
               pkgs.purs-tidy-bin.purs-tidy-0_10_0
               pkgs.purs-backend-es
             ];

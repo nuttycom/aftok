@@ -4,10 +4,10 @@ import Prelude
 import Control.Monad.Trans.Class (lift)
 import Data.Foldable (oneOf)
 import Data.Maybe (Maybe(..))
-import Data.Symbol (SProxy(..))
 import Effect (Effect)
 import Effect.Class (liftEffect)
 import Effect.Aff (launchAff_)
+import Type.Proxy (Proxy(..))
 import Halogen as H
 import Halogen.Aff (runHalogenAff, awaitBody)
 import Halogen.VDom.Driver (runUI)
@@ -50,7 +50,7 @@ main =
     void $ liftEffect
       $ matchesWith (match mainRoute) \oldMay new ->
           when (oldMay /= Just new) do
-            launchAff_ <<< halogenIO.query <<< H.tell $ Navigate new
+            launchAff_ <<< void <<< halogenIO.query $ H.mkTell (Navigate new)
 
 data View
   = VLoading
@@ -84,14 +84,13 @@ derive instance eqView :: Eq View
 
 derive instance ordView :: Ord View
 
-data MainQuery a
-  = Navigate View a
+data MainQuery a = Navigate View a
 
-type MainState
-  = { view :: View
-    , config :: Signup.Config
-    , selectedProject :: Maybe ProjectId
-    }
+type MainState =
+  { view :: View
+  , config :: Signup.Config
+  , selectedProject :: Maybe ProjectId
+  }
 
 data MainAction
   = Initialize
@@ -100,35 +99,35 @@ data MainAction
   | ProjectAction ProjectList.Output
   | LogoutAction
 
-type Slots
-  = ( login :: Login.Slot Unit
-    , signup :: Signup.Slot Unit
-    , overview :: Overview.Slot Unit
-    , timeline :: Timeline.Slot Unit
-    , billing :: Billing.Slot Unit
-    )
+type Slots =
+  ( login :: Login.Slot Unit
+  , signup :: Signup.Slot Unit
+  , overview :: Overview.Slot Unit
+  , timeline :: Timeline.Slot Unit
+  , billing :: Billing.Slot Unit
+  )
 
-_login = SProxy :: SProxy "login"
+_login = Proxy :: Proxy "login"
 
-_signup = SProxy :: SProxy "signup"
+_signup = Proxy :: Proxy "signup"
 
-_overview = SProxy :: SProxy "overview"
+_overview = Proxy :: Proxy "overview"
 
-_timeline = SProxy :: SProxy "timeline"
+_timeline = Proxy :: Proxy "timeline"
 
-_billing = SProxy :: SProxy "billing"
+_billing = Proxy :: Proxy "billing"
 
-component ::
-  forall input output m.
-  Monad m =>
-  System m ->
-  Login.Capability m ->
-  Signup.Capability m ->
-  Timeline.Capability m ->
-  ProjectList.Capability m ->
-  Overview.Capability m ->
-  Billing.Capability m ->
-  H.Component HH.HTML MainQuery input output m
+component
+  :: forall input output h m
+   . Monad m
+  => System m
+  -> Login.Capability m
+  -> Signup.Capability m
+  -> Timeline.Capability h m
+  -> ProjectList.Capability m
+  -> Overview.Capability m
+  -> Billing.Capability m
+  -> H.Component MainQuery input output m
 component system loginCap signupCap tlCap pCap ovCap bcap =
   H.mkComponent
     { initialState
@@ -154,22 +153,22 @@ component system loginCap signupCap tlCap pCap ovCap bcap =
     VLoading -> HH.div [ P.classes [ ClassName "loader" ] ] [ HH.text "Loading..." ]
     VSignup ->
       HH.div_
-        [ HH.slot _signup unit (Signup.component system signupCap st.config) unit (Just <<< SignupAction) ]
+        [ HH.slot _signup unit (Signup.component system signupCap st.config) unit SignupAction ]
     VLogin ->
       HH.div_
-        [ HH.slot _login unit (Login.component system loginCap) unit (Just <<< LoginAction) ]
+        [ HH.slot _login unit (Login.component system loginCap) unit LoginAction ]
     VOverview ->
       withNavBar
         $ HH.div_
-            [ HH.slot _overview unit (Overview.component system ovCap pCap) st.selectedProject (Just <<< ProjectAction) ]
+            [ HH.slot _overview unit (Overview.component system ovCap pCap) st.selectedProject ProjectAction ]
     VTimeline ->
       withNavBar
         $ HH.div_
-            [ HH.slot _timeline unit (Timeline.component system tlCap pCap) st.selectedProject (Just <<< ProjectAction) ]
+            [ HH.slot _timeline unit (Timeline.component system tlCap pCap) st.selectedProject ProjectAction ]
     VBilling ->
       withNavBar
         $ HH.div_
-            [ HH.slot _billing unit (Billing.component system bcap pCap) st.selectedProject (Just <<< ProjectAction) ]
+            [ HH.slot _billing unit (Billing.component system bcap pCap) st.selectedProject ProjectAction ]
 
   handleAction :: MainAction -> H.HalogenM MainState MainAction Slots output m Unit
   handleAction = case _ of
@@ -195,7 +194,7 @@ component system loginCap signupCap tlCap pCap ovCap bcap =
     LogoutAction -> do
       lift loginCap.logout
       navigate VLogin
-    ProjectAction (ProjectList.ProjectChange p) -> 
+    ProjectAction (ProjectList.ProjectChange p) ->
       H.modify_ (_ { selectedProject = Just p })
 
   handleQuery :: forall a. MainQuery a -> H.HalogenM MainState MainAction Slots output m (Maybe a)
@@ -245,19 +244,19 @@ logout :: forall s m. H.ComponentHTML MainAction s m
 logout =
   HH.button
     [ P.classes (ClassName <$> [ "btn", "navbar-btn", "btn-sm", "btn-primary", "lift", "ml-auto" ])
-    , E.onClick \_ -> Just LogoutAction
+    , E.onClick \_ -> LogoutAction
     ]
     [ HH.text "Logout" ]
 
-type NavTop
-  = { label :: String
-    , items :: Array NavItem
-    }
+type NavTop =
+  { label :: String
+  , items :: Array NavItem
+  }
 
-type NavItem
-  = { label :: String
-    , path :: String
-    }
+type NavItem =
+  { label :: String
+  , path :: String
+  }
 
 navItem :: forall a s m. NavItem -> H.ComponentHTML a s m
 navItem ni =

@@ -4,7 +4,7 @@ Version:       0.1
 Synopsis:      The Aftok Collaboration Platform
 Description:   A time logging and payment distribution service to enable groups of trusted contributors
                to collaboratively develop commercial applications.
-License:       NONE
+License:       AGPL-3.0-or-later
 Author:        Kris Nuttycombe
 Maintainer:    kris@aftok.com
 Stability:     Experimental

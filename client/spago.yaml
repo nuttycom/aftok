@@ -1,0 +1,32 @@
+package:
+  dependencies:
+    - aff
+    - affjax
+    - affjax-web
+    - argonaut-codecs
+    - console
+    - effect
+    - fixed-precision
+    - formatters
+    - halogen
+    - halogen-css
+    - halogen-formless
+    - halogen-portal
+    - halogen-subscriptions
+    - js-date
+    - numbers
+    - parsing
+    - psci-support
+    - rationals
+    - routing
+    - uri
+    - uuid
+    - validation
+  name: halogen-project
+workspace:
+  extraPackages:
+    halogen-portal:
+      git: https://github.com/thomashoneyman/purescript-halogen-portal.git
+      ref: 96a508e0eb8decf7dda37eeccdfd850aa870e0fc
+  packageSet:
+    url: https://raw.githubusercontent.com/purescript/package-sets/psc-0.15.15-20240419/packages.json

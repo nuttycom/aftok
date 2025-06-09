@@ -1,6 +1,6 @@
 "use strict";
 
-exports.getRecaptchaResponseInternal = useElemId => elemId => () => {
+export const getRecaptchaResponseInternal = useElemId => elemId => () => {
   if (useElemId) {
     return grecaptcha.getResponse(elemId);
   } else {
@@ -8,7 +8,7 @@ exports.getRecaptchaResponseInternal = useElemId => elemId => () => {
   }
 }
 
-exports.recaptchaRenderInternal = siteKey => elemId => () => {
+export const recaptchaRenderInternal = siteKey => elemId => () => {
   grecaptcha.render(
     document.getElementById(elemId), 
     { 'sitekey': siteKey }

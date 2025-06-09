@@ -14,7 +14,7 @@ data APIError
 instance showAPIError :: Show APIError where
   show = case _ of
     Forbidden -> "Forbidden"
-    ParseFailure e -> "ParseFailure (" <> show e <> ") " 
+    ParseFailure e -> "ParseFailure (" <> show e <> ") "
     Error r -> "Error { status: " <> show r.status <> ", message: " <> r.message <> "}"
 
 newtype Stored i t = Stored

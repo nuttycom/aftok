@@ -1,8 +1,8 @@
 "use strict"
 
-var QRious = require('qrious');
+import { QRious } from 'qrious';
 
-exports.renderQRInternal = options => () => {
+export const renderQRInternal = options => () => {
   var qrious = new QRious(options);
   return qrious.toDataURL();
 }

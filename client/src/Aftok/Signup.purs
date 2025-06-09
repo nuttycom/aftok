@@ -3,9 +3,9 @@ module Aftok.Signup where
 import Prelude
 import Control.Monad.Trans.Class (lift)
 import Data.Bifunctor (bimap)
-import Data.Either (Either(..), note, fromRight)
+import Data.Either (Either(..), note, hush)
 import Data.Foldable (any, intercalate)
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, fromJust)
 import Data.Map as M
 import Data.String.Regex (regex, split)
 import Data.String.Regex.Flags (global)
@@ -58,16 +58,16 @@ derive instance signupFieldEq :: Eq SignupField
 
 derive instance signupFieldOrd :: Ord SignupField
 
-type SignupState
-  = { username :: Maybe String
-    , password :: Maybe String
-    , passwordConfirm :: Maybe String
-    , channel :: CommsType
-    , email :: Maybe String
-    , zaddr :: Maybe String
-    , invitationCodes :: Array String
-    , signupErrors :: M.Map SignupField SignupError
-    }
+type SignupState =
+  { username :: Maybe String
+  , password :: Maybe String
+  , passwordConfirm :: Maybe String
+  , channel :: CommsType
+  , email :: Maybe String
+  , zaddr :: Maybe String
+  , invitationCodes :: Array String
+  , signupErrors :: M.Map SignupField SignupError
+  }
 
 data SignupAction
   = Initialize
@@ -84,28 +84,27 @@ data SignupResult
   = SignupComplete String
   | SigninNav
 
-type Slot id
-  = forall query. H.Slot query SignupResult id
+type Slot id = forall query. H.Slot query SignupResult id
 
-type Capability m
-  = { checkUsername :: String -> m Acc.UsernameCheckResponse
-    , checkZAddr :: String -> m Acc.ZAddrCheckResponse
-    , signup :: SignupRequest -> m SignupResponse
-    , getRecaptchaResponse :: Maybe String -> m (Maybe String)
-    , recaptchaRender :: String -> String -> m Unit
-    }
+type Capability m =
+  { checkUsername :: String -> m Acc.UsernameCheckResponse
+  , checkZAddr :: String -> m Acc.ZAddrCheckResponse
+  , signup :: SignupRequest -> m SignupResponse
+  , getRecaptchaResponse :: Maybe String -> m (Maybe String)
+  , recaptchaRender :: String -> String -> m Unit
+  }
 
-type Config
-  = { recaptchaKey :: String
-    }
+type Config =
+  { recaptchaKey :: String
+  }
 
-component ::
-  forall query input m.
-  Monad m =>
-  System m ->
-  Capability m ->
-  Config ->
-  H.Component HH.HTML query input SignupResult m
+component
+  :: forall query input m
+   . Monad m
+  => System m
+  -> Capability m
+  -> Config
+  -> H.Component query input SignupResult m
 component system caps conf =
   H.mkComponent
     { initialState
@@ -146,68 +145,71 @@ component system caps conf =
                   [ P.classes (ClassName <$> [ "col-12", "col-lg-4", "py-8", "py-md-0" ]) ]
                   [ HH.form
                       [ P.classes (ClassName <$> [ "mb-6" ])
-                      , E.onSubmit (Just <<< Signup)
+                      , E.onSubmit Signup
                       ]
                       [ HH.div
                           [ P.classes (ClassName <$> [ "form-group" ]) ]
-                          $ [ HH.label [ P.for "username" ] [ HH.text "Username" ]
+                          $
+                            [ HH.label [ P.for "username" ] [ HH.text "Username" ]
                             , HH.input
                                 [ P.type_ P.InputText
                                 , P.classes (ClassName <$> [ "form-control" ])
-                                , P.id_ "username"
+                                , P.id "username"
                                 , P.placeholder "Choose a handle (username)"
                                 , P.required true
                                 , P.autofocus true
                                 , P.value (fromMaybe "" st.username)
-                                , E.onValueInput (Just <<< SetUsername)
+                                , E.onValueInput SetUsername
                                 ]
                             ]
-                          <> signupErrors st UsernameField 
+                              <> signupErrors st UsernameField
                       , HH.div
                           [ P.classes (ClassName <$> [ "form-group" ]) ]
-                          $ [ HH.label [ P.for "password" ] [ HH.text "Password" ]
+                          $
+                            [ HH.label [ P.for "password" ] [ HH.text "Password" ]
                             , HH.input
                                 [ P.type_ P.InputPassword
                                 , P.classes (ClassName <$> [ "form-control" ])
-                                , P.id_ "password"
+                                , P.id "password"
                                 , P.placeholder "Enter a unique password"
                                 , P.required true
                                 , P.value (fromMaybe "" st.password)
-                                , E.onValueInput (Just <<< SetPassword)
+                                , E.onValueInput SetPassword
                                 ]
                             ]
-                          <> signupErrors st PasswordField
-                          <> [ HH.input
-                                [ P.type_ P.InputPassword
-                                , P.classes (ClassName <$> [ "form-control" ])
-                                , P.id_ "passwordConfirm"
-                                , P.placeholder "Enter a unique password"
-                                , P.required true
-                                , P.value (fromMaybe "" st.passwordConfirm)
-                                , E.onValueInput (Just <<< ConfirmPassword)
+                              <> signupErrors st PasswordField
+                              <>
+                                [ HH.input
+                                    [ P.type_ P.InputPassword
+                                    , P.classes (ClassName <$> [ "form-control" ])
+                                    , P.id "passwordConfirm"
+                                    , P.placeholder "Enter a unique password"
+                                    , P.required true
+                                    , P.value (fromMaybe "" st.passwordConfirm)
+                                    , E.onValueInput ConfirmPassword
+                                    ]
                                 ]
-                            ]
-                          <> signupErrors st ConfirmField
+                              <> signupErrors st ConfirmField
                       , commsSwitch SetRecoveryType st.channel
                       , commsField SetRecoveryEmail SetRecoveryZAddr st $
                           case _ of
                             EmailComms -> signupErrors st EmailField
                             ZcashComms -> signupErrors st ZAddrField
                       , HH.div
-                        [ P.classes (ClassName <$> [ "form-group" ]) ] $
-                        [ HH.label [ P.for "invitationCodes" ] [ HH.text "Invitation Codes" ]
+                          [ P.classes (ClassName <$> [ "form-group" ]) ] $
+                          [ HH.label [ P.for "invitationCodes" ] [ HH.text "Invitation Codes" ]
                           , HH.input
-                            [ P.type_ P.InputText
-                            , P.classes (ClassName <$> [ "form-control" ])
-                            , P.id_ "invitationCodes"
-                            , P.placeholder "abcdefgh, ..."
-                            , P.value (intercalate ", " st.invitationCodes)
-                            , E.onValueInput (Just <<< SetInvitationCodes)
-                            ]
-                        ] <> signupErrors st InvCodesField
+                              [ P.type_ P.InputText
+                              , P.classes (ClassName <$> [ "form-control" ])
+                              , P.id "invitationCodes"
+                              , P.placeholder "abcdefgh, ..."
+                              , P.value (intercalate ", " st.invitationCodes)
+                              , E.onValueInput SetInvitationCodes
+                              ]
+                          ] <> signupErrors st InvCodesField
                       , HH.div
                           [ P.classes (ClassName <$> [ "form-group", "mb-3" ]) ]
-                          [ HH.div [ P.id_ "grecaptcha" ] [] ]
+                          [ HH.div [ P.id "grecaptcha" ] [] ]
                       , HH.button
                           [ P.classes (ClassName <$> [ "btn", "btn-block", "btn-primary" ]) ]
                           [ HH.text "Sign up" ]
@@ -228,9 +230,9 @@ component system caps conf =
     zres <- lift $ caps.checkZAddr addr
     H.modify_ (_ { zaddr = Just addr })
     case zres of
-      Acc.ZAddrCheckValid -> 
+      Acc.ZAddrCheckValid ->
         H.modify_ (\st -> st { signupErrors = M.delete ZAddrField st.signupErrors, channel = ZcashComms })
-      Acc.ZAddrCheckInvalid -> 
+      Acc.ZAddrCheckInvalid ->
         H.modify_ (\st -> st { signupErrors = M.insert ZAddrField ZAddrInvalid st.signupErrors })
 
   eval :: SignupAction -> H.HalogenM SignupState SignupAction () SignupResult m Unit
@@ -241,19 +243,19 @@ component system caps conf =
       case parseURIQuery loc of
         (Right (Just (QueryPairs q))) -> do
           let pairsMap = M.fromFoldable $ (bimap keyToString (map valueToString)) <$> q
-          traverse_ (\c -> H.modify_ (_ { invitationCodes = [c] })) (join $ M.lookup "invcode" pairsMap) 
-          traverse_ setZAddr (join $ M.lookup "zaddr" pairsMap) 
+          traverse_ (\c -> H.modify_ (_ { invitationCodes = [ c ] })) (join $ M.lookup "invcode" pairsMap)
+          traverse_ setZAddr (join $ M.lookup "zaddr" pairsMap)
         (Right Nothing) -> pure unit
         (Left err) ->
-          lift $ system.error ("Parsing failed for location string " <> loc)
+          lift $ system.error ("Parsing failed for location string " <> loc <> ": " <> show err)
       lift $ caps.recaptchaRender conf.recaptchaKey "grecaptcha"
     SetUsername user -> do
       ures <- lift $ caps.checkUsername user
       H.modify_ (_ { username = Just user })
       case ures of
-        Acc.UsernameCheckOK -> 
+        Acc.UsernameCheckOK ->
           H.modify_ (\st -> st { signupErrors = M.delete UsernameField st.signupErrors })
-        Acc.UsernameCheckTaken -> 
+        Acc.UsernameCheckTaken ->
           H.modify_ (\st -> st { signupErrors = M.insert UsernameField UsernameTaken st.signupErrors })
     SetPassword pass -> do
       H.modify_ (_ { password = Just pass })
@@ -269,19 +271,20 @@ component system caps conf =
         (H.modify_ (\st -> st { signupErrors = M.insert ConfirmField PasswordMismatch st.signupErrors }))
       else
         (H.modify_ (\st -> st { signupErrors = M.delete ConfirmField st.signupErrors }))
-    SetRecoveryType t -> 
+    SetRecoveryType t ->
       H.modify_ (_ { channel = t })
-    SetRecoveryEmail email -> 
+    SetRecoveryEmail email ->
       H.modify_ (_ { email = Just email })
     SetRecoveryZAddr addr ->
       when (addr /= "") (setZAddr addr)
     SetInvitationCodes codeStr -> do
-      let r = unsafePartial (fromRight $ regex "\\s*,\\s*" global)
-          codes = split r codeStr 
+      let
+        r = unsafePartial (fromJust <<< hush $ regex "\\s*,\\s*" global)
+        codes = split r codeStr
       H.modify_ (_ { invitationCodes = codes })
     Signup ev -> do
       lift $ system.preventDefault ev
-      recType <- H.gets (_.channel)
+      -- recType <- H.gets (_.channel)
       usernameV <- V <<< note [ UsernameRequired ] <$> H.gets (_.username)
       pwdFormV <- V <<< note [ PasswordRequired ] <$> H.gets (_.password)
       pwdConfV <- V <<< note [ ConfirmRequired ] <$> H.gets (_.passwordConfirm)
@@ -295,9 +298,10 @@ component system caps conf =
       let
         reqV :: V (Array SignupError) Acc.SignupRequest
         reqV =
-          signupRequest 
+          signupRequest
             <$> usernameV
-            <*> ( (eq <$> pwdFormV <*> pwdConfV)
+            <*>
+              ( (eq <$> pwdFormV <*> pwdConfV)
                   `andThen`
                     (if _ then pwdFormV else invalid [ PasswordMismatch ])
               )

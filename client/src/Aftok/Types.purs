@@ -10,7 +10,7 @@ import Data.Enum (fromEnum)
 import Data.JSDate as JD
 import Data.Maybe (Maybe)
 import Data.Newtype (class Newtype)
-import Data.Symbol (class IsSymbol, SProxy)
+import Data.Symbol (class IsSymbol)
 import Data.Tuple (Tuple(..))
 import Data.UUID (UUID, toString, parseUUID)
 import Effect (Effect)
@@ -19,43 +19,43 @@ import Effect.Class (liftEffect)
 import Effect.Now (now, nowDateTime)
 import Effect.Class.Console as C
 import Type.Row as Row
+import Type.Proxy (Proxy)
 import Web.Event.Event as WE
 import Web.HTML (HTMLElement, window)
 import Web.HTML.Window (location)
 import Web.HTML.Location (href)
 import Routing.Hash as RH
 import Halogen as H
-import Halogen.HTML as HH
 import Halogen.Portal (portalAff)
 import Aftok.Modals.ModalFFI as ModalFFI
 import Aftok.HTML.QRious as QRious
 
-type System m
-  = { href :: m String
-    , log :: String -> m Unit
-    , error :: String -> m Unit
-    , now :: m Instant
-    , getHash :: m String
-    , setHash :: String -> m Unit
-    , nowDateTime :: m DateTime
-    , preventDefault :: WE.Event -> m Unit
-    , dateFFI :: DateFFI m
-    , portal :: 
-      forall query action input output slots label slot _1.
-        Row.Cons label (H.Slot query output slot) _1 slots =>
-        IsSymbol label =>
-        Ord slot =>
-        Monad m =>
-        SProxy label ->
-        slot ->
-        H.Component HH.HTML query input output m ->
-        input ->
-        Maybe HTMLElement ->
-        (output -> Maybe action) ->
-        H.ComponentHTML action slots m
-    , toggleModal :: String -> ModalFFI.Toggle -> m Unit
-    , renderQR :: QRious.QROpts -> m String
-    }
+type System m =
+  { href :: m String
+  , log :: String -> m Unit
+  , error :: String -> m Unit
+  , now :: m Instant
+  , getHash :: m String
+  , setHash :: String -> m Unit
+  , nowDateTime :: m DateTime
+  , preventDefault :: WE.Event -> m Unit
+  , dateFFI :: DateFFI m
+  , portal ::
+      forall query action input output slots label slot _1
+       . Row.Cons label (H.Slot query output slot) _1 slots
+      => IsSymbol label
+      => Ord slot
+      => Monad m
+      => Proxy label
+      -> slot
+      -> H.Component query input output m
+      -> input
+      -> Maybe HTMLElement
+      -> (output -> action)
+      -> H.ComponentHTML action slots m
+  , toggleModal :: String -> ModalFFI.Toggle -> m Unit
+  , renderQR :: QRious.QROpts -> m String
+  }
 
 liveSystem :: System Aff
 liveSystem =
@@ -73,9 +73,9 @@ liveSystem =
   , renderQR: \opts -> liftEffect (QRious.renderQR opts)
   }
 
-type DateFFI m
-  = { midnightLocal :: Instant -> m (Maybe (Tuple Date Instant))
-    }
+type DateFFI m =
+  { midnightLocal :: Instant -> m (Maybe (Tuple Date Instant))
+  }
 
 jsDateFFI :: DateFFI Effect
 jsDateFFI =
@@ -111,8 +111,7 @@ hoistDateFFI nt ffi =
   { midnightLocal: \i -> nt (ffi.midnightLocal i)
   }
 
-newtype UserId
-  = UserId UUID
+newtype UserId = UserId UUID
 
 derive instance userIdEq :: Eq UserId
 
@@ -125,8 +124,7 @@ instance userIdDecodeJson :: DecodeJson UserId where
     uuidStr <- decodeJson json
     UserId <$> note (TypeMismatch "Failed to decode user UUID") (parseUUID uuidStr)
 
-newtype ProjectId
-  = ProjectId UUID
+newtype ProjectId = ProjectId UUID
 
 derive instance projectIdEq :: Eq ProjectId
 
