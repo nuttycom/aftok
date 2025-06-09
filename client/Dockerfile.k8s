@@ -1,7 +1,13 @@
 # Dockerfile for Aftok PureScript client (Kubernetes deployment)
-FROM node:18-alpine AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app
+
+# Install system dependencies that might be needed
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy package files
 COPY package*.json ./
@@ -12,6 +18,8 @@ RUN npm ci
 # Copy PureScript config and source
 COPY spago.yaml ./
 COPY src/ ./src/
+COPY dev/ ./dev/
+COPY ../aftok.com/src/assets ./dev/assets
 
 # Build the application
 RUN npm run build-parcel

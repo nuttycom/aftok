@@ -26,3 +26,4 @@ moo.cfg
 site_key.txt
 .env*
 
+client/node_modules.old/

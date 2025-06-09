@@ -21,14 +21,14 @@ services:
       - back-tier
     init: true
 
-  aftok-client:
-    image: aftok/aftok-client:latest
-    container_name: aftok-client
-    entrypoint: /opt/aftok/aftok-client-cp.sh dist
-    volumes:
-      - type: volume
-        source: v_aftok-client
-        target: /opt/aftok/client/dist-volume
+    #aftok-client:
+    #  image: aftok/aftok-client:latest
+    #  container_name: aftok-client
+    #  entrypoint: /opt/aftok/aftok-client-cp.sh dist
+    #  volumes:
+    #    - type: volume
+    #      source: v_aftok-client
+    #      target: /opt/aftok/client/dist-volume
 
   nginx:
     image: nginx:latest
@@ -54,14 +54,14 @@ services:
         source: ./aftok.com/dist/
         target: /opt/static/site
         read_only: true
-      # - type: bind
-      #   source: ./client/dist
-      #   target: /opt/static/app
-      #   read_only: true
-      - type: volume
-        source: v_aftok-client
+      - type: bind
+        source: ./client/dist
         target: /opt/static/app
         read_only: true
+      #- type: volume
+      #  source: v_aftok-client
+      #  target: /opt/static/app
+      #  read_only: true
     networks:
       - front-tier
 
