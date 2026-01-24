@@ -24,25 +24,12 @@ build-server-image:
 	nix build
 	$(DOCKER) load < result
 
-build-client-image:
-	$(DOCKER) build -t aftok/aftok-client:latest -f ./client/Dockerfile .
-
-build-images: build-server-image build-client-image
+# Client is now in a separate repository (aftok/aftok-client)
+# Build client images from the client repository instead.
 
 deploy-local-server-image: build-server-image
 	$(DOCKER) tag aftok/aftok-server:latest aftok/aftok-server:$(VERSION)
 
-deploy-local-client-image: build-client-image
-	$(DOCKER) tag aftok/aftok-client:latest aftok/aftok-client:$(VERSION)
-
 deploy-server-image: deploy-local-server-image
 	$(DOCKER) push docker.io/aftok/aftok-server:latest
 	$(DOCKER) push docker.io/aftok/aftok-server:$(VERSION)
-
-deploy-client-image: deploy-local-client-image
-	$(DOCKER) push docker.io/aftok/aftok-client:latest
-	$(DOCKER) push docker.io/aftok/aftok-client:$(VERSION)
-
-deploy-images: deploy-server-image deploy-client-image
-
-deploy-local-images: deploy-local-server-image deploy-local-client-image

@@ -54,8 +54,9 @@ services:
         source: ./aftok.com/dist/
         target: /opt/static/site
         read_only: true
+      # Client is now in a separate repository at ../client/work
       - type: bind
-        source: ./client/dist
+        source: ../client/work/dist
         target: /opt/static/app
         read_only: true
       #- type: volume
