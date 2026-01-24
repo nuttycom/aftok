@@ -87,13 +87,14 @@
 
           server = pkgs.haskellPackages.shellFor {
             name = "server-shell";
-            packages = _: [self.packages.${system}.aftok];
+            packages = p: [p.aftok];
             buildInputs = [
               pkgs.cabal-install
               lrzhs.packages.${system}.lrzhs_ffi
               pkgs.haskellPackages.ormolu
+              (pkgs.haskell.lib.dontCheck dbmigrations-postgresql.defaultPackage.${system})
             ];
-            inputsFrom = builtins.attrValues self.packages.${system};
+            # Removed inputsFrom - it was triggering full builds
             withHoogle = true;
           };
 
