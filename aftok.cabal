@@ -180,6 +180,7 @@ Executable aftok-server
     Aftok.Servant.Users
     Aftok.Servant.Projects
     Aftok.Servant.WorkLog
+    Aftok.Servant.Auctions
 
   build-depends:
     aftok,
