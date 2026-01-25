@@ -177,10 +177,12 @@ Executable aftok-server
     Aftok.Servant.App
     Aftok.Servant.Auth
     Aftok.Servant.API
+    Aftok.Servant.Json
     Aftok.Servant.Users
     Aftok.Servant.Projects
     Aftok.Servant.WorkLog
     Aftok.Servant.Auctions
+    Aftok.Servant.Billing
 
   build-depends:
     aftok,
