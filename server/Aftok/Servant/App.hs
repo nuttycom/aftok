@@ -4,7 +4,7 @@
 
 module Aftok.Servant.App
   ( AppEnv (..),
-    AppM,
+    AppM (..),
     envNetworkMode,
     envDbPool,
     envConfig,
@@ -21,8 +21,7 @@ import Aftok.Database (DBError (..))
 import Aftok.Database.PostgreSQL (QDBM, runQDBM)
 import Aftok.ServerConfig (ServerConfig)
 import Control.Lens (makeLenses, (^.))
-import Control.Monad.Except (throwError)
-import Control.Monad.Trans.Except (runExceptT)
+import Control.Monad.Except (MonadError, throwError)
 import Data.Aeson (encode)
 import Data.Pool (Pool, withResource)
 import Database.PostgreSQL.Simple (Connection)
@@ -77,6 +76,6 @@ dbErrorToServerError = \case
   SubjectNotFound ->
     err404 {errBody = encode ("Resource not found" :: Text)}
   OpForbidden _ reason ->
-    err403 {errBody = encode $ show reason}
+    err403 {errBody = encode (show reason :: Text)}
   EventStorageFailed ->
     err500 {errBody = encode ("Failed to store event" :: Text)}

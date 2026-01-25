@@ -8,15 +8,20 @@
 module Aftok.Servant.Users
   ( -- * API Types
     UsersAPI,
+    ProtectedUsersAPI,
 
     -- * Handlers
     usersServer,
+    acceptInvitationHandler,
 
     -- * Request/Response Types
     RegisterRequest (..),
     RegisterError (..),
     UsernameCheckResponse (..),
     ZAddrCheckResponse (..),
+
+    -- * Lenses
+    password,
 
     -- * Configuration
     RegisterOps (..),
@@ -71,29 +76,10 @@ import Network.HTTP.Client.MultipartFormData
 import Network.HTTP.Client.TLS (newTlsManager)
 import Network.HTTP.Types.Status (statusCode)
 import Servant
-import Servant.Auth.Server (AuthResult (..))
 
--- | Users API type
-type UsersAPI =
-  -- GET /validate_username?username=...
-  "validate_username"
-    :> QueryParam "username" Text
-    :> Get '[JSON] UsernameCheckResponse
-    -- GET /validate_zaddr?zaddr=...
-    :<|> "validate_zaddr"
-      :> QueryParam "zaddr" Text
-      :> Get '[JSON] ZAddrCheckResponse
-    -- POST /register
-    :<|> "register"
-      :> ReqBody '[JSON] RegisterRequest
-      :> Post '[JSON] UserId
-
--- | Protected Users API (requires authentication)
-type ProtectedUsersAPI =
-  -- POST /accept_invitation?invCode=...
-  "accept_invitation"
-    :> QueryParams "invCode" Text
-    :> Post '[JSON] NoContent
+--------------------------------------------------------------------------------
+-- Data Types (must be defined before API types that reference them)
+--------------------------------------------------------------------------------
 
 -- | Address validation error
 data AddressInvalid = AddressInvalid
@@ -110,7 +96,6 @@ data RegUser = RegUser
   { _username :: !UserName,
     _userAccountRecovery :: !(RecoverBy Text)
   }
-  deriving (Show, Eq)
 
 makeLenses ''RegUser
 
@@ -219,6 +204,36 @@ instance FromJSON CaptchaResponse where
         other -> CaptchaError $ "Unexpected error code: " <> other
   parseJSON _ = fail "Captcha response body was not a valid JSON object."
 
+--------------------------------------------------------------------------------
+-- API Types (now all referenced data types are in scope)
+--------------------------------------------------------------------------------
+
+-- | Users API type
+type UsersAPI =
+  -- GET /validate_username?username=...
+  "validate_username"
+    :> QueryParam "username" Text
+    :> Get '[JSON] UsernameCheckResponse
+    -- GET /validate_zaddr?zaddr=...
+    :<|> "validate_zaddr"
+      :> QueryParam "zaddr" Text
+      :> Get '[JSON] ZAddrCheckResponse
+    -- POST /register
+    :<|> "register"
+      :> ReqBody '[JSON] RegisterRequest
+      :> Post '[JSON] UserId
+
+-- | Protected Users API (requires authentication)
+type ProtectedUsersAPI =
+  -- POST /accept_invitation?invCode=...
+  "accept_invitation"
+    :> QueryParams "invCode" Text
+    :> Post '[JSON] NoContent
+
+--------------------------------------------------------------------------------
+-- Handlers
+--------------------------------------------------------------------------------
+
 -- | Check captcha with Google's API
 checkCaptcha :: CaptchaConfig -> Text -> IO (Either [CaptchaError] ())
 checkCaptcha cfg token = do
@@ -300,8 +315,8 @@ registerHandler ops cfg req = do
       liftIO $ sendConfirmationEmail ops e
       pure $ RecoverByEmail e
     RecoverByZAddr z -> do
-      zaddrValid <- liftIO $ validateZAddr ops z
-      case zaddrValid of
+      zaddrResult <- liftIO $ validateZAddr ops z
+      case zaddrResult of
         Left _ ->
           throwError err400 {errBody = "Invalid Z-address for account recovery"}
         Right r ->

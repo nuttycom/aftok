@@ -2,7 +2,10 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Aftok.Servant.Projects
@@ -42,21 +45,33 @@ import Aftok.Database
   )
 import Aftok.Json (creditToJSON, idValue, obj, v1)
 import Aftok.Project
-  ( DepreciationFunction (..),
-    DepreciationRules (..),
-    Project,
+  ( Project (..),
     ProjectName,
     depRules,
-    depf,
     inceptionDate,
     initiator,
     projectName,
     renderInvCode,
     InvitationCode,
   )
+import Aftok.Types
+  ( CreditTo (..),
+    DepreciationFunction (..),
+    DepreciationRules (..),
+    Email (..),
+    ProjectId,
+    UserId,
+    UserName,
+    _Email,
+    _ProjectId,
+    _UserId,
+    _UserName,
+    depf,
+    username,
+  )
 import Aftok.ServerConfig (ServerConfig)
 import qualified Aftok.ServerConfig as QC
-import Aftok.Servant.App (AppEnv (..), AppM, envConfig, runDB)
+import Aftok.Servant.App (AppM, envConfig, runDB)
 import Aftok.Servant.Auth (AuthenticatedUser (..))
 import Aftok.TimeLog
   ( WorkShare,
@@ -69,20 +84,8 @@ import Aftok.TimeLog
     wsShare,
   )
 import Aftok.TimeLog.Serialization (depfFromJSON)
-import Aftok.Types
-  ( CreditTo (..),
-    Email (..),
-    ProjectId,
-    UserId,
-    UserName,
-    _Email,
-    _ProjectId,
-    _UserId,
-    _UserName,
-    username,
-  )
 import Aftok.Util (fromMaybeT)
-import Control.Lens (makeLenses, to, (^.), _1, _2)
+import Control.Lens (makeLenses, to, (^.))
 import Control.Monad.Trans.Maybe (mapMaybeT)
 import Data.Aeson
   ( FromJSON (..),
@@ -111,30 +114,9 @@ import Text.StringTemplate
   )
 import Time.Types (Hours (..))
 
--- | Public Projects API (none currently)
-type ProjectsAPI = EmptyAPI
-
--- | Protected Projects API
-type ProtectedProjectsAPI =
-  "projects"
-    :> ( -- GET /projects - List user's projects
-         Get '[JSON] Value
-           -- POST /projects - Create project
-           :<|> ReqBody '[JSON] ProjectCreateRequest :> Post '[JSON] ProjectId
-           -- Project-specific routes
-           :<|> Capture "projectId" ProjectId :> SingleProjectAPI
-       )
-
--- | Single project operations
-type SingleProjectAPI =
-  -- GET /projects/:projectId
-  Get '[JSON] Value
-    -- GET /projects/:projectId/detail
-    :<|> "detail" :> Get '[JSON] Value
-    -- GET /projects/:projectId/payouts
-    :<|> "payouts" :> Get '[JSON] Value
-    -- POST /projects/:projectId/invite
-    :<|> "invite" :> ReqBody '[JSON] ProjectInviteRequest :> Post '[JSON] ProjectInviteResponse
+--------------------------------------------------------------------------------
+-- Data Types (must be defined before API types that reference them)
+--------------------------------------------------------------------------------
 
 -- | Project creation request
 data ProjectCreateRequest = ProjectCreateRequest
@@ -201,6 +183,39 @@ instance ToJSON ProjectInviteResponse where
   toJSON (ProjectInviteResponse Nothing) = object []
   toJSON (ProjectInviteResponse (Just r)) =
     v1 . obj $ ["zip321_request" .= (A.toJSON . Zip321.toURI $ r)]
+
+--------------------------------------------------------------------------------
+-- API Types (now all referenced data types are in scope)
+--------------------------------------------------------------------------------
+
+-- | Public Projects API (none currently)
+type ProjectsAPI = EmptyAPI
+
+-- | Protected Projects API
+type ProtectedProjectsAPI =
+  "projects"
+    :> ( -- GET /projects - List user's projects
+         Get '[JSON] Value
+           -- POST /projects - Create project
+           :<|> ReqBody '[JSON] ProjectCreateRequest :> Post '[JSON] ProjectId
+           -- Project-specific routes
+           :<|> Capture "projectId" ProjectId :> SingleProjectAPI
+       )
+
+-- | Single project operations
+type SingleProjectAPI =
+  -- GET /projects/:projectId
+  Get '[JSON] Value
+    -- GET /projects/:projectId/detail
+    :<|> "detail" :> Get '[JSON] Value
+    -- GET /projects/:projectId/payouts
+    :<|> "payouts" :> Get '[JSON] Value
+    -- POST /projects/:projectId/invite
+    :<|> "invite" :> ReqBody '[JSON] ProjectInviteRequest :> Post '[JSON] ProjectInviteResponse
+
+--------------------------------------------------------------------------------
+-- Handlers
+--------------------------------------------------------------------------------
 
 -- | Protected projects server implementation
 protectedProjectsServer ::
@@ -318,7 +333,7 @@ projectInviteHandler ::
 projectInviteHandler (Authenticated user) pid req = do
   let uid = auUserId user
   t <- liftIO C.getCurrentTime
-  cfg <- asks envConfig
+  cfg <- asks (^. envConfig)
   let invite email =
         runDB $
           (,)
@@ -326,39 +341,47 @@ projectInviteHandler (Authenticated user) pid req = do
             <*> createInvitation pid uid email t
   case inviteBy req of
     EmailComms email -> do
-      (Just p, invCode) <- invite (Email email)
-      liftIO $
-        sendProjectInviteEmail
-          cfg
-          (p ^. projectName)
-          (Email "noreply@aftok.com")
-          (Email email)
-          invCode
-      pure (ProjectInviteResponse Nothing)
+      result <- invite (Email email)
+      case result of
+        (Nothing, _) ->
+          throwError err404 {errBody = "Project not found"}
+        (Just p, invCode) -> do
+          liftIO $
+            sendProjectInviteEmail
+              cfg
+              (p ^. projectName)
+              (Email "noreply@aftok.com")
+              (Email email)
+              invCode
+          pure (ProjectInviteResponse Nothing)
     ZcashComms zaddr -> do
-      (Just p, invCode) <- invite (Email "")
-      pure . ProjectInviteResponse . Just $
-        Zip321.PaymentRequest . pure $
-          Zip321.PaymentItem
-            { Zip321._address = Zcash.Address zaddr,
-              Zip321._amount = Zcash.Zatoshi 1000,
-              Zip321._memo =
-                Just . Zcash.Memo . encodeUtf8 $
-                  "Welcome to the "
-                    <> (p ^. projectName)
-                    <> " aftok, "
-                    <> greetName req
-                    <> "\n"
-                    <> maybe "" (<> "\n") (pirMessage req)
-                    <> "https://aftok.com/app/?invcode="
-                    <> renderInvCode invCode
-                    <> "&zaddr="
-                    <> zaddr
-                    <> "#signup",
-              Zip321._message = Nothing,
-              Zip321._label = Nothing,
-              Zip321._other = []
-            }
+      result <- invite (Email "")
+      case result of
+        (Nothing, _) ->
+          throwError err404 {errBody = "Project not found"}
+        (Just p, invCode) ->
+          pure . ProjectInviteResponse . Just $
+            Zip321.PaymentRequest . pure $
+              Zip321.PaymentItem
+                { Zip321._address = Zcash.Address zaddr,
+                  Zip321._amount = Zcash.Zatoshi 1000,
+                  Zip321._memo =
+                    Just . Zcash.Memo . encodeUtf8 $
+                      "Welcome to the "
+                        <> (p ^. projectName)
+                        <> " aftok, "
+                        <> greetName req
+                        <> "\n"
+                        <> maybe "" (<> "\n") (pirMessage req)
+                        <> "https://aftok.com/app/?invcode="
+                        <> renderInvCode invCode
+                        <> "&zaddr="
+                        <> zaddr
+                        <> "#signup",
+                  Zip321._message = Nothing,
+                  Zip321._label = Nothing,
+                  Zip321._other = []
+                }
 projectInviteHandler _ _ _ =
   throwError err401 {errBody = "Authentication required"}
 

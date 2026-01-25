@@ -26,13 +26,12 @@ where
 import Aftok.Auction (AuctionId)
 import Aftok.Billing (BillableId, SubscriptionId)
 import Aftok.Payments.Types (PaymentRequestId)
-import Aftok.Servant.Auth (AftokAuth, AuthenticatedUser, LoginRequest)
+import Aftok.Servant.Auth (AftokAuth, LoginRequest)
 import Aftok.TimeLog (EventId)
 import Aftok.Types (ProjectId, UserId)
 import Data.Aeson (Value)
 import Data.Thyme.Clock (UTCTime)
 import Servant
-import Servant.Auth.Server (Auth, Cookie, JWT)
 
 -- | Top-level API combining all routes
 type AftokAPI =
