@@ -2,18 +2,18 @@
   description = "The Aftok Collaboration Server";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/release-24.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/release-24.11";
     flake-utils.url = "github:numtide/flake-utils";
     dbmigrations = {
-      url = "github:nuttycom/dbmigrations/74ef9388b45ae73a1d9c737d9644e076fe832672";
+      url = "github:haskell-github-trust/dbmigrations/d870aa2bdc6ac219bfdd182bcada3a9534dc23a8";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     dbmigrations-postgresql = {
-      url = "github:nuttycom/dbmigrations-postgresql/3c9477e45e923b28d9677dc6291e35bb7c833c28";
+      url = "github:nuttycom/dbmigrations-postgresql/e7427642c12aa5f2d9bfedd268cfc8dcf78f314e";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     dbmigrations-postgresql-simple = {
-      url = "github:nuttycom/dbmigrations-postgresql-simple/d51bbc5a0b7d91f7c8a12fc28e5ecbe7ac326221";
+      url = "github:nuttycom/dbmigrations-postgresql-simple/f26b9e1ab27b9ff8f269c6541a7606bcbc22e02a";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     bippy = {
@@ -42,11 +42,12 @@
         pkg.overrideAttrs (_: {meta = {};});
     in {
       thyme = unbreak hprev.thyme;
-      # Unbreak servant-auth packages for nixpkgs 24.05
+      # Unbreak servant-auth packages for nixpkgs 24.11
       servant-auth = unbreak hprev.servant-auth;
       servant-auth-server = unbreak hprev.servant-auth-server;
-      dbmigrations = dbmigrations.defaultPackage.${final.system};
-      dbmigrations-postgresql-simple = dbmigrations-postgresql-simple.defaultPackage.${final.system};
+      dbmigrations = dbmigrations.packages.${final.system}.default;
+      dbmigrations-postgresql = dbmigrations-postgresql.packages.${final.system}.default;
+      dbmigrations-postgresql-simple = dbmigrations-postgresql-simple.packages.${final.system}.default;
       aftok = hfinal.callCabal2nix "aftok" ./. {};
     };
 
@@ -87,7 +88,7 @@
             pkgs.cabal-install
             lrzhs.packages.${system}.lrzhs_ffi
             pkgs.haskellPackages.ormolu
-            (pkgs.haskell.lib.dontCheck dbmigrations-postgresql.defaultPackage.${system})
+            pkgs.haskellPackages.dbmigrations-postgresql
           ];
           withHoogle = true;
         };

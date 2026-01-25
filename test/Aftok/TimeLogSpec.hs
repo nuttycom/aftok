@@ -25,14 +25,22 @@ import qualified Data.Thyme.Time as C
 import Data.Time.ISO8601
 import qualified Data.UUID as U
 import Test.Hspec
-import Test.QuickCheck (Gen, arbitrary, choose, forAll, listOf, sample', suchThat)
+import qualified Data.Time as Time
+import Test.QuickCheck (Gen, choose, forAll, listOf, sample', suchThat)
 import Prelude hiding (head, tail)
 
--- genInterval :: Gen I.Interval
--- genInterval = do
---   startTime <- arbitrary
---   delta     <- arbitrary :: Gen (Positive C.NominalDiffTime)
---   pure $ I.interval startTime (startTime .+^ getPositive delta)
+-- | Generate a UTCTime within a reasonable range (2000-2050)
+-- This avoids issues with extreme dates that can cause comparison problems
+genBoundedUTCTime :: Gen C.UTCTime
+genBoundedUTCTime = do
+  -- Generate days since 2000-01-01 (up to 50 years worth)
+  daysSince2000 <- choose (0, 50 * 365)
+  -- Generate seconds within the day
+  secondsInDay <- choose (0, 86399)
+  let day = Time.ModifiedJulianDay (51544 + daysSince2000)
+      diffTime = Time.secondsToDiffTime secondsInDay
+      utcTime = Time.UTCTime day diffTime
+  pure $ C.toThyme utcTime
 
 genIntervals :: Gen (L.NonEmpty (I.Interval C.UTCTime))
 genIntervals =
@@ -46,7 +54,7 @@ genIntervals =
              in ival : buildIntervals (ival ^. I.end .+^ s) dx
       buildIntervals _ _ = []
    in do
-        startTime <- arbitrary
+        startTime <- genBoundedUTCTime
         intervals <- suchThat (buildIntervals startTime <$> deltas) (not . null)
         pure $ L.fromList intervals
 
