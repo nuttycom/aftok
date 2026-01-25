@@ -45,6 +45,12 @@ import Aftok.Servant.Users
     acceptInvitationHandler,
     usersServer,
   )
+import Aftok.Servant.Session
+  ( ProtectedSessionAPI,
+    SessionAPI,
+    protectedSessionServer,
+    sessionServer,
+  )
 import Aftok.Servant.WorkLog (WorkLogAPI, workLogServer)
 import Crypto.JOSE.JWK (JWK)
 import Data.Pool (Pool)
@@ -94,6 +100,7 @@ type ProtectedAPI =
     :<|> ProtectedBillingAPI
     :<|> ProtectedPaymentsAPI
     :<|> ProtectedUsersAPI
+    :<|> ProtectedSessionAPI
 
 -- | API server (without static files)
 apiServer ::
@@ -101,9 +108,10 @@ apiServer ::
   PaymentsConfig QDBM ->
   RegisterOps IO ->
   CaptchaConfig ->
-  ServerT (UsersAPI :<|> AftokAuth :> ProtectedAPI) AppM
+  ServerT (UsersAPI :<|> SessionAPI :<|> AftokAuth :> ProtectedAPI) AppM
 apiServer btcCfg payCfg regOps captchaCfg =
   usersServer regOps captchaCfg
+    :<|> sessionServer
     :<|> protectedServer btcCfg payCfg
 
 -- | Protected server (requires authentication)
@@ -119,6 +127,7 @@ protectedServer btcCfg payCfg authResult =
     :<|> protectedBillingServer authResult
     :<|> protectedPaymentsServer btcCfg payCfg authResult
     :<|> protectedUsersServer authResult
+    :<|> protectedSessionServer authResult
 
 -- | Protected users server (just accept invitation handler)
 protectedUsersServer ::

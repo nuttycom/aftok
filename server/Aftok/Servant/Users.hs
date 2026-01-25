@@ -210,8 +210,8 @@ type UsersAPI =
   "check_username"
     :> QueryParam "username" Text
     :> Get '[JSON] UsernameCheckResponse
-    -- GET /check_zaddr?zaddr=...
-    :<|> "check_zaddr"
+    -- GET /validate_zaddr?zaddr=...
+    :<|> "validate_zaddr"
       :> QueryParam "zaddr" Text
       :> Get '[JSON] ZAddrCheckResponse
     -- POST /register

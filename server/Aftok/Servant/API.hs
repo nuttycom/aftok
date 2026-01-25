@@ -12,6 +12,7 @@ module Aftok.Servant.API
     module Aftok.Servant.Auctions,
     module Aftok.Servant.Billing,
     module Aftok.Servant.Payments,
+    module Aftok.Servant.Session,
 
     -- * Proxy
     aftokAPI,
@@ -37,6 +38,10 @@ import Aftok.Servant.Projects
   ( ProjectsAPI,
     ProtectedProjectsAPI,
   )
+import Aftok.Servant.Session
+  ( ProtectedSessionAPI,
+    SessionAPI,
+  )
 import Aftok.Servant.Users
   ( ProtectedUsersAPI,
     UsersAPI,
@@ -53,6 +58,8 @@ type AftokAPI =
 type VersionedAPI =
   -- Public endpoints (no auth required)
   UsersAPI
+    -- Session endpoints (login/logout - public)
+    :<|> SessionAPI
     -- Protected endpoints (auth required)
     :<|> AftokAuth :> ProtectedAPI
 
@@ -70,6 +77,8 @@ type ProtectedAPI =
     :<|> ProtectedPaymentsAPI
     -- User operations (accept invitation)
     :<|> ProtectedUsersAPI
+    -- Session operations (login check)
+    :<|> ProtectedSessionAPI
 
 -- | Proxy for the API (used for serving)
 aftokAPI :: Proxy AftokAPI
