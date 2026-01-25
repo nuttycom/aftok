@@ -12,9 +12,11 @@ module Aftok.Servant.Projects
   ( -- * API Types
     ProjectsAPI,
     ProtectedProjectsAPI,
+    SingleProjectAPI,
 
     -- * Handlers
     protectedProjectsServer,
+    singleProjectServer,
 
     -- * Request/Response Types
     ProjectCreateRequest (..),
@@ -25,6 +27,7 @@ module Aftok.Servant.Projects
 
     -- * JSON helpers
     projectJSON,
+    qdbProjectJSON,
     contributorJSON,
     projectDetailJSON,
     payoutsJSON,
@@ -43,7 +46,9 @@ import Aftok.Database
     listProjectContributors,
     readWorkIndex,
   )
+import Aftok.Database.PostgreSQL (QDBM)
 import Aftok.Json (creditToJSON, idValue, obj, v1)
+import Aftok.Payments (PaymentsConfig)
 import Aftok.Project
   ( Project (..),
     ProjectName,
@@ -73,6 +78,8 @@ import Aftok.ServerConfig (ServerConfig)
 import qualified Aftok.ServerConfig as QC
 import Aftok.Servant.App (AppM, envConfig, runDB)
 import Aftok.Servant.Auth (AuthenticatedUser (..))
+import qualified Aftok.Servant.Auctions as Auctions
+import qualified Aftok.Servant.Billing as Billing
 import Aftok.TimeLog
   ( WorkShare,
     WorkShares,
@@ -212,6 +219,16 @@ type SingleProjectAPI =
     :<|> "payouts" :> Get '[JSON] Value
     -- POST /projects/:projectId/invite
     :<|> "invite" :> ReqBody '[JSON] ProjectInviteRequest :> Post '[JSON] ProjectInviteResponse
+    -- GET/POST /projects/:projectId/auctions
+    :<|> "auctions" :> ProjectAuctionsAPI
+    -- GET/POST /projects/:projectId/billables
+    :<|> "billables" :> ProjectBillablesAPI
+
+-- | Project-level auctions API (imported from Auctions module)
+type ProjectAuctionsAPI = Auctions.ProjectAuctionsAPI
+
+-- | Project-level billables API (imported from Billing module)
+type ProjectBillablesAPI = Billing.ProjectBillablesAPI
 
 --------------------------------------------------------------------------------
 -- Handlers
@@ -219,23 +236,27 @@ type SingleProjectAPI =
 
 -- | Protected projects server implementation
 protectedProjectsServer ::
+  PaymentsConfig QDBM ->
   AuthResult AuthenticatedUser ->
   ServerT ProtectedProjectsAPI AppM
-protectedProjectsServer authResult =
+protectedProjectsServer payCfg authResult =
   projectListHandler authResult
     :<|> projectCreateHandler authResult
-    :<|> singleProjectServer authResult
+    :<|> singleProjectServer payCfg authResult
 
 -- | Single project server
 singleProjectServer ::
+  PaymentsConfig QDBM ->
   AuthResult AuthenticatedUser ->
   ProjectId ->
   ServerT SingleProjectAPI AppM
-singleProjectServer authResult pid =
+singleProjectServer payCfg authResult pid =
   projectGetHandler authResult pid
     :<|> projectDetailGetHandler authResult pid
     :<|> payoutsHandler authResult pid
     :<|> projectInviteHandler authResult pid
+    :<|> Auctions.projectAuctionsServer authResult pid
+    :<|> Billing.projectBillablesServer payCfg authResult pid
 
 -- | List all projects for the authenticated user
 projectListHandler :: AuthResult AuthenticatedUser -> AppM Value
