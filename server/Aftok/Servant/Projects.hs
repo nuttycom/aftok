@@ -495,7 +495,7 @@ contributorJSON c =
       "joinedOn" .= (c ^. cJoinedOn),
       "loggedHours" .= (c ^. cLoggedHours . to fromEnum),
       "depreciatedHours" .= (c ^. cDepreciatedHours . to fromEnum),
-      "revenueShare"
+      "revenureShare"
         .= object
           [ "numerator" .= (c ^. cRevenueShare . to numerator),
             "denominator" .= (c ^. cRevenueShare . to denominator)
