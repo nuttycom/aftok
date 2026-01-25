@@ -51,6 +51,9 @@
       } {};
       snaplet-postgresql-simple = jailbreakUnbreak hprev.snaplet-postgresql-simple;
       thyme = unbreak hprev.thyme;
+      # Unbreak servant-auth packages for nixpkgs 24.05
+      servant-auth = unbreak hprev.servant-auth;
+      servant-auth-server = unbreak hprev.servant-auth-server;
       dbmigrations = dbmigrations.defaultPackage.${final.system};
       dbmigrations-postgresql-simple = dbmigrations-postgresql-simple.defaultPackage.${final.system};
       aftok = hfinal.callCabal2nix "aftok" ./. {};
