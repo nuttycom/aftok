@@ -15,11 +15,13 @@ where
 
 import qualified Aftok.Config as AC
 import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
+import Aftok.Billing (SubscriptionId (..))
 import Aftok.Database
   ( DBOp (..),
     findPaymentRequestByKey,
     liftdb,
   )
+import qualified Aftok.Payments as Payments
 import Aftok.Database.PostgreSQL (QDBM)
 import Aftok.Payments
   ( PaymentsConfig,
@@ -34,9 +36,11 @@ import Aftok.Payments.Types
   )
 import Aftok.Servant.App (AppM, runDB)
 import Aftok.Servant.Auth (AuthenticatedUser (..))
+import Aftok.Servant.Billing (paymentRequestDetailJSON)
 import Aftok.Util (fromMaybeT)
 import Control.Lens ((^.))
 import Control.Monad.Trans.Maybe (mapMaybeT)
+import Data.Aeson (Value, toJSON)
 import Data.ProtocolBuffers (decodeMessage, encodeMessage)
 import Data.Serialize.Get (runGet)
 import Data.Serialize.Put (runPut)
@@ -53,14 +57,21 @@ type PaymentsAPI = EmptyAPI
 
 -- | Protected payments API
 type ProtectedPaymentsAPI =
-  "pay"
-    :> "btc"
-    :> Capture "paymentRequestKey" Text
-    :> ( -- GET /pay/btc/:paymentRequestKey - Get BIP70 payment request (returns protobuf)
-         Get '[OctetStream] ByteString
-           -- POST /pay/btc/:paymentRequestKey - Submit BIP70 payment
-           :<|> ReqBody '[OctetStream] ByteString :> Post '[JSON] PaymentId
-       )
+  -- GET /subscriptions/:subscriptionId/paymentRequests - List payable requests
+  ( "subscriptions"
+      :> Capture "subscriptionId" SubscriptionId
+      :> "paymentRequests"
+      :> Get '[JSON] Value
+  )
+    -- BIP70 payment endpoints
+    :<|> "pay"
+      :> "btc"
+      :> Capture "paymentRequestKey" Text
+      :> ( -- GET /pay/btc/:paymentRequestKey - Get BIP70 payment request (returns protobuf)
+           Get '[OctetStream] ByteString
+             -- POST /pay/btc/:paymentRequestKey - Submit BIP70 payment
+             :<|> ReqBody '[OctetStream] ByteString :> Post '[JSON] PaymentId
+         )
 
 --------------------------------------------------------------------------------
 -- Handlers
@@ -71,15 +82,37 @@ protectedPaymentsServer ::
   AC.BitcoinConfig ->
   PaymentsConfig QDBM ->
   AuthResult AuthenticatedUser ->
+  ServerT ProtectedPaymentsAPI AppM
+protectedPaymentsServer btcCfg payCfg authResult =
+  listPayableRequestsHandler authResult
+    :<|> bip70Server btcCfg payCfg authResult
+
+-- | BIP70 payment server
+bip70Server ::
+  AC.BitcoinConfig ->
+  PaymentsConfig QDBM ->
+  AuthResult AuthenticatedUser ->
   Text ->
   ServerT
     ( Get '[OctetStream] ByteString
         :<|> ReqBody '[OctetStream] ByteString :> Post '[JSON] PaymentId
     )
     AppM
-protectedPaymentsServer btcCfg payCfg authResult paymentKey =
+bip70Server btcCfg payCfg authResult paymentKey =
   getBip70PaymentRequestHandler authResult paymentKey
     :<|> bip70PaymentResponseHandler btcCfg payCfg authResult paymentKey
+
+-- | List payable (unpaid) payment requests for a subscription
+listPayableRequestsHandler ::
+  AuthResult AuthenticatedUser ->
+  SubscriptionId ->
+  AppM Value
+listPayableRequestsHandler (Authenticated user) sid = do
+  let uid = auUserId user
+  requests <- runDB $ Payments.findPayableRequests uid sid
+  pure $ toJSON $ fmap paymentRequestDetailJSON requests
+listPayableRequestsHandler _ _ =
+  throwError err401 {errBody = "Authentication required"}
 
 -- | Get a BIP-70 payment request as protobuf
 getBip70PaymentRequestHandler ::

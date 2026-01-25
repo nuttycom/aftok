@@ -80,6 +80,7 @@ import Aftok.Servant.App (AppM, envConfig, runDB)
 import Aftok.Servant.Auth (AuthenticatedUser (..))
 import qualified Aftok.Servant.Auctions as Auctions
 import qualified Aftok.Servant.Billing as Billing
+import Aftok.Servant.WorkLog (keyedLogEntryJSON, workIndexJSON)
 import Aftok.TimeLog
   ( WorkShare,
     WorkShares,
@@ -217,6 +218,8 @@ type SingleProjectAPI =
     :<|> "detail" :> Get '[JSON] Value
     -- GET /projects/:projectId/payouts
     :<|> "payouts" :> Get '[JSON] Value
+    -- GET /projects/:projectId/workIndex
+    :<|> "workIndex" :> Get '[JSON] Value
     -- POST /projects/:projectId/invite
     :<|> "invite" :> ReqBody '[JSON] ProjectInviteRequest :> Post '[JSON] ProjectInviteResponse
     -- GET/POST /projects/:projectId/auctions
@@ -254,6 +257,7 @@ singleProjectServer payCfg authResult pid =
   projectGetHandler authResult pid
     :<|> projectDetailGetHandler authResult pid
     :<|> payoutsHandler authResult pid
+    :<|> projectWorkIndexHandler authResult pid
     :<|> projectInviteHandler authResult pid
     :<|> Auctions.projectAuctionsServer authResult pid
     :<|> Billing.projectBillablesServer payCfg authResult pid
@@ -343,6 +347,15 @@ payoutsHandler (Authenticated user) pid = do
   let ws = payouts (toDepF $ project ^. depRules) ptime widx
   pure $ v1 $ payoutsJSON ws
 payoutsHandler _ _ =
+  throwError err401 {errBody = "Authentication required"}
+
+-- | Get the full project work index (all contributors)
+projectWorkIndexHandler :: AuthResult AuthenticatedUser -> ProjectId -> AppM Value
+projectWorkIndexHandler (Authenticated user) pid = do
+  let uid = auUserId user
+  widx <- runDB $ readWorkIndex pid uid
+  pure $ workIndexJSON keyedLogEntryJSON widx
+projectWorkIndexHandler _ _ =
   throwError err401 {errBody = "Authentication required"}
 
 -- | Send a project invitation

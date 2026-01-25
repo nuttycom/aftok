@@ -210,12 +210,12 @@ instance FromJSON CaptchaResponse where
 
 -- | Users API type
 type UsersAPI =
-  -- GET /validate_username?username=...
-  "validate_username"
+  -- GET /check_username?username=...
+  "check_username"
     :> QueryParam "username" Text
     :> Get '[JSON] UsernameCheckResponse
-    -- GET /validate_zaddr?zaddr=...
-    :<|> "validate_zaddr"
+    -- GET /check_zaddr?zaddr=...
+    :<|> "check_zaddr"
       :> QueryParam "zaddr" Text
       :> Get '[JSON] ZAddrCheckResponse
     -- POST /register

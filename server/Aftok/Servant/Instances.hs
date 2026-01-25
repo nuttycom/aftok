@@ -41,6 +41,15 @@ instance FromHttpApiData AuctionId where
 instance ToHttpApiData AuctionId where
   toUrlPiece (AuctionId u) = UUID.toText u
 
+-- | FromHttpApiData instance for SubscriptionId
+instance FromHttpApiData SubscriptionId where
+  parseUrlPiece t = case UUID.fromText t of
+    Nothing -> Left $ "Invalid SubscriptionId: " <> t
+    Just u -> Right $ SubscriptionId u
+
+instance ToHttpApiData SubscriptionId where
+  toUrlPiece (SubscriptionId u) = UUID.toText u
+
 -- | FromHttpApiData instance for thyme's UTCTime
 -- Convert via the standard time library UTCTime which has an instance
 instance FromHttpApiData C.UTCTime where

@@ -57,6 +57,14 @@ instance FromHttpApiData AuctionId where
 instance ToHttpApiData AuctionId where
   toUrlPiece (AuctionId u) = UUID.toText u
 
+instance FromHttpApiData SubscriptionId where
+  parseUrlPiece t = case UUID.fromText t of
+    Nothing -> Left $ "Invalid SubscriptionId: " <> t
+    Just u -> Right $ SubscriptionId u
+
+instance ToHttpApiData SubscriptionId where
+  toUrlPiece (SubscriptionId u) = UUID.toText u
+
 instance FromHttpApiData C.UTCTime where
   parseUrlPiece t = toThyme <$> (parseUrlPiece t :: Either Text Time.UTCTime)
 
@@ -180,6 +188,11 @@ spec = do
            in propJsonRoundtrip bid
 
     describe "SubscriptionId" $ do
+      it "roundtrips through HttpApiData" $
+        property $ \uuid ->
+          let sid = SubscriptionId (uuidFromWords uuid)
+           in propHttpApiDataRoundtrip sid
+
       it "roundtrips through JSON" $
         property $ \uuid ->
           let sid = SubscriptionId (uuidFromWords uuid)
