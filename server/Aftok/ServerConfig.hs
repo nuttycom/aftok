@@ -22,8 +22,8 @@ module Aftok.ServerConfig
     -- * Lenses
     hostname,
     port,
-    authSiteKey,
     cookieTimeout,
+    secureCookies,
     dbConfig,
     dbConnStr,
     smtpConfig,
@@ -88,8 +88,8 @@ dbConfigFromUrl = DbConfig
 data ServerConfig = ServerConfig
   { _hostname :: C8.ByteString,
     _port :: Int,
-    _authSiteKey :: P.FilePath,
     _cookieTimeout :: Maybe Int,
+    _secureCookies :: Bool,
     _dbConfig :: DbConfig,
     _smtpConfig :: SmtpConfig,
     _billingConfig :: BillingConfig,
@@ -114,8 +114,8 @@ readServerConfig cfg pc =
   ServerConfig
     <$> C.lookupDefault "localhost" cfg "hostname"
     <*> C.lookupDefault 8000 cfg "port"
-    <*> (fromText <$> C.require cfg "siteKey")
     <*> C.lookup cfg "cookieTimeout"
+    <*> C.lookupDefault True cfg "secureCookies"
     <*> maybe (mkDbConfig $ C.subconfig "db" cfg) pure pc
     <*> readSmtpConfig cfg
     <*> (readBillingConfig $ C.subconfig "billing" cfg)

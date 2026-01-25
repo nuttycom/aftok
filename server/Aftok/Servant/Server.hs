@@ -16,7 +16,8 @@ import qualified Aftok.Config as AC
 import Aftok.Currency.Bitcoin (NetworkMode)
 import Aftok.Database.PostgreSQL (QDBM)
 import Aftok.Payments (PaymentsConfig)
-import Aftok.ServerConfig (ServerConfig)
+import Aftok.ServerConfig (ServerConfig, secureCookies)
+import Control.Lens ((^.))
 import Aftok.Servant.API (AftokAPI, aftokAPI)
 import Aftok.Servant.App (AppEnv (..), AppM, appToHandler)
 import Aftok.Servant.Instances ()
@@ -58,7 +59,7 @@ import Database.PostgreSQL.Simple (Connection)
 import Servant
 import Servant.Auth.Server
   ( AuthResult (..),
-    CookieSettings,
+    CookieSettings (..),
     JWTSettings,
     defaultCookieSettings,
     defaultJWTSettings,
@@ -76,7 +77,9 @@ mkAppEnv nmode pool cfg jwk =
     { _envNetworkMode = nmode,
       _envDbPool = pool,
       _envConfig = cfg,
-      _envCookieSettings = defaultCookieSettings,
+      _envCookieSettings = defaultCookieSettings
+        { cookieIsSecure = if cfg ^. secureCookies then Secure else NotSecure
+        },
       _envJWTSettings = defaultJWTSettings jwk
     }
 
