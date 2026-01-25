@@ -71,14 +71,14 @@
       in {
         packages = {
           aftok = pkgs.haskellPackages.aftok;
-          aftok-server-dockerImage = pkgs.dockerTools.buildImage {
+          dockerImage = pkgs.dockerTools.buildImage {
             name = "aftok/aftok-server";
             tag = "latest";
             config = {
               Entrypoint = ["${self.packages.${system}.aftok}/bin/aftok-server" "--conf=/etc/aftok/aftok-server.cfg"];
             };
           };
-          default = self.packages.${system}.aftok-server-dockerImage;
+          default = self.packages.${system}.dockerImage;
         };
 
         devShells.default = pkgs.haskellPackages.shellFor {
