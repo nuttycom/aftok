@@ -183,6 +183,7 @@ Executable aftok-server
     Aftok.Servant.WorkLog
     Aftok.Servant.Auctions
     Aftok.Servant.Billing
+    Aftok.Servant.Payments
 
   build-depends:
     aftok,
