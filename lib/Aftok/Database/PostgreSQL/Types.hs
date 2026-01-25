@@ -30,7 +30,7 @@ import Aftok.Currency.Bitcoin (Satoshi (..), _Satoshi)
 import qualified Aftok.Currency.Bitcoin as Bitcoin
 import Aftok.Currency.Zcash (Zatoshi (..), _Zatoshi)
 import qualified Aftok.Currency.Zcash as Zcash
-import Aftok.Database (DBError)
+import Aftok.Database (DBError (..))
 import Aftok.TimeLog.Serialization
   ( depfFromJSON,
     depfToJSON,
@@ -43,11 +43,11 @@ import Aftok.Types
     UserId (..),
   )
 import Control.Lens ((^.))
+import Control.Monad.Trans.Except (throwE)
 import Data.Aeson
   ( FromJSON (..),
     ToJSON (..),
   )
-import qualified Data.List as L
 import qualified Data.Text as T
 import Data.Thyme.Clock as C
 import Data.Thyme.Time as C
@@ -94,7 +94,9 @@ pinsert :: (ToRow d) => (UUID -> r) -> Query -> d -> DBM r
 pinsert f q d = do
   conn <- asks snd
   ids <- lift . lift $ query conn q d
-  pure . f . fromOnly $ L.head ids
+  case ids of
+    (x : _) -> pure . f . fromOnly $ x
+    [] -> lift $ throwE SubjectNotFound
 
 pquery :: (ToRow d) => RowParser r -> Query -> d -> DBM [r]
 pquery p q d = do

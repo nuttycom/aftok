@@ -30,6 +30,7 @@ import Crypto.Random.Types
     getRandomBytes,
   )
 import Data.ByteString.Base64.URL as B64
+import Data.Base64.Types (extractBase64)
 import Data.Thyme.Clock as C
 
 type ProjectName = Text
@@ -52,10 +53,10 @@ randomInvCode = InvitationCode <$> getRandomBytes 12
 
 parseInvCode :: Text -> Either Text InvitationCode
 parseInvCode t =
-  InvitationCode <$> (B64.decodeBase64 . encodeUtf8 $ t)
+  InvitationCode <$> (B64.decodeBase64Untyped . encodeUtf8 $ t)
 
 renderInvCode :: InvitationCode -> Text
-renderInvCode (InvitationCode bs) = B64.encodeBase64Unpadded bs
+renderInvCode (InvitationCode bs) = extractBase64 $ B64.encodeBase64Unpadded bs
 
 data Invitation = Invitation
   { _projectId :: ProjectId,

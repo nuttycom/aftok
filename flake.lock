@@ -8,16 +8,16 @@
         ]
       },
       "locked": {
-        "lastModified": 1769319466,
-        "narHash": "sha256-b+11UZ17RN2uBRRigPjDJoctCkjzwG4mjDSzw1I9MKI=",
+        "lastModified": 1769373196,
+        "narHash": "sha256-k7qA/L4ADlDJMK/9CHAMlPUjMy5soanlSmB3XLqZWKs=",
         "owner": "aftok",
         "repo": "bippy",
-        "rev": "8166b7e16833f92e2fd9fa3cd4e27cae0ba8fb3f",
+        "rev": "1108583dc3211f9685ab5b3f04a99c7f9d84d544",
         "type": "github"
       },
       "original": {
         "owner": "aftok",
-        "ref": "8166b7e",
+        "ref": "1108583",
         "repo": "bippy",
         "type": "github"
       }
@@ -304,32 +304,32 @@
         ]
       },
       "locked": {
-        "lastModified": 1769320876,
-        "narHash": "sha256-c7cqGSwJgbyBRBIuyxEGOAWYMhWjs9eZPLnRt5Z7wao=",
+        "lastModified": 1769372652,
+        "narHash": "sha256-g0RMbp2nkgTSOIC7boLrT+JWxpy3H3QOJC5tvy5Pyjk=",
         "owner": "nuttycom",
         "repo": "lrzhs",
-        "rev": "d29ab9a722f3944f0bfdde8925488c31f4e1f948",
+        "rev": "657f2588dd61c113fbd908578e8b124b8c056aed",
         "type": "github"
       },
       "original": {
         "owner": "nuttycom",
-        "ref": "d29ab9a",
+        "ref": "657f258",
         "repo": "lrzhs",
         "type": "github"
       }
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1751290243,
-        "narHash": "sha256-kNf+obkpJZWar7HZymXZbW+Rlk3HTEIMlpc6FCNz0Ds=",
+        "lastModified": 1769367530,
+        "narHash": "sha256-EAQT/bLs9vVOat0nWLu427OAmCGwc7QC/e1XFpdtWzI=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "5ab036a8d97cb9476fbe81b09076e6e91d15e1b6",
+        "rev": "d7ce475e6bf95e7c66c6c980b959a0445d7b9abd",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "release-24.11",
+        "ref": "release-25.11",
         "repo": "nixpkgs",
         "type": "github"
       }

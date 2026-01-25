@@ -18,7 +18,8 @@ import Data.Attoparsec.Text
     takeTill,
     takeWhile1,
   )
-import Data.ByteString.Base64.URL (decodeBase64, encodeBase64Unpadded)
+import Data.ByteString.Base64.URL (decodeBase64Untyped, encodeBase64Unpadded)
+import Data.Base64.Types (extractBase64)
 import Data.Char (isAlpha, isAscii, isDigit)
 import Data.List.NonEmpty (zip)
 import qualified Data.Map.Strict as M
@@ -82,7 +83,7 @@ strParam l i value =
   l <> paramIndex i <> "=" <> encodeTextWith qchar value
 
 memoParam :: Maybe Int -> Memo -> Text
-memoParam i (Memo bytes) = "memo" <> paramIndex i <> "=" <> encodeBase64Unpadded bytes
+memoParam i (Memo bytes) = "memo" <> paramIndex i <> "=" <> extractBase64 (encodeBase64Unpadded bytes)
 
 itemPartial :: Maybe Int -> PaymentItem -> [Text]
 itemPartial i item =
@@ -176,7 +177,7 @@ parseMemoParam = indexedParam "memo" $ do
   either
     (\e -> fail . unpack $ "Base64 decoding of memo value failed: " <> e)
     (pure . MemoParam . Memo)
-    (decodeBase64 $ encodeUtf8 t)
+    (decodeBase64Untyped $ encodeUtf8 t)
 
 parseLabelParam :: Parser IndexedParam
 parseLabelParam = indexedParam "label" (LabelParam . decodeText <$> takeText)

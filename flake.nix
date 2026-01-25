@@ -2,7 +2,7 @@
   description = "The Aftok Collaboration Server";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/release-24.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/release-25.11";
     flake-utils.url = "github:numtide/flake-utils";
     dbmigrations = {
       url = "github:haskell-github-trust/dbmigrations/d870aa2bdc6ac219bfdd182bcada3a9534dc23a8";
@@ -17,11 +17,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     bippy = {
-      url = "github:aftok/bippy/8166b7e";
+      url = "github:aftok/bippy/1108583";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     lrzhs = {
-      url = "github:nuttycom/lrzhs/d29ab9a";
+      url = "github:nuttycom/lrzhs/657f258";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -45,9 +45,9 @@
       # Unbreak servant-auth packages for nixpkgs 24.11
       servant-auth = unbreak hprev.servant-auth;
       servant-auth-server = unbreak hprev.servant-auth-server;
-      dbmigrations = dbmigrations.packages.${final.system}.default;
-      dbmigrations-postgresql = dbmigrations-postgresql.packages.${final.system}.default;
-      dbmigrations-postgresql-simple = dbmigrations-postgresql-simple.packages.${final.system}.default;
+      dbmigrations = dbmigrations.packages.${final.stdenv.hostPlatform.system}.default;
+      dbmigrations-postgresql = dbmigrations-postgresql.packages.${final.stdenv.hostPlatform.system}.default;
+      dbmigrations-postgresql-simple = dbmigrations-postgresql-simple.packages.${final.stdenv.hostPlatform.system}.default;
       aftok = hfinal.callCabal2nix "aftok" ./. {};
     };
 
@@ -84,11 +84,14 @@
         devShells.default = pkgs.haskellPackages.shellFor {
           name = "aftok-server-shell";
           packages = p: [p.aftok];
-          buildInputs = [
+          nativeBuildInputs = [
             pkgs.cabal-install
-            lrzhs.packages.${system}.lrzhs_ffi
+            pkgs.pkg-config
             pkgs.haskellPackages.ormolu
             pkgs.haskellPackages.dbmigrations-postgresql
+          ];
+          buildInputs = [
+            lrzhs.packages.${system}.lrzhs_ffi
           ];
           withHoogle = true;
         };
