@@ -143,14 +143,27 @@ Test-Suite spec
     Aftok.AuctionSpec
     Aftok.Generators
     Aftok.PaymentsSpec
+    Aftok.Servant.ApiSpec
     Aftok.TimeLogSpec
     Aftok.Util.HttpSpec
 
   build-depends:
     aftok,
+    aeson,
     hspec,
+    hspec-wai,
+    hspec-wai-json,
+    http-api-data,
+    http-types,
     HUnit,
     QuickCheck,
+    servant,
+    servant-server,
+    thyme,
+    time,
+    uuid,
+    wai,
+    wai-extra,
 
   build-tool-depends: hspec-discover:hspec-discover
 
