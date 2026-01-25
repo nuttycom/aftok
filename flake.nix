@@ -38,18 +38,9 @@
     ...
   }: let
     haskell-overlay = final: prev: hfinal: hprev: let
-      jailbreakUnbreak = pkg:
-        final.haskell.lib.doJailbreak (pkg.overrideAttrs (_: {meta = {};}));
       unbreak = pkg:
         pkg.overrideAttrs (_: {meta = {};});
     in {
-      # Pin resource-pool to 0.2.x for compatibility with snaplet-postgresql-simple
-      resource-pool = hfinal.callHackageDirect {
-        pkg = "resource-pool";
-        ver = "0.2.3.2";
-        sha256 = "sha256-Ieg9Vfhoh1Gd5eX5L8usLPHkklCdy6Kwi79ufJSj9I0=";
-      } {};
-      snaplet-postgresql-simple = jailbreakUnbreak hprev.snaplet-postgresql-simple;
       thyme = unbreak hprev.thyme;
       # Unbreak servant-auth packages for nixpkgs 24.05
       servant-auth = unbreak hprev.servant-auth;

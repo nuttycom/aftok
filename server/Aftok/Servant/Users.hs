@@ -42,6 +42,7 @@ import Aftok.Database
     findUserByName,
   )
 import Aftok.Project (InvitationCode, parseInvCode)
+import Aftok.ServerConfig (CaptchaConfig (..))
 import Aftok.Servant.App (AppM, runDB)
 import Aftok.Servant.Auth (AuthenticatedUser (..))
 import Aftok.Types
@@ -165,11 +166,6 @@ data ZAddrCheckResponse = ZAddrCheckResponse
   deriving (Show, Eq, Generic)
 
 instance ToJSON ZAddrCheckResponse
-
--- | Captcha configuration
-newtype CaptchaConfig = CaptchaConfig
-  { secretKey :: Text
-  }
 
 -- | Captcha errors
 data CaptchaError

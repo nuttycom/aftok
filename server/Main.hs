@@ -9,22 +9,21 @@ import Aftok.Database.PostgreSQL (QDBM)
 import Aftok.ServerConfig
   ( ServerConfig,
     billingConfig,
+    dbConfig,
+    dbConnStr,
     loadServerConfig,
-    pgsConfig,
     port,
     recaptchaSecret,
     staticAssetPath,
     zcashConfig,
   )
 import Aftok.Servant.Server (aftokApp, mkAppEnv)
-import qualified Aftok.Servant.Users as Servant
 import Aftok.Servant.Users
   ( AddressInvalid (..),
     RegisterOps (..),
   )
-import qualified Aftok.Snaplet.Users as Snaplet
 import Control.Lens ((^.))
-import Data.Pool (createPool)
+import Data.Pool (defaultPoolConfig, newPool)
 import Database.PostgreSQL.Simple (close, connectPostgreSQL)
 import Filesystem.Path.CurrentOS (decodeString, encodeString)
 import Lrzhs (isValidSaplingAddress)
@@ -43,7 +42,6 @@ import Options.Applicative
     strOption,
   )
 import Servant.Auth.Server (generateKey)
-import Snap.Snaplet.PostgresqlSimple (pgsConnStr)
 
 data CmdArgs = CmdArgs {cfgFile :: String}
 
@@ -56,8 +54,8 @@ main = do
   cfg <- loadServerConfig . decodeString $ cfgFile opts
 
   -- Create database connection pool
-  let connStr = pgsConnStr $ cfg ^. pgsConfig
-  pool <- createPool (connectPostgreSQL connStr) close 1 60 10
+  let connStr = cfg ^. dbConfig . dbConnStr
+  pool <- newPool $ defaultPoolConfig (connectPostgreSQL connStr) close 60 10
 
   -- Create payments configuration
   paymentsConfig <- C.toPaymentsConfig @QDBM (cfg ^. billingConfig)
@@ -69,8 +67,7 @@ main = do
   let nmode = cfg ^. billingConfig . C.bitcoinConfig . C.networkMode
       btcCfg = cfg ^. billingConfig . C.bitcoinConfig
       rops = registerOps cfg
-      -- Convert from Snaplet CaptchaConfig to Servant CaptchaConfig
-      captchaCfg = Servant.CaptchaConfig (Snaplet.secretKey $ cfg ^. recaptchaSecret)
+      captchaCfg = cfg ^. recaptchaSecret
       staticDir = encodeString $ cfg ^. staticAssetPath
 
   -- Create application environment

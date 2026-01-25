@@ -2,14 +2,43 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Aftok.ServerConfig where
+module Aftok.ServerConfig
+  ( -- * Server Configuration
+    ServerConfig (..),
+    loadServerConfig,
+    readServerConfig,
 
-import Aftok.Config
+    -- * Database Configuration
+    DbConfig (..),
+    mkDbConfig,
+    dbConfigFromUrl,
+
+    -- * Captcha Configuration
+    CaptchaConfig (..),
+
+    -- * Zcash Configuration
+    readZcashConfig,
+
+    -- * Lenses
+    hostname,
+    port,
+    authSiteKey,
+    cookieTimeout,
+    dbConfig,
+    dbConnStr,
+    smtpConfig,
+    billingConfig,
+    templatePath,
+    staticAssetPath,
+    recaptchaSecret,
+    zcashConfig,
+  )
+where
+
+import Aftok.Config (BillingConfig, SmtpConfig, readBillingConfig, readSmtpConfig)
 import Aftok.Currency.Zcash (ZcashConfig (..))
-import Aftok.Snaplet.Users (CaptchaConfig (..))
 import Control.Lens
   ( makeLenses,
-    (^.),
   )
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.Configurator as C
@@ -21,17 +50,47 @@ import Filesystem.Path.CurrentOS
   )
 import qualified Filesystem.Path.CurrentOS as P
 import Lrzhs.Types (Network (..))
-import Snap.Core
-import qualified Snap.Http.Server.Config as SC
-import Snap.Snaplet.PostgresqlSimple
 import System.Environment (getEnvironment)
+
+-- | Captcha configuration for reCAPTCHA
+newtype CaptchaConfig = CaptchaConfig
+  { secretKey :: Text
+  }
+
+-- | Database configuration
+data DbConfig = DbConfig
+  { _dbConnStr :: ByteString
+  }
+
+makeLenses ''DbConfig
+
+-- | Build a connection string from individual config values
+mkDbConfig :: CT.Config -> IO DbConfig
+mkDbConfig cfg = do
+  host <- C.lookupDefault "localhost" cfg "host"
+  dbPort <- C.lookupDefault (5432 :: Int) cfg "port"
+  user <- C.require cfg "user"
+  password <- C.require cfg "pass"
+  db <- C.require cfg "db"
+  let connStr =
+        C8.pack $
+          "host=" <> host
+            <> " port=" <> show dbPort
+            <> " user=" <> user
+            <> " password=" <> password
+            <> " dbname=" <> db
+  pure $ DbConfig connStr
+
+-- | Create DbConfig from a DATABASE_URL environment variable
+dbConfigFromUrl :: ByteString -> DbConfig
+dbConfigFromUrl = DbConfig
 
 data ServerConfig = ServerConfig
   { _hostname :: C8.ByteString,
     _port :: Int,
     _authSiteKey :: P.FilePath,
     _cookieTimeout :: Maybe Int,
-    _pgsConfig :: PGSConfig,
+    _dbConfig :: DbConfig,
     _smtpConfig :: SmtpConfig,
     _billingConfig :: BillingConfig,
     _templatePath :: P.FilePath,
@@ -47,17 +106,17 @@ loadServerConfig cfgFile = do
   env <- getEnvironment
   putStrLn $ "Loading config from file " <> show cfgFile
   cfg <- C.load [C.Required $ encodeString cfgFile]
-  let dbEnvCfg = pgsDefaultConfig . C8.pack <$> L.lookup "DATABASE_URL" env
+  let dbEnvCfg = dbConfigFromUrl . C8.pack <$> L.lookup "DATABASE_URL" env
   readServerConfig cfg dbEnvCfg
 
-readServerConfig :: CT.Config -> Maybe PGSConfig -> IO ServerConfig
+readServerConfig :: CT.Config -> Maybe DbConfig -> IO ServerConfig
 readServerConfig cfg pc =
   ServerConfig
     <$> C.lookupDefault "localhost" cfg "hostname"
     <*> C.lookupDefault 8000 cfg "port"
     <*> (fromText <$> C.require cfg "siteKey")
     <*> C.lookup cfg "cookieTimeout"
-    <*> maybe (mkPGSConfig $ C.subconfig "db" cfg) pure pc
+    <*> maybe (mkDbConfig $ C.subconfig "db" cfg) pure pc
     <*> readSmtpConfig cfg
     <*> (readBillingConfig $ C.subconfig "billing" cfg)
     <*> ( fromText
@@ -85,11 +144,3 @@ readZcashConfig :: CT.Config -> IO ZcashConfig
 readZcashConfig cfg =
   ZcashConfig
     <$> (C.require cfg "network")
-
-baseSnapConfig :: ServerConfig -> SC.Config m a -> SC.Config m a
-baseSnapConfig qc = SC.setHostname (qc ^. hostname) . SC.setPort (qc ^. port)
-
--- configuration specific to Snap, commandLineConfig arguments override
--- config file.
-snapConfig :: ServerConfig -> IO (SC.Config Snap a)
-snapConfig qc = SC.commandLineConfig $ baseSnapConfig qc SC.emptyConfig
