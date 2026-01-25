@@ -51,6 +51,7 @@ import Crypto.Random.Types
   ( MonadRandom,
     getRandomBytes,
   )
+import Crypto.Secp256k1 (Ctx)
 import Data.AffineSpace ((.+^))
 import Data.Map.Strict (assocs)
 import qualified Data.Text as T
@@ -108,18 +109,20 @@ paymentOps ::
   ( MonadRandom m,
     MonadDB m
   ) =>
+  Ctx ->
   BillingOps m ->
   PaymentsConfig ->
   PaymentOps Satoshi (ExceptT PaymentError m)
-paymentOps ops cfg =
+paymentOps ctx ops cfg =
   PaymentOps
-    { newPaymentRequest = (((fmap Bip70Request) .) .) . bip70PaymentRequest ops cfg
+    { newPaymentRequest = (((fmap Bip70Request) .) .) . bip70PaymentRequest ctx ops cfg
     }
 
 bip70PaymentRequest ::
   ( MonadRandom m,
     MonadDB m
   ) =>
+  Ctx ->
   BillingOps m ->
   PaymentsConfig ->
   -- | bill denominated in satoshi
@@ -129,7 +132,7 @@ bip70PaymentRequest ::
   -- | time at which the bill is being issued
   C.UTCTime ->
   ExceptT PaymentError m PaymentRequest
-bip70PaymentRequest ops cfg billable billingDay billingTime = do
+bip70PaymentRequest ctx ops cfg billable billingDay billingTime = do
   let billTotal = billable ^. amount
       payoutTime = review C.utcTime $ C.UTCView billingDay (fromInteger 0)
   payoutFractions <- lift $ getProjectPayoutFractions payoutTime (billable ^. project)
@@ -142,6 +145,7 @@ bip70PaymentRequest ops cfg billable billingDay billingTime = do
   let expiry = Expiry . C.fromThyme $ billingTime .+^ (billable ^. requestExpiryPeriod)
   let details =
         B.createPaymentDetails
+          ctx
           (getNetwork (cfg ^. networkMode))
           outputs
           (C.fromThyme billingTime)

@@ -68,6 +68,7 @@ import Control.Monad.Except
     withExceptT,
   )
 import qualified Crypto.Random.Types as CR
+import Crypto.Secp256k1 (Ctx)
 import Data.Thyme.Clock as C
 import Data.Thyme.Time as T
 import Network.URI ()
@@ -100,11 +101,12 @@ makeClassyPrisms ''PaymentError
 createSubscriptionPaymentRequests ::
   forall m.
   (MonadDB m, CR.MonadRandom m) =>
+  Ctx ->
   PaymentsConfig m ->
   C.UTCTime ->
   (SubscriptionId, Subscription) ->
   ExceptT PaymentError m [(PaymentRequestId, SomePaymentRequestDetail)]
-createSubscriptionPaymentRequests cfg now (sid, sub) = do
+createSubscriptionPaymentRequests ctx cfg now (sid, sub) = do
   -- fill in the billable for the subscription
   sub' <-
     lift . maybeT (raiseSubjectNotFound . FindBillable $ billableId) pure $
@@ -128,7 +130,7 @@ createSubscriptionPaymentRequests cfg now (sid, sub) = do
       let bill = sub' ^. B.billable
        in case bill ^. amount of
             Amount BTC sats -> withExceptT BTCPaymentError $ do
-              let ops = BTC.paymentOps (cfg ^. bitcoinBillingOps) (cfg ^. bitcoinPaymentsConfig)
+              let ops = BTC.paymentOps ctx (cfg ^. bitcoinBillingOps) (cfg ^. bitcoinPaymentsConfig)
                   bill' = bill & amount .~ sats
               second SomePaymentRequest <$> createPaymentRequest ops now billableId bill' day
             Amount ZEC zats -> withExceptT RequestError $ do

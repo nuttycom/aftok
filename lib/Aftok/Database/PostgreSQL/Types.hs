@@ -73,7 +73,7 @@ import Database.PostgreSQL.Simple.FromField
 import Database.PostgreSQL.Simple.FromRow (RowParser, field, fieldWith)
 import Database.PostgreSQL.Simple.Types (Null)
 import qualified Haskoin.Address as Bitcoin
-import qualified Haskoin.Constants as Bitcoin
+import qualified Haskoin.Network as Bitcoin (Network)
 
 newtype SerDepFunction = SerDepFunction {unSerDepFunction :: DepreciationFunction}
 

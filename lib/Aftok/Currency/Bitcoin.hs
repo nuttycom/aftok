@@ -18,7 +18,8 @@ import Bippy.Types (Satoshi (..))
 import Control.Lens
 import qualified Data.Configurator.Types as C
 import qualified Haskoin.Address as H
-import Haskoin.Constants
+import Haskoin.Network (Network)
+import Haskoin.Network.Constants (btc, btcTest)
 
 _Satoshi :: Iso' Satoshi Word64
 _Satoshi = iso (\(Satoshi w) -> w) (Satoshi)

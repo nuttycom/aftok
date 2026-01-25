@@ -14,7 +14,7 @@ import Data.Hourglass
 import Data.List ((!!))
 import Data.Thyme.Clock ()
 import qualified Data.UUID.V4 as U
-import Haskoin.Constants (btc)
+import Haskoin.Network.Constants (btc)
 import Test.HUnit.Base (assertFailure)
 import Test.Hspec
 import Test.QuickCheck

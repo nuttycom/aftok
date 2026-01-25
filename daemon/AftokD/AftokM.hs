@@ -57,6 +57,7 @@ import Control.Monad.Except
 import Control.Monad.Trans.Except (withExceptT)
 import Control.Monad.Trans.Reader (mapReaderT)
 import Crypto.Random.Types (MonadRandom (..))
+import Crypto.Secp256k1 (Ctx, withContext)
 import qualified Data.Text as T
 import Data.Thyme.Clock as C
 import Database.PostgreSQL.Simple
@@ -91,7 +92,8 @@ makeClassyPrisms ''AftokDErr
 data AftokMEnv = AftokMEnv
   { _dcfg :: !D.Config,
     _conn :: !Connection,
-    _pcfg :: !(P.PaymentsConfig AftokM)
+    _pcfg :: !(P.PaymentsConfig AftokM),
+    _secpCtx :: !Ctx
   }
 
 -- instance P.HasPaymentsConfig AftokMEnv where
@@ -117,10 +119,10 @@ liftQDBM (QDBM r) = do
   AftokM . mapReaderT (withExceptT DBErr) . withReaderT f $ r
 
 createAllPaymentRequests :: D.Config -> IO ()
-createAllPaymentRequests cfg = do
+createAllPaymentRequests cfg = withContext $ \ctx -> do
   conn' <- connect $ cfg ^. D.dbConfig
   pcfg' <- AC.toPaymentsConfig $ cfg ^. D.billingConfig
-  let env = AftokMEnv cfg conn' pcfg'
+  let env = AftokMEnv cfg conn' pcfg' ctx
   void
     . runExceptT
     $ (runReaderT . runAftokM) createProjectsPaymentRequests
@@ -134,13 +136,14 @@ createProjectsPaymentRequests = do
 createProjectSubscriptionPaymentRequests :: ProjectId -> AftokM ()
 createProjectSubscriptionPaymentRequests pid = do
   now <- liftIO C.getCurrentTime
+  ctx <- asks _secpCtx
   pcfg' <- asks _pcfg
   subscribers <- liftQDBM $ DB.findSubscribers pid
   subscriptions <- join <$> traverse (DB.findSubscriptions pid) subscribers
   requests <-
     fmap join
       . exceptT (throwError . PaymentErr) pure
-      $ traverse (\s -> fmap (snd s,) <$> P.createSubscriptionPaymentRequests pcfg' now s) subscriptions
+      $ traverse (\s -> fmap (snd s,) <$> P.createSubscriptionPaymentRequests ctx pcfg' now s) subscriptions
   traverse_ sendPaymentRequestEmail requests
 
 _Compose :: Iso' (f (g a)) (Compose f g a)
