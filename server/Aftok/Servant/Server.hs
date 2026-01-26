@@ -83,9 +83,7 @@ mkAppEnv nmode pool cfg jwk =
       _envDbPool = pool,
       _envConfig = cfg,
       _envCookieSettings = defaultCookieSettings
-        { cookieIsSecure = if cfg ^. secureCookies then Secure else NotSecure,
-          -- Disable XSRF for now - client needs to be updated to send XSRF header
-          cookieXsrfSetting = Nothing
+        { cookieIsSecure = if cfg ^. secureCookies then Secure else NotSecure
         },
       _envJWTSettings = defaultJWTSettings jwk
     }
