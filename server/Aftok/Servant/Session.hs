@@ -15,7 +15,8 @@ module Aftok.Servant.Session
   )
 where
 
-import Aftok.Database (findUserByName)
+import Aftok.Database (findUserByNameWithPassword)
+import Aftok.Password (verifyPassword)
 import Aftok.Servant.App (AppEnv (..), AppM, runDB)
 import Aftok.Servant.Auth (AuthenticatedUser (..), LoginRequest (..))
 import Aftok.Types (UserName (..), username, _UserName)
@@ -73,28 +74,35 @@ protectedSessionServer _ = loginCheckHandler Nothing
 loginHandler ::
   LoginRequest ->
   AppM (Headers '[Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent)
-loginHandler (LoginRequest usernameText _password) = do
+loginHandler (LoginRequest usernameText password) = do
   env <- ask
   let cookieSettings = _envCookieSettings env
       jwtSettings = _envJWTSettings env
 
-  -- Find user by username
-  userResult <- runDB $ runMaybeT $ findUserByName (UserName usernameText)
+  -- Find user by username with password hash
+  userResult <- runDB $ runMaybeT $ findUserByNameWithPassword (UserName usernameText)
 
   case userResult of
     Nothing ->
-      throwError err401 {errBody = "User not found"}
-    Just (uid, userRec) -> do
-      -- TODO: Add actual password verification here
-      let authedUser = AuthenticatedUser uid (userRec ^. username . _UserName)
-
-      -- Create session cookie/JWT
-      mApplyCookies <- liftIO $ acceptLogin cookieSettings jwtSettings authedUser
-      case mApplyCookies of
+      throwError err401 {errBody = "Invalid username or password"}
+    Just (uid, userRec, mPwdHash) -> do
+      -- Verify password
+      case mPwdHash of
         Nothing ->
-          throwError err500 {errBody = "Failed to create session"}
-        Just applyCookies ->
-          pure $ applyCookies NoContent
+          -- User has no password set (legacy user or incomplete registration)
+          throwError err401 {errBody = "Invalid username or password"}
+        Just pwdHash ->
+          if verifyPassword (encodeUtf8 password) pwdHash
+            then do
+              let authedUser = AuthenticatedUser uid (userRec ^. username . _UserName)
+              -- Create session cookie/JWT
+              mApplyCookies <- liftIO $ acceptLogin cookieSettings jwtSettings authedUser
+              case mApplyCookies of
+                Nothing ->
+                  throwError err500 {errBody = "Failed to create session"}
+                Just applyCookies ->
+                  pure $ applyCookies NoContent
+            else throwError err401 {errBody = "Invalid username or password"}
 
 -- | Handle logout request
 logoutHandler ::

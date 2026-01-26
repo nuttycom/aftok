@@ -1,21 +1,10 @@
 #!/bin/bash
 
-if [ -f ".env" ]; then
-  source .env
-fi
-
-if [ -z "${AFTOK_HOST}" ]; then 
-  AFTOK_HOST="aftok.com"
-fi
-
-if [ -z "${USER}" ]; then 
-  read -p "Username: " USER
-  echo
-fi
+source "$(dirname "$0")/_common.sh"
+setup_auth
 
 if [ -z "${PID}" ]; then
   read -p "Project UUID: " PID
-  echo
 fi
 
 if [ $(uname) == 'Darwin' ]; then
@@ -28,5 +17,5 @@ echo "Retrieving your log entries for project ${PID} after ${after}..."
 
 curl --verbose \
   ${ALLOW_INSECURE} \
-  --user $USER \
-  "https://$AFTOK_HOST/api/user/projects/$PID/events?after=${after}&limit=100"
+  ${AUTH_OPTS} \
+  "${AFTOK_URL}/api/user/projects/${PID}/events?after=${after}&limit=100"

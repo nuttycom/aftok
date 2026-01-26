@@ -18,8 +18,9 @@ module Aftok.Servant.Auth
   )
 where
 
-import Aftok.Database (findUserByName)
+import Aftok.Database (findUserByNameWithPassword)
 import Aftok.Database.PostgreSQL (runQDBM)
+import Aftok.Password (verifyPassword)
 import Aftok.Servant.App (AppEnv (..))
 import Aftok.Types (UserId (..), UserName (..), username, _UserName)
 import Control.Error.Util (hush)
@@ -91,19 +92,26 @@ type instance BasicAuthCfg = AppEnv
 
 -- | Check basic auth credentials
 instance FromBasicAuthData AuthenticatedUser where
-  fromBasicAuthData (BasicAuthData usernameBytes _password) env = do
+  fromBasicAuthData (BasicAuthData usernameBytes passwordBytes) env = do
     let nmode = _envNetworkMode env
         pool = _envDbPool env
     result <- withResource pool $ \conn ->
       runExceptT $ runQDBM nmode conn $
-        runMaybeT $ findUserByName (UserName $ decodeUtf8 usernameBytes)
+        runMaybeT $ findUserByNameWithPassword (UserName $ decodeUtf8 usernameBytes)
     case hush result of
       Nothing -> pure Indefinite
       Just Nothing -> pure NoSuchUser
-      Just (Just (uid, user)) ->
-        -- TODO: Add actual password verification here
-        let uname = user ^. username . _UserName
-         in pure $ Authenticated $ AuthenticatedUser uid uname
+      Just (Just (uid, user, mPwdHash)) ->
+        case mPwdHash of
+          Nothing ->
+            -- User has no password set
+            pure BadPassword
+          Just pwdHash ->
+            if verifyPassword passwordBytes pwdHash
+              then
+                let uname = user ^. username . _UserName
+                 in pure $ Authenticated $ AuthenticatedUser uid uname
+              else pure BadPassword
 
 -- | Require authentication, throwing an error if not authenticated
 requireAuth :: AuthResult AuthenticatedUser -> Either ServerError AuthenticatedUser

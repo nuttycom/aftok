@@ -1,28 +1,17 @@
 #!/bin/bash
 
-if [ -f ".env" ]; then
-  source .env
-fi
-
-if [ -z "${AFTOK_HOST}" ]; then 
-  AFTOK_HOST="aftok.com"
-fi
-
-if [ -z "${USER}" ]; then 
-  read -p "Username: " USER
-  echo
-fi
+source "$(dirname "$0")/_common.sh"
+setup_auth
 
 if [ -z "${PID}" ]; then
   read -p "Project UUID: " PID
-  echo
 fi
 
 read -p "Billable Name: " BNAME
 read -p "Description: " BDESC
 
 while [ -z "${RECUR}" ]
-do 
+do
   read -p "Recurrence Period [A|M|W|O] ((A)nnual, (M)onthly, (W)eekly, (O)ne-time): " RECUR
   case $RECUR in
     "A")
@@ -48,7 +37,7 @@ do
 done
 
 while [ -z "${CURRENCY}" ]
-do 
+do
   read -p "Currency [BTC|ZEC]: " CURRENCY
   case $CURRENCY in
     "BTC")
@@ -72,7 +61,7 @@ read -p "Request Expiry Period (seconds): " REQUEST_EXPIRY
 BODY=$(cat <<END_BODY
 {
   "schemaVersion": "1.0",
-  "name": "$BNAME", 
+  "name": "$BNAME",
   "description": "$BDESC",
   "message": "Thank you for your patronage.",
   "recurrence": { "$RECUR": $RECUR_COUNT },
@@ -86,8 +75,7 @@ END_BODY
 
 curl --verbose \
   ${ALLOW_INSECURE} \
-  --user $USER \
+  ${AUTH_OPTS} \
   --header "Content-Type: application/json" \
   --data "$BODY" \
-  "https://$AFTOK_HOST/api/projects/${PID}/billables"
-
+  "${AFTOK_URL}/api/projects/${PID}/billables"

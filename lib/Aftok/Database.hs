@@ -31,6 +31,7 @@ import Aftok.TimeLog
     WorkIndex,
   )
 import qualified Aftok.TimeLog as TL
+import Aftok.Password (PasswordHash)
 import Aftok.Types
   ( AccountId,
     Email,
@@ -72,9 +73,11 @@ data Limit = Limit Word32
 
 data DBOp a where
   CreateUser :: User -> DBOp UserId
+  CreateUserWithPassword :: User -> PasswordHash -> DBOp UserId
   FindUser :: UserId -> DBOp (Maybe User)
   FindUserProjectDetail :: UserId -> ProjectId -> DBOp (Maybe (User, C.UTCTime))
   FindUserByName :: UserName -> DBOp (Maybe (UserId, User))
+  FindUserByNameWithPassword :: UserName -> DBOp (Maybe (UserId, User, Maybe PasswordHash))
   FindUserPaymentAddress :: UserId -> Currency a c -> DBOp (Maybe (AccountId, a))
   FindAccountPaymentAddress :: AccountId -> Currency a c -> DBOp (Maybe a)
   FindAccountZcashIVK :: AccountId -> DBOp (Maybe Zcash.IVK)
@@ -157,6 +160,9 @@ raiseSubjectNotFound op = liftdb $ RaiseDBError SubjectNotFound op
 createUser :: (MonadDB m) => User -> m UserId
 createUser = liftdb . CreateUser
 
+createUserWithPassword :: (MonadDB m) => User -> PasswordHash -> m UserId
+createUserWithPassword user pwd = liftdb $ CreateUserWithPassword user pwd
+
 findUser :: (MonadDB m) => UserId -> MaybeT m User
 findUser = MaybeT . liftdb . FindUser
 
@@ -165,6 +171,9 @@ findUserProjectDetail uid pid = MaybeT . liftdb $ FindUserProjectDetail uid pid
 
 findUserByName :: (MonadDB m) => UserName -> MaybeT m (UserId, User)
 findUserByName = MaybeT . liftdb . FindUserByName
+
+findUserByNameWithPassword :: (MonadDB m) => UserName -> MaybeT m (UserId, User, Maybe PasswordHash)
+findUserByNameWithPassword = MaybeT . liftdb . FindUserByNameWithPassword
 
 findUserPaymentAddress :: (MonadDB m) => UserId -> Currency a c -> MaybeT m (AccountId, a)
 findUserPaymentAddress uid n = MaybeT . liftdb $ FindUserPaymentAddress uid n

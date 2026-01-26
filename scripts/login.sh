@@ -1,19 +1,20 @@
 #!/bin/bash
 
-if [ -f ".env" ]; then
-  source .env
+source "$(dirname "$0")/_common.sh"
+
+if [ -z "${AFTOK_USER}" ]; then
+  read -p "Username: " AFTOK_USER
 fi
 
-if [ -z "${AFTOK_HOST}" ]; then 
-  AFTOK_HOST="aftok.com"
-fi
-
-if [ -z "${USER}" ]; then 
-  read -p "Username: " USER
+if [ -z "${AFTOK_PASS}" ]; then
+  read -s -p "Password: " AFTOK_PASS
   echo
 fi
 
 curl --verbose \
   ${ALLOW_INSECURE} \
-  --user $USER \
-  "https://$AFTOK_HOST/api/login"
+  -c cookies.txt \
+  -H "Content-Type: application/json" \
+  -X POST \
+  -d "{\"username\":\"$AFTOK_USER\",\"password\":\"$AFTOK_PASS\"}" \
+  "${AFTOK_URL}/api/login"

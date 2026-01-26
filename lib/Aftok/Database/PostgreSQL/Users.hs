@@ -5,8 +5,10 @@
 
 module Aftok.Database.PostgreSQL.Users
   ( createUser,
+    createUserWithPassword,
     findUser,
     findUserByName,
+    findUserByNameWithPassword,
     findUserPaymentAddress,
     findUserProjectDetail,
     findAccountPaymentAddress,
@@ -17,6 +19,7 @@ where
 import Aftok.Currency (Currency (..))
 import qualified Aftok.Currency.Zcash as Zcash
 import Aftok.Database ()
+import Aftok.Password (PasswordHash (..))
 import Aftok.Database.PostgreSQL.Types
   ( DBM,
     askNetworkMode,
@@ -63,6 +66,23 @@ createUser user' = do
     RecoverByEmail _ -> pure ()
   pure uid
 
+createUserWithPassword :: User -> PasswordHash -> DBM UserId
+createUserWithPassword user' pwdHash = do
+  uid <-
+    pinsert
+      UserId
+      [sql| INSERT INTO users (handle, recovery_email, recovery_zaddr, password_hash)
+          VALUES (?, ?, ?, ?) RETURNING id |]
+      ( user' ^. (username . _UserName),
+        user' ^? userAccountRecovery . _RecoverByEmail . _Email,
+        user' ^? userAccountRecovery . _RecoverByZAddr . Zcash._Address,
+        unPasswordHash pwdHash
+      )
+  case user' ^. userAccountRecovery of
+    RecoverByZAddr addr -> linkZcashAccount uid addr
+    RecoverByEmail _ -> pure ()
+  pure uid
+
 linkZcashAccount :: UserId -> Zcash.Address -> DBM ()
 linkZcashAccount uid addr =
   void $
@@ -99,6 +119,14 @@ findUserByName (UserName h) = do
     <$> pquery
       ((,) <$> idParser UserId <*> userParser)
       [sql| SELECT id, handle, recovery_email, recovery_zaddr FROM users WHERE handle = ? |]
+      (Only h)
+
+findUserByNameWithPassword :: UserName -> DBM (Maybe (UserId, User, Maybe PasswordHash))
+findUserByNameWithPassword (UserName h) = do
+  headMay
+    <$> pquery
+      ((\uid user pwdHash -> (uid, user, PasswordHash <$> pwdHash)) <$> idParser UserId <*> userParser <*> field)
+      [sql| SELECT id, handle, recovery_email, recovery_zaddr, password_hash FROM users WHERE handle = ? |]
       (Only h)
 
 findUserPaymentAddress :: UserId -> Currency a c -> DBM (Maybe (AccountId, a))

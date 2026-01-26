@@ -1,15 +1,10 @@
 #!/bin/bash
 
-if [ -f ".env" ]; then
-  source .env
-fi
+source "$(dirname "$0")/_common.sh"
 
-if [ -z "${AFTOK_HOST}" ]; then 
-  AFTOK_HOST="aftok.com"
-fi
-
+# Note: This endpoint doesn't require authentication
 read -p "Zcash Address: " ZADDR
 
 curl --verbose \
   ${ALLOW_INSECURE} \
-  "https://$AFTOK_HOST/api/validate_zaddr?zaddr=${ZADDR}"
+  "${AFTOK_URL}/api/validate_zaddr?zaddr=${ZADDR}"

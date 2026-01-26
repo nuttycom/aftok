@@ -37,10 +37,11 @@ where
 import Aftok.Currency.Zcash (Address (..))
 import Aftok.Database
   ( acceptInvitation,
-    createUser,
+    createUserWithPassword,
     findCurrentInvitation,
     findUserByName,
   )
+import Aftok.Password (hashPassword)
 import Aftok.Project (InvitationCode, parseInvCode)
 import Aftok.ServerConfig (CaptchaConfig (..))
 import Aftok.Servant.App (AppM, runDB)
@@ -318,13 +319,11 @@ registerHandler ops cfg req = do
         Right r ->
           pure $ RecoverByZAddr r
 
-  -- Create the user
-  -- Note: In the Snap version, this also creates an AU.AuthUser.
-  -- For Servant, we'll need to handle password storage differently.
-  -- For now, we create only the domain user.
+  -- Hash the password and create the user
   let uname = req ^. regUser . username
+  pwdHash <- liftIO $ hashPassword (req ^. password)
   runDB $ do
-    userId <- createUser $ User uname acctRecovery
+    userId <- createUserWithPassword (User uname acctRecovery) pwdHash
     void $ traverse (acceptInvitation userId now) (req ^. invitationCodes)
     pure userId
 

@@ -1,28 +1,17 @@
 #!/bin/bash
 
-if [ -f ".env" ]; then
-  source .env
-fi
-
-if [ -z "${AFTOK_HOST}" ]; then 
-  AFTOK_HOST="aftok.com"
-fi
-
-if [ -z "${USER}" ]; then 
-  read -p "Username: " USER
-  echo
-fi
+source "$(dirname "$0")/_common.sh"
+setup_auth
 
 read -p "Project Name: " PROJECT
-echo
 read -p "Undepreciated period (months): " UNDEPMON
 read -p "Depreciation duration (months): " DEPMON
 
 BODY=$(cat <<END_BODY
 {
-  "projectName": "$PROJECT", 
-  "depf": { 
-    "type": "LinearDepreciation",  
+  "projectName": "$PROJECT",
+  "depf": {
+    "type": "LinearDepreciation",
     "arguments": {
       "undep": $UNDEPMON,
       "dep": $DEPMON
@@ -34,8 +23,7 @@ END_BODY
 
 curl --verbose \
   ${ALLOW_INSECURE} \
-  --user $USER \
+  ${AUTH_OPTS} \
   --header "Content-Type: application/json" \
   --data "$BODY" \
-  "https://$AFTOK_HOST/api/projects"
-
+  "${AFTOK_URL}/api/projects"

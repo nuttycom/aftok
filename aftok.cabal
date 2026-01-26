@@ -104,6 +104,7 @@ library
     Aftok.Database.PostgreSQL.Users
     Aftok.Interval
     Aftok.Json
+    Aftok.Password
     Aftok.Payments
     Aftok.Payments.Types
     Aftok.Payments.Bitcoin
