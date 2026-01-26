@@ -100,6 +100,7 @@ library
     Aftok.Database.PostgreSQL.Auctions
     Aftok.Database.PostgreSQL.Billing
     Aftok.Database.PostgreSQL.Events
+    Aftok.Database.PostgreSQL.PasswordReset
     Aftok.Database.PostgreSQL.Projects
     Aftok.Database.PostgreSQL.Users
     Aftok.Interval
@@ -181,6 +182,7 @@ Executable aftok-server
     Aftok.Servant.API
     Aftok.Servant.Instances
     Aftok.Servant.Json
+    Aftok.Servant.PasswordReset
     Aftok.Servant.Server
     Aftok.Servant.Session
     Aftok.Servant.Users

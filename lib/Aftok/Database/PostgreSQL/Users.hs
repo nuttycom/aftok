@@ -13,6 +13,7 @@ module Aftok.Database.PostgreSQL.Users
     findUserProjectDetail,
     findAccountPaymentAddress,
     findAccountZcashIVK,
+    updateUserPassword,
   )
 where
 
@@ -183,3 +184,11 @@ findAccountZcashIVK aid =
             WHERE id = ?
             AND zcash_ivk IS NOT NULL |]
       (Only $ view _AccountId aid)
+
+-- | Update a user's password hash
+updateUserPassword :: UserId -> PasswordHash -> DBM ()
+updateUserPassword (UserId uid) pwdHash =
+  void $
+    pexec
+      [sql| UPDATE users SET password_hash = ? WHERE id = ? |]
+      (unPasswordHash pwdHash, uid)

@@ -14,6 +14,7 @@ import Aftok.Database
 import qualified Aftok.Database.PostgreSQL.Auctions as Q
 import qualified Aftok.Database.PostgreSQL.Billing as Q
 import qualified Aftok.Database.PostgreSQL.Events as Q
+import qualified Aftok.Database.PostgreSQL.PasswordReset as Q
 import qualified Aftok.Database.PostgreSQL.Projects as Q
 import qualified Aftok.Database.PostgreSQL.Users as Q
 import Control.Monad.Trans.Except (throwE)
@@ -92,4 +93,10 @@ pgEval =
       eventId <- Q.storeEvent' dbop
       Q.createPayment eventId p
     (FindPayments ccy rid) -> Q.findPayments ccy rid
+    -- Password reset operations
+    (CreatePasswordResetToken uid token expiresAt) -> Q.createPasswordResetToken uid token expiresAt
+    (FindPasswordResetToken token) -> Q.findPasswordResetToken token
+    (MarkPasswordResetTokenUsed tokenId usedAt) -> Q.markPasswordResetTokenUsed tokenId usedAt
+    (FindUserByEmail email) -> Q.findUserByEmail email
+    (UpdateUserPassword uid pwd) -> Q.updateUserPassword uid pwd
     (RaiseDBError err _) -> lift . throwE $ err

@@ -13,6 +13,7 @@ module Aftok.Servant.API
     module Aftok.Servant.Billing,
     module Aftok.Servant.Payments,
     module Aftok.Servant.Session,
+    module Aftok.Servant.PasswordReset,
 
     -- * Proxy
     aftokAPI,
@@ -20,6 +21,7 @@ module Aftok.Servant.API
 where
 
 import Aftok.Servant.Auth (AftokAuth)
+import Aftok.Servant.PasswordReset (PasswordResetAPI)
 import Aftok.Servant.Auctions
   ( AuctionsAPI,
     ProjectAuctionsAPI,
@@ -60,6 +62,8 @@ type VersionedAPI =
   UsersAPI
     -- Session endpoints (login/logout - public)
     :<|> SessionAPI
+    -- Password reset endpoints (public)
+    :<|> PasswordResetAPI
     -- Protected endpoints (auth required)
     :<|> AftokAuth :> ProtectedAPI
 

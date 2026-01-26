@@ -45,6 +45,8 @@ This clears the session and removes `cookies.txt`.
 ### Unauthenticated Endpoints
 - `create_user.sh` - Register a new user account
 - `check_zaddr.sh` - Validate a Zcash address
+- `request-password-reset.sh` - Request a password reset email
+- `confirm-password-reset.sh` - Reset password using token from email
 
 ### Project Management
 - `list_projects.sh` - List all projects for the authenticated user

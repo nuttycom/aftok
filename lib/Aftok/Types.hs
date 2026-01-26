@@ -48,6 +48,23 @@ newtype AccountId = AccountId UUID deriving (Show, Eq, Ord)
 
 makePrisms ''AccountId
 
+-- Identifier for a password reset token
+newtype PasswordResetTokenId = PasswordResetTokenId UUID deriving (Show, Eq, Ord)
+
+makePrisms ''PasswordResetTokenId
+
+-- A password reset token with its associated data
+data PasswordResetToken = PasswordResetToken
+  { _prtUserId :: !UserId,
+    _prtToken :: !Text,
+    _prtExpiresAt :: !C.UTCTime,
+    _prtCreatedAt :: !C.UTCTime,
+    _prtUsedAt :: !(Maybe C.UTCTime)
+  }
+  deriving (Show, Eq)
+
+makeLenses ''PasswordResetToken
+
 data CreditTo
   = -- payouts are made directly via a cryptocurrency network
     CreditToAccount !AccountId

@@ -35,6 +35,8 @@ import Aftok.Password (PasswordHash)
 import Aftok.Types
   ( AccountId,
     Email,
+    PasswordResetToken,
+    PasswordResetTokenId,
     ProjectId,
     User,
     UserId,
@@ -114,6 +116,12 @@ data DBOp a where
   FindSubscriptionUnpaidRequests :: SubscriptionId -> DBOp [(PaymentRequestId, SomePaymentRequestDetail)]
   CreatePayment :: Payment c -> DBOp PaymentId
   FindPayments :: Currency a c -> PaymentRequestId -> DBOp [(PaymentId, Payment c)]
+  -- Password reset operations
+  CreatePasswordResetToken :: UserId -> Text -> C.UTCTime -> DBOp PasswordResetTokenId
+  FindPasswordResetToken :: Text -> DBOp (Maybe (PasswordResetTokenId, PasswordResetToken))
+  MarkPasswordResetTokenUsed :: PasswordResetTokenId -> C.UTCTime -> DBOp ()
+  FindUserByEmail :: Email -> DBOp (Maybe (UserId, User))
+  UpdateUserPassword :: UserId -> PasswordHash -> DBOp ()
   RaiseDBError :: forall x y. DBError -> DBOp x -> DBOp y
 
 data InvitationError
@@ -180,6 +188,23 @@ findUserPaymentAddress uid n = MaybeT . liftdb $ FindUserPaymentAddress uid n
 
 findAccountPaymentAddress :: (MonadDB m) => AccountId -> Currency a c -> MaybeT m (AccountId, a)
 findAccountPaymentAddress aid n = fmap (aid,) . MaybeT . liftdb $ FindAccountPaymentAddress aid n
+
+findUserByEmail :: (MonadDB m) => Email -> MaybeT m (UserId, User)
+findUserByEmail = MaybeT . liftdb . FindUserByEmail
+
+updateUserPassword :: (MonadDB m) => UserId -> PasswordHash -> m ()
+updateUserPassword uid pwd = liftdb $ UpdateUserPassword uid pwd
+
+-- Password reset ops
+
+createPasswordResetToken :: (MonadDB m) => UserId -> Text -> C.UTCTime -> m PasswordResetTokenId
+createPasswordResetToken uid token expiresAt = liftdb $ CreatePasswordResetToken uid token expiresAt
+
+findPasswordResetToken :: (MonadDB m) => Text -> MaybeT m (PasswordResetTokenId, PasswordResetToken)
+findPasswordResetToken = MaybeT . liftdb . FindPasswordResetToken
+
+markPasswordResetTokenUsed :: (MonadDB m) => PasswordResetTokenId -> C.UTCTime -> m ()
+markPasswordResetTokenUsed tokenId usedAt = liftdb $ MarkPasswordResetTokenUsed tokenId usedAt
 
 -- Project ops
 

@@ -52,6 +52,11 @@ import Aftok.Servant.Session
     protectedSessionServer,
     sessionServer,
   )
+import Aftok.Servant.PasswordReset
+  ( PasswordResetAPI,
+    PasswordResetOps,
+    passwordResetServer,
+  )
 import Aftok.Servant.WorkLog (WorkLogAPI, workLogServer)
 import Crypto.JOSE.JWK (JWK)
 import Data.Pool (Pool)
@@ -91,10 +96,11 @@ aftokServer ::
   PaymentsConfig QDBM ->
   RegisterOps IO ->
   CaptchaConfig ->
+  PasswordResetOps IO ->
   FilePath ->
   ServerT AftokAPI AppM
-aftokServer btcCfg payCfg regOps captchaCfg staticDir =
-  apiServer btcCfg payCfg regOps captchaCfg
+aftokServer btcCfg payCfg regOps captchaCfg pwResetOps staticDir =
+  apiServer btcCfg payCfg regOps captchaCfg pwResetOps
     :<|> serveDirectoryWebApp staticDir
 
 -- | Protected API combines all protected endpoints
@@ -113,10 +119,12 @@ apiServer ::
   PaymentsConfig QDBM ->
   RegisterOps IO ->
   CaptchaConfig ->
-  ServerT (UsersAPI :<|> SessionAPI :<|> AftokAuth :> ProtectedAPI) AppM
-apiServer btcCfg payCfg regOps captchaCfg =
+  PasswordResetOps IO ->
+  ServerT (UsersAPI :<|> SessionAPI :<|> PasswordResetAPI :<|> AftokAuth :> ProtectedAPI) AppM
+apiServer btcCfg payCfg regOps captchaCfg pwResetOps =
   usersServer regOps captchaCfg
     :<|> sessionServer
+    :<|> passwordResetServer pwResetOps
     :<|> protectedServer btcCfg payCfg
 
 -- | Protected server (requires authentication)
@@ -148,15 +156,16 @@ aftokApp ::
   PaymentsConfig QDBM ->
   RegisterOps IO ->
   CaptchaConfig ->
+  PasswordResetOps IO ->
   FilePath ->
   Application
-aftokApp env btcCfg payCfg regOps captchaCfg staticDir =
+aftokApp env btcCfg payCfg regOps captchaCfg pwResetOps staticDir =
   serveWithContext
     aftokAPI
     (authContext env)
     (hoistServerWithContext aftokAPI contextProxy (appToHandler env) server)
   where
-    server = aftokServer btcCfg payCfg regOps captchaCfg staticDir
+    server = aftokServer btcCfg payCfg regOps captchaCfg pwResetOps staticDir
 
 -- | Auth context for servant-auth-server
 authContext :: AppEnv -> Context '[CookieSettings, JWTSettings, AppEnv]
