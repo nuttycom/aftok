@@ -40,7 +40,15 @@ import qualified Network.Mail.Mime as Mime
 import qualified Network.Mail.SMTP as SMTP
 import Network.Wai.Handler.Warp (run)
 import Network.Wai.Middleware.Cors (simpleCors)
-import Network.Wai.Middleware.RequestLogger (logStdoutDev)
+import Network.Wai.Middleware.RequestLogger
+  ( mkRequestLogger,
+    defaultRequestLoggerSettings,
+    outputFormat,
+    OutputFormat(..),
+    destination,
+    Destination(..),
+    IPAddrSource(..),
+  )
 import Options.Applicative
   ( Parser,
     execParser,
@@ -91,8 +99,14 @@ main = do
   -- Create application environment
   let env = mkAppEnv nmode pool cfg jwk
 
+  -- Create request logger (Apache format - doesn't log request bodies)
+  requestLogger <- mkRequestLogger defaultRequestLoggerSettings
+    { outputFormat = Apache FromSocket
+    , destination = Handle stdout
+    }
+
   -- Create WAI application
-  let app = logStdoutDev $ simpleCors $ aftokApp env btcCfg paymentsConfig rops captchaCfg pwResetOps staticDir
+  let app = requestLogger $ simpleCors $ aftokApp env btcCfg paymentsConfig rops captchaCfg pwResetOps staticDir
 
   -- Run server
   let serverPort = cfg ^. port
