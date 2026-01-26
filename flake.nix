@@ -5,11 +5,11 @@
     nixpkgs.url = "github:NixOS/nixpkgs/release-25.11";
     flake-utils.url = "github:numtide/flake-utils";
     dbmigrations = {
-      url = "github:haskell-github-trust/dbmigrations/d870aa2bdc6ac219bfdd182bcada3a9534dc23a8";
+      url = "github:haskell-github-trust/dbmigrations/e2840f47f819252f1cc9c6010b5c7bff5d4df763";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     dbmigrations-postgresql = {
-      url = "github:nuttycom/dbmigrations-postgresql/e7427642c12aa5f2d9bfedd268cfc8dcf78f314e";
+      url = "github:nuttycom/dbmigrations-postgresql/6c6dffaba5a7a51b21a7f9d5862ea02bb899f3ee";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     dbmigrations-postgresql-simple = {

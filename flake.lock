@@ -45,17 +45,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1769367998,
-        "narHash": "sha256-+asn+o0SsVU51IzQh+/sQ9CrkkdcKd8MU8pZc4jUSBM=",
+        "lastModified": 1769403042,
+        "narHash": "sha256-4wywuuLXFdCiMsIAHppYAIF/6qGxZDB0ylqfFLMunjU=",
         "owner": "haskell-github-trust",
         "repo": "dbmigrations",
-        "rev": "d870aa2bdc6ac219bfdd182bcada3a9534dc23a8",
+        "rev": "e2840f47f819252f1cc9c6010b5c7bff5d4df763",
         "type": "github"
       },
       "original": {
         "owner": "haskell-github-trust",
         "repo": "dbmigrations",
-        "rev": "d870aa2bdc6ac219bfdd182bcada3a9534dc23a8",
+        "rev": "e2840f47f819252f1cc9c6010b5c7bff5d4df763",
         "type": "github"
       }
     },
@@ -68,17 +68,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1769370105,
-        "narHash": "sha256-wuHF8iWtzV8Lppl0cVZgJRgUBnXMEjbjK+Wzs3w/Qz8=",
+        "lastModified": 1769403497,
+        "narHash": "sha256-epIfSQJpJjGz0MJQ6z14W7b3v09nRbqvFYlM24OHOV8=",
         "owner": "nuttycom",
         "repo": "dbmigrations-postgresql",
-        "rev": "e7427642c12aa5f2d9bfedd268cfc8dcf78f314e",
+        "rev": "6c6dffaba5a7a51b21a7f9d5862ea02bb899f3ee",
         "type": "github"
       },
       "original": {
         "owner": "nuttycom",
         "repo": "dbmigrations-postgresql",
-        "rev": "e7427642c12aa5f2d9bfedd268cfc8dcf78f314e",
+        "rev": "6c6dffaba5a7a51b21a7f9d5862ea02bb899f3ee",
         "type": "github"
       }
     },
@@ -114,17 +114,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1769367998,
-        "narHash": "sha256-+asn+o0SsVU51IzQh+/sQ9CrkkdcKd8MU8pZc4jUSBM=",
+        "lastModified": 1769403042,
+        "narHash": "sha256-4wywuuLXFdCiMsIAHppYAIF/6qGxZDB0ylqfFLMunjU=",
         "owner": "haskell-github-trust",
         "repo": "dbmigrations",
-        "rev": "d870aa2bdc6ac219bfdd182bcada3a9534dc23a8",
+        "rev": "e2840f47f819252f1cc9c6010b5c7bff5d4df763",
         "type": "github"
       },
       "original": {
         "owner": "haskell-github-trust",
         "repo": "dbmigrations",
-        "rev": "d870aa2bdc6ac219bfdd182bcada3a9534dc23a8",
+        "rev": "e2840f47f819252f1cc9c6010b5c7bff5d4df763",
         "type": "github"
       }
     },
