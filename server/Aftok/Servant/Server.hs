@@ -66,8 +66,11 @@ import Servant.Auth.Server
   ( AuthResult (..),
     CookieSettings (..),
     JWTSettings,
+    SameSite (..),
+    XsrfCookieSettings (..),
     defaultCookieSettings,
     defaultJWTSettings,
+    defaultXsrfCookieSettings,
   )
 
 -- | Create application environment
@@ -84,6 +87,12 @@ mkAppEnv nmode pool cfg jwk =
       _envConfig = cfg,
       _envCookieSettings = defaultCookieSettings
         { cookieIsSecure = if cfg ^. secureCookies then Secure else NotSecure
+        , cookieSameSite = SameSiteStrict
+        , cookiePath = Just "/"
+        , cookieMaxAge = Just 86400  -- 24 hours
+        , cookieXsrfSetting = Just defaultXsrfCookieSettings
+            { xsrfExcludeGet = True  -- Don't require XSRF token for GET requests
+            }
         },
       _envJWTSettings = defaultJWTSettings jwk
     }

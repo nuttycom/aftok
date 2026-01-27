@@ -71,9 +71,18 @@
       in {
         packages = {
           aftok = pkgs.haskellPackages.aftok;
+          templates = pkgs.runCommand "aftok-templates" {} ''
+            mkdir -p $out/opt/aftok/server/templates
+            cp ${./server/templates}/* $out/opt/aftok/server/templates/
+          '';
           dockerImage = pkgs.dockerTools.buildImage {
             name = "aftok/aftok-server";
             tag = "latest";
+            copyToRoot = pkgs.buildEnv {
+              name = "aftok-server-root";
+              paths = [ self.packages.${system}.templates ];
+              pathsToLink = [ "/opt" ];
+            };
             config = {
               Entrypoint = ["${self.packages.${system}.aftok}/bin/aftok-server" "--conf=/etc/aftok/aftok-server.cfg"];
             };

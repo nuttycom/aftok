@@ -17,6 +17,7 @@ import Aftok.ServerConfig
     loadServerConfig,
     port,
     recaptchaSecret,
+    secureCookies,
     smtpConfig,
     staticAssetPath,
     templatePath,
@@ -38,8 +39,23 @@ import Lrzhs (isValidSaplingAddress)
 import Network.Mail.Mime (Mail, plainPart)
 import qualified Network.Mail.Mime as Mime
 import qualified Network.Mail.SMTP as SMTP
+import Data.List (lookup)
+import Network.Wai (requestHeaders)
 import Network.Wai.Handler.Warp (run)
-import Network.Wai.Middleware.Cors (simpleCors)
+import Network.Wai.Middleware.Cors
+  ( cors,
+    corsOrigins,
+    corsMethods,
+    corsRequestHeaders,
+    corsExposedHeaders,
+    corsMaxAge,
+    corsVaryOrigin,
+    corsRequireOrigin,
+    corsIgnoreFailures,
+    CorsResourcePolicy(..),
+    simpleHeaders,
+    simpleMethods,
+  )
 import Network.Wai.Middleware.RequestLogger
   ( mkRequestLogger,
     defaultRequestLoggerSettings,
@@ -105,8 +121,22 @@ main = do
     , destination = Handle stdout
     }
 
-  -- Create WAI application
-  let app = requestLogger $ simpleCors $ aftokApp env btcCfg paymentsConfig rops captchaCfg pwResetOps staticDir
+  -- Create WAI application with CORS that supports credentials
+  -- corsOrigins = Just (origins, allowCredentials) - the Bool enables Access-Control-Allow-Credentials
+  -- Using an empty list with True means "reflect Origin header and allow credentials"
+  let corsPolicy = cors $ \req ->
+        let maybeOrigin = lookup "Origin" (requestHeaders req)
+        in Just CorsResourcePolicy
+          { corsOrigins = fmap (\origin -> ([origin], True)) maybeOrigin
+          , corsMethods = simpleMethods <> ["PUT", "DELETE", "PATCH"]
+          , corsRequestHeaders = simpleHeaders <> ["Content-Type", "X-XSRF-TOKEN", "Authorization"]
+          , corsExposedHeaders = Just ["Set-Cookie"]
+          , corsMaxAge = Just 86400  -- Cache preflight for 24 hours
+          , corsVaryOrigin = True  -- Important: vary response by Origin header
+          , corsRequireOrigin = False
+          , corsIgnoreFailures = False
+          }
+      app = requestLogger $ corsPolicy $ aftokApp env btcCfg paymentsConfig rops captchaCfg pwResetOps staticDir
 
   -- Run server
   let serverPort = cfg ^. port
@@ -133,7 +163,7 @@ passwordResetOps cfg =
         sendPasswordResetEmailImpl cfg email uname resetUrl expiryHours,
       generateResetUrl = \token ->
         let host = decodeUtf8 $ cfg ^. hostname
-         in "https://" <> host <> "/app/?resetToken=" <> token <> "#reset-password"
+         in "https://" <> host <> "/app/#reset-confirm/" <> token
     }
 
 -- | Send password reset email implementation
@@ -146,13 +176,20 @@ sendPasswordResetEmailImpl ::
   IO ()
 sendPasswordResetEmailImpl cfg toEmail uname resetUrl expiryHours =
   let SmtpConfig {..} = cfg ^. smtpConfig
-      mailer =
-        maybe
-          (SMTP.sendMailWithLogin _smtpHost)
-          (SMTP.sendMailWithLogin' _smtpHost)
-          _smtpPort
+      -- Only allow unauthenticated SMTP in development mode (secureCookies = false)
+      -- and when credentials are empty
+      isDevelopment = not (cfg ^. secureCookies)
+      useUnauthenticated = isDevelopment && (null _smtpUser || null _smtpPass)
+      sendEmail mail =
+        if useUnauthenticated
+          then case _smtpPort of
+            Nothing -> SMTP.sendMail _smtpHost mail
+            Just smtpPort -> SMTP.sendMail' _smtpHost smtpPort mail
+          else case _smtpPort of
+            Nothing -> SMTP.sendMailWithLogin _smtpHost _smtpUser _smtpPass mail
+            Just smtpPort -> SMTP.sendMailWithLogin' _smtpHost smtpPort _smtpUser _smtpPass mail
    in buildPasswordResetEmail (cfg ^. templatePath) toEmail uname resetUrl expiryHours
-        >>= (mailer _smtpUser _smtpPass)
+        >>= sendEmail
 
 -- | Build password reset email
 buildPasswordResetEmail ::

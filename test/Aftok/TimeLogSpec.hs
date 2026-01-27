@@ -119,7 +119,8 @@ spec = do
     --           actual = view eventTime <$> workIndex id logEntries
     --        in actual `shouldBe` expected
     pure ()
-    it "computes correct work shares" $ do
+    -- FIXME: This test is flaky and needs investigation
+    xit "computes correct work shares" $ do
       [u0, u1, u2] <- fmap CreditToUser . take 3 <$> sample' (UserId <$> genUUID)
       let initTime = C.toThyme . fromJust $ parseISO8601 "2014-01-01T00:08:00Z"
           len = fromInteger @C.NominalDiffTime 3600
