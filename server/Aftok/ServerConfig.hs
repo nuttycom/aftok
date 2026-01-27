@@ -24,6 +24,7 @@ module Aftok.ServerConfig
     port,
     cookieTimeout,
     secureCookies,
+    corsAllowedOrigins,
     dbConfig,
     dbConnStr,
     smtpConfig,
@@ -90,6 +91,7 @@ data ServerConfig = ServerConfig
     _port :: Int,
     _cookieTimeout :: Maybe Int,
     _secureCookies :: Bool,
+    _corsAllowedOrigins :: [Text],
     _dbConfig :: DbConfig,
     _smtpConfig :: SmtpConfig,
     _billingConfig :: BillingConfig,
@@ -116,6 +118,7 @@ readServerConfig cfg pc =
     <*> C.lookupDefault 8000 cfg "port"
     <*> C.lookup cfg "cookieTimeout"
     <*> C.lookupDefault True cfg "secureCookies"
+    <*> C.lookupDefault [] cfg "corsAllowedOrigins"
     <*> maybe (mkDbConfig $ C.subconfig "db" cfg) pure pc
     <*> readSmtpConfig cfg
     <*> (readBillingConfig $ C.subconfig "billing" cfg)

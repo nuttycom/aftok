@@ -11,6 +11,7 @@ import Aftok.Database.PostgreSQL (QDBM)
 import Aftok.ServerConfig
   ( ServerConfig,
     billingConfig,
+    corsAllowedOrigins,
     dbConfig,
     dbConnStr,
     hostname,
@@ -123,11 +124,16 @@ main = do
 
   -- Create WAI application with CORS that supports credentials
   -- corsOrigins = Just (origins, allowCredentials) - the Bool enables Access-Control-Allow-Credentials
-  -- Using an empty list with True means "reflect Origin header and allow credentials"
-  let corsPolicy = cors $ \req ->
+  -- Only allow origins from the configured allowlist
+  let allowedOrigins = cfg ^. corsAllowedOrigins
+      corsPolicy = cors $ \req ->
         let maybeOrigin = lookup "Origin" (requestHeaders req)
+            originText = decodeUtf8 <$> maybeOrigin
+            isAllowed = maybe False (`elem` allowedOrigins) originText
         in Just CorsResourcePolicy
-          { corsOrigins = fmap (\origin -> ([origin], True)) maybeOrigin
+          { corsOrigins = if isAllowed
+                          then fmap (\origin -> ([origin], True)) maybeOrigin
+                          else Nothing  -- Deny credentials for unknown origins
           , corsMethods = simpleMethods <> ["PUT", "DELETE", "PATCH"]
           , corsRequestHeaders = simpleHeaders <> ["Content-Type", "X-XSRF-TOKEN", "Authorization"]
           , corsExposedHeaders = Just ["Set-Cookie"]
