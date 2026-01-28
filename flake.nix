@@ -80,11 +80,17 @@
             tag = "latest";
             copyToRoot = pkgs.buildEnv {
               name = "aftok-server-root";
-              paths = [ self.packages.${system}.templates ];
-              pathsToLink = [ "/opt" ];
+              paths = [
+                self.packages.${system}.templates
+                pkgs.cacert  # CA certificates for HTTPS connections
+              ];
+              pathsToLink = [ "/opt" "/etc" ];
             };
             config = {
               Entrypoint = ["${self.packages.${system}.aftok}/bin/aftok-server" "--conf=/etc/aftok/aftok-server.cfg"];
+              Env = [
+                "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
+              ];
             };
           };
           default = self.packages.${system}.dockerImage;

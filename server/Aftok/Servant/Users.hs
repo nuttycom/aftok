@@ -43,7 +43,7 @@ import Aftok.Database
   )
 import Aftok.Password (hashPassword)
 import Aftok.Project (InvitationCode, parseInvCode)
-import Aftok.ServerConfig (CaptchaConfig (..))
+import Aftok.ServerConfig (CaptchaConfig (..), captchaSecretKey)
 import Aftok.Servant.App (AppM, runDB)
 import Aftok.Servant.Auth (AuthenticatedUser (..))
 import Aftok.Types
@@ -237,7 +237,7 @@ checkCaptcha cfg token = do
   request <- parseRequest "https://www.google.com/recaptcha/api/siteverify"
   reqWithBody <-
     formDataBody
-      [ partBS "secret" (T.encodeUtf8 $ secretKey cfg),
+      [ partBS "secret" (T.encodeUtf8 $ cfg ^. captchaSecretKey),
         partBS "response" (T.encodeUtf8 token)
       ]
       request

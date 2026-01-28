@@ -19,6 +19,7 @@ import Aftok.Payments (PaymentsConfig)
 import Aftok.ServerConfig (ServerConfig, secureCookies)
 import Control.Lens ((^.))
 import Aftok.Servant.API (AftokAPI, aftokAPI)
+import Aftok.Servant.Config (ConfigAPI, configServer)
 import Aftok.Servant.App (AppEnv (..), AppM, appToHandler)
 import Aftok.Servant.Instances ()
 import Aftok.Servant.Auth (AftokAuth, AuthenticatedUser)
@@ -127,11 +128,12 @@ apiServer ::
   RegisterOps IO ->
   CaptchaConfig ->
   PasswordResetOps IO ->
-  ServerT (UsersAPI :<|> SessionAPI :<|> PasswordResetAPI :<|> AftokAuth :> ProtectedAPI) AppM
+  ServerT (UsersAPI :<|> SessionAPI :<|> PasswordResetAPI :<|> ConfigAPI :<|> AftokAuth :> ProtectedAPI) AppM
 apiServer btcCfg payCfg regOps captchaCfg pwResetOps =
   usersServer regOps captchaCfg
     :<|> sessionServer
     :<|> passwordResetServer pwResetOps
+    :<|> configServer captchaCfg
     :<|> protectedServer btcCfg payCfg
 
 -- | Protected server (requires authentication)

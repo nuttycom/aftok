@@ -15,6 +15,8 @@ module Aftok.ServerConfig
 
     -- * Captcha Configuration
     CaptchaConfig (..),
+    captchaSiteKey,
+    captchaSecretKey,
 
     -- * Zcash Configuration
     readZcashConfig,
@@ -54,9 +56,12 @@ import Lrzhs.Types (Network (..))
 import System.Environment (getEnvironment)
 
 -- | Captcha configuration for reCAPTCHA
-newtype CaptchaConfig = CaptchaConfig
-  { secretKey :: Text
+data CaptchaConfig = CaptchaConfig
+  { _captchaSiteKey :: Text,    -- ^ Public site key (sent to client)
+    _captchaSecretKey :: Text   -- ^ Secret key (server-side verification)
   }
+
+makeLenses ''CaptchaConfig
 
 -- | Database configuration
 data DbConfig = DbConfig
@@ -134,7 +139,7 @@ readServerConfig cfg pc =
               cfg
               "staticAssetPath"
         )
-    <*> (CaptchaConfig <$> C.require cfg "recaptchaSecret")
+    <*> (CaptchaConfig <$> C.require cfg "recaptchaSiteKey" <*> C.require cfg "recaptchaSecret")
     <*> (readZcashConfig $ C.subconfig "zcash" cfg)
 
 instance CT.Configured Network where

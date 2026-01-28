@@ -21,6 +21,7 @@ module Aftok.Servant.API
 where
 
 import Aftok.Servant.Auth (AftokAuth)
+import Aftok.Servant.Config (ConfigAPI)
 import Aftok.Servant.PasswordReset (PasswordResetAPI)
 import Aftok.Servant.Auctions
   ( AuctionsAPI,
@@ -64,6 +65,8 @@ type VersionedAPI =
     :<|> SessionAPI
     -- Password reset endpoints (public)
     :<|> PasswordResetAPI
+    -- Client configuration endpoint (public)
+    :<|> ConfigAPI
     -- Protected endpoints (auth required)
     :<|> AftokAuth :> ProtectedAPI
 
