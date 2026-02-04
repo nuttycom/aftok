@@ -315,7 +315,7 @@ sorts can be perpetrated is greatly reduced.
 How Things Should Work
 ----------------------
 
-Given all of this, it should be obvious that (Aftok.com)[http://aftok.com] is
+Given all of this, it should be obvious that [Aftok.com](http://aftok.com) is
 itself being built by an aftok, rather than some ordinary corporate entity. As
 such, I'm now going to slip into first-person for a moment to express my
 personal motivation for initiating this project. My name is Kris Nuttycombe,
@@ -331,7 +331,8 @@ My objective in creating this service is simple; I want to be able to support
 my family doing the work that I love, in an environment of mutual respect and
 trust with my collaborators. I firmly believe that I will personally achieve
 greatest success in this endeavor if I reject entirely notions of control and
-coercion.  Communication is only possible between equals <sup>1</sup>, and I
+coercion.  Communication is only possible between equals
+[<sup>1</sup>](https://en.wikipedia.org/wiki/Celine%27s_laws), and I
 believe that where communication is inhibited, the end result suffers. As such,
 it's up to each of my collaborators to decide for themselves what work, if any,
 they wish to do in the creation and promotion of this service. Each of them
