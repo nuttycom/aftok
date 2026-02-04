@@ -1,6 +1,8 @@
 {
   description = "The Aftok Collaboration Server";
 
+  nixConfig.allow-import-from-derivation = true;
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/release-25.11";
     flake-utils.url = "github:numtide/flake-utils";
