@@ -21,7 +21,7 @@ import Control.Lens ((^.))
 import Aftok.Servant.API (AftokAPI, aftokAPI)
 import Aftok.Servant.Config (ConfigAPI, configServer)
 import Aftok.Servant.App (AppEnv (..), AppM, appToHandler)
-import Aftok.Servant.Instances ()
+import Aftok.API.Types ()
 import Aftok.Servant.Auth (AftokAuth, AuthenticatedUser)
 import Aftok.Servant.Auctions
   ( ProtectedAuctionsAPI,

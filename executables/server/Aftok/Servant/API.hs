@@ -2,8 +2,11 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Aftok.Servant.API
-  ( -- * Top-level API
+  ( -- * Top-level API (re-exported from aftok-api)
     AftokAPI,
+    VersionedAPI,
+    ProtectedAPI,
+    aftokAPI,
 
     -- * Component APIs (re-exported from handler modules)
     module Aftok.Servant.Users,
@@ -14,79 +17,22 @@ module Aftok.Servant.API
     module Aftok.Servant.Payments,
     module Aftok.Servant.Session,
     module Aftok.Servant.PasswordReset,
-
-    -- * Proxy
-    aftokAPI,
+    module Aftok.Servant.Config,
   )
 where
 
-import Aftok.Servant.Auth (AftokAuth)
-import Aftok.Servant.Config (ConfigAPI)
-import Aftok.Servant.PasswordReset (PasswordResetAPI)
+import Aftok.API
+  ( AftokAPI,
+    ProtectedAPI,
+    VersionedAPI,
+    aftokAPI,
+  )
 import Aftok.Servant.Auctions
-  ( AuctionsAPI,
-    ProjectAuctionsAPI,
-    ProtectedAuctionsAPI,
-  )
 import Aftok.Servant.Billing
-  ( BillingAPI,
-    ProjectBillablesAPI,
-    ProtectedBillingAPI,
-  )
+import Aftok.Servant.Config
+import Aftok.Servant.PasswordReset
 import Aftok.Servant.Payments
-  ( PaymentsAPI,
-    ProtectedPaymentsAPI,
-  )
 import Aftok.Servant.Projects
-  ( ProjectsAPI,
-    ProtectedProjectsAPI,
-  )
 import Aftok.Servant.Session
-  ( ProtectedSessionAPI,
-    SessionAPI,
-  )
 import Aftok.Servant.Users
-  ( ProtectedUsersAPI,
-    UsersAPI,
-  )
-import Aftok.Servant.WorkLog (WorkLogAPI)
-import Servant
-
--- | Top-level API combining all routes
-type AftokAPI =
-  "api" :> VersionedAPI
-    :<|> "static" :> Raw
-
--- | Versioned API (could add v2, v3, etc. later)
-type VersionedAPI =
-  -- Public endpoints (no auth required)
-  UsersAPI
-    -- Session endpoints (login/logout - public)
-    :<|> SessionAPI
-    -- Password reset endpoints (public)
-    :<|> PasswordResetAPI
-    -- Client configuration endpoint (public)
-    :<|> ConfigAPI
-    -- Protected endpoints (auth required)
-    :<|> AftokAuth :> ProtectedAPI
-
--- | Protected endpoints (auth required)
-type ProtectedAPI =
-  -- Projects (list, create, single project operations)
-  ProtectedProjectsAPI
-    -- WorkLog (user project operations + event amendments)
-    :<|> WorkLogAPI
-    -- Auctions (single auction operations)
-    :<|> ProtectedAuctionsAPI
-    -- Billing (subscriptions)
-    :<|> ProtectedBillingAPI
-    -- Payments (BIP70)
-    :<|> ProtectedPaymentsAPI
-    -- User operations (accept invitation)
-    :<|> ProtectedUsersAPI
-    -- Session operations (login check)
-    :<|> ProtectedSessionAPI
-
--- | Proxy for the API (used for serving)
-aftokAPI :: Proxy AftokAPI
-aftokAPI = Proxy
+import Aftok.Servant.WorkLog

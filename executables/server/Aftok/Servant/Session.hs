@@ -1,13 +1,13 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Aftok.Servant.Session
-  ( -- * API Types
+  ( -- * API Types (re-exported from aftok-api)
     SessionAPI,
     ProtectedSessionAPI,
+    LoginCheckResponse (..),
 
     -- * Handlers
     sessionServer,
@@ -15,14 +15,17 @@ module Aftok.Servant.Session
   )
 where
 
+import Aftok.API.Session
+  ( LoginCheckResponse (..),
+    ProtectedSessionAPI,
+    SessionAPI,
+  )
 import Aftok.Database (findUserByNameWithPassword)
 import Aftok.Password (verifyPassword)
 import Aftok.Servant.App (AppEnv (..), AppM, runDB)
 import Aftok.Servant.Auth (AuthenticatedUser (..), LoginRequest (..))
 import Aftok.Types (UserName (..), username, _UserName)
 import Control.Lens ((^.))
-import Data.Aeson (ToJSON (..), (.=))
-import qualified Data.Aeson as A
 import Servant
 import Servant.Auth.Server
   ( AuthResult (..),
@@ -30,34 +33,6 @@ import Servant.Auth.Server
     acceptLogin,
     clearSession,
   )
-
--- | Session API (public endpoints)
-type SessionAPI =
-  -- POST /login - authenticate and get session cookie
-  "login"
-    :> ReqBody '[JSON] LoginRequest
-    :> Post '[JSON] (Headers '[Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent)
-    -- GET /logout - clear session
-    :<|> "logout" :> Get '[JSON] (Headers '[Header "Set-Cookie" SetCookie, Header "Set-Cookie" SetCookie] NoContent)
-
--- | Protected Session API (requires auth)
-type ProtectedSessionAPI =
-  -- GET /login/check - verify current session
-  "login" :> "check" :> Get '[JSON] LoginCheckResponse
-
--- | Login check response
-data LoginCheckResponse = LoginCheckResponse
-  { loggedIn :: Bool,
-    loginUser :: Maybe AuthenticatedUser
-  }
-  deriving (Show, Eq, Generic)
-
-instance ToJSON LoginCheckResponse where
-  toJSON (LoginCheckResponse li user) =
-    A.object
-      [ "loggedIn" .= li,
-        "user" .= user
-      ]
 
 -- | Session server implementation (public endpoints)
 sessionServer :: ServerT SessionAPI AppM

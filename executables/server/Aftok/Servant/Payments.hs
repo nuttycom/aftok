@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Aftok.Servant.Payments
-  ( -- * API Types
+  ( -- * API Types (re-exported from aftok-api)
     PaymentsAPI,
     ProtectedPaymentsAPI,
 
@@ -13,16 +13,16 @@ module Aftok.Servant.Payments
   )
 where
 
+import Aftok.API.Payments (PaymentsAPI, ProtectedPaymentsAPI)
 import qualified Aftok.Config as AC
 import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
-import Aftok.Billing (SubscriptionId (..))
 import Aftok.Database
   ( DBOp (..),
     findPaymentRequestByKey,
     liftdb,
   )
-import qualified Aftok.Payments as Payments
 import Aftok.Database.PostgreSQL (QDBM)
+import qualified Aftok.Payments as Payments
 import Aftok.Payments
   ( PaymentsConfig,
     SomePaymentRequest (..),
@@ -37,6 +37,7 @@ import Aftok.Payments.Types
 import Aftok.Servant.App (AppM, runDB)
 import Aftok.Servant.Auth (AuthenticatedUser (..))
 import Aftok.Servant.Billing (paymentRequestDetailJSON)
+import Aftok.Billing (SubscriptionId (..))
 import Aftok.Util (fromMaybeT)
 import Control.Lens ((^.))
 import Control.Monad.Trans.Maybe (mapMaybeT)
@@ -47,31 +48,6 @@ import Data.Serialize.Put (runPut)
 import qualified Data.Thyme.Clock as C
 import Servant
 import Servant.Auth.Server (AuthResult (..))
-
---------------------------------------------------------------------------------
--- API Types
---------------------------------------------------------------------------------
-
--- | Public Payments API (none currently)
-type PaymentsAPI = EmptyAPI
-
--- | Protected payments API
-type ProtectedPaymentsAPI =
-  -- GET /subscriptions/:subscriptionId/paymentRequests - List payable requests
-  ( "subscriptions"
-      :> Capture "subscriptionId" SubscriptionId
-      :> "paymentRequests"
-      :> Get '[JSON] Value
-  )
-    -- BIP70 payment endpoints
-    :<|> "pay"
-      :> "btc"
-      :> Capture "paymentRequestKey" Text
-      :> ( -- GET /pay/btc/:paymentRequestKey - Get BIP70 payment request (returns protobuf)
-           Get '[OctetStream] ByteString
-             -- POST /pay/btc/:paymentRequestKey - Submit BIP70 payment
-             :<|> ReqBody '[OctetStream] ByteString :> Post '[JSON] PaymentId
-         )
 
 --------------------------------------------------------------------------------
 -- Handlers

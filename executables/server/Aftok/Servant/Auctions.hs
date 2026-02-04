@@ -1,22 +1,19 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Aftok.Servant.Auctions
-  ( -- * API Types
+  ( -- * API Types (re-exported from aftok-api)
     AuctionsAPI,
     ProtectedAuctionsAPI,
     ProjectAuctionsAPI,
+    AuctionCreateRequest (..),
+    BidCreateRequest (..),
 
     -- * Handlers
     protectedAuctionsServer,
     projectAuctionsServer,
-
-    -- * Request/Response Types
-    AuctionCreateRequest (..),
-    BidCreateRequest (..),
 
     -- * JSON helpers
     auctionJSON,
@@ -24,6 +21,13 @@ module Aftok.Servant.Auctions
   )
 where
 
+import Aftok.API.Auctions
+  ( AuctionCreateRequest (..),
+    AuctionsAPI,
+    BidCreateRequest (..),
+    ProjectAuctionsAPI,
+    ProtectedAuctionsAPI,
+  )
 import Aftok.Auction
   ( Auction (Auction),
     AuctionId,
@@ -40,11 +44,11 @@ import Aftok.Auction
   )
 import Aftok.Currency (Amount)
 import Aftok.Database
-  ( createAuction,
+  ( Limit (..),
+    createAuction,
     createBid,
     findAuction,
     listAuctions,
-    Limit (..),
   )
 import Aftok.Interval (RangeQuery (..))
 import Aftok.Json (amountJSON, idValue, obj, parseAmountJSON, v1)
@@ -54,79 +58,13 @@ import Aftok.Types (ProjectId, _ProjectId, _UserId)
 import Aftok.Util (fromMaybeT)
 import Control.Lens (to, (^.))
 import Control.Monad.Trans.Maybe (mapMaybeT)
-import Data.Aeson
-  ( FromJSON (..),
-    Value,
-    (.:),
-    (.:?),
-    (.=),
-  )
+import Data.Aeson (Value, (.=))
 import qualified Data.Aeson as A
 import Data.Aeson.Types (parseEither)
 import Data.Hourglass.Types (Seconds (..))
 import qualified Data.Thyme.Clock as C
 import Servant
 import Servant.Auth.Server (AuthResult (..))
-
---------------------------------------------------------------------------------
--- Data Types (must be defined before API types that reference them)
---------------------------------------------------------------------------------
-
--- | Auction creation request
-data AuctionCreateRequest = AuctionCreateRequest
-  { acrName :: Text,
-    acrDescription :: Maybe Text,
-    acrRaiseAmount :: Value,  -- JSON value to be parsed with parseAmountJSON
-    acrAuctionStart :: C.UTCTime,
-    acrAuctionEnd :: C.UTCTime
-  }
-
-instance FromJSON AuctionCreateRequest where
-  parseJSON = A.withObject "AuctionCreateRequest" $ \o -> do
-    auctions <- o .: "auctions"
-    AuctionCreateRequest
-      <$> auctions .: "auctionName"
-      <*> auctions .:? "auctionDesc"
-      <*> auctions .: "raiseAmount"
-      <*> auctions .: "auctionStart"
-      <*> auctions .: "auctionEnd"
-
--- | Bid creation request
-data BidCreateRequest = BidCreateRequest
-  { bcrBidSeconds :: Int,
-    bcrBidAmount :: Value  -- JSON value to be parsed with parseAmountJSON
-  }
-
-instance FromJSON BidCreateRequest where
-  parseJSON = A.withObject "BidCreateRequest" $ \o -> do
-    bids <- o .: "bids"
-    BidCreateRequest
-      <$> bids .: "bidSeconds"
-      <*> bids .: "bidAmount"
-
---------------------------------------------------------------------------------
--- API Types
---------------------------------------------------------------------------------
-
--- | Public Auctions API (none currently)
-type AuctionsAPI = EmptyAPI
-
--- | Protected auctions API for single auction operations
-type ProtectedAuctionsAPI =
-  "auctions"
-    :> Capture "auctionId" AuctionId
-    :> ( -- GET /auctions/:auctionId
-         Get '[JSON] Value
-           -- POST /auctions/:auctionId/bid
-           :<|> "bid" :> ReqBody '[JSON] BidCreateRequest :> Post '[JSON] Value
-       )
-
--- | Project-specific auctions API (nested under projects)
-type ProjectAuctionsAPI =
-  -- GET /projects/:projectId/auctions
-  Get '[JSON] Value
-    -- POST /projects/:projectId/auctions
-    :<|> ReqBody '[JSON] AuctionCreateRequest :> Post '[JSON] AuctionId
 
 --------------------------------------------------------------------------------
 -- Handlers
@@ -195,7 +133,7 @@ auctionListHandler ::
 auctionListHandler (Authenticated user) pid = do
   let uid = auUserId user
       rangeQuery = Always
-      limit = Limit 100  -- reasonable default
+      limit = Limit 100 -- reasonable default
   auctions <- runDB $ listAuctions uid pid rangeQuery limit
   pure $ A.toJSON $ fmap auctionJSON auctions
 auctionListHandler _ _ =

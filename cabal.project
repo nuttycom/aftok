@@ -1,5 +1,6 @@
 packages:
     core/
+    api/
     executables/
 
 source-repository-package

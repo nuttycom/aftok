@@ -51,6 +51,7 @@
       dbmigrations-postgresql = dbmigrations-postgresql.packages.${final.stdenv.hostPlatform.system}.default;
       dbmigrations-postgresql-simple = dbmigrations-postgresql-simple.packages.${final.stdenv.hostPlatform.system}.default;
       aftok = hfinal.callCabal2nix "aftok" ./core {};
+      aftok-api = hfinal.callCabal2nix "aftok-api" ./api {};
       aftok-executables = hfinal.callCabal2nix "aftok-executables" ./executables {};
     };
 
@@ -74,6 +75,7 @@
       in {
         packages = {
           aftok = pkgs.haskellPackages.aftok;
+          aftok-api = pkgs.haskellPackages.aftok-api;
           aftok-executables = pkgs.haskellPackages.aftok-executables;
           templates = pkgs.runCommand "aftok-templates" {} ''
             mkdir -p $out/opt/aftok/server/templates
@@ -102,7 +104,7 @@
 
         devShells.default = pkgs.haskellPackages.shellFor {
           name = "aftok-server-shell";
-          packages = p: [p.aftok p.aftok-executables];
+          packages = p: [p.aftok p.aftok-api p.aftok-executables];
           nativeBuildInputs = [
             pkgs.cabal-install
             pkgs.pkg-config

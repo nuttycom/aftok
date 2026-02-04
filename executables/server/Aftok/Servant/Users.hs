@@ -1,39 +1,58 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Aftok.Servant.Users
-  ( -- * API Types
+  ( -- * API Types (re-exported from aftok-api)
     UsersAPI,
     ProtectedUsersAPI,
+    RegisterRequest (..),
+    RegisterError (..),
+    UsernameCheckResponse (..),
+    ZAddrCheckResponse (..),
+    CaptchaError (..),
+    CaptchaResponse (..),
+    AddressInvalid (..),
+
+    -- * Lenses (re-exported from aftok-api)
+    regUser,
+    password,
+    captchaToken,
+    invitationCodes,
+    username,
+    userAccountRecovery,
 
     -- * Handlers
     usersServer,
     acceptInvitationHandler,
 
-    -- * Request/Response Types
-    RegisterRequest (..),
-    RegisterError (..),
-    UsernameCheckResponse (..),
-    ZAddrCheckResponse (..),
-
-    -- * Lenses
-    password,
-
     -- * Configuration
     RegisterOps (..),
     CaptchaConfig (..),
-    CaptchaError (..),
-    AddressInvalid (..),
 
     -- * Utilities
     checkCaptcha,
   )
 where
 
+import Aftok.API.Users
+  ( AddressInvalid (..),
+    CaptchaError (..),
+    CaptchaResponse (..),
+    ProtectedUsersAPI,
+    RegisterError (..),
+    RegisterRequest (..),
+    UsernameCheckResponse (..),
+    UsersAPI,
+    ZAddrCheckResponse (..),
+    captchaToken,
+    invitationCodes,
+    password,
+    regUser,
+    userAccountRecovery,
+    username,
+  )
 import Aftok.Currency.Zcash (Address (..))
 import Aftok.Database
   ( acceptInvitation,
@@ -42,7 +61,7 @@ import Aftok.Database
     findUserByName,
   )
 import Aftok.Password (hashPassword)
-import Aftok.Project (InvitationCode, parseInvCode)
+import Aftok.Project (parseInvCode)
 import Aftok.ServerConfig (CaptchaConfig (..), captchaSecretKey)
 import Aftok.Servant.App (AppM, runDB)
 import Aftok.Servant.Auth (AuthenticatedUser (..))
@@ -53,14 +72,7 @@ import Aftok.Types
     UserId,
     UserName (..),
   )
-import Control.Lens (makeLenses, (^.))
-import Data.Aeson
-  ( FromJSON (..),
-    ToJSON (..),
-    (.:),
-    (.:?),
-    (.=),
-  )
+import Control.Lens ((^.))
 import qualified Data.Aeson as A
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -80,152 +92,14 @@ import Network.HTTP.Types.Status (statusCode)
 import Servant
 
 --------------------------------------------------------------------------------
--- Data Types (must be defined before API types that reference them)
+-- Server-specific Types
 --------------------------------------------------------------------------------
-
--- | Address validation error
-data AddressInvalid = AddressInvalid
-  deriving (Show, Eq)
 
 -- | Operations needed for registration
 data RegisterOps m = RegisterOps
   { validateZAddr :: Text -> m (Either AddressInvalid Address),
     sendConfirmationEmail :: Email -> m ()
   }
-
--- | User data for registration
-data RegUser = RegUser
-  { _username :: !UserName,
-    _userAccountRecovery :: !(RecoverBy Text)
-  }
-
-makeLenses ''RegUser
-
--- | Registration request
-data RegisterRequest = RegisterRequest
-  { _regUser :: RegUser,
-    _password :: ByteString,
-    _captchaToken :: Maybe Text,
-    _invitationCodes :: [InvitationCode]
-  }
-
-makeLenses ''RegisterRequest
-
-instance FromJSON RegisterRequest where
-  parseJSON (A.Object v) = do
-    recoveryType <- v .: "recoveryType"
-    recovery <- case (recoveryType :: Text) of
-      "email" -> RecoverByEmail . Email <$> v .: "recoveryEmail"
-      "zaddr" -> RecoverByZAddr <$> v .: "recoveryZAddr"
-      _ -> Prelude.empty
-    user <-
-      RegUser
-        <$> (UserName <$> v .: "username")
-        <*> pure recovery
-    RegisterRequest user
-      <$> (fromString <$> v .: "password")
-      <*> (v .:? "captchaToken")
-      <*> (parseInvitationCodes . join . maybeToList =<< v .:? "invitation_codes")
-    where
-      parseInvitationCodes c =
-        either
-          (\e -> fail $ "Invitation code was rejected as invalid: " <> toString e)
-          pure
-          (traverse parseInvCode c)
-  parseJSON _ = mzero
-
--- | Registration error
-data RegisterError
-  = RegParseError String
-  | RegCaptchaError [CaptchaError]
-  | RegZAddrError AddressInvalid
-  deriving (Show)
-
-instance ToJSON RegisterError where
-  toJSON = \case
-    RegParseError msg ->
-      A.object ["parseError" .= msg]
-    RegCaptchaError e ->
-      A.object ["captchaError" .= (show e :: Text)]
-    RegZAddrError zerr ->
-      A.object ["zaddrError" .= (show zerr :: Text)]
-
--- | Username check response
-data UsernameCheckResponse = UsernameCheckResponse
-  { usernameAvailable :: Bool,
-    usernameMessage :: Maybe Text
-  }
-  deriving (Show, Eq, Generic)
-
-instance ToJSON UsernameCheckResponse
-
--- | Z-address check response
-data ZAddrCheckResponse = ZAddrCheckResponse
-  { zaddrValid :: Bool,
-    zaddrMessage :: Maybe Text
-  }
-  deriving (Show, Eq, Generic)
-
-instance ToJSON ZAddrCheckResponse
-
--- | Captcha errors
-data CaptchaError
-  = MissingInputSecret
-  | InvalidInputSecret
-  | MissingInputResponse
-  | InvalidInputResponse
-  | BadRequest
-  | TimeoutOrDuplicate
-  | CaptchaError Text
-  deriving (Eq, Show)
-
--- | Captcha response from Google
-data CaptchaResponse = CaptchaResponse
-  { success :: Bool,
-    errorCodes :: [CaptchaError]
-  }
-
-instance FromJSON CaptchaResponse where
-  parseJSON (A.Object v) =
-    CaptchaResponse
-      <$> v .: "success"
-      <*> (fmap toError . join . toList <$> v .:? "error-codes")
-    where
-      toError = \case
-        "missing-input-secret" -> MissingInputSecret
-        "invalid-input-secret" -> InvalidInputSecret
-        "missing-input-response" -> MissingInputResponse
-        "invalid-input-response" -> InvalidInputResponse
-        "bad-request" -> BadRequest
-        "timeout-or-duplicate" -> TimeoutOrDuplicate
-        other -> CaptchaError $ "Unexpected error code: " <> other
-  parseJSON _ = fail "Captcha response body was not a valid JSON object."
-
---------------------------------------------------------------------------------
--- API Types (now all referenced data types are in scope)
---------------------------------------------------------------------------------
-
--- | Users API type
-type UsersAPI =
-  -- GET /check_username?username=...
-  "check_username"
-    :> QueryParam "username" Text
-    :> Get '[JSON] UsernameCheckResponse
-    -- GET /validate_zaddr?zaddr=...
-    :<|> "validate_zaddr"
-      :> QueryParam "zaddr" Text
-      :> Get '[JSON] ZAddrCheckResponse
-    -- POST /register
-    :<|> "register"
-      :> ReqBody '[JSON] RegisterRequest
-      :> Post '[JSON] UserId
-
--- | Protected Users API (requires authentication)
-type ProtectedUsersAPI =
-  -- POST /accept_invitation?invCode=...
-  "accept_invitation"
-    :> QueryParams "invCode" Text
-    :> Post '[JSON] NoContent
 
 --------------------------------------------------------------------------------
 -- Handlers
@@ -289,6 +163,7 @@ registerHandler ::
   AppM UserId
 registerHandler ops cfg req = do
   now <- liftIO C.getCurrentTime
+  let regU = req ^. regUser
 
   -- Check for valid invitation codes
   invResults <- runDB $ traverse (findCurrentInvitation now) (req ^. invitationCodes)
@@ -307,7 +182,7 @@ registerHandler ops cfg req = do
           Right () -> pure ()
 
   -- Validate account recovery method
-  acctRecovery <- case req ^. regUser . userAccountRecovery of
+  acctRecovery <- case regU ^. userAccountRecovery of
     RecoverByEmail e -> do
       liftIO $ sendConfirmationEmail ops e
       pure $ RecoverByEmail e
@@ -320,7 +195,7 @@ registerHandler ops cfg req = do
           pure $ RecoverByZAddr r
 
   -- Hash the password and create the user
-  let uname = req ^. regUser . username
+  let uname = regU ^. username
   pwdHash <- liftIO $ hashPassword (req ^. password)
   runDB $ do
     userId <- createUserWithPassword (User uname acctRecovery) pwdHash

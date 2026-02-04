@@ -1,25 +1,29 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Aftok.Servant.PasswordReset
-  ( -- * API Types
+  ( -- * API Types (re-exported from aftok-api)
     PasswordResetAPI,
+    PasswordResetRequest (..),
+    PasswordResetResponse (..),
+    PasswordResetConfirm (..),
 
     -- * Handlers
     passwordResetServer,
-
-    -- * Request/Response Types
-    PasswordResetRequest (..),
-    PasswordResetConfirm (..),
 
     -- * Operations
     PasswordResetOps (..),
   )
 where
 
+import Aftok.API.PasswordReset
+  ( PasswordResetAPI,
+    PasswordResetConfirm (..),
+    PasswordResetRequest (..),
+    PasswordResetResponse (..),
+  )
 import Aftok.Database
   ( createPasswordResetToken,
     findPasswordResetToken,
@@ -32,73 +36,20 @@ import Aftok.Password (hashPassword)
 import Aftok.Servant.App (AppM, runDB)
 import Aftok.Types
   ( Email (..),
-    UserName (..),
     RecoverBy (..),
-    userAccountRecovery,
-    username,
-    _UserName,
+    UserName (..),
     prtExpiresAt,
     prtUsedAt,
     prtUserId,
+    userAccountRecovery,
+    username,
+    _UserName,
   )
 import Control.Lens ((^.))
-import Data.Aeson (FromJSON (..), ToJSON (..), (.:), (.=))
-import qualified Data.Aeson as A
 import qualified Data.Thyme.Clock as C
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import Servant
-
--- | Password reset API
-type PasswordResetAPI =
-  -- POST /password-reset/request - request a password reset
-  "password-reset"
-    :> "request"
-    :> ReqBody '[JSON] PasswordResetRequest
-    :> Post '[JSON] PasswordResetResponse
-    -- POST /password-reset/reset - confirm password reset with token
-    :<|> "password-reset"
-      :> "reset"
-      :> ReqBody '[JSON] PasswordResetConfirm
-      :> Post '[JSON] NoContent
-
--- | Request for password reset
-data PasswordResetRequest = PasswordResetRequest
-  { prrUsername :: Maybe Text,
-    prrEmail :: Maybe Text
-  }
-  deriving (Show, Eq, Generic)
-
-instance FromJSON PasswordResetRequest where
-  parseJSON = A.withObject "PasswordResetRequest" $ \o ->
-    PasswordResetRequest
-      <$> o .:? "username"
-      <*> o .:? "email"
-    where
-      (.:?) obj key = obj .: key <|> pure Nothing
-
--- | Response for password reset request (always success for security)
-data PasswordResetResponse = PasswordResetResponse
-  { prsMessage :: Text
-  }
-  deriving (Show, Eq, Generic)
-
-instance ToJSON PasswordResetResponse where
-  toJSON (PasswordResetResponse msg) =
-    A.object ["message" .= msg]
-
--- | Confirm password reset with token
-data PasswordResetConfirm = PasswordResetConfirm
-  { prcToken :: Text,
-    prcNewPassword :: Text
-  }
-  deriving (Show, Eq, Generic)
-
-instance FromJSON PasswordResetConfirm where
-  parseJSON = A.withObject "PasswordResetConfirm" $ \o ->
-    PasswordResetConfirm
-      <$> o .: "token"
-      <*> o .: "newPassword"
 
 -- | Operations needed for password reset
 data PasswordResetOps m = PasswordResetOps

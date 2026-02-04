@@ -1,12 +1,15 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Aftok.Servant.WorkLog
-  ( -- * API Types
+  ( -- * API Types (re-exported from aftok-api)
     WorkLogAPI,
+    LogStartRequest (..),
+    LogEndRequest (..),
+    EventAmendmentRequest (..),
+    EventAmendmentType (..),
 
     -- * Handlers
     workLogServer,
@@ -21,6 +24,13 @@ module Aftok.Servant.WorkLog
   )
 where
 
+import Aftok.API.WorkLog
+  ( EventAmendmentRequest (..),
+    EventAmendmentType (..),
+    LogEndRequest (..),
+    LogStartRequest (..),
+    WorkLogAPI,
+  )
 import Aftok.Database
   ( KeyedLogEntry (..),
     Limit (..),
@@ -34,7 +44,7 @@ import Aftok.Interval
     RangeQuery (..),
     intervalJSON,
   )
-import Aftok.Json (creditToJSON, idValue, obj, parseCreditToV2, v1)
+import Aftok.Json (creditToJSON, idValue, obj, v1)
 import Aftok.Servant.App (AppM, runDB)
 import Aftok.Servant.Auth (AuthenticatedUser (..))
 import Aftok.TimeLog
@@ -61,98 +71,19 @@ import Aftok.Types
   )
 import Control.Lens (view, (^.))
 import Data.Aeson
-  ( FromJSON (..),
-    ToJSON (..),
-    Value (Object),
+  ( ToJSON (..),
+    Value,
     object,
-    (.:),
-    (.:?),
     (.=),
   )
 import Data.Aeson.Key (fromText)
 import Data.Aeson.Types (Pair)
 import qualified Data.List.NonEmpty as L
 import qualified Data.Map.Strict as MS
-import qualified Data.Text as T
 import qualified Data.Thyme.Clock as C
 import qualified Data.UUID as U
 import Servant
 import Servant.Auth.Server (AuthResult (..))
-
--- | WorkLog API for user-specific project operations
-type WorkLogAPI =
-  "user"
-    :> "projects"
-    :> Capture "projectId" ProjectId
-    :> ( -- POST /user/projects/:projectId/logStart
-         "logStart" :> ReqBody '[JSON] LogStartRequest :> Post '[JSON] Value
-           -- POST /user/projects/:projectId/logEnd
-           :<|> "logEnd" :> ReqBody '[JSON] LogEndRequest :> Post '[JSON] Value
-           -- GET /user/projects/:projectId/events
-           :<|> "events"
-             :> QueryParam "after" C.UTCTime
-             :> QueryParam "before" C.UTCTime
-             :> QueryParam "limit" Int
-             :> Get '[JSON] Value
-           -- GET /user/projects/:projectId/workIndex
-           :<|> "workIndex" :> Get '[JSON] Value
-       )
-    -- Event amendment
-    :<|> "events"
-      :> Capture "eventId" Text
-      :> "amend"
-      :> ReqBody '[JSON] EventAmendmentRequest
-      :> Put '[JSON] Value
-
--- | Log start request
-data LogStartRequest = LogStartRequest
-  { lsrCreditTo :: Maybe CreditTo,
-    lsrEventMeta :: Maybe Value
-  }
-  deriving (Generic)
-
-instance FromJSON LogStartRequest where
-  parseJSON (Object o) = do
-    creditTo' <- o .:? "creditTo" >>= maybe (pure Nothing) (fmap Just . parseCreditToV2)
-    eventMeta' <- o .:? "eventMeta"
-    pure $ LogStartRequest creditTo' eventMeta'
-  parseJSON _ = mzero
-
--- | Log end request
-data LogEndRequest = LogEndRequest
-  { lerCreditTo :: Maybe CreditTo,
-    lerEventMeta :: Maybe Value
-  }
-  deriving (Generic)
-
-instance FromJSON LogEndRequest where
-  parseJSON (Object o) = do
-    creditTo' <- o .:? "creditTo" >>= maybe (pure Nothing) (fmap Just . parseCreditToV2)
-    eventMeta' <- o .:? "eventMeta"
-    pure $ LogEndRequest creditTo' eventMeta'
-  parseJSON _ = mzero
-
--- | Event amendment request
-data EventAmendmentRequest = EventAmendmentRequest
-  { earAmendment :: EventAmendmentType
-  }
-  deriving (Generic)
-
-data EventAmendmentType
-  = TimeChangeReq C.UTCTime
-  | CreditToChangeReq CreditTo
-  | MetadataChangeReq Value
-
-instance FromJSON EventAmendmentRequest where
-  parseJSON (Object o) = do
-    amendType <- o .: "amendment"
-    amendment <- case (amendType :: Text) of
-      "timeChange" -> TimeChangeReq <$> o .: "eventTime"
-      "creditToChange" -> CreditToChangeReq <$> parseCreditToV2 o
-      "metadataChange" -> MetadataChangeReq <$> o .: "eventMeta"
-      other -> fail $ "Amendment type " <> T.unpack other <> " not recognized."
-    pure $ EventAmendmentRequest amendment
-  parseJSON val = fail $ "Value " <> show val <> " is not a JSON object."
 
 -- | WorkLog server implementation
 workLogServer ::
@@ -280,7 +211,9 @@ amendEventHandler (Authenticated user) eventIdText req = do
 amendEventHandler _ _ _ =
   throwError err401 {errBody = "Authentication required"}
 
--- | JSON Serializers
+--------------------------------------------------------------------------------
+-- JSON Serializers
+--------------------------------------------------------------------------------
 
 logEventJSON :: LogEvent -> Value
 logEventJSON ev =

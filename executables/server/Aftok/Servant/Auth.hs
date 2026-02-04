@@ -1,16 +1,13 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Aftok.Servant.Auth
-  ( -- * Types
+  ( -- * Types (re-exported from aftok-api)
     AuthenticatedUser (..),
     LoginRequest (..),
-
-    -- * Auth combinators
     AftokAuth,
 
     -- * Auth checking
@@ -18,74 +15,23 @@ module Aftok.Servant.Auth
   )
 where
 
+import Aftok.API.Auth (AftokAuth, AuthenticatedUser (..), LoginRequest (..))
 import Aftok.Database (findUserByNameWithPassword)
 import Aftok.Database.PostgreSQL (runQDBM)
 import Aftok.Password (verifyPassword)
 import Aftok.Servant.App (AppEnv (..))
-import Aftok.Types (UserId (..), UserName (..), username, _UserName)
+import Aftok.Types (UserName (..), username, _UserName)
 import Control.Error.Util (hush)
 import Control.Lens ((^.))
-import Data.Aeson (FromJSON (..), ToJSON (..), (.:), (.=))
-import qualified Data.Aeson as A
-import qualified Data.UUID as UUID
 import Data.Pool (withResource)
 import Servant (err401, err403)
 import Servant.Auth.Server
-  ( Auth,
-    AuthResult (..),
-    BasicAuth,
+  ( AuthResult (..),
     BasicAuthCfg,
-    Cookie,
     FromBasicAuthData (..),
-    FromJWT,
-    JWT,
-    ToJWT,
   )
 import Servant.API.BasicAuth (BasicAuthData (..))
 import Servant.Server (ServerError (..))
-
--- | Authenticated user info carried in requests
-data AuthenticatedUser = AuthenticatedUser
-  { auUserId :: !UserId,
-    auUsername :: !Text
-  }
-  deriving (Eq, Show, Generic)
-
-instance ToJSON AuthenticatedUser where
-  toJSON (AuthenticatedUser (UserId uid) uname) =
-    A.object
-      [ "userId" .= UUID.toText uid,
-        "username" .= uname
-      ]
-
-instance FromJSON AuthenticatedUser where
-  parseJSON = A.withObject "AuthenticatedUser" $ \o -> do
-    uidText <- o .: "userId"
-    uid <- case UUID.fromText uidText of
-      Nothing -> fail "Invalid UUID for userId"
-      Just u -> pure $ UserId u
-    uname <- o .: "username"
-    pure $ AuthenticatedUser uid uname
-
--- For JWT/cookie auth
-instance ToJWT AuthenticatedUser
-
-instance FromJWT AuthenticatedUser
-
--- | Login request body
-data LoginRequest = LoginRequest
-  { loginUser :: !Text,
-    loginPass :: !Text
-  }
-  deriving (Eq, Show, Generic)
-
-instance FromJSON LoginRequest where
-  parseJSON (A.Object o) =
-    LoginRequest <$> o .: "username" <*> o .: "password"
-  parseJSON val = fail $ "Value " <> show val <> " is not a JSON object."
-
--- | Auth configuration type for servant-auth
-type AftokAuth = Auth '[BasicAuth, Cookie, JWT] AuthenticatedUser
 
 -- | Type alias for BasicAuth config (needed by servant-auth-server)
 type instance BasicAuthCfg = AppEnv

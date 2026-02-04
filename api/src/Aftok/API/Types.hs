@@ -1,7 +1,10 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Aftok.Servant.Instances () where
+-- | Core type instances for the Aftok API.
+-- This module provides FromHttpApiData, ToHttpApiData, FromJSON, and ToJSON
+-- instances for ID types used in URL parameters and JSON responses.
+module Aftok.API.Types () where
 
 import Aftok.Auction (AuctionId (..))
 import Aftok.Billing (BillableId (..), SubscriptionId (..))
@@ -12,9 +15,12 @@ import qualified Data.Thyme.Clock as C
 import Data.Thyme.Time.Core (fromThyme, toThyme)
 import qualified Data.Time as Time
 import qualified Data.UUID as UUID
-import Servant (FromHttpApiData (..), ToHttpApiData (..))
+import Servant.API (FromHttpApiData (..), ToHttpApiData (..))
 
--- | FromHttpApiData instance for ProjectId
+--------------------------------------------------------------------------------
+-- FromHttpApiData / ToHttpApiData instances for URL parameters
+--------------------------------------------------------------------------------
+
 instance FromHttpApiData ProjectId where
   parseUrlPiece t = case UUID.fromText t of
     Nothing -> Left $ "Invalid ProjectId: " <> t
@@ -23,7 +29,6 @@ instance FromHttpApiData ProjectId where
 instance ToHttpApiData ProjectId where
   toUrlPiece (ProjectId u) = UUID.toText u
 
--- | FromHttpApiData instance for BillableId
 instance FromHttpApiData BillableId where
   parseUrlPiece t = case UUID.fromText t of
     Nothing -> Left $ "Invalid BillableId: " <> t
@@ -32,7 +37,6 @@ instance FromHttpApiData BillableId where
 instance ToHttpApiData BillableId where
   toUrlPiece (BillableId u) = UUID.toText u
 
--- | FromHttpApiData instance for AuctionId
 instance FromHttpApiData AuctionId where
   parseUrlPiece t = case UUID.fromText t of
     Nothing -> Left $ "Invalid AuctionId: " <> t
@@ -41,7 +45,6 @@ instance FromHttpApiData AuctionId where
 instance ToHttpApiData AuctionId where
   toUrlPiece (AuctionId u) = UUID.toText u
 
--- | FromHttpApiData instance for SubscriptionId
 instance FromHttpApiData SubscriptionId where
   parseUrlPiece t = case UUID.fromText t of
     Nothing -> Left $ "Invalid SubscriptionId: " <> t
@@ -58,7 +61,9 @@ instance FromHttpApiData C.UTCTime where
 instance ToHttpApiData C.UTCTime where
   toUrlPiece = toUrlPiece . fromThyme
 
--- | JSON instances for ID types used in API responses
+--------------------------------------------------------------------------------
+-- JSON instances for ID types
+--------------------------------------------------------------------------------
 
 instance ToJSON UserId where
   toJSON (UserId u) = toJSON $ UUID.toText u

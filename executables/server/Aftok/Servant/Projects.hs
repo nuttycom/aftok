@@ -1,29 +1,36 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Aftok.Servant.Projects
-  ( -- * API Types
+  ( -- * API Types (re-exported from aftok-api)
     ProjectsAPI,
     ProtectedProjectsAPI,
     SingleProjectAPI,
-
-    -- * Handlers
-    protectedProjectsServer,
-    singleProjectServer,
-
-    -- * Request/Response Types
     ProjectCreateRequest (..),
     ProjectDetail (..),
     Contributor (..),
     ProjectInviteRequest (..),
     ProjectInviteResponse (..),
+    CommsAddress (..),
+
+    -- * Lenses (re-exported from aftok-api)
+    cUserId,
+    cHandle,
+    cJoinedOn,
+    cLoggedHours,
+    cDepreciatedHours,
+    cRevenueShare,
+    pdProject,
+    pdContributors,
+
+    -- * Handlers
+    protectedProjectsServer,
+    singleProjectServer,
 
     -- * JSON helpers
     projectJSON,
@@ -34,6 +41,25 @@ module Aftok.Servant.Projects
   )
 where
 
+import Aftok.API.Projects
+  ( CommsAddress (..),
+    Contributor (..),
+    ProjectCreateRequest (..),
+    ProjectDetail (..),
+    ProjectInviteRequest (..),
+    ProjectInviteResponse (..),
+    ProjectsAPI,
+    ProtectedProjectsAPI,
+    SingleProjectAPI,
+    cDepreciatedHours,
+    cHandle,
+    cJoinedOn,
+    cLoggedHours,
+    cRevenueShare,
+    cUserId,
+    pdContributors,
+    pdProject,
+  )
 import Aftok.Config (SmtpConfig (..))
 import qualified Aftok.Currency.Zcash as Zcash
 import qualified Aftok.Currency.Zcash.Zip321 as Zip321
@@ -50,29 +76,14 @@ import Aftok.Database.PostgreSQL (QDBM)
 import Aftok.Json (creditToJSON, idValue, obj, v1)
 import Aftok.Payments (PaymentsConfig)
 import Aftok.Project
-  ( Project (..),
+  ( InvitationCode,
+    Project (..),
     ProjectName,
     depRules,
     inceptionDate,
     initiator,
     projectName,
     renderInvCode,
-    InvitationCode,
-  )
-import Aftok.Types
-  ( CreditTo (..),
-    DepreciationFunction (..),
-    DepreciationRules (..),
-    Email (..),
-    ProjectId,
-    UserId,
-    UserName,
-    _Email,
-    _ProjectId,
-    _UserId,
-    _UserName,
-    depf,
-    username,
   )
 import Aftok.ServerConfig (ServerConfig)
 import qualified Aftok.ServerConfig as QC
@@ -91,17 +102,25 @@ import Aftok.TimeLog
     wsLogged,
     wsShare,
   )
-import Aftok.TimeLog.Serialization (depfFromJSON)
+import Aftok.Types
+  ( CreditTo (..),
+    DepreciationFunction (..),
+    DepreciationRules (..),
+    Email (..),
+    ProjectId,
+    _Email,
+    _ProjectId,
+    _UserId,
+    _UserName,
+    depf,
+    username,
+  )
 import Aftok.Util (fromMaybeT)
-import Control.Lens (makeLenses, to, (^.))
+import Control.Lens (to, (^.))
 import Control.Monad.Trans.Maybe (mapMaybeT)
 import Data.Aeson
-  ( FromJSON (..),
-    ToJSON (..),
-    Value (..),
+  ( Value (..),
     object,
-    (.:),
-    (.:?),
     (.=),
   )
 import qualified Data.Aeson as A
@@ -121,117 +140,6 @@ import Text.StringTemplate
     setAttribute,
   )
 import Time.Types (Hours (..))
-
---------------------------------------------------------------------------------
--- Data Types (must be defined before API types that reference them)
---------------------------------------------------------------------------------
-
--- | Project creation request
-data ProjectCreateRequest = ProjectCreateRequest
-  { cpn :: Text,
-    cpdepf :: DepreciationFunction
-  }
-
-instance FromJSON ProjectCreateRequest where
-  parseJSON (A.Object v) =
-    ProjectCreateRequest <$> v .: "projectName" <*> (depfFromJSON =<< v .: "depf")
-  parseJSON _ = mzero
-
--- | Contributor record for project detail
-data Contributor = Contributor
-  { _cUserId :: UserId,
-    _cHandle :: UserName,
-    _cJoinedOn :: C.UTCTime,
-    _cLoggedHours :: Hours,
-    _cDepreciatedHours :: Hours,
-    _cRevenueShare :: Rational
-  }
-
-makeLenses ''Contributor
-
--- | Project detail with contributors
-data ProjectDetail = ProjectDetail
-  { _pdProject :: Project,
-    _pdContributors :: M.Map UserId Contributor
-  }
-
-makeLenses ''ProjectDetail
-
--- | Communications address for invitations
-data CommsAddress
-  = EmailComms Text
-  | ZcashComms Text
-
--- | Project invitation request
-data ProjectInviteRequest = ProjectInviteRequest
-  { greetName :: Text,
-    pirMessage :: Maybe Text,
-    inviteBy :: CommsAddress
-  }
-
-instance FromJSON ProjectInviteRequest where
-  parseJSON (A.Object v) = do
-    name <- v .: "greetName"
-    msg <- v .:? "message"
-    comms <- v .: "inviteBy"
-    emailComms <- fmap EmailComms <$> (comms .:? "email")
-    zcashComms <- fmap ZcashComms <$> (comms .:? "zaddr")
-    case emailComms <|> zcashComms of
-      Nothing -> mzero
-      Just addr -> pure $ ProjectInviteRequest name msg addr
-  parseJSON _ = mzero
-
--- | Project invitation response
-data ProjectInviteResponse = ProjectInviteResponse
-  { zip321URI :: Maybe Zip321.PaymentRequest
-  }
-  deriving (Generic)
-
-instance ToJSON ProjectInviteResponse where
-  toJSON (ProjectInviteResponse Nothing) = object []
-  toJSON (ProjectInviteResponse (Just r)) =
-    v1 . obj $ ["zip321_request" .= (A.toJSON . Zip321.toURI $ r)]
-
---------------------------------------------------------------------------------
--- API Types (now all referenced data types are in scope)
---------------------------------------------------------------------------------
-
--- | Public Projects API (none currently)
-type ProjectsAPI = EmptyAPI
-
--- | Protected Projects API
-type ProtectedProjectsAPI =
-  "projects"
-    :> ( -- GET /projects - List user's projects
-         Get '[JSON] Value
-           -- POST /projects - Create project
-           :<|> ReqBody '[JSON] ProjectCreateRequest :> Post '[JSON] ProjectId
-           -- Project-specific routes
-           :<|> Capture "projectId" ProjectId :> SingleProjectAPI
-       )
-
--- | Single project operations
-type SingleProjectAPI =
-  -- GET /projects/:projectId
-  Get '[JSON] Value
-    -- GET /projects/:projectId/detail
-    :<|> "detail" :> Get '[JSON] Value
-    -- GET /projects/:projectId/payouts
-    :<|> "payouts" :> Get '[JSON] Value
-    -- GET /projects/:projectId/workIndex
-    :<|> "workIndex" :> Get '[JSON] Value
-    -- POST /projects/:projectId/invite
-    :<|> "invite" :> ReqBody '[JSON] ProjectInviteRequest :> Post '[JSON] ProjectInviteResponse
-    -- GET/POST /projects/:projectId/auctions
-    :<|> "auctions" :> ProjectAuctionsAPI
-    -- GET/POST /projects/:projectId/billables
-    :<|> "billables" :> ProjectBillablesAPI
-
--- | Project-level auctions API (imported from Auctions module)
-type ProjectAuctionsAPI = Auctions.ProjectAuctionsAPI
-
--- | Project-level billables API (imported from Billing module)
-type ProjectBillablesAPI = Billing.ProjectBillablesAPI
 
 --------------------------------------------------------------------------------
 -- Handlers
@@ -461,7 +369,9 @@ buildProjectInviteEmail tpath pn fromEmail toEmail invCode = do
           body = plainPart . render $ setAttrs template
        in pure $ SMTP.simpleMail fromAddr [toAddr] [] [] subject [body]
 
--- | JSON serializers
+--------------------------------------------------------------------------------
+-- JSON serializers
+--------------------------------------------------------------------------------
 
 depfToJSON :: DepreciationFunction -> Value
 depfToJSON = \case

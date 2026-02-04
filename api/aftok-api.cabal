@@ -1,0 +1,64 @@
+cabal-version: 3.0
+Name:          aftok-api
+Version:       0.1
+Synopsis:      Servant API type definitions for the Aftok platform
+Description:   Pure Servant API type definitions and request/response types
+               for the Aftok collaboration platform. This library can be used
+               by both server and client implementations.
+License:       AGPL-3.0-or-later
+Author:        Kris Nuttycombe
+Maintainer:    kris@aftok.com
+Stability:     Experimental
+Category:      Web
+Build-type:    Simple
+
+common buildenv
+  default-language:   Haskell2010
+  ghc-options:        -Wall -Werror
+  default-extensions:
+    GADTs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    OverloadedStrings
+    RankNTypes
+    ScopedTypeVariables
+
+library
+  import:             buildenv
+  hs-source-dirs:     src
+  exposed-modules:
+    Aftok.API
+    Aftok.API.Types
+    Aftok.API.Auth
+    Aftok.API.Users
+    Aftok.API.Session
+    Aftok.API.Projects
+    Aftok.API.WorkLog
+    Aftok.API.Auctions
+    Aftok.API.Billing
+    Aftok.API.Payments
+    Aftok.API.PasswordReset
+    Aftok.API.Config
+
+  build-depends:
+    base >= 4.15.1 && < 4.21,
+    relude >= 1.1.0 && < 1.3,
+    aftok,
+    aeson >= 2.0.3 && < 2.3,
+    bytestring >= 0.11.4 && < 0.13,
+    containers >= 0.6.5 && < 0.8,
+    hourglass >= 0.2.12 && < 0.3,
+    http-api-data >= 0.5 && < 0.7,
+    lens >= 5.1.1 && < 5.4,
+    servant >= 0.20 && < 0.21,
+    servant-auth >= 0.4 && < 0.5,
+    servant-auth-server >= 0.4 && < 0.5,
+    text >= 1.2.5 && < 2.2,
+    thyme >= 0.4 && < 0.5,
+    time >= 1.12 && < 1.15,
+    uuid >= 1.3.15 && < 1.4,
+
+  mixins:
+    base hiding (Prelude),
+    relude (Relude as Prelude),
