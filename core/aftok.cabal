@@ -70,14 +70,6 @@ common base-deps
     base hiding (Prelude),
     relude (Relude as Prelude),
 
-common service-deps
-  build-depends:
-    base64-bytestring >= 1.2.1 && < 1.3,
-    http-client-openssl >= 0.3.3 && < 0.4,
-    mime-mail >= 0.5.1 && < 0.6,
-    optparse-applicative >= 0.17.0 && < 0.19,
-    -- wreq >= 0.5.4 && < 0.6,
-
 library
   import:             buildenv, base-deps
   hs-source-dirs:     lib
@@ -168,55 +160,3 @@ Test-Suite spec
     wai-extra,
 
   build-tool-depends: hspec-discover:hspec-discover
-
-Executable aftok-server
-  import:             buildenv, base-deps, service-deps
-  ghc-options:        -Wall -Werror
-  hs-source-dirs:     server
-  main-is:            Main.hs
-
-  other-modules:
-    Aftok.ServerConfig
-    Aftok.Servant.App
-    Aftok.Servant.Auth
-    Aftok.Servant.API
-    Aftok.Servant.Config
-    Aftok.Servant.Instances
-    Aftok.Servant.Json
-    Aftok.Servant.PasswordReset
-    Aftok.Servant.Server
-    Aftok.Servant.Session
-    Aftok.Servant.Users
-    Aftok.Servant.Projects
-    Aftok.Servant.WorkLog
-    Aftok.Servant.Auctions
-    Aftok.Servant.Billing
-    Aftok.Servant.Payments
-
-  build-depends:
-    aftok,
-    directory                 >= 1.3.6,
-    http-client-tls           >= 0.3.6,
-    jose                      >= 0.10 && < 0.12,
-    resource-pool             >= 0.4 && < 0.5,
-    time                      >= 1.12 && < 1.15,
-    servant                   >= 0.20 && < 0.21,
-    servant-server            >= 0.20 && < 0.21,
-    servant-auth              >= 0.4 && < 0.5,
-    servant-auth-server       >= 0.4 && < 0.5,
-    wai                       >= 3.2 && < 3.3,
-    warp                      >= 3.3 && < 3.5,
-    wai-extra                 >= 3.1 && < 3.2,
-    wai-cors                  >= 0.2 && < 0.3,
-
-Executable aftok-daemon
-  import:             buildenv, base-deps, service-deps
-  hs-source-dirs:     daemon
-  main-is:            Main.hs
-
-  other-modules:
-    AftokD
-    AftokD.AftokM
-
-  build-depends:
-    aftok

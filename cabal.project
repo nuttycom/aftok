@@ -1,5 +1,6 @@
 packages:
-    ./
+    core/
+    executables/
 
 source-repository-package
     type: git

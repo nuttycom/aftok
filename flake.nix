@@ -50,7 +50,8 @@
       dbmigrations = dbmigrations.packages.${final.stdenv.hostPlatform.system}.default;
       dbmigrations-postgresql = dbmigrations-postgresql.packages.${final.stdenv.hostPlatform.system}.default;
       dbmigrations-postgresql-simple = dbmigrations-postgresql-simple.packages.${final.stdenv.hostPlatform.system}.default;
-      aftok = hfinal.callCabal2nix "aftok" ./. {};
+      aftok = hfinal.callCabal2nix "aftok" ./core {};
+      aftok-executables = hfinal.callCabal2nix "aftok-executables" ./executables {};
     };
 
     overlay = final: prev: {
@@ -73,9 +74,10 @@
       in {
         packages = {
           aftok = pkgs.haskellPackages.aftok;
+          aftok-executables = pkgs.haskellPackages.aftok-executables;
           templates = pkgs.runCommand "aftok-templates" {} ''
             mkdir -p $out/opt/aftok/server/templates
-            cp ${./server/templates}/* $out/opt/aftok/server/templates/
+            cp ${./executables/server/templates}/* $out/opt/aftok/server/templates/
           '';
           dockerImage = pkgs.dockerTools.buildImage {
             name = "aftok/aftok-server";
@@ -89,7 +91,7 @@
               pathsToLink = [ "/opt" "/etc" ];
             };
             config = {
-              Entrypoint = ["${self.packages.${system}.aftok}/bin/aftok-server" "--conf=/etc/aftok/aftok-server.cfg"];
+              Entrypoint = ["${self.packages.${system}.aftok-executables}/bin/aftok-server" "--conf=/etc/aftok/aftok-server.cfg"];
               Env = [
                 "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
               ];
@@ -100,7 +102,7 @@
 
         devShells.default = pkgs.haskellPackages.shellFor {
           name = "aftok-server-shell";
-          packages = p: [p.aftok];
+          packages = p: [p.aftok p.aftok-executables];
           nativeBuildInputs = [
             pkgs.cabal-install
             pkgs.pkg-config
