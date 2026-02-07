@@ -142,6 +142,7 @@ data DBError
   = OpForbidden UserId OpForbiddenReason
   | SubjectNotFound
   | EventStorageFailed
+  | DuplicateRecord String
   deriving (Eq, Show, Typeable)
 
 makeClassyPrisms ''DBError

@@ -14,7 +14,8 @@ module Aftok.Database.PostgreSQL.Projects
 where
 
 import Aftok.Database
-  ( InvitedUID,
+  ( DBError (..),
+    InvitedUID,
     InvitingUID,
   )
 import Aftok.Database.PostgreSQL.Types
@@ -22,7 +23,6 @@ import Aftok.Database.PostgreSQL.Types
     SerDepFunction (..),
     idParser,
     pexec,
-    pinsert,
     pquery,
     ptransact,
     utcParser,
@@ -48,10 +48,13 @@ import Aftok.Types
     _ProjectId,
     _UserId,
   )
+import Control.Exception (throwIO, try)
 import Control.Lens
+import Control.Monad.Trans.Except (throwE)
 import Data.Aeson (toJSON)
 import qualified Data.Thyme.Time as C
-import Database.PostgreSQL.Simple (Only (..))
+import Data.UUID (UUID)
+import Database.PostgreSQL.Simple (Only (..), SqlError (..), query)
 import Database.PostgreSQL.Simple.FromField (fromJSONField)
 import Database.PostgreSQL.Simple.FromRow (RowParser, field, fieldWith)
 import Database.PostgreSQL.Simple.SqlQQ (sql)
@@ -79,16 +82,24 @@ invitationParser =
     <*> fmap (fmap C.toThyme) field
 
 createProject :: Project -> DBM ProjectId
-createProject p =
-  pinsert
-    ProjectId
+createProject p = do
+  conn <- asks snd
+  result <- lift . lift $ (try $ query conn
     [sql| INSERT INTO projects (project_name, inception_date, initiator_id, depreciation_fn)
           VALUES (?, ?, ?, ?) RETURNING id |]
     ( p ^. projectName,
       p ^. (inceptionDate . to C.fromThyme),
       p ^. (initiator . _UserId),
       toJSON $ p ^. depRules . depf . to SerDepFunction
-    )
+    ) :: IO (Either SqlError [Only UUID]))
+  case result of
+    Left e
+      | sqlState e == "23505" ->
+          lift $ throwE $ DuplicateRecord "A project with this name already exists for this user"
+      | otherwise ->
+          lift . lift $ throwIO e
+    Right (Only x : _) -> pure $ ProjectId x
+    Right [] -> lift $ throwE SubjectNotFound
 
 listProjects :: DBM [ProjectId]
 listProjects =

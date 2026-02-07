@@ -25,7 +25,7 @@ import Control.Monad.Except (MonadError, throwError)
 import Data.Aeson (encode)
 import Data.Pool (Pool, withResource)
 import Database.PostgreSQL.Simple (Connection)
-import Servant (Handler, ServerError, err403, err404, err500, errBody)
+import Servant (Handler, ServerError, err403, err404, err409, err500, errBody)
 import Servant.Auth.Server (CookieSettings, JWTSettings)
 
 -- | Application environment (replaces Snap's App snaplet)
@@ -79,3 +79,5 @@ dbErrorToServerError = \case
     err403 {errBody = encode (show reason :: Text)}
   EventStorageFailed ->
     err500 {errBody = encode ("Failed to store event" :: Text)}
+  DuplicateRecord msg ->
+    err409 {errBody = encode (msg :: String)}
