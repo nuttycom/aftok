@@ -11,4 +11,4 @@ source-repository-package
 source-repository-package
     type: git
     location: https://github.com/nuttycom/lrzhs.git
-    tag: 657f2588dd61c113fbd908578e8b124b8c056aed
+    tag: 51838a296afc0f0b8c8ec7cf0018dc12f989ecc5

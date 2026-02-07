@@ -36,7 +36,7 @@ import Data.Pool (defaultPoolConfig, newPool)
 import Database.PostgreSQL.Simple (close, connectPostgreSQL)
 import Filesystem.Path.CurrentOS (decodeString, encodeString)
 import qualified Filesystem.Path.CurrentOS as P
-import Lrzhs (isValidSaplingAddress)
+import Lrzhs (isValidShieldedAddress)
 import Network.Mail.Mime (Mail, plainPart)
 import qualified Network.Mail.Mime as Mime
 import qualified Network.Mail.SMTP as SMTP
@@ -154,7 +154,7 @@ registerOps :: ServerConfig -> RegisterOps IO
 registerOps cfg =
   RegisterOps
     { validateZAddr = \zaddr ->
-        isValidSaplingAddress (zcashNetwork $ cfg ^. zcashConfig) zaddr <&> \valid ->
+        isValidShieldedAddress (zcashNetwork $ cfg ^. zcashConfig) zaddr <&> \valid ->
           if valid
             then Right (Zcash.Address zaddr)
             else Left AddressInvalid,
