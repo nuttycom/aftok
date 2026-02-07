@@ -25,6 +25,11 @@ type PasswordResetAPI =
     :> "request"
     :> ReqBody '[JSON] PasswordResetRequest
     :> Post '[JSON] PasswordResetResponse
+    -- GET /password-reset/validate/<token> - check if a reset token is valid
+    :<|> "password-reset"
+      :> "validate"
+      :> Capture "token" Text
+      :> Get '[JSON] NoContent
     -- POST /password-reset/reset - confirm password reset with token
     :<|> "password-reset"
       :> "reset"

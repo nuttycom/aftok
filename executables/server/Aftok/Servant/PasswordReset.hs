@@ -69,6 +69,7 @@ passwordResetServer ::
   ServerT PasswordResetAPI AppM
 passwordResetServer ops =
   requestPasswordResetHandler ops
+    :<|> validateTokenHandler
     :<|> confirmPasswordResetHandler
 
 -- | Handle password reset request
@@ -114,6 +115,21 @@ requestPasswordResetHandler ops req = do
           -- For now, we can't send password reset via Zcash
           -- Return success anyway for security
           pure $ PasswordResetResponse successMsg
+
+-- | Validate a password reset token without consuming it
+validateTokenHandler ::
+  Text ->
+  AppM NoContent
+validateTokenHandler tokenText = do
+  now <- liftIO C.getCurrentTime
+  mTokenInfo <- runDB $ runMaybeT $ findPasswordResetToken tokenText
+  case mTokenInfo of
+    Nothing ->
+      throwError err400 {errBody = "Invalid or expired password reset token"}
+    Just (_tokenId, token) ->
+      if now > token ^. prtExpiresAt || isJust (token ^. prtUsedAt)
+        then throwError err400 {errBody = "Invalid or expired password reset token"}
+        else pure NoContent
 
 -- | Handle password reset confirmation
 confirmPasswordResetHandler ::
