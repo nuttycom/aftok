@@ -15,10 +15,15 @@ module Aftok.API.Billing
     SubscribeRequest (..),
     SubscribeResponse (..),
     PaymentRequestCreateRequest (..),
+
+    -- * Response Types
+    BillableResponse (..),
+    PaymentRequestResponse (..),
   )
 where
 
 import Aftok.Billing (BillableId (..), Recurrence (..), SubscriptionId)
+import Aftok.Payments.Types (PaymentRequestId (..))
 import Data.Aeson
   ( FromJSON (..),
     ToJSON (..),
@@ -26,10 +31,14 @@ import Data.Aeson
     Value (..),
     (.:),
     (.:?),
+    (.=),
   )
 import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as O
 import Data.Aeson.Types (Parser)
+import qualified Data.Thyme.Clock as C
+import Data.Thyme.Format.Aeson ()
+import qualified Data.UUID as UUID
 import Servant.API
 import Aftok.API.Types ()
 
@@ -98,6 +107,48 @@ data PaymentRequestCreateRequest = PaymentRequestCreateRequest
 instance FromJSON PaymentRequestCreateRequest where
   parseJSON _ = pure PaymentRequestCreateRequest
 
+-- | Billable list item response
+data BillableResponse = BillableResponse
+  { brBillableId :: BillableId,
+    brName :: Text,
+    brDescription :: Maybe Text,
+    brMessage :: Maybe Text,
+    brRecurrence :: Recurrence,
+    brAmount :: Value,
+    brGracePeriod :: Int,
+    brRequestExpiryPeriod :: Int
+  }
+
+instance ToJSON BillableResponse where
+  toJSON r =
+    A.object
+      [ "billableId" .= (let BillableId u = brBillableId r in UUID.toText u),
+        "name" .= brName r,
+        "description" .= brDescription r,
+        "message" .= brMessage r,
+        "recurrence" .= recurrenceToJSON (brRecurrence r),
+        "amount" .= brAmount r,
+        "gracePeriod" .= brGracePeriod r,
+        "requestExpiryPeriod" .= brRequestExpiryPeriod r
+      ]
+
+-- | Payment request response
+data PaymentRequestResponse = PaymentRequestResponse
+  { prrPaymentRequestId :: PaymentRequestId,
+    prrTotal :: Value,
+    prrExpiresAt :: C.UTCTime,
+    prrNativeRequest :: Value
+  }
+
+instance ToJSON PaymentRequestResponse where
+  toJSON r =
+    A.object
+      [ "payment_request_id" .= (let PaymentRequestId u = prrPaymentRequestId r in UUID.toText u),
+        "total" .= prrTotal r,
+        "expires_at" .= prrExpiresAt r,
+        "native_request" .= prrNativeRequest r
+      ]
+
 --------------------------------------------------------------------------------
 -- API Types
 --------------------------------------------------------------------------------
@@ -115,14 +166,26 @@ type ProtectedBillingAPI =
 -- | Project-specific billables API (nested under projects)
 type ProjectBillablesAPI =
   -- GET /projects/:projectId/billables
-  Get '[JSON] Value
+  Get '[JSON] [BillableResponse]
     -- POST /projects/:projectId/billables
     :<|> ReqBody '[JSON] BillableCreateRequest :> Post '[JSON] BillableCreateResponse
     -- POST /projects/:projectId/billables/:billableId/paymentRequests
     :<|> Capture "billableId" BillableId
       :> "paymentRequests"
       :> ReqBody '[JSON] PaymentRequestCreateRequest
-      :> Post '[JSON] Value
+      :> Post '[JSON] PaymentRequestResponse
+
+--------------------------------------------------------------------------------
+-- Serialization Helpers
+--------------------------------------------------------------------------------
+
+-- | Serialize recurrence to JSON (matches handler's existing shape)
+recurrenceToJSON :: Recurrence -> Value
+recurrenceToJSON = \case
+  Annually -> A.object ["annually" .= A.Null]
+  Monthly d -> A.object ["monthly" .= d]
+  Weekly d -> A.object ["weekly" .= d]
+  OneTime -> A.object ["onetime" .= A.Null]
 
 --------------------------------------------------------------------------------
 -- Parsing Helpers

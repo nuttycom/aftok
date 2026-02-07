@@ -13,7 +13,7 @@ module Aftok.Servant.Payments
   )
 where
 
-import Aftok.API.Payments (PaymentsAPI, ProtectedPaymentsAPI)
+import Aftok.API.Payments (PaymentsAPI, ProtectedPaymentsAPI, BIP70Data (..))
 import qualified Aftok.Config as AC
 import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
 import Aftok.Database
@@ -36,7 +36,7 @@ import Aftok.Payments.Types
   )
 import Aftok.Servant.App (AppM, runDB)
 import Aftok.Servant.Auth (AuthenticatedUser (..))
-import Aftok.Servant.Billing (paymentRequestDetailJSON)
+import Aftok.Servant.Billing (toPaymentRequestResponse)
 import Aftok.Billing (SubscriptionId (..))
 import Aftok.Util (fromMaybeT)
 import Control.Lens ((^.))
@@ -70,8 +70,8 @@ bip70Server ::
   AuthResult AuthenticatedUser ->
   Text ->
   ServerT
-    ( Get '[OctetStream] ByteString
-        :<|> ReqBody '[OctetStream] ByteString :> Post '[JSON] PaymentId
+    ( Get '[OctetStream] BIP70Data
+        :<|> ReqBody '[OctetStream] BIP70Data :> Post '[JSON] PaymentId
     )
     AppM
 bip70Server btcCfg payCfg authResult paymentKey =
@@ -86,7 +86,7 @@ listPayableRequestsHandler ::
 listPayableRequestsHandler (Authenticated user) sid = do
   let uid = auUserId user
   requests <- runDB $ Payments.findPayableRequests uid sid
-  pure $ toJSON $ fmap paymentRequestDetailJSON requests
+  pure $ toJSON $ fmap (uncurry toPaymentRequestResponse) requests
 listPayableRequestsHandler _ _ =
   throwError err401 {errBody = "Authentication required"}
 
@@ -94,7 +94,7 @@ listPayableRequestsHandler _ _ =
 getBip70PaymentRequestHandler ::
   AuthResult AuthenticatedUser ->
   Text ->
-  AppM ByteString
+  AppM BIP70Data
 getBip70PaymentRequestHandler (Authenticated _) paymentKeyText = do
   let pkey = Bitcoin.PaymentKey paymentKeyText
   (_, SomePaymentRequest preq) <-
@@ -102,7 +102,7 @@ getBip70PaymentRequestHandler (Authenticated _) paymentKeyText = do
       (throwError err404 {errBody = "Payment request not found for key " <> encodeUtf8 paymentKeyText})
       (mapMaybeT runDB $ findPaymentRequestByKey pkey)
   case preq ^. nativeRequest of
-    Bip70Request bp -> pure $ runPut $ encodeMessage (bp ^. Bitcoin.bip70Request)
+    Bip70Request bp -> pure $ BIP70Data $ runPut $ encodeMessage (bp ^. Bitcoin.bip70Request)
     _ -> throwError err400 {errBody = "Not a BIP-70 bitcoin payment request."}
 getBip70PaymentRequestHandler _ _ =
   throwError err401 {errBody = "Authentication required"}
@@ -113,9 +113,9 @@ bip70PaymentResponseHandler ::
   PaymentsConfig QDBM ->
   AuthResult AuthenticatedUser ->
   Text ->
-  ByteString ->
+  BIP70Data ->
   AppM PaymentId
-bip70PaymentResponseHandler _ _ (Authenticated _) paymentKeyText requestBody = do
+bip70PaymentResponseHandler _ _ (Authenticated _) paymentKeyText (BIP70Data requestBody) = do
   let pkey = Bitcoin.PaymentKey paymentKeyText
   (prid, SomePaymentRequest preq) <-
     fromMaybeT

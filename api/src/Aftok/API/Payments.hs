@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeOperators #-}
 
 -- | Payments API types for the Aftok API.
@@ -6,6 +7,9 @@ module Aftok.API.Payments
   ( -- * API Types
     PaymentsAPI,
     ProtectedPaymentsAPI,
+
+    -- * Data Types
+    BIP70Data (..),
   )
 where
 
@@ -13,6 +17,16 @@ import Aftok.Billing (SubscriptionId (..))
 import Aftok.Payments.Types (PaymentId)
 import Data.Aeson (Value)
 import Servant.API
+
+--------------------------------------------------------------------------------
+-- Data Types
+--------------------------------------------------------------------------------
+
+-- | Newtype wrapper for BIP70 protobuf binary data.
+-- This is needed because openapi3 refuses to provide a ToSchema
+-- instance for raw ByteString and requires a newtype wrapper.
+newtype BIP70Data = BIP70Data { unBIP70Data :: ByteString }
+  deriving (MimeRender OctetStream, MimeUnrender OctetStream)
 
 --------------------------------------------------------------------------------
 -- API Types
@@ -34,7 +48,7 @@ type ProtectedPaymentsAPI =
       :> "btc"
       :> Capture "paymentRequestKey" Text
       :> ( -- GET /pay/btc/:paymentRequestKey - Get BIP70 payment request (returns protobuf)
-           Get '[OctetStream] ByteString
+           Get '[OctetStream] BIP70Data
              -- POST /pay/btc/:paymentRequestKey - Submit BIP70 payment
-             :<|> ReqBody '[OctetStream] ByteString :> Post '[JSON] PaymentId
+             :<|> ReqBody '[OctetStream] BIP70Data :> Post '[JSON] PaymentId
          )

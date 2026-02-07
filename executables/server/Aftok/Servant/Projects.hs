@@ -90,9 +90,18 @@ import Aftok.Servant.App (AppM, envConfig, runDB)
 import Aftok.Servant.Auth (AuthenticatedUser (..))
 import qualified Aftok.Servant.Auctions as Auctions
 import qualified Aftok.Servant.Billing as Billing
-import Aftok.Servant.WorkLog (keyedLogEntryJSON, workIndexJSON)
+import Aftok.API.WorkLog
+  ( IntervalResponse (..),
+    KeyedLogEntryResponse (..),
+    WorkIndexEntry (..),
+    WorkIndexResponse (..),
+  )
+import Aftok.Interval (Interval (..))
+import Aftok.Database (KeyedLogEntry (..))
+import Aftok.TimeLog (LogEntry (LogEntry))
 import Aftok.TimeLog
-  ( WorkShare,
+  ( WorkIndex (..),
+    WorkShare,
     WorkShares,
     creditToShares,
     payouts,
@@ -101,6 +110,7 @@ import Aftok.TimeLog
     wsLogged,
     wsShare,
   )
+import qualified Data.List.NonEmpty as L
 import Aftok.Types
   ( CreditTo (..),
     DepreciationRules (..),
@@ -113,7 +123,8 @@ import Aftok.Util (fromMaybeT)
 import Control.Lens ((^.))
 import Control.Monad.Trans.Maybe (mapMaybeT)
 import Data.Aeson
-  ( Value (..),
+  ( ToJSON (..),
+    Value (..),
     object,
     (.=),
   )
@@ -257,9 +268,37 @@ projectWorkIndexHandler :: AuthResult AuthenticatedUser -> ProjectId -> AppM Val
 projectWorkIndexHandler (Authenticated user) pid = do
   let uid = auUserId user
   widx <- runDB $ readWorkIndex pid uid
-  pure $ workIndexJSON keyedLogEntryJSON widx
+  pure $ toJSON $ toWorkIndexResponse widx
 projectWorkIndexHandler _ _ =
   throwError err401 {errBody = "Authentication required"}
+
+-- | Convert a WorkIndex to a WorkIndexResponse
+toWorkIndexResponse :: WorkIndex KeyedLogEntry -> WorkIndexResponse
+toWorkIndexResponse (WorkIndex widx) =
+  WorkIndexResponse
+    { wirWorkIndex = fmap toEntry (M.assocs widx)
+    }
+  where
+    toEntry (ct, ivals) =
+      WorkIndexEntry
+        { wieCreditTo = ct,
+          wieIntervals = fmap toIntervalResponse (L.toList ivals)
+        }
+    toIntervalResponse (Interval s e) =
+      IntervalResponse
+        { irStart = toKeyedLogEntryResponse s,
+          irEnd = toKeyedLogEntryResponse e
+        }
+
+-- | Convert a KeyedLogEntry to a KeyedLogEntryResponse
+toKeyedLogEntryResponse :: KeyedLogEntry -> KeyedLogEntryResponse
+toKeyedLogEntryResponse (KeyedLogEntry eid (LogEntry ct ev meta)) =
+  KeyedLogEntryResponse
+    { klrEventId = eid,
+      klrCreditTo = ct,
+      klrEvent = ev,
+      klrEventMeta = meta
+    }
 
 -- | Send a project invitation
 projectInviteHandler ::

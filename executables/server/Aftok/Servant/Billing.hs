@@ -10,6 +10,8 @@ module Aftok.Servant.Billing
     ProjectBillablesAPI,
     BillableCreateRequest (..),
     BillableCreateResponse (..),
+    BillableResponse (..),
+    PaymentRequestResponse (..),
     SubscribeRequest (..),
     SubscribeResponse (..),
     PaymentRequestCreateRequest (..),
@@ -18,17 +20,18 @@ module Aftok.Servant.Billing
     protectedBillingServer,
     projectBillablesServer,
 
-    -- * JSON helpers
-    billableJSON,
-    paymentRequestDetailJSON,
+    -- * Conversion helpers
+    toPaymentRequestResponse,
   )
 where
 
 import Aftok.API.Billing
   ( BillableCreateRequest (..),
     BillableCreateResponse (..),
+    BillableResponse (..),
     BillingAPI,
     PaymentRequestCreateRequest (..),
+    PaymentRequestResponse (..),
     ProjectBillablesAPI,
     ProtectedBillingAPI,
     SubscribeRequest (..),
@@ -52,11 +55,9 @@ import Aftok.Database
     withProjectAuth,
   )
 import Aftok.Database.PostgreSQL (QDBM, runQDBM)
-import Aftok.Json (obj, satsJSON, zatsJSON)
+import Aftok.Json (satsJSON, zatsJSON)
 import Aftok.Payments
-  ( PaymentRequest' (..),
-    PaymentRequestId,
-    PaymentsConfig,
+  ( PaymentsConfig,
     SomePaymentRequest (..),
     SomePaymentRequestDetail,
     createPaymentRequest,
@@ -66,23 +67,22 @@ import Aftok.Payments
 import Aftok.Payments.Types
   ( NativeRequest (..),
     PaymentRequestError (..),
+    PaymentRequestId,
     billable,
     createdAt,
     nativeRequest,
-    _PaymentRequestId,
   )
 import qualified Aftok.Payments.Zcash as Zcash
 import Aftok.Servant.App (AppM, envDbPool, envNetworkMode, runDB)
 import Aftok.Servant.Auth (AuthenticatedUser (..))
 import Aftok.Servant.Json (zip321PaymentRequestJSON)
-import Aftok.Types (ProjectId, UserId)
+import Aftok.Types (ProjectId)
 import Control.Lens (to, (.~), (^.))
 import Data.Aeson
   ( Value (..),
     (.=),
   )
 import qualified Data.Aeson as A
-import Data.Aeson.Types (Pair)
 import Data.AffineSpace ((.+^))
 import Data.Pool (withResource)
 import qualified Data.Thyme.Clock as C
@@ -123,11 +123,11 @@ projectBillablesServer cfg authResult pid =
 billableListHandler ::
   AuthResult AuthenticatedUser ->
   ProjectId ->
-  AppM Value
+  AppM [BillableResponse]
 billableListHandler (Authenticated user) pid = do
   let uid = auUserId user
   billables <- runDB $ withProjectAuth pid uid (FindBillables pid)
-  pure $ A.toJSON $ fmap billableJSON billables
+  pure $ fmap toBillableResponse billables
 billableListHandler _ _ =
   throwError err401 {errBody = "Authentication required"}
 
@@ -169,7 +169,7 @@ createPaymentRequestHandler ::
   ProjectId ->
   BillableId ->
   PaymentRequestCreateRequest ->
-  AppM Value
+  AppM PaymentRequestResponse
 createPaymentRequestHandler cfg (Authenticated user) pid bid _ = do
   let uid = auUserId user
   billableMay <- runDB $ withProjectAuth pid uid (FindBillable bid)
@@ -183,10 +183,6 @@ createPaymentRequestHandler cfg (Authenticated user) pid bid _ = do
           env <- ask
           let nmode = env ^. envNetworkMode
               pool = env ^. envDbPool
-          -- ExceptT PaymentRequestError QDBM a
-          -- Run runExceptT to get QDBM (Either PaymentRequestError a)
-          -- Run runQDBM to get ExceptT DBError IO (Either PaymentRequestError a)
-          -- Run runExceptT to get IO (Either DBError (Either PaymentRequestError a))
           res <- liftIO $
             withResource pool $ \conn ->
               runExceptT $ runQDBM nmode conn $
@@ -200,7 +196,7 @@ createPaymentRequestHandler cfg (Authenticated user) pid bid _ = do
             Right (Left NoRecipients) ->
               throwError err400 {errBody = "This project has no payable members."}
             Right (Right (reqId, detail)) ->
-              pure $ Object $ paymentRequestDetailJSON (reqId, SomePaymentRequest detail)
+              pure $ toPaymentRequestResponse reqId (SomePaymentRequest detail)
         Amount BTC _ ->
           throwError err400 {errBody = "Bitcoin payment requests not yet supported."}
     _ ->
@@ -209,54 +205,46 @@ createPaymentRequestHandler _ _ _ _ _ =
   throwError err401 {errBody = "Authentication required"}
 
 --------------------------------------------------------------------------------
--- JSON Serializers
+-- Response Constructors
 --------------------------------------------------------------------------------
 
--- | Serialize a billable to JSON
-billableJSON :: (BillableId, Billable Amount) -> Value
-billableJSON (bid, b) =
-  A.object
-    [ "billableId" .= (bid ^. B._BillableId),
-      "name" .= (b ^. B.name),
-      "description" .= (b ^. B.description),
-      "message" .= (b ^. B.messageText),
-      "recurrence" .= recurrenceJSON (b ^. B.recurrence),
-      "amount" .= amountJSON (b ^. B.amount),
-      "gracePeriod" .= (b ^. B.gracePeriod),
-      "requestExpiryPeriod" .= (round (C.toSeconds' (b ^. B.requestExpiryPeriod)) :: Int)
-    ]
+-- | Convert a billable to a BillableResponse
+toBillableResponse :: (BillableId, Billable Amount) -> BillableResponse
+toBillableResponse (bid, b) =
+  BillableResponse
+    { brBillableId = bid,
+      brName = b ^. B.name,
+      brDescription = b ^. B.description,
+      brMessage = b ^. B.messageText,
+      brRecurrence = b ^. B.recurrence,
+      brAmount = amountJSON (b ^. B.amount),
+      brGracePeriod = b ^. B.gracePeriod,
+      brRequestExpiryPeriod = round (C.toSeconds' (b ^. B.requestExpiryPeriod)) :: Int
+    }
 
--- | Serialize recurrence to JSON
-recurrenceJSON :: B.Recurrence -> Value
-recurrenceJSON = \case
-  B.Annually -> A.object ["annually" .= A.Null]
-  B.Monthly d -> A.object ["monthly" .= d]
-  B.Weekly d -> A.object ["weekly" .= d]
-  B.OneTime -> A.object ["onetime" .= A.Null]
-
--- | Serialize amount to JSON
+-- | Serialize amount to JSON value
 amountJSON :: Amount -> Value
 amountJSON (Amount ZEC (Zatoshi z)) = A.object ["currency" .= ("ZEC" :: Text), "zatoshi" .= z]
 amountJSON (Amount BTC (Satoshi s)) = A.object ["currency" .= ("BTC" :: Text), "satoshi" .= s]
 
--- | Serialize payment request detail to JSON
-paymentRequestDetailJSON :: (PaymentRequestId, SomePaymentRequestDetail) -> A.Object
-paymentRequestDetailJSON (rid, (SomePaymentRequest req)) =
-  obj $
-    ["payment_request_id" .= (rid ^. _PaymentRequestId)] <> fields req
-  where
-    fields :: PaymentRequest' (Billable' ProjectId UserId) c -> [Pair]
-    fields r = case r ^. nativeRequest of
-      (Zip321Request req') ->
-        [ "total" .= (r ^. billable . B.amount . to zatsJSON),
-          "expires_at" .= ((r ^. createdAt) .+^ (r ^. billable . B.requestExpiryPeriod)),
-          "native_request" .= zip321PaymentRequestJSON req'
-        ]
-      (Bip70Request req') ->
-        [ "total" .= (r ^. billable . B.amount . to satsJSON),
-          "expires_at" .= ((r ^. createdAt) .+^ (r ^. billable . B.requestExpiryPeriod)),
-          "native_request" .= bip70PaymentRequestJSON req'
-        ]
+-- | Convert payment request detail to PaymentRequestResponse
+toPaymentRequestResponse :: PaymentRequestId -> SomePaymentRequestDetail -> PaymentRequestResponse
+toPaymentRequestResponse rid (SomePaymentRequest req) =
+  case req ^. nativeRequest of
+    Zip321Request req' ->
+      PaymentRequestResponse
+        { prrPaymentRequestId = rid,
+          prrTotal = req ^. billable . B.amount . to zatsJSON,
+          prrExpiresAt = (req ^. createdAt) .+^ (req ^. billable . B.requestExpiryPeriod),
+          prrNativeRequest = zip321PaymentRequestJSON req'
+        }
+    Bip70Request req' ->
+      PaymentRequestResponse
+        { prrPaymentRequestId = rid,
+          prrTotal = req ^. billable . B.amount . to satsJSON,
+          prrExpiresAt = (req ^. createdAt) .+^ (req ^. billable . B.requestExpiryPeriod),
+          prrNativeRequest = bip70PaymentRequestJSON req'
+        }
 
 -- | Serialize BIP70 payment request to JSON
 bip70PaymentRequestJSON :: Bitcoin.PaymentRequest -> Value

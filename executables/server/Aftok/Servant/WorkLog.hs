@@ -13,22 +13,20 @@ module Aftok.Servant.WorkLog
 
     -- * Handlers
     workLogServer,
-
-    -- * JSON helpers
-    logEventJSON,
-    logEntryFields,
-    keyedLogEntryJSON,
-    extendedLogEntryJSON,
-    workIndexJSON,
-    amendEventResultJSON,
   )
 where
 
 import Aftok.API.WorkLog
-  ( EventAmendmentRequest (..),
+  ( AmendEventResponse (..),
+    EventAmendmentRequest (..),
     EventAmendmentType (..),
+    ExtendedLogEntryResponse (..),
+    IntervalResponse (..),
+    KeyedLogEntryResponse (..),
     LogEndRequest (..),
     LogStartRequest (..),
+    WorkIndexEntry (..),
+    WorkIndexResponse (..),
     WorkLogAPI,
   )
 import Aftok.Database
@@ -42,42 +40,25 @@ import Aftok.Database
 import Aftok.Interval
   ( Interval (..),
     RangeQuery (..),
-    intervalJSON,
   )
-import Aftok.Json (creditToJSON, idValue)
 import Aftok.Servant.App (AppM, runDB)
 import Aftok.Servant.Auth (AuthenticatedUser (..))
 import Aftok.TimeLog
-  ( AmendmentId,
-    EventAmendment (..),
+  ( EventAmendment (..),
     EventId (..),
     LogEntry (LogEntry),
     LogEvent (StartWork, StopWork),
     ModTime (..),
     WorkIndex (..),
-    eventName,
-    eventTime,
     logEntry,
     workIndex,
-    _AmendmentId,
-    _EventId,
   )
 import Aftok.Types
   ( CreditTo (..),
     ProjectId,
     UserId,
-    _ProjectId,
-    _UserId,
   )
-import Control.Lens (view, (^.))
-import Data.Aeson
-  ( ToJSON (..),
-    Value,
-    object,
-    (.=),
-  )
-import Data.Aeson.Key (fromText)
-import Data.Aeson.Types (Pair)
+import Control.Lens (view)
 import qualified Data.List.NonEmpty as L
 import qualified Data.Map.Strict as MS
 import qualified Data.Thyme.Clock as C
@@ -98,14 +79,14 @@ projectWorkLogServer ::
   AuthResult AuthenticatedUser ->
   ProjectId ->
   ServerT
-    ( "logStart" :> ReqBody '[JSON] LogStartRequest :> Post '[JSON] Value
-        :<|> "logEnd" :> ReqBody '[JSON] LogEndRequest :> Post '[JSON] Value
+    ( "logStart" :> ReqBody '[JSON] LogStartRequest :> Post '[JSON] ExtendedLogEntryResponse
+        :<|> "logEnd" :> ReqBody '[JSON] LogEndRequest :> Post '[JSON] ExtendedLogEntryResponse
         :<|> "events"
           :> QueryParam "after" C.UTCTime
           :> QueryParam "before" C.UTCTime
           :> QueryParam "limit" Int
-          :> Get '[JSON] Value
-        :<|> "workIndex" :> Get '[JSON] Value
+          :> Get '[JSON] [KeyedLogEntryResponse]
+        :<|> "workIndex" :> Get '[JSON] WorkIndexResponse
     )
     AppM
 projectWorkLogServer authResult pid =
@@ -119,7 +100,7 @@ logStartHandler ::
   AuthResult AuthenticatedUser ->
   ProjectId ->
   LogStartRequest ->
-  AppM Value
+  AppM ExtendedLogEntryResponse
 logStartHandler (Authenticated user) pid req = do
   let uid = auUserId user
       creditTo' = fromMaybe (CreditToUser uid) (lsrCreditTo req)
@@ -129,7 +110,7 @@ logStartHandler (Authenticated user) pid req = do
   ev <- runDB $ findEvent eid
   maybe
     (throwError err500 {errBody = "Failed to retrieve newly created event"})
-    (\(pid', uid', kle) -> pure $ extendedLogEntryJSON (pid', uid', kle))
+    (\(pid', uid', kle) -> pure $ toExtendedLogEntryResponse pid' uid' kle)
     ev
 logStartHandler _ _ _ =
   throwError err401 {errBody = "Authentication required"}
@@ -139,7 +120,7 @@ logEndHandler ::
   AuthResult AuthenticatedUser ->
   ProjectId ->
   LogEndRequest ->
-  AppM Value
+  AppM ExtendedLogEntryResponse
 logEndHandler (Authenticated user) pid req = do
   let uid = auUserId user
       creditTo' = fromMaybe (CreditToUser uid) (lerCreditTo req)
@@ -149,7 +130,7 @@ logEndHandler (Authenticated user) pid req = do
   ev <- runDB $ findEvent eid
   maybe
     (throwError err500 {errBody = "Failed to retrieve newly created event"})
-    (\(pid', uid', kle) -> pure $ extendedLogEntryJSON (pid', uid', kle))
+    (\(pid', uid', kle) -> pure $ toExtendedLogEntryResponse pid' uid' kle)
     ev
 logEndHandler _ _ _ =
   throwError err401 {errBody = "Authentication required"}
@@ -161,7 +142,7 @@ userEventsHandler ::
   Maybe C.UTCTime ->
   Maybe C.UTCTime ->
   Maybe Int ->
-  AppM Value
+  AppM [KeyedLogEntryResponse]
 userEventsHandler (Authenticated user) pid afterTime beforeTime limitParam = do
   let uid = auUserId user
       rangeQuery = case (afterTime, beforeTime) of
@@ -171,7 +152,7 @@ userEventsHandler (Authenticated user) pid afterTime beforeTime limitParam = do
         (Nothing, Nothing) -> Always
       limit = Limit $ maybe 1 fromIntegral limitParam
   events <- runDB $ findEvents pid uid rangeQuery limit
-  pure $ toJSON $ fmap keyedLogEntryJSON events
+  pure $ fmap toKeyedLogEntryResponse events
 userEventsHandler _ _ _ _ _ =
   throwError err401 {errBody = "Authentication required"}
 
@@ -179,14 +160,14 @@ userEventsHandler _ _ _ _ _ =
 userWorkIndexHandler ::
   AuthResult AuthenticatedUser ->
   ProjectId ->
-  AppM Value
+  AppM WorkIndexResponse
 userWorkIndexHandler (Authenticated user) pid = do
   let uid = auUserId user
       rangeQuery = Always
       limit = Limit 1000 -- reasonable default
   events <- runDB $ findEvents pid uid rangeQuery limit
   let widx = workIndex (view logEntry) events
-  pure $ workIndexJSON keyedLogEntryJSON widx
+  pure $ toWorkIndexResponse widx
 userWorkIndexHandler _ _ =
   throwError err401 {errBody = "Authentication required"}
 
@@ -195,7 +176,7 @@ amendEventHandler ::
   AuthResult AuthenticatedUser ->
   Text ->
   EventAmendmentRequest ->
-  AppM Value
+  AppM AmendEventResponse
 amendEventHandler (Authenticated user) eventIdText req = do
   let uid = auUserId user
   eventId <- case U.fromText eventIdText of
@@ -206,56 +187,54 @@ amendEventHandler (Authenticated user) eventIdText req = do
         TimeChangeReq t -> TimeChange modTime t
         CreditToChangeReq c -> CreditToChange modTime c
         MetadataChangeReq m -> MetadataChange modTime m
-  result <- runDB $ amendEvent uid eventId amendment
-  pure $ amendEventResultJSON result
+  (eid, aid) <- runDB $ amendEvent uid eventId amendment
+  pure $ AmendEventResponse eid aid
 amendEventHandler _ _ _ =
   throwError err401 {errBody = "Authentication required"}
 
 --------------------------------------------------------------------------------
--- JSON Serializers
+-- Response Constructors
 --------------------------------------------------------------------------------
 
-logEventJSON :: LogEvent -> Value
-logEventJSON ev =
-  object [fromText (eventName ev) .= object ["eventTime" .= (ev ^. eventTime)]]
+-- | Convert a KeyedLogEntry to a KeyedLogEntryResponse
+toKeyedLogEntryResponse :: KeyedLogEntry -> KeyedLogEntryResponse
+toKeyedLogEntryResponse (KeyedLogEntry eid (LogEntry ct ev meta)) =
+  KeyedLogEntryResponse
+    { klrEventId = eid,
+      klrCreditTo = ct,
+      klrEvent = ev,
+      klrEventMeta = meta
+    }
 
-logEntryFields :: LogEntry -> [Pair]
-logEntryFields (LogEntry c ev m) =
-  [ "creditTo" .= creditToJSON c,
-    "event" .= logEventJSON ev,
-    "eventMeta" .= m
-  ]
+-- | Convert to an ExtendedLogEntryResponse
+toExtendedLogEntryResponse :: ProjectId -> UserId -> KeyedLogEntry -> ExtendedLogEntryResponse
+toExtendedLogEntryResponse pid uid (KeyedLogEntry eid (LogEntry ct ev meta)) =
+  ExtendedLogEntryResponse
+    { elrProjectId = pid,
+      elrLoggedBy = uid,
+      elrEventId = eid,
+      elrCreditTo = ct,
+      elrEvent = ev,
+      elrEventMeta = meta
+    }
 
-keyedLogEntryFields :: KeyedLogEntry -> [Pair]
-keyedLogEntryFields (KeyedLogEntry eid le) =
-  ["eventId" .= idValue _EventId eid] <> logEntryFields le
-
-keyedLogEntryJSON :: KeyedLogEntry -> Value
-keyedLogEntryJSON kle =
-  object (keyedLogEntryFields kle)
-
-extendedLogEntryJSON :: (ProjectId, UserId, KeyedLogEntry) -> Value
-extendedLogEntryJSON (pid, uid, le) =
-  object $
-    [ "projectId" .= idValue _ProjectId pid,
-      "loggedBy" .= idValue _UserId uid
-    ]
-      <> keyedLogEntryFields le
-
-workIndexJSON :: forall t. (t -> Value) -> WorkIndex t -> Value
-workIndexJSON leJSON (WorkIndex widx) =
-  object ["workIndex" .= fmap widxRec (MS.assocs widx)]
+-- | Convert a WorkIndex to a WorkIndexResponse
+toWorkIndexResponse :: WorkIndex KeyedLogEntry -> WorkIndexResponse
+toWorkIndexResponse (WorkIndex widx) =
+  WorkIndexResponse
+    { wirWorkIndex = fmap toEntry (MS.assocs widx)
+    }
   where
-    widxRec :: (CreditTo, NonEmpty (Interval t)) -> Value
-    widxRec (c, l) =
-      object
-        [ "creditTo" .= creditToJSON c,
-          "intervals" .= (intervalJSON leJSON <$> L.toList l)
-        ]
+    toEntry :: (CreditTo, NonEmpty (Interval KeyedLogEntry)) -> WorkIndexEntry
+    toEntry (ct, ivals) =
+      WorkIndexEntry
+        { wieCreditTo = ct,
+          wieIntervals = fmap toIntervalResponse (L.toList ivals)
+        }
 
-amendEventResultJSON :: (EventId, AmendmentId) -> Value
-amendEventResultJSON (eid, aid) =
-  object
-    [ "replacement_event" .= idValue _EventId eid,
-      "amendment_id" .= idValue _AmendmentId aid
-    ]
+    toIntervalResponse :: Interval KeyedLogEntry -> IntervalResponse
+    toIntervalResponse (Interval s e) =
+      IntervalResponse
+        { irStart = toKeyedLogEntryResponse s,
+          irEnd = toKeyedLogEntryResponse e
+        }
