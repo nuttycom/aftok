@@ -11,7 +11,9 @@ module Aftok.API.Billing
 
     -- * Request Types
     BillableCreateRequest (..),
+    BillableCreateResponse (..),
     SubscribeRequest (..),
+    SubscribeResponse (..),
     PaymentRequestCreateRequest (..),
   )
 where
@@ -19,6 +21,7 @@ where
 import Aftok.Billing (BillableId (..), Recurrence (..), SubscriptionId)
 import Data.Aeson
   ( FromJSON (..),
+    ToJSON (..),
     Object,
     Value (..),
     (.:),
@@ -28,10 +31,27 @@ import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as O
 import Data.Aeson.Types (Parser)
 import Servant.API
+import Aftok.API.Types ()
 
 --------------------------------------------------------------------------------
 -- Data Types
 --------------------------------------------------------------------------------
+
+-- | Billable creation response
+data BillableCreateResponse = BillableCreateResponse
+  { billableId :: BillableId
+  }
+  deriving (Generic)
+
+instance ToJSON BillableCreateResponse
+
+-- | Subscription creation response
+data SubscribeResponse = SubscribeResponse
+  { subscriptionId :: SubscriptionId
+  }
+  deriving (Generic)
+
+instance ToJSON SubscribeResponse
 
 -- | Billable creation request
 data BillableCreateRequest = BillableCreateRequest
@@ -90,14 +110,14 @@ type ProtectedBillingAPI =
   "subscribe"
     :> Capture "billableId" BillableId
     :> ReqBody '[JSON] SubscribeRequest
-    :> Post '[JSON] SubscriptionId
+    :> Post '[JSON] SubscribeResponse
 
 -- | Project-specific billables API (nested under projects)
 type ProjectBillablesAPI =
   -- GET /projects/:projectId/billables
   Get '[JSON] Value
     -- POST /projects/:projectId/billables
-    :<|> ReqBody '[JSON] BillableCreateRequest :> Post '[JSON] BillableId
+    :<|> ReqBody '[JSON] BillableCreateRequest :> Post '[JSON] BillableCreateResponse
     -- POST /projects/:projectId/billables/:billableId/paymentRequests
     :<|> Capture "billableId" BillableId
       :> "paymentRequests"

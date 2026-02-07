@@ -9,6 +9,7 @@ module Aftok.Servant.Auctions
     ProtectedAuctionsAPI,
     ProjectAuctionsAPI,
     AuctionCreateRequest (..),
+    AuctionCreateResponse (..),
     BidCreateRequest (..),
 
     -- * Handlers
@@ -23,6 +24,7 @@ where
 
 import Aftok.API.Auctions
   ( AuctionCreateRequest (..),
+    AuctionCreateResponse (..),
     AuctionsAPI,
     BidCreateRequest (..),
     ProjectAuctionsAPI,
@@ -51,7 +53,7 @@ import Aftok.Database
     listAuctions,
   )
 import Aftok.Interval (RangeQuery (..))
-import Aftok.Json (amountJSON, idValue, obj, parseAmountJSON, v1)
+import Aftok.Json (amountJSON, idValue, parseAmountJSON)
 import Aftok.Servant.App (AppM, runDB)
 import Aftok.Servant.Auth (AuthenticatedUser (..))
 import Aftok.Types (ProjectId, _ProjectId, _UserId)
@@ -144,14 +146,14 @@ auctionCreateHandler ::
   AuthResult AuthenticatedUser ->
   ProjectId ->
   AuctionCreateRequest ->
-  AppM AuctionId
+  AppM AuctionCreateResponse
 auctionCreateHandler (Authenticated user) pid req = do
   let uid = auUserId user
   now <- liftIO C.getCurrentTime
   amount <- case parseEither parseAmountJSON (acrRaiseAmount req) of
     Left err -> throwError err400 {errBody = "Invalid raise amount: " <> encodeUtf8 (toText err)}
     Right a -> pure a
-  runDB $
+  aid <- runDB $
     createAuction $
       Auction
         pid
@@ -162,6 +164,7 @@ auctionCreateHandler (Authenticated user) pid req = do
         amount
         (acrAuctionStart req)
         (acrAuctionEnd req)
+  pure $ AuctionCreateResponse aid
 auctionCreateHandler _ _ _ =
   throwError err401 {errBody = "Authentication required"}
 
@@ -172,17 +175,16 @@ auctionCreateHandler _ _ _ =
 -- | Serialize an auction to JSON
 auctionJSON :: Auction Amount -> Value
 auctionJSON x =
-  v1 $
-    obj
-      [ "projectId" .= idValue (projectId . _ProjectId) x,
-        "initiator" .= idValue (initiator . _UserId) x,
-        "name" .= (x ^. name),
-        "description" .= (x ^. description),
-        "raiseAmount" .= (x ^. (raiseAmount . to amountJSON)),
-        "auctionStart" .= (x ^. auctionStart),
-        "auctionEnd" .= (x ^. auctionEnd)
-      ]
+  A.object
+    [ "projectId" .= idValue (projectId . _ProjectId) x,
+      "initiator" .= idValue (initiator . _UserId) x,
+      "name" .= (x ^. name),
+      "description" .= (x ^. description),
+      "raiseAmount" .= (x ^. (raiseAmount . to amountJSON)),
+      "auctionStart" .= (x ^. auctionStart),
+      "auctionEnd" .= (x ^. auctionEnd)
+    ]
 
 -- | Serialize a bid ID to JSON
 bidIdJSON :: BidId -> Value
-bidIdJSON pid = v1 $ obj ["bidId" .= (pid ^. _BidId)]
+bidIdJSON pid = A.object ["bidId" .= (pid ^. _BidId)]

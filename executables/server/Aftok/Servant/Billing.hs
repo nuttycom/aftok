@@ -9,7 +9,9 @@ module Aftok.Servant.Billing
     ProtectedBillingAPI,
     ProjectBillablesAPI,
     BillableCreateRequest (..),
+    BillableCreateResponse (..),
     SubscribeRequest (..),
+    SubscribeResponse (..),
     PaymentRequestCreateRequest (..),
 
     -- * Handlers
@@ -24,17 +26,18 @@ where
 
 import Aftok.API.Billing
   ( BillableCreateRequest (..),
+    BillableCreateResponse (..),
     BillingAPI,
     PaymentRequestCreateRequest (..),
     ProjectBillablesAPI,
     ProtectedBillingAPI,
     SubscribeRequest (..),
+    SubscribeResponse (..),
   )
 import Aftok.Billing
   ( Billable,
     Billable' (..),
     BillableId (..),
-    SubscriptionId,
   )
 import qualified Aftok.Billing as B
 import Aftok.Currency (Amount (..), Currency (..))
@@ -49,7 +52,7 @@ import Aftok.Database
     withProjectAuth,
   )
 import Aftok.Database.PostgreSQL (QDBM, runQDBM)
-import Aftok.Json (obj, satsJSON, v1, zatsJSON)
+import Aftok.Json (obj, satsJSON, zatsJSON)
 import Aftok.Payments
   ( PaymentRequest' (..),
     PaymentRequestId,
@@ -96,11 +99,12 @@ protectedBillingServer ::
   AuthResult AuthenticatedUser ->
   BillableId ->
   SubscribeRequest ->
-  AppM SubscriptionId
+  AppM SubscribeResponse
 protectedBillingServer (Authenticated user) bid _ = do
   let uid = auUserId user
   t <- liftIO C.getCurrentTime
-  runDB . liftdb $ CreateSubscription uid bid (t ^. C._utctDay)
+  sid <- runDB . liftdb $ CreateSubscription uid bid (t ^. C._utctDay)
+  pure $ SubscribeResponse sid
 protectedBillingServer _ _ _ =
   throwError err401 {errBody = "Authentication required"}
 
@@ -132,7 +136,7 @@ billableCreateHandler ::
   AuthResult AuthenticatedUser ->
   ProjectId ->
   BillableCreateRequest ->
-  AppM BillableId
+  AppM BillableCreateResponse
 billableCreateHandler (Authenticated user) pid req = do
   let uid = auUserId user
   amount <- case bcrCurrency req of
@@ -153,7 +157,8 @@ billableCreateHandler (Authenticated user) pid req = do
             _paymentRequestEmailTemplate = bcrPaymentRequestEmailTemplate req,
             _paymentRequestMemoTemplate = bcrPaymentRequestMemoTemplate req
           }
-  runDB $ createBillable uid b
+  bid' <- runDB $ createBillable uid b
+  pure $ BillableCreateResponse bid'
 billableCreateHandler _ _ _ =
   throwError err401 {errBody = "Authentication required"}
 
@@ -195,7 +200,7 @@ createPaymentRequestHandler cfg (Authenticated user) pid bid _ = do
             Right (Left NoRecipients) ->
               throwError err400 {errBody = "This project has no payable members."}
             Right (Right (reqId, detail)) ->
-              pure $ v1 $ paymentRequestDetailJSON (reqId, SomePaymentRequest detail)
+              pure $ Object $ paymentRequestDetailJSON (reqId, SomePaymentRequest detail)
         Amount BTC _ ->
           throwError err400 {errBody = "Bitcoin payment requests not yet supported."}
     _ ->
@@ -210,17 +215,16 @@ createPaymentRequestHandler _ _ _ _ _ =
 -- | Serialize a billable to JSON
 billableJSON :: (BillableId, Billable Amount) -> Value
 billableJSON (bid, b) =
-  v1 $
-    obj
-      [ "billableId" .= (bid ^. B._BillableId),
-        "name" .= (b ^. B.name),
-        "description" .= (b ^. B.description),
-        "message" .= (b ^. B.messageText),
-        "recurrence" .= recurrenceJSON (b ^. B.recurrence),
-        "amount" .= amountJSON (b ^. B.amount),
-        "gracePeriod" .= (b ^. B.gracePeriod),
-        "requestExpiryPeriod" .= (round (C.toSeconds' (b ^. B.requestExpiryPeriod)) :: Int)
-      ]
+  A.object
+    [ "billableId" .= (bid ^. B._BillableId),
+      "name" .= (b ^. B.name),
+      "description" .= (b ^. B.description),
+      "message" .= (b ^. B.messageText),
+      "recurrence" .= recurrenceJSON (b ^. B.recurrence),
+      "amount" .= amountJSON (b ^. B.amount),
+      "gracePeriod" .= (b ^. B.gracePeriod),
+      "requestExpiryPeriod" .= (round (C.toSeconds' (b ^. B.requestExpiryPeriod)) :: Int)
+    ]
 
 -- | Serialize recurrence to JSON
 recurrenceJSON :: B.Recurrence -> Value
@@ -257,7 +261,7 @@ paymentRequestDetailJSON (rid, (SomePaymentRequest req)) =
 -- | Serialize BIP70 payment request to JSON
 bip70PaymentRequestJSON :: Bitcoin.PaymentRequest -> Value
 bip70PaymentRequestJSON r =
-  v1 . obj $
+  A.object
     [ "bip70_request"
         .= A.object
           [ "payment_key" .= (r ^. Bitcoin.paymentRequestKey . Bitcoin._PaymentKey),

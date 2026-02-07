@@ -8,6 +8,7 @@ module Aftok.Servant.Users
     UsersAPI,
     ProtectedUsersAPI,
     RegisterRequest (..),
+    RegisterResponse (..),
     RegisterError (..),
     UsernameCheckResponse (..),
     ZAddrCheckResponse (..),
@@ -43,6 +44,7 @@ import Aftok.API.Users
     ProtectedUsersAPI,
     RegisterError (..),
     RegisterRequest (..),
+    RegisterResponse (..),
     UsernameCheckResponse (..),
     UsersAPI,
     ZAddrCheckResponse (..),
@@ -69,7 +71,6 @@ import Aftok.Types
   ( Email (..),
     RecoverBy (..),
     User (..),
-    UserId,
     UserName (..),
   )
 import Control.Lens ((^.))
@@ -160,7 +161,7 @@ registerHandler ::
   RegisterOps IO ->
   CaptchaConfig ->
   RegisterRequest ->
-  AppM UserId
+  AppM RegisterResponse
 registerHandler ops cfg req = do
   now <- liftIO C.getCurrentTime
   let regU = req ^. regUser
@@ -198,9 +199,9 @@ registerHandler ops cfg req = do
   let uname = regU ^. username
   pwdHash <- liftIO $ hashPassword (req ^. password)
   runDB $ do
-    userId <- createUserWithPassword (User uname acctRecovery) pwdHash
-    void $ traverse (acceptInvitation userId now) (req ^. invitationCodes)
-    pure userId
+    uid <- createUserWithPassword (User uname acctRecovery) pwdHash
+    void $ traverse (acceptInvitation uid now) (req ^. invitationCodes)
+    pure $ RegisterResponse uid
 
 -- | Accept a project invitation (protected endpoint)
 acceptInvitationHandler ::

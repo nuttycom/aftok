@@ -11,6 +11,7 @@ module Aftok.API.Auctions
 
     -- * Request Types
     AuctionCreateRequest (..),
+    AuctionCreateResponse (..),
     BidCreateRequest (..),
   )
 where
@@ -19,6 +20,7 @@ import Aftok.Auction (AuctionId)
 import Data.Thyme.Format.Aeson ()
 import Data.Aeson
   ( FromJSON (..),
+    ToJSON (..),
     Value,
     (.:),
     (.:?),
@@ -26,10 +28,19 @@ import Data.Aeson
 import qualified Data.Aeson as A
 import qualified Data.Thyme.Clock as C
 import Servant.API
+import Aftok.API.Types ()
 
 --------------------------------------------------------------------------------
 -- Data Types
 --------------------------------------------------------------------------------
+
+-- | Auction creation response
+data AuctionCreateResponse = AuctionCreateResponse
+  { auctionId :: AuctionId
+  }
+  deriving (Generic)
+
+instance ToJSON AuctionCreateResponse
 
 -- | Auction creation request
 data AuctionCreateRequest = AuctionCreateRequest
@@ -85,4 +96,4 @@ type ProjectAuctionsAPI =
   -- GET /projects/:projectId/auctions
   Get '[JSON] Value
     -- POST /projects/:projectId/auctions
-    :<|> ReqBody '[JSON] AuctionCreateRequest :> Post '[JSON] AuctionId
+    :<|> ReqBody '[JSON] AuctionCreateRequest :> Post '[JSON] AuctionCreateResponse

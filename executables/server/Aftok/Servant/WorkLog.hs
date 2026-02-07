@@ -44,7 +44,7 @@ import Aftok.Interval
     RangeQuery (..),
     intervalJSON,
   )
-import Aftok.Json (creditToJSON, idValue, obj, v1)
+import Aftok.Json (creditToJSON, idValue)
 import Aftok.Servant.App (AppM, runDB)
 import Aftok.Servant.Auth (AuthenticatedUser (..))
 import Aftok.TimeLog
@@ -236,17 +236,15 @@ keyedLogEntryJSON kle =
 
 extendedLogEntryJSON :: (ProjectId, UserId, KeyedLogEntry) -> Value
 extendedLogEntryJSON (pid, uid, le) =
-  v1
-    . obj
-    $ [ "projectId" .= idValue _ProjectId pid,
-        "loggedBy" .= idValue _UserId uid
-      ]
+  object $
+    [ "projectId" .= idValue _ProjectId pid,
+      "loggedBy" .= idValue _UserId uid
+    ]
       <> keyedLogEntryFields le
 
 workIndexJSON :: forall t. (t -> Value) -> WorkIndex t -> Value
 workIndexJSON leJSON (WorkIndex widx) =
-  v1 $
-    obj ["workIndex" .= fmap widxRec (MS.assocs widx)]
+  object ["workIndex" .= fmap widxRec (MS.assocs widx)]
   where
     widxRec :: (CreditTo, NonEmpty (Interval t)) -> Value
     widxRec (c, l) =

@@ -12,6 +12,10 @@ module Aftok.API.Projects
 
     -- * Request/Response Types
     ProjectCreateRequest (..),
+    ProjectCreateResponse (..),
+    ProjectSummary (..),
+    ProjectResponse (..),
+    ProjectDetailResponse (..),
     ProjectDetail (..),
     Contributor (..),
     ProjectInviteRequest (..),
@@ -32,14 +36,16 @@ where
 
 import Aftok.API.Auctions (ProjectAuctionsAPI)
 import Aftok.API.Billing (ProjectBillablesAPI)
+import Aftok.API.Types ()
 import qualified Aftok.Currency.Zcash.Zip321 as Zip321
-import Aftok.Project (Project)
+import Aftok.Project (Project (..))
 import Aftok.TimeLog.Serialization (depfFromJSON)
 import Aftok.Types
   ( DepreciationFunction (..),
+    DepreciationRules (..),
     ProjectId,
-    UserId,
-    UserName,
+    UserId (..),
+    UserName (..),
   )
 import Control.Lens (makeLenses)
 import Data.Aeson
@@ -52,14 +58,14 @@ import Data.Aeson
     (.=),
   )
 import qualified Data.Aeson as A
-import Aftok.Json (obj, v1)
 import qualified Data.Map.Strict as M
 import qualified Data.Thyme.Clock as C
+import qualified Data.UUID as UUID
 import Servant.API
 import Time.Types (Hours (..))
 
 --------------------------------------------------------------------------------
--- Data Types
+-- Data Types (defined before TH splices)
 --------------------------------------------------------------------------------
 
 -- | Project creation request
@@ -126,7 +132,91 @@ data ProjectInviteResponse = ProjectInviteResponse
 instance ToJSON ProjectInviteResponse where
   toJSON (ProjectInviteResponse Nothing) = object []
   toJSON (ProjectInviteResponse (Just r)) =
-    v1 . obj $ ["zip321_request" .= (A.toJSON . Zip321.toURI $ r)]
+    object ["zip321_request" .= (A.toJSON . Zip321.toURI $ r)]
+
+--------------------------------------------------------------------------------
+-- Response Types (defined after TH splices)
+--------------------------------------------------------------------------------
+
+-- | Project creation response
+data ProjectCreateResponse = ProjectCreateResponse
+  { projectId :: ProjectId
+  }
+  deriving (Generic)
+
+instance ToJSON ProjectCreateResponse
+
+-- | Project response for GET /projects/:pid (flat project fields)
+data ProjectResponse = ProjectResponse
+  { prProject :: Project
+  }
+
+instance ToJSON ProjectResponse where
+  toJSON (ProjectResponse p) = projectToJSON p
+
+-- | Project summary for GET /projects list (with projectId)
+data ProjectSummary = ProjectSummary
+  { psProjectId :: ProjectId,
+    psProject :: Project
+  }
+
+instance ToJSON ProjectSummary where
+  toJSON (ProjectSummary pid p) =
+    object
+      [ "projectId" .= pid,
+        "project" .= projectToJSON p
+      ]
+
+-- | Project detail response for GET /projects/:pid/detail
+data ProjectDetailResponse = ProjectDetailResponse
+  { pdrDetail :: ProjectDetail
+  }
+
+instance ToJSON ProjectDetailResponse where
+  toJSON (ProjectDetailResponse detail) =
+    object
+      [ "project" .= projectToJSON (_pdProject detail),
+        "contributors" .= (M.elems $ fmap contributorToJSON (_pdContributors detail))
+      ]
+
+--------------------------------------------------------------------------------
+-- JSON serialization helpers
+--------------------------------------------------------------------------------
+
+-- | Serialize a Project to JSON
+projectToJSON :: Project -> Value
+projectToJSON p =
+  object
+    [ "projectName" .= _projectName p,
+      "inceptionDate" .= _inceptionDate p,
+      "initiator" .= (let UserId u = _initiator p in UUID.toText u),
+      "depf" .= depfToJSON (_depf $ _depRules p)
+    ]
+
+-- | Serialize a DepreciationFunction to JSON
+depfToJSON :: DepreciationFunction -> Value
+depfToJSON = \case
+  LinearDepreciation undep dep ->
+    object
+      [ "type" .= ("LinearDepreciation" :: Text),
+        "arguments" .= object ["undep" .= undep, "dep" .= dep]
+      ]
+
+-- | Serialize a Contributor to JSON
+contributorToJSON :: Contributor -> Value
+contributorToJSON c =
+  object
+    [ "userId" .= _cUserId c,
+      "username" .= (let UserName n = _cHandle c in n),
+      "joinedOn" .= _cJoinedOn c,
+      "loggedHours" .= (let Hours h = _cLoggedHours c in h),
+      "depreciatedHours" .= (let Hours h = _cDepreciatedHours c in h),
+      "revenueShare"
+        .= object
+          [ "numerator" .= numerator (_cRevenueShare c),
+            "denominator" .= denominator (_cRevenueShare c)
+          ]
+    ]
 
 --------------------------------------------------------------------------------
 -- API Types
@@ -139,9 +229,9 @@ type ProjectsAPI = EmptyAPI
 type ProtectedProjectsAPI =
   "projects"
     :> ( -- GET /projects - List user's projects
-         Get '[JSON] Value
+         Get '[JSON] [ProjectSummary]
            -- POST /projects - Create project
-           :<|> ReqBody '[JSON] ProjectCreateRequest :> Post '[JSON] ProjectId
+           :<|> ReqBody '[JSON] ProjectCreateRequest :> Post '[JSON] ProjectCreateResponse
            -- Project-specific routes
            :<|> Capture "projectId" ProjectId :> SingleProjectAPI
        )
@@ -149,9 +239,9 @@ type ProtectedProjectsAPI =
 -- | Single project operations
 type SingleProjectAPI =
   -- GET /projects/:projectId
-  Get '[JSON] Value
+  Get '[JSON] ProjectResponse
     -- GET /projects/:projectId/detail
-    :<|> "detail" :> Get '[JSON] Value
+    :<|> "detail" :> Get '[JSON] ProjectDetailResponse
     -- GET /projects/:projectId/payouts
     :<|> "payouts" :> Get '[JSON] Value
     -- GET /projects/:projectId/workIndex

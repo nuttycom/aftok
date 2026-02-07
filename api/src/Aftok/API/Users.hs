@@ -11,6 +11,7 @@ module Aftok.API.Users
 
     -- * Request/Response Types
     RegisterRequest (..),
+    RegisterResponse (..),
     RegUser (..),
     RegisterError (..),
     UsernameCheckResponse (..),
@@ -48,10 +49,19 @@ import Data.Aeson
   )
 import qualified Data.Aeson as A
 import Servant.API
+import Aftok.API.Types ()
 
 --------------------------------------------------------------------------------
 -- Data Types
 --------------------------------------------------------------------------------
+
+-- | Registration response
+data RegisterResponse = RegisterResponse
+  { userId :: UserId
+  }
+  deriving (Generic)
+
+instance ToJSON RegisterResponse
 
 -- | Address validation error
 data AddressInvalid = AddressInvalid
@@ -182,7 +192,7 @@ type UsersAPI =
     -- POST /register
     :<|> "register"
       :> ReqBody '[JSON] RegisterRequest
-      :> Post '[JSON] UserId
+      :> Post '[JSON] RegisterResponse
 
 -- | Protected Users API (requires authentication)
 type ProtectedUsersAPI =

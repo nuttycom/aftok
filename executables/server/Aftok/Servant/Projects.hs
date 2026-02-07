@@ -12,6 +12,7 @@ module Aftok.Servant.Projects
     ProtectedProjectsAPI,
     SingleProjectAPI,
     ProjectCreateRequest (..),
+    ProjectCreateResponse (..),
     ProjectDetail (..),
     Contributor (..),
     ProjectInviteRequest (..),
@@ -33,10 +34,6 @@ module Aftok.Servant.Projects
     singleProjectServer,
 
     -- * JSON helpers
-    projectJSON,
-    qdbProjectJSON,
-    contributorJSON,
-    projectDetailJSON,
     payoutsJSON,
   )
 where
@@ -45,9 +42,13 @@ import Aftok.API.Projects
   ( CommsAddress (..),
     Contributor (..),
     ProjectCreateRequest (..),
+    ProjectCreateResponse (..),
     ProjectDetail (..),
+    ProjectDetailResponse (..),
     ProjectInviteRequest (..),
     ProjectInviteResponse (..),
+    ProjectResponse (..),
+    ProjectSummary (..),
     ProjectsAPI,
     ProtectedProjectsAPI,
     SingleProjectAPI,
@@ -73,15 +74,13 @@ import Aftok.Database
     readWorkIndex,
   )
 import Aftok.Database.PostgreSQL (QDBM)
-import Aftok.Json (creditToJSON, idValue, obj, v1)
+import Aftok.Json (creditToJSON, obj)
 import Aftok.Payments (PaymentsConfig)
 import Aftok.Project
   ( InvitationCode,
     Project (..),
     ProjectName,
     depRules,
-    inceptionDate,
-    initiator,
     projectName,
     renderInvCode,
   )
@@ -104,19 +103,14 @@ import Aftok.TimeLog
   )
 import Aftok.Types
   ( CreditTo (..),
-    DepreciationFunction (..),
     DepreciationRules (..),
     Email (..),
     ProjectId,
     _Email,
-    _ProjectId,
-    _UserId,
-    _UserName,
-    depf,
     username,
   )
 import Aftok.Util (fromMaybeT)
-import Control.Lens (to, (^.))
+import Control.Lens ((^.))
 import Control.Monad.Trans.Maybe (mapMaybeT)
 import Data.Aeson
   ( Value (..),
@@ -171,37 +165,38 @@ singleProjectServer payCfg authResult pid =
     :<|> Billing.projectBillablesServer payCfg authResult pid
 
 -- | List all projects for the authenticated user
-projectListHandler :: AuthResult AuthenticatedUser -> AppM Value
+projectListHandler :: AuthResult AuthenticatedUser -> AppM [ProjectSummary]
 projectListHandler (Authenticated user) = do
   let uid = auUserId user
   projects <- runDB $ findUserProjects uid
-  pure $ A.toJSON $ fmap qdbProjectJSON projects
+  pure $ fmap (\(pid, p) -> ProjectSummary pid p) projects
 projectListHandler _ =
   throwError err401 {errBody = "Authentication required"}
 
 -- | Create a new project
-projectCreateHandler :: AuthResult AuthenticatedUser -> ProjectCreateRequest -> AppM ProjectId
+projectCreateHandler :: AuthResult AuthenticatedUser -> ProjectCreateRequest -> AppM ProjectCreateResponse
 projectCreateHandler (Authenticated user) req = do
   let uid = auUserId user
   t <- liftIO C.getCurrentTime
-  runDB $ createProject $ Project (cpn req) t uid (DepreciationRules (cpdepf req) Nothing)
+  pid <- runDB $ createProject $ Project (cpn req) t uid (DepreciationRules (cpdepf req) Nothing)
+  pure $ ProjectCreateResponse pid
 projectCreateHandler _ _ =
   throwError err401 {errBody = "Authentication required"}
 
 -- | Get a single project
-projectGetHandler :: AuthResult AuthenticatedUser -> ProjectId -> AppM Value
+projectGetHandler :: AuthResult AuthenticatedUser -> ProjectId -> AppM ProjectResponse
 projectGetHandler (Authenticated user) pid = do
   let uid = auUserId user
   project <-
     fromMaybeT
       (throwError err404 {errBody = "Project not found"})
       (mapMaybeT runDB $ findUserProject uid pid)
-  pure $ v1 $ projectJSON project
+  pure $ ProjectResponse project
 projectGetHandler _ _ =
   throwError err401 {errBody = "Authentication required"}
 
 -- | Get project detail with contributors
-projectDetailGetHandler :: AuthResult AuthenticatedUser -> ProjectId -> AppM Value
+projectDetailGetHandler :: AuthResult AuthenticatedUser -> ProjectId -> AppM ProjectDetailResponse
 projectDetailGetHandler (Authenticated user) pid = do
   let uid = auUserId user
   project <-
@@ -238,7 +233,7 @@ projectDetailGetHandler (Authenticated user) pid = do
           { _pdProject = project,
             _pdContributors = contributorRecords
           }
-  pure $ v1 $ projectDetailJSON detail
+  pure $ ProjectDetailResponse detail
 projectDetailGetHandler _ _ =
   throwError err401 {errBody = "Authentication required"}
 
@@ -253,7 +248,7 @@ payoutsHandler (Authenticated user) pid = do
   widx <- runDB $ readWorkIndex pid uid
   ptime <- liftIO C.getCurrentTime
   let ws = payouts (toDepF $ project ^. depRules) ptime widx
-  pure $ v1 $ payoutsJSON ws
+  pure $ Object $ payoutsJSON ws
 payoutsHandler _ _ =
   throwError err401 {errBody = "Authentication required"}
 
@@ -372,52 +367,6 @@ buildProjectInviteEmail tpath pn fromEmail toEmail invCode = do
 --------------------------------------------------------------------------------
 -- JSON serializers
 --------------------------------------------------------------------------------
-
-depfToJSON :: DepreciationFunction -> Value
-depfToJSON = \case
-  LinearDepreciation undep dep ->
-    object
-      [ "type" .= ("LinearDepreciation" :: Text),
-        "arguments" .= object ["undep" .= undep, "dep" .= dep]
-      ]
-
-projectJSON :: Project -> A.Object
-projectJSON p =
-  obj
-    [ "projectName" .= (p ^. projectName),
-      "inceptionDate" .= (p ^. inceptionDate),
-      "initiator" .= (p ^. initiator . _UserId),
-      "depf" .= depfToJSON (p ^. depRules . depf)
-    ]
-
-qdbProjectJSON :: (ProjectId, Project) -> Value
-qdbProjectJSON (pid, p) =
-  object
-    [ "projectId" .= idValue _ProjectId pid,
-      "project" .= v1 (projectJSON p)
-    ]
-
-contributorJSON :: Contributor -> Value
-contributorJSON c =
-  object
-    [ "userId" .= idValue _UserId (c ^. cUserId),
-      "username" .= (c ^. cHandle . _UserName),
-      "joinedOn" .= (c ^. cJoinedOn),
-      "loggedHours" .= (c ^. cLoggedHours . to fromEnum),
-      "depreciatedHours" .= (c ^. cDepreciatedHours . to fromEnum),
-      "revenueShare"
-        .= object
-          [ "numerator" .= (c ^. cRevenueShare . to numerator),
-            "denominator" .= (c ^. cRevenueShare . to denominator)
-          ]
-    ]
-
-projectDetailJSON :: ProjectDetail -> A.Object
-projectDetailJSON detail =
-  obj
-    [ "project" .= Object (projectJSON $ detail ^. pdProject),
-      "contributors" .= (M.elems $ fmap contributorJSON (detail ^. pdContributors))
-    ]
 
 payoutsJSON :: WorkShares -> A.Object
 payoutsJSON ws =
