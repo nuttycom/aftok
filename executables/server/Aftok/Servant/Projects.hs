@@ -325,6 +325,7 @@ projectInviteHandler (Authenticated user) pid req = do
           liftIO $
             sendProjectInviteEmail
               cfg
+              (greetName req)
               (p ^. projectName)
               (Email "noreply@aftok.com")
               (Email email)
@@ -332,6 +333,9 @@ projectInviteHandler (Authenticated user) pid req = do
           pure (ProjectInviteResponse Nothing)
     ZcashComms zaddr -> do
       result <- invite (Email "")
+      let host = decodeUtf8 $ cfg ^. QC.hostname
+          scheme = if cfg ^. QC.secureCookies then "https://" else "http://"
+          baseUrl = scheme <> host
       case result of
         (Nothing, _) ->
           throwError err404 {errBody = "Project not found"}
@@ -349,11 +353,10 @@ projectInviteHandler (Authenticated user) pid req = do
                         <> greetName req
                         <> "\n"
                         <> maybe "" (<> "\n") (pirMessage req)
-                        <> "https://aftok.com/app/?invcode="
+                        <> baseUrl <> "/app/signup?invcode="
                         <> renderInvCode invCode
                         <> "&zaddr="
-                        <> zaddr
-                        <> "#signup",
+                        <> zaddr,
                   Zip321._message = Nothing,
                   Zip321._label = Nothing,
                   Zip321._other = []
@@ -364,12 +367,13 @@ projectInviteHandler _ _ _ =
 -- | Send project invitation email
 sendProjectInviteEmail ::
   ServerConfig ->
+  Text ->
   ProjectName ->
   Email ->
   Email ->
   InvitationCode ->
   IO ()
-sendProjectInviteEmail cfg pn fromEmail toEmail invCode =
+sendProjectInviteEmail cfg gName pn fromEmail toEmail invCode =
   let SmtpConfig {..} = cfg ^. QC.smtpConfig
       isDevelopment = not (cfg ^. QC.secureCookies)
       useUnauthenticated = isDevelopment && (null _smtpUser || null _smtpPass)
@@ -381,27 +385,38 @@ sendProjectInviteEmail cfg pn fromEmail toEmail invCode =
           else case _smtpPort of
             Nothing -> SMTP.sendMailWithLogin _smtpHost _smtpUser _smtpPass mail
             Just smtpPort -> SMTP.sendMailWithLogin' _smtpHost smtpPort _smtpUser _smtpPass mail
-   in buildProjectInviteEmail (cfg ^. QC.templatePath) pn fromEmail toEmail invCode
+      host = decodeUtf8 $ cfg ^. QC.hostname
+      scheme = if cfg ^. QC.secureCookies then "https://" else "http://"
+      baseUrl = scheme <> host
+   in buildProjectInviteEmail (cfg ^. QC.templatePath) baseUrl gName pn fromEmail toEmail invCode
         >>= sendEmail
 
 -- | Build project invitation email
 buildProjectInviteEmail ::
   F.FilePath ->
+  Text ->
+  Text ->
   ProjectName ->
   Email ->
   Email ->
   InvitationCode ->
   IO Mail
-buildProjectInviteEmail tpath pn fromEmail toEmail invCode = do
+buildProjectInviteEmail tpath baseUrl gName pn fromEmail toEmail invCode = do
   templates <- directoryGroup $ encodeString tpath
   case getStringTemplate "invitation_email" templates of
     Nothing -> fail "Could not find template for invitation email"
     Just template ->
-      let setAttrs =
-            setAttribute "from_email" (fromEmail ^. _Email)
+      let invCodeText = renderInvCode invCode
+          signupUrl = baseUrl <> "/app/signup?invcode=" <> invCodeText
+          acceptUrl = baseUrl <> "/app/accept-invite?invcode=" <> invCodeText
+          setAttrs =
+            setAttribute "greet_name" gName
+              . setAttribute "from_email" (fromEmail ^. _Email)
               . setAttribute "project_name" pn
               . setAttribute "to_email" (toEmail ^. _Email)
-              . setAttribute "inv_code" (renderInvCode invCode)
+              . setAttribute "inv_code" invCodeText
+              . setAttribute "signup_url" signupUrl
+              . setAttribute "accept_url" acceptUrl
           fromAddr = Mime.Address Nothing "invitations@aftok.com"
           toAddr = Mime.Address Nothing (toEmail ^. _Email)
           subject = "Welcome to the " <> pn <> " Aftok!"

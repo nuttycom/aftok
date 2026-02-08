@@ -169,7 +169,8 @@ passwordResetOps cfg =
         sendPasswordResetEmailImpl cfg email uname resetUrl expiryHours,
       generateResetUrl = \token ->
         let host = decodeUtf8 $ cfg ^. hostname
-         in "https://" <> host <> "/app/reset-confirm/" <> token
+            scheme = if cfg ^. secureCookies then "https://" else "http://"
+         in scheme <> host <> "/app/reset-confirm/" <> token
     }
 
 -- | Send password reset email implementation
