@@ -99,4 +99,7 @@ pgEval =
     (MarkPasswordResetTokenUsed tokenId usedAt) -> Q.markPasswordResetTokenUsed tokenId usedAt
     (FindUserByEmail email) -> Q.findUserByEmail email
     (UpdateUserPassword uid pwd) -> Q.updateUserPassword uid pwd
+    -- Zcash address operations
+    (SetUserZcashAddress uid addr) -> Q.setUserZcashAddress uid addr
+    (FindUserZcashAddress uid) -> Q.findUserZcashAddress uid
     (RaiseDBError err _) -> lift . throwE $ err

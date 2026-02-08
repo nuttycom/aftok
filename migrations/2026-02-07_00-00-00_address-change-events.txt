@@ -1,0 +1,16 @@
+Description: Add address_change_events audit table for event-sourced payment address changes.
+Created: 2026-02-07 00:00:00.000000 UTC
+Depends: 2026-02-06_00-00-00_unique-project-name
+Apply: |
+  CREATE TABLE address_change_events (
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id uuid NOT NULL REFERENCES users(id),
+    zcash_addr text,
+    previous_addr text,
+    created_at timestamptz NOT NULL DEFAULT now()
+  );
+
+  CREATE INDEX idx_address_change_events_user ON address_change_events(user_id);
+Revert: |
+  DROP INDEX IF EXISTS idx_address_change_events_user;
+  DROP TABLE IF EXISTS address_change_events;

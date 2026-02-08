@@ -45,6 +45,8 @@ import Aftok.Servant.Users
     RegisterOps,
     UsersAPI,
     acceptInvitationHandler,
+    getAccountSettingsHandler,
+    setPaymentAddressHandler,
     usersServer,
   )
 import Aftok.Servant.Session
@@ -134,29 +136,37 @@ apiServer btcCfg payCfg regOps captchaCfg pwResetOps =
     :<|> sessionServer
     :<|> passwordResetServer pwResetOps
     :<|> configServer captchaCfg
-    :<|> protectedServer btcCfg payCfg
+    :<|> protectedServer btcCfg payCfg regOps
 
 -- | Protected server (requires authentication)
 protectedServer ::
   AC.BitcoinConfig ->
   PaymentsConfig QDBM ->
+  RegisterOps IO ->
   AuthResult AuthenticatedUser ->
   ServerT ProtectedAPI AppM
-protectedServer btcCfg payCfg authResult =
+protectedServer btcCfg payCfg regOps authResult =
   protectedProjectsServer payCfg authResult
     :<|> workLogServer authResult
     :<|> protectedAuctionsServer authResult
     :<|> protectedBillingServer authResult
     :<|> protectedPaymentsServer btcCfg payCfg authResult
-    :<|> protectedUsersServer authResult
+    :<|> protectedUsersServer regOps authResult
     :<|> protectedSessionServer authResult
 
--- | Protected users server (just accept invitation handler)
+-- | Protected users server
 protectedUsersServer ::
+  RegisterOps IO ->
   AuthResult AuthenticatedUser ->
   ServerT ProtectedUsersAPI AppM
-protectedUsersServer (Authenticated user) = acceptInvitationHandler user
-protectedUsersServer _ = \_ -> throwError err401 {errBody = "Authentication required"}
+protectedUsersServer regOps (Authenticated user) =
+  acceptInvitationHandler user
+    :<|> getAccountSettingsHandler user
+    :<|> setPaymentAddressHandler regOps user
+protectedUsersServer _ _ =
+  (\_ -> throwError err401 {errBody = "Authentication required"})
+    :<|> throwError err401 {errBody = "Authentication required"}
+    :<|> (\_ -> throwError err401 {errBody = "Authentication required"})
 
 -- | Create WAI Application from server
 aftokApp ::

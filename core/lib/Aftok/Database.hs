@@ -122,6 +122,9 @@ data DBOp a where
   MarkPasswordResetTokenUsed :: PasswordResetTokenId -> C.UTCTime -> DBOp ()
   FindUserByEmail :: Email -> DBOp (Maybe (UserId, User))
   UpdateUserPassword :: UserId -> PasswordHash -> DBOp ()
+  -- Zcash address operations
+  SetUserZcashAddress :: UserId -> Zcash.Address -> DBOp ()
+  FindUserZcashAddress :: UserId -> DBOp (Maybe Zcash.Address)
   RaiseDBError :: forall x y. DBError -> DBOp x -> DBOp y
 
 data InvitationError
@@ -195,6 +198,14 @@ findUserByEmail = MaybeT . liftdb . FindUserByEmail
 
 updateUserPassword :: (MonadDB m) => UserId -> PasswordHash -> m ()
 updateUserPassword uid pwd = liftdb $ UpdateUserPassword uid pwd
+
+-- Zcash address ops
+
+setUserZcashAddress :: (MonadDB m) => UserId -> Zcash.Address -> m ()
+setUserZcashAddress uid addr = liftdb $ SetUserZcashAddress uid addr
+
+findUserZcashAddress :: (MonadDB m) => UserId -> MaybeT m Zcash.Address
+findUserZcashAddress = MaybeT . liftdb . FindUserZcashAddress
 
 -- Password reset ops
 

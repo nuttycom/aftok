@@ -12,6 +12,8 @@ module Aftok.Servant.Users
     RegisterError (..),
     UsernameCheckResponse (..),
     ZAddrCheckResponse (..),
+    AccountSettingsResponse (..),
+    SetPaymentAddressRequest (..),
     CaptchaError (..),
     CaptchaResponse (..),
     AddressInvalid (..),
@@ -27,6 +29,8 @@ module Aftok.Servant.Users
     -- * Handlers
     usersServer,
     acceptInvitationHandler,
+    getAccountSettingsHandler,
+    setPaymentAddressHandler,
 
     -- * Configuration
     RegisterOps (..),
@@ -38,13 +42,15 @@ module Aftok.Servant.Users
 where
 
 import Aftok.API.Users
-  ( AddressInvalid (..),
+  ( AccountSettingsResponse (..),
+    AddressInvalid (..),
     CaptchaError (..),
     CaptchaResponse (..),
     ProtectedUsersAPI,
     RegisterError (..),
     RegisterRequest (..),
     RegisterResponse (..),
+    SetPaymentAddressRequest (..),
     UsernameCheckResponse (..),
     UsersAPI,
     ZAddrCheckResponse (..),
@@ -61,7 +67,10 @@ import Aftok.Database
     createUserWithPassword,
     findCurrentInvitation,
     findUserByName,
+    findUserZcashAddress,
+    setUserZcashAddress,
   )
+import qualified Aftok.Currency.Zcash as Zcash
 import Aftok.Password (hashPassword)
 import Aftok.Project (parseInvCode)
 import Aftok.ServerConfig (CaptchaConfig (..), captchaSecretKey)
@@ -73,7 +82,7 @@ import Aftok.Types
     User (..),
     UserName (..),
   )
-import Control.Lens ((^.))
+import Control.Lens ((^.), view)
 import qualified Data.Aeson as A
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -221,3 +230,31 @@ acceptInvitationHandler user invCodeTexts = do
   -- Accept each invitation
   runDB $ void $ traverse (acceptInvitation uid now) invCodes
   pure NoContent
+
+-- | Get account settings (protected endpoint)
+getAccountSettingsHandler ::
+  AuthenticatedUser ->
+  AppM AccountSettingsResponse
+getAccountSettingsHandler user = do
+  let uid = auUserId user
+      uname = auUsername user
+  zcashAddr <- runDB $ runMaybeT $ findUserZcashAddress uid
+  pure $ AccountSettingsResponse uname (fmap (view Zcash._Address) zcashAddr)
+
+-- | Set payment address (protected endpoint)
+setPaymentAddressHandler ::
+  RegisterOps IO ->
+  AuthenticatedUser ->
+  SetPaymentAddressRequest ->
+  AppM NoContent
+setPaymentAddressHandler ops user req = do
+  let uid = auUserId user
+      addrText = sparZcashAddress req
+  -- Validate the address
+  zaddrResult <- liftIO $ validateZAddr ops addrText
+  case zaddrResult of
+    Left _ ->
+      throwError err400 {errBody = "Invalid Zcash address"}
+    Right addr -> do
+      runDB $ setUserZcashAddress uid addr
+      pure NoContent

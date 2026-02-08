@@ -36,8 +36,10 @@ import Aftok.API.Projects
   )
 import Aftok.API.Session (LoginCheckResponse)
 import Aftok.API.Users
-  ( RegisterRequest,
+  ( AccountSettingsResponse,
+    RegisterRequest,
     RegisterResponse,
+    SetPaymentAddressRequest,
     UsernameCheckResponse,
     ZAddrCheckResponse,
   )
@@ -182,6 +184,12 @@ instance ToSchema UsernameCheckResponse where
 
 instance ToSchema ZAddrCheckResponse where
   declareNamedSchema _ = pure $ freeformObject "ZAddrCheckResponse"
+
+instance ToSchema AccountSettingsResponse where
+  declareNamedSchema _ = pure $ freeformObject "AccountSettingsResponse"
+
+instance ToSchema SetPaymentAddressRequest where
+  declareNamedSchema _ = pure $ freeformObject "SetPaymentAddressRequest"
 
 -- Session
 instance ToSchema LoginCheckResponse where

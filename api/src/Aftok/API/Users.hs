@@ -16,6 +16,8 @@ module Aftok.API.Users
     RegisterError (..),
     UsernameCheckResponse (..),
     ZAddrCheckResponse (..),
+    AccountSettingsResponse (..),
+    SetPaymentAddressRequest (..),
 
     -- * Captcha Types
     CaptchaError (..),
@@ -175,6 +177,31 @@ instance FromJSON CaptchaResponse where
         other -> CaptchaError $ "Unexpected error code: " <> other
   parseJSON _ = fail "Captcha response body was not a valid JSON object."
 
+-- | Account settings response
+data AccountSettingsResponse = AccountSettingsResponse
+  { asrUsername :: Text,
+    asrZcashAddress :: Maybe Text
+  }
+  deriving (Show, Eq, Generic)
+
+instance ToJSON AccountSettingsResponse where
+  toJSON (AccountSettingsResponse uname zaddr) =
+    A.object
+      [ "username" .= uname,
+        "zcashAddress" .= zaddr
+      ]
+
+-- | Set payment address request
+data SetPaymentAddressRequest = SetPaymentAddressRequest
+  { sparZcashAddress :: Text
+  }
+  deriving (Show, Eq, Generic)
+
+instance FromJSON SetPaymentAddressRequest where
+  parseJSON (A.Object v) =
+    SetPaymentAddressRequest <$> v .: "zcashAddress"
+  parseJSON _ = mzero
+
 --------------------------------------------------------------------------------
 -- API Types
 --------------------------------------------------------------------------------
@@ -200,3 +227,11 @@ type ProtectedUsersAPI =
   "accept_invitation"
     :> QueryParams "invCode" Text
     :> Post '[JSON] NoContent
+    -- GET /settings
+    :<|> "settings"
+      :> Get '[JSON] AccountSettingsResponse
+    -- PUT /settings/payment-address
+    :<|> "settings"
+      :> "payment-address"
+      :> ReqBody '[JSON] SetPaymentAddressRequest
+      :> Put '[JSON] NoContent

@@ -194,7 +194,7 @@ createPaymentRequestHandler cfg (Authenticated user) pid bid _ = do
             Right (Left AmountInvalid) ->
               throwError err400 {errBody = "Invalid payment amount requested."}
             Right (Left NoRecipients) ->
-              throwError err400 {errBody = "This project has no payable members."}
+              throwError err409 {errBody = "{\"error\":\"noPayableMembers\"}"}
             Right (Right (reqId, detail)) ->
               pure $ toPaymentRequestResponse reqId (SomePaymentRequest detail)
         Amount BTC _ ->

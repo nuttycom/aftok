@@ -14,6 +14,8 @@ module Aftok.Database.PostgreSQL.Users
     findAccountPaymentAddress,
     findAccountZcashIVK,
     updateUserPassword,
+    setUserZcashAddress,
+    findUserZcashAddress,
   )
 where
 
@@ -192,3 +194,52 @@ updateUserPassword (UserId uid) pwdHash =
     pexec
       [sql| UPDATE users SET password_hash = ? WHERE id = ? |]
       (unPasswordHash pwdHash, uid)
+
+-- | Find a user's current primary Zcash address
+findUserZcashAddress :: UserId -> DBM (Maybe Zcash.Address)
+findUserZcashAddress (UserId uid) =
+  headMay
+    <$> pquery
+      zcashAddressParser
+      [sql| SELECT zcash_addr FROM cryptocurrency_accounts
+            WHERE user_id = ?
+            AND is_primary = true
+            AND zcash_addr IS NOT NULL |]
+      (Only uid)
+
+-- | Set a user's primary Zcash address (event-sourced)
+setUserZcashAddress :: UserId -> Zcash.Address -> DBM ()
+setUserZcashAddress uid addr = do
+  -- Read current address for event log
+  currentAddr <- findUserZcashAddress uid
+  -- Record the change event
+  void $
+    pexec
+      [sql| INSERT INTO address_change_events (user_id, zcash_addr, previous_addr)
+            VALUES (?, ?, ?) |]
+      ( uid ^. _UserId,
+        addr ^. Zcash._Address,
+        fmap (view Zcash._Address) currentAddr
+      )
+  -- Check if a primary row already exists
+  existing <-
+    headMay
+      <$> pquery
+        (idParser AccountId)
+        [sql| SELECT id FROM cryptocurrency_accounts
+              WHERE user_id = ? AND is_primary = true |]
+        (Only $ uid ^. _UserId)
+  case existing of
+    Just _ ->
+      -- Update the existing primary account row
+      void $
+        pexec
+          [sql| UPDATE cryptocurrency_accounts
+                SET zcash_addr = ?
+                WHERE user_id = ? AND is_primary = true |]
+          ( addr ^. Zcash._Address,
+            uid ^. _UserId
+          )
+    Nothing ->
+      -- Insert a new primary account row
+      linkZcashAccount uid addr
