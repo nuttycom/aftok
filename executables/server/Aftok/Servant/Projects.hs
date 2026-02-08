@@ -371,13 +371,18 @@ sendProjectInviteEmail ::
   IO ()
 sendProjectInviteEmail cfg pn fromEmail toEmail invCode =
   let SmtpConfig {..} = cfg ^. QC.smtpConfig
-      mailer =
-        maybe
-          (SMTP.sendMailWithLogin _smtpHost)
-          (SMTP.sendMailWithLogin' _smtpHost)
-          _smtpPort
+      isDevelopment = not (cfg ^. QC.secureCookies)
+      useUnauthenticated = isDevelopment && (null _smtpUser || null _smtpPass)
+      sendEmail mail =
+        if useUnauthenticated
+          then case _smtpPort of
+            Nothing -> SMTP.sendMail _smtpHost mail
+            Just smtpPort -> SMTP.sendMail' _smtpHost smtpPort mail
+          else case _smtpPort of
+            Nothing -> SMTP.sendMailWithLogin _smtpHost _smtpUser _smtpPass mail
+            Just smtpPort -> SMTP.sendMailWithLogin' _smtpHost smtpPort _smtpUser _smtpPass mail
    in buildProjectInviteEmail (cfg ^. QC.templatePath) pn fromEmail toEmail invCode
-        >>= (mailer _smtpUser _smtpPass)
+        >>= sendEmail
 
 -- | Build project invitation email
 buildProjectInviteEmail ::
