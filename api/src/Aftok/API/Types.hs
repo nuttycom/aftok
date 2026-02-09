@@ -6,11 +6,13 @@
 -- instances for ID types used in URL parameters and JSON responses.
 module Aftok.API.Types () where
 
+import Aftok.API.Codec ()
 import Aftok.Auction (AuctionId (..))
 import Aftok.Billing (BillableId (..), SubscriptionId (..))
 import Aftok.Payments.Types (PaymentId (..))
 import Aftok.Types (ProjectId (..), UserId (..))
-import Data.Aeson (FromJSON (..), ToJSON (..), withText)
+import Autodocodec.Aeson (toJSONViaCodec, parseJSONViaCodec)
+import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Thyme.Clock as C
 import Data.Thyme.Time.Core (fromThyme, toThyme)
 import qualified Data.Time as Time
@@ -62,59 +64,23 @@ instance ToHttpApiData C.UTCTime where
   toUrlPiece = toUrlPiece . fromThyme
 
 --------------------------------------------------------------------------------
--- JSON instances for ID types
+-- JSON instances for ID types (codec-derived)
 --------------------------------------------------------------------------------
 
-instance ToJSON UserId where
-  toJSON (UserId u) = toJSON $ UUID.toText u
+instance ToJSON UserId where toJSON = toJSONViaCodec
+instance FromJSON UserId where parseJSON = parseJSONViaCodec
 
-instance FromJSON UserId where
-  parseJSON = withText "UserId" $ \t ->
-    case UUID.fromText t of
-      Nothing -> fail "Invalid UUID for UserId"
-      Just u -> pure $ UserId u
+instance ToJSON ProjectId where toJSON = toJSONViaCodec
+instance FromJSON ProjectId where parseJSON = parseJSONViaCodec
 
-instance ToJSON ProjectId where
-  toJSON (ProjectId u) = toJSON $ UUID.toText u
+instance ToJSON BillableId where toJSON = toJSONViaCodec
+instance FromJSON BillableId where parseJSON = parseJSONViaCodec
 
-instance FromJSON ProjectId where
-  parseJSON = withText "ProjectId" $ \t ->
-    case UUID.fromText t of
-      Nothing -> fail "Invalid UUID for ProjectId"
-      Just u -> pure $ ProjectId u
+instance ToJSON SubscriptionId where toJSON = toJSONViaCodec
+instance FromJSON SubscriptionId where parseJSON = parseJSONViaCodec
 
-instance ToJSON BillableId where
-  toJSON (BillableId u) = toJSON $ UUID.toText u
+instance ToJSON AuctionId where toJSON = toJSONViaCodec
+instance FromJSON AuctionId where parseJSON = parseJSONViaCodec
 
-instance FromJSON BillableId where
-  parseJSON = withText "BillableId" $ \t ->
-    case UUID.fromText t of
-      Nothing -> fail "Invalid UUID for BillableId"
-      Just u -> pure $ BillableId u
-
-instance ToJSON SubscriptionId where
-  toJSON (SubscriptionId u) = toJSON $ UUID.toText u
-
-instance FromJSON SubscriptionId where
-  parseJSON = withText "SubscriptionId" $ \t ->
-    case UUID.fromText t of
-      Nothing -> fail "Invalid UUID for SubscriptionId"
-      Just u -> pure $ SubscriptionId u
-
-instance ToJSON AuctionId where
-  toJSON (AuctionId u) = toJSON $ UUID.toText u
-
-instance FromJSON AuctionId where
-  parseJSON = withText "AuctionId" $ \t ->
-    case UUID.fromText t of
-      Nothing -> fail "Invalid UUID for AuctionId"
-      Just u -> pure $ AuctionId u
-
-instance ToJSON PaymentId where
-  toJSON (PaymentId u) = toJSON $ UUID.toText u
-
-instance FromJSON PaymentId where
-  parseJSON = withText "PaymentId" $ \t ->
-    case UUID.fromText t of
-      Nothing -> fail "Invalid UUID for PaymentId"
-      Just u -> pure $ PaymentId u
+instance ToJSON PaymentId where toJSON = toJSONViaCodec
+instance FromJSON PaymentId where parseJSON = parseJSONViaCodec

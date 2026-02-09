@@ -1,6 +1,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | Auctions API types for the Aftok API.
 module Aftok.API.Auctions
@@ -16,6 +18,7 @@ module Aftok.API.Auctions
   )
 where
 
+import Aftok.API.Codec ()
 import Aftok.Auction (AuctionId)
 import Data.Thyme.Format.Aeson ()
 import Data.Aeson
@@ -27,6 +30,9 @@ import Data.Aeson
   )
 import qualified Data.Aeson as A
 import qualified Data.Thyme.Clock as C
+import qualified Autodocodec as AC
+import Autodocodec (HasCodec (..), object, optionalField', requiredField')
+import Autodocodec.Aeson (toJSONViaCodec)
 import Servant.API
 import Aftok.API.Types ()
 
@@ -36,11 +42,17 @@ import Aftok.API.Types ()
 
 -- | Auction creation response
 data AuctionCreateResponse = AuctionCreateResponse
-  { auctionId :: AuctionId
+  { acrAuctionId :: AuctionId
   }
   deriving (Generic)
 
-instance ToJSON AuctionCreateResponse
+instance HasCodec AuctionCreateResponse where
+  codec =
+    object "AuctionCreateResponse" $
+      AuctionCreateResponse
+        <$> requiredField' "auctionId" AC..= acrAuctionId
+
+instance ToJSON AuctionCreateResponse where toJSON = toJSONViaCodec
 
 -- | Auction creation request
 data AuctionCreateRequest = AuctionCreateRequest
@@ -61,6 +73,31 @@ instance FromJSON AuctionCreateRequest where
       <*> auctions .: "auctionStart"
       <*> auctions .: "auctionEnd"
 
+-- | The inner "auctions" object for AuctionCreateRequest codec
+data AuctionInner = AuctionInner
+  { aiName :: Text,
+    aiDescription :: Maybe Text,
+    aiRaiseAmount :: Value,
+    aiStart :: C.UTCTime,
+    aiEnd :: C.UTCTime
+  }
+
+instance HasCodec AuctionInner where
+  codec =
+    object "AuctionInner" $
+      AuctionInner
+        <$> requiredField' "auctionName" AC..= aiName
+        <*> optionalField' "auctionDesc" AC..= aiDescription
+        <*> requiredField' "raiseAmount" AC..= aiRaiseAmount
+        <*> requiredField' "auctionStart" AC..= aiStart
+        <*> requiredField' "auctionEnd" AC..= aiEnd
+
+instance HasCodec AuctionCreateRequest where
+  codec =
+    object "AuctionCreateRequest" $
+      (\inner -> AuctionCreateRequest (aiName inner) (aiDescription inner) (aiRaiseAmount inner) (aiStart inner) (aiEnd inner))
+        <$> requiredField' "auctions" AC..= (\r -> AuctionInner (acrName r) (acrDescription r) (acrRaiseAmount r) (acrAuctionStart r) (acrAuctionEnd r))
+
 -- | Bid creation request
 data BidCreateRequest = BidCreateRequest
   { bcrBidSeconds :: Int,
@@ -73,6 +110,25 @@ instance FromJSON BidCreateRequest where
     BidCreateRequest
       <$> bids .: "bidSeconds"
       <*> bids .: "bidAmount"
+
+-- | The inner "bids" object for BidCreateRequest codec
+data BidInner = BidInner
+  { biSeconds :: Int,
+    biAmount :: Value
+  }
+
+instance HasCodec BidInner where
+  codec =
+    object "BidInner" $
+      BidInner
+        <$> requiredField' "bidSeconds" AC..= biSeconds
+        <*> requiredField' "bidAmount" AC..= biAmount
+
+instance HasCodec BidCreateRequest where
+  codec =
+    object "BidCreateRequest" $
+      (\inner -> BidCreateRequest (biSeconds inner) (biAmount inner))
+        <$> requiredField' "bids" AC..= (\r -> BidInner (bcrBidSeconds r) (bcrBidAmount r))
 
 --------------------------------------------------------------------------------
 -- API Types

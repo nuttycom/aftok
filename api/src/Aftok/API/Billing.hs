@@ -1,6 +1,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | Billing API types for the Aftok API.
 module Aftok.API.Billing
@@ -22,23 +24,19 @@ module Aftok.API.Billing
   )
 where
 
+import Aftok.API.Codec ()
 import Aftok.Billing (BillableId (..), Recurrence (..), SubscriptionId)
 import Aftok.Payments.Types (PaymentRequestId (..))
 import Data.Aeson
   ( FromJSON (..),
     ToJSON (..),
-    Object,
-    Value (..),
-    (.:),
-    (.:?),
-    (.=),
+    Value,
   )
-import qualified Data.Aeson as A
-import qualified Data.Aeson.KeyMap as O
-import Data.Aeson.Types (Parser)
 import qualified Data.Thyme.Clock as C
 import Data.Thyme.Format.Aeson ()
-import qualified Data.UUID as UUID
+import qualified Autodocodec as AC
+import Autodocodec (HasCodec (..), object, optionalField', requiredField')
+import Autodocodec.Aeson (toJSONViaCodec, parseJSONViaCodec)
 import Servant.API
 import Aftok.API.Types ()
 
@@ -48,21 +46,33 @@ import Aftok.API.Types ()
 
 -- | Billable creation response
 data BillableCreateResponse = BillableCreateResponse
-  { billableId :: BillableId
+  { bcrBillableId :: BillableId
   }
   deriving (Generic)
 
-instance ToJSON BillableCreateResponse
+instance HasCodec BillableCreateResponse where
+  codec =
+    object "BillableCreateResponse" $
+      BillableCreateResponse
+        <$> requiredField' "billableId" AC..= bcrBillableId
+
+instance ToJSON BillableCreateResponse where toJSON = toJSONViaCodec
 
 -- | Subscription creation response
 data SubscribeResponse = SubscribeResponse
-  { subscriptionId :: SubscriptionId
+  { srSubscriptionId :: SubscriptionId
   }
   deriving (Generic)
 
-instance ToJSON SubscribeResponse
+instance HasCodec SubscribeResponse where
+  codec =
+    object "SubscribeResponse" $
+      SubscribeResponse
+        <$> requiredField' "subscriptionId" AC..= srSubscriptionId
 
--- | Billable creation request
+instance ToJSON SubscribeResponse where toJSON = toJSONViaCodec
+
+-- | Billable creation request (nested format with schemaVersion)
 data BillableCreateRequest = BillableCreateRequest
   { bcrName :: Text,
     bcrDescription :: Text,
@@ -76,22 +86,52 @@ data BillableCreateRequest = BillableCreateRequest
     bcrPaymentRequestMemoTemplate :: Maybe Text
   }
 
-instance FromJSON BillableCreateRequest where
-  parseJSON = A.withObject "BillableCreateRequest" $ \outer -> do
-    v <- outer .: "schemaVersion"
-    when ((v :: Text) /= "1.0") $ fail "Unsupported schema version"
-    o <- outer .: "Billable"
-    BillableCreateRequest
-      <$> o .: "name"
-      <*> o .: "description"
-      <*> o .: "message"
-      <*> (parseRecurrence' =<< o .: "recurrence")
-      <*> o .: "currency"
-      <*> o .: "amount"
-      <*> o .: "gracePeriod"
-      <*> o .: "requestExpiryPeriod"
-      <*> o .:? "paymentRequestEmailTemplate"
-      <*> o .:? "paymentRequestMemoTemplate"
+instance FromJSON BillableCreateRequest where parseJSON = parseJSONViaCodec
+
+-- | Inner billable object for the codec
+data BillableInner = BillableInner
+  { biName :: Text,
+    biDescription :: Text,
+    biMessage :: Text,
+    biRecurrence :: Recurrence,
+    biCurrency :: Text,
+    biAmount :: Int,
+    biGracePeriod :: Int,
+    biRequestExpiryPeriod :: Int,
+    biPaymentRequestEmailTemplate :: Maybe Text,
+    biPaymentRequestMemoTemplate :: Maybe Text
+  }
+
+instance HasCodec BillableInner where
+  codec =
+    object "BillableInner" $
+      BillableInner
+        <$> requiredField' "name" AC..= biName
+        <*> requiredField' "description" AC..= biDescription
+        <*> requiredField' "message" AC..= biMessage
+        <*> requiredField' "recurrence" AC..= biRecurrence
+        <*> requiredField' "currency" AC..= biCurrency
+        <*> requiredField' "amount" AC..= biAmount
+        <*> requiredField' "gracePeriod" AC..= biGracePeriod
+        <*> requiredField' "requestExpiryPeriod" AC..= biRequestExpiryPeriod
+        <*> optionalField' "paymentRequestEmailTemplate" AC..= biPaymentRequestEmailTemplate
+        <*> optionalField' "paymentRequestMemoTemplate" AC..= biPaymentRequestMemoTemplate
+
+instance HasCodec BillableCreateRequest where
+  codec =
+    object "BillableCreateRequest" $
+      (\_ inner ->
+        BillableCreateRequest
+          (biName inner) (biDescription inner) (biMessage inner)
+          (biRecurrence inner) (biCurrency inner) (biAmount inner)
+          (biGracePeriod inner) (biRequestExpiryPeriod inner)
+          (biPaymentRequestEmailTemplate inner) (biPaymentRequestMemoTemplate inner))
+        <$> requiredField' "schemaVersion" AC..= (const ("1.0" :: Text))
+        <*> requiredField' "Billable" AC..= (\r ->
+              BillableInner (bcrName r) (bcrDescription r) (bcrMessage r)
+                (bcrRecurrence r) (bcrCurrency r) (bcrAmount r)
+                (bcrGracePeriod r) (bcrRequestExpiryPeriod r)
+                (bcrPaymentRequestEmailTemplate r) (bcrPaymentRequestMemoTemplate r))
 
 -- | Subscribe request (currently empty, billableId comes from URL)
 data SubscribeRequest = SubscribeRequest
@@ -119,18 +159,20 @@ data BillableResponse = BillableResponse
     brRequestExpiryPeriod :: Int
   }
 
-instance ToJSON BillableResponse where
-  toJSON r =
-    A.object
-      [ "billableId" .= (let BillableId u = brBillableId r in UUID.toText u),
-        "name" .= brName r,
-        "description" .= brDescription r,
-        "message" .= brMessage r,
-        "recurrence" .= recurrenceToJSON (brRecurrence r),
-        "amount" .= brAmount r,
-        "gracePeriod" .= brGracePeriod r,
-        "requestExpiryPeriod" .= brRequestExpiryPeriod r
-      ]
+instance HasCodec BillableResponse where
+  codec =
+    object "BillableResponse" $
+      BillableResponse
+        <$> requiredField' "billableId" AC..= brBillableId
+        <*> requiredField' "name" AC..= brName
+        <*> requiredField' "description" AC..= brDescription
+        <*> requiredField' "message" AC..= brMessage
+        <*> requiredField' "recurrence" AC..= brRecurrence
+        <*> requiredField' "amount" AC..= brAmount
+        <*> requiredField' "gracePeriod" AC..= brGracePeriod
+        <*> requiredField' "requestExpiryPeriod" AC..= brRequestExpiryPeriod
+
+instance ToJSON BillableResponse where toJSON = toJSONViaCodec
 
 -- | Payment request response
 data PaymentRequestResponse = PaymentRequestResponse
@@ -140,14 +182,16 @@ data PaymentRequestResponse = PaymentRequestResponse
     prrNativeRequest :: Value
   }
 
-instance ToJSON PaymentRequestResponse where
-  toJSON r =
-    A.object
-      [ "payment_request_id" .= (let PaymentRequestId u = prrPaymentRequestId r in UUID.toText u),
-        "total" .= prrTotal r,
-        "expires_at" .= prrExpiresAt r,
-        "native_request" .= prrNativeRequest r
-      ]
+instance HasCodec PaymentRequestResponse where
+  codec =
+    object "PaymentRequestResponse" $
+      PaymentRequestResponse
+        <$> requiredField' "payment_request_id" AC..= prrPaymentRequestId
+        <*> requiredField' "total" AC..= prrTotal
+        <*> requiredField' "expires_at" AC..= prrExpiresAt
+        <*> requiredField' "native_request" AC..= prrNativeRequest
+
+instance ToJSON PaymentRequestResponse where toJSON = toJSONViaCodec
 
 --------------------------------------------------------------------------------
 -- API Types
@@ -175,40 +219,3 @@ type ProjectBillablesAPI =
       :> ReqBody '[JSON] PaymentRequestCreateRequest
       :> Post '[JSON] PaymentRequestResponse
 
---------------------------------------------------------------------------------
--- Serialization Helpers
---------------------------------------------------------------------------------
-
--- | Serialize recurrence to JSON (matches handler's existing shape)
-recurrenceToJSON :: Recurrence -> Value
-recurrenceToJSON = \case
-  Annually -> A.object ["annually" .= A.Null]
-  Monthly d -> A.object ["monthly" .= d]
-  Weekly d -> A.object ["weekly" .= d]
-  OneTime -> A.object ["onetime" .= A.Null]
-
---------------------------------------------------------------------------------
--- Parsing Helpers
---------------------------------------------------------------------------------
-
--- | Parse a recurrence value from JSON
-parseRecurrence :: Object -> Parser Recurrence
-parseRecurrence o =
-  let parseAnnually o' = const (pure Annually) <$> O.lookup "annually" o'
-      parseMonthly o' = fmap Monthly . A.parseJSON <$> O.lookup "monthly" o'
-      parseWeekly o' = fmap Weekly . A.parseJSON <$> O.lookup "weekly" o'
-      parseOneTime o' = const (pure OneTime) <$> O.lookup "onetime" o'
-      notFound =
-        fail $ "Value " <> show o <> " does not represent a Recurrence value."
-      parseV val =
-        parseAnnually val
-          <|> parseMonthly val
-          <|> parseWeekly val
-          <|> parseOneTime val
-   in fromMaybe notFound $ parseV o
-
--- | Parse a recurrence from a JSON value
-parseRecurrence' :: Value -> Parser Recurrence
-parseRecurrence' = \case
-  (Object o) -> parseRecurrence o
-  val -> fail $ "Value " <> show val <> " is not a JSON object."

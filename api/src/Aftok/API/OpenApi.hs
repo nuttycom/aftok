@@ -59,11 +59,13 @@ import Aftok.API.Auctions
     AuctionCreateResponse,
     BidCreateRequest,
   )
+import Aftok.API.Codec ()
 import Aftok.API.Payments (BIP70Data (..))
 import Aftok.Auction (AuctionId (..))
 import Aftok.Billing (BillableId (..), SubscriptionId (..))
 import Aftok.Payments.Types (PaymentId (..))
 import Aftok.Types (ProjectId (..), UserId (..))
+import Autodocodec.OpenAPI (declareNamedSchemaViaCodec)
 
 import Control.Lens ((.~), (?~))
 import Data.OpenApi
@@ -118,26 +120,26 @@ instance ToParamSchema C.UTCTime where
     & OA.format ?~ "date-time"
 
 --------------------------------------------------------------------------------
--- ToSchema instances for core types
+-- ToSchema instances for core types (codec-derived)
 --------------------------------------------------------------------------------
 
 instance ToSchema ProjectId where
-  declareNamedSchema _ = pure $ NamedSchema (Just "ProjectId") uuidParamSchema
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema UserId where
-  declareNamedSchema _ = pure $ NamedSchema (Just "UserId") uuidParamSchema
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema BillableId where
-  declareNamedSchema _ = pure $ NamedSchema (Just "BillableId") uuidParamSchema
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema AuctionId where
-  declareNamedSchema _ = pure $ NamedSchema (Just "AuctionId") uuidParamSchema
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema SubscriptionId where
-  declareNamedSchema _ = pure $ NamedSchema (Just "SubscriptionId") uuidParamSchema
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema PaymentId where
-  declareNamedSchema _ = pure $ NamedSchema (Just "PaymentId") uuidParamSchema
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 -- | thyme UTCTime → delegate to time's UTCTime schema
 instance ToSchema C.UTCTime where
@@ -146,16 +148,8 @@ instance ToSchema C.UTCTime where
     pure $ s { _namedSchemaName = Just "UTCTime" }
 
 --------------------------------------------------------------------------------
--- ToSchema instances for API request/response types
---
--- Types with custom ToJSON instances use a simple freeform object schema.
--- This is pragmatic: the ToJSON instances hand-write field names that don't
--- match Haskell record fields, so Generic-based derivation would be wrong.
+-- ToSchema instances for special types
 --------------------------------------------------------------------------------
-
-freeformObject :: Text -> OA.NamedSchema
-freeformObject name = NamedSchema (Just name)
-  (mempty & OA.type_ ?~ OA.OpenApiObject)
 
 -- | Aeson Value as freeform JSON — used by untyped response endpoints
 instance ToSchema A.Value where
@@ -165,131 +159,140 @@ instance ToSchema A.Value where
 instance ToSchema BIP70Data where
   declareNamedSchema _ = pure $ NamedSchema (Just "BIP70Data") OA.binarySchema
 
+--------------------------------------------------------------------------------
+-- ToSchema instances for API request/response types (codec-derived)
+--------------------------------------------------------------------------------
+
 -- Auth
 instance ToSchema AuthenticatedUser where
-  declareNamedSchema _ = pure $ freeformObject "AuthenticatedUser"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema LoginRequest where
-  declareNamedSchema _ = pure $ freeformObject "LoginRequest"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 -- Users
 instance ToSchema RegisterRequest where
-  declareNamedSchema _ = pure $ freeformObject "RegisterRequest"
+  declareNamedSchema _ = pure $ NamedSchema (Just "RegisterRequest")
+    (mempty & OA.type_ ?~ OA.OpenApiObject)
 
 instance ToSchema RegisterResponse where
-  declareNamedSchema _ = pure $ freeformObject "RegisterResponse"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema UsernameCheckResponse where
-  declareNamedSchema _ = pure $ freeformObject "UsernameCheckResponse"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema ZAddrCheckResponse where
-  declareNamedSchema _ = pure $ freeformObject "ZAddrCheckResponse"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema AccountSettingsResponse where
-  declareNamedSchema _ = pure $ freeformObject "AccountSettingsResponse"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema SetPaymentAddressRequest where
-  declareNamedSchema _ = pure $ freeformObject "SetPaymentAddressRequest"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 -- Session
 instance ToSchema LoginCheckResponse where
-  declareNamedSchema _ = pure $ freeformObject "LoginCheckResponse"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 -- Projects
 instance ToSchema ProjectCreateRequest where
-  declareNamedSchema _ = pure $ freeformObject "ProjectCreateRequest"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema ProjectCreateResponse where
-  declareNamedSchema _ = pure $ freeformObject "ProjectCreateResponse"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema ProjectSummary where
-  declareNamedSchema _ = pure $ freeformObject "ProjectSummary"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema ProjectResponse where
-  declareNamedSchema _ = pure $ freeformObject "ProjectResponse"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema ProjectDetailResponse where
-  declareNamedSchema _ = pure $ freeformObject "ProjectDetailResponse"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema ProjectInviteRequest where
-  declareNamedSchema _ = pure $ freeformObject "ProjectInviteRequest"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema ProjectInviteResponse where
-  declareNamedSchema _ = pure $ freeformObject "ProjectInviteResponse"
+  declareNamedSchema _ = pure $ NamedSchema (Just "ProjectInviteResponse")
+    (mempty & OA.type_ ?~ OA.OpenApiObject)
 
 instance ToSchema CommsAddress where
-  declareNamedSchema _ = pure $ freeformObject "CommsAddress"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 -- WorkLog
 instance ToSchema LogStartRequest where
-  declareNamedSchema _ = pure $ freeformObject "LogStartRequest"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema LogEndRequest where
-  declareNamedSchema _ = pure $ freeformObject "LogEndRequest"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema EventAmendmentRequest where
-  declareNamedSchema _ = pure $ freeformObject "EventAmendmentRequest"
+  declareNamedSchema _ = pure $ NamedSchema (Just "EventAmendmentRequest")
+    (mempty & OA.type_ ?~ OA.OpenApiObject)
 
 instance ToSchema ExtendedLogEntryResponse where
-  declareNamedSchema _ = pure $ freeformObject "ExtendedLogEntryResponse"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema KeyedLogEntryResponse where
-  declareNamedSchema _ = pure $ freeformObject "KeyedLogEntryResponse"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema WorkIndexResponse where
-  declareNamedSchema _ = pure $ freeformObject "WorkIndexResponse"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema WorkIndexEntry where
-  declareNamedSchema _ = pure $ freeformObject "WorkIndexEntry"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema IntervalResponse where
-  declareNamedSchema _ = pure $ freeformObject "IntervalResponse"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema AmendEventResponse where
-  declareNamedSchema _ = pure $ freeformObject "AmendEventResponse"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 -- Auctions
 instance ToSchema AuctionCreateRequest where
-  declareNamedSchema _ = pure $ freeformObject "AuctionCreateRequest"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema AuctionCreateResponse where
-  declareNamedSchema _ = pure $ freeformObject "AuctionCreateResponse"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema BidCreateRequest where
-  declareNamedSchema _ = pure $ freeformObject "BidCreateRequest"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 -- Billing
 instance ToSchema BillableCreateRequest where
-  declareNamedSchema _ = pure $ freeformObject "BillableCreateRequest"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema BillableCreateResponse where
-  declareNamedSchema _ = pure $ freeformObject "BillableCreateResponse"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema BillableResponse where
-  declareNamedSchema _ = pure $ freeformObject "BillableResponse"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema PaymentRequestCreateRequest where
-  declareNamedSchema _ = pure $ freeformObject "PaymentRequestCreateRequest"
+  declareNamedSchema _ = pure $ NamedSchema (Just "PaymentRequestCreateRequest")
+    (mempty & OA.type_ ?~ OA.OpenApiObject)
 
 instance ToSchema PaymentRequestResponse where
-  declareNamedSchema _ = pure $ freeformObject "PaymentRequestResponse"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema SubscribeRequest where
-  declareNamedSchema _ = pure $ freeformObject "SubscribeRequest"
+  declareNamedSchema _ = pure $ NamedSchema (Just "SubscribeRequest")
+    (mempty & OA.type_ ?~ OA.OpenApiObject)
 
 instance ToSchema SubscribeResponse where
-  declareNamedSchema _ = pure $ freeformObject "SubscribeResponse"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 -- Password Reset
 instance ToSchema PasswordResetRequest where
-  declareNamedSchema _ = pure $ freeformObject "PasswordResetRequest"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema PasswordResetResponse where
-  declareNamedSchema _ = pure $ freeformObject "PasswordResetResponse"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 instance ToSchema PasswordResetConfirm where
-  declareNamedSchema _ = pure $ freeformObject "PasswordResetConfirm"
+  declareNamedSchema = declareNamedSchemaViaCodec
 
 -- Config
 instance ToSchema ClientConfig where
-  declareNamedSchema _ = pure $ freeformObject "ClientConfig"
+  declareNamedSchema = declareNamedSchemaViaCodec
