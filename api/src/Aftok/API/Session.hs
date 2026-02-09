@@ -1,6 +1,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | Session API types for the Aftok API.
 module Aftok.API.Session
@@ -14,8 +16,10 @@ module Aftok.API.Session
 where
 
 import Aftok.API.Auth (AuthenticatedUser, LoginRequest)
-import Data.Aeson (ToJSON (..), (.=))
-import qualified Data.Aeson as A
+import Aftok.API.Codec ()
+import Autodocodec (HasCodec (..), object, requiredField', (.=))
+import Autodocodec.Aeson (toJSONViaCodec)
+import Data.Aeson (ToJSON (..))
 import Servant.API
 import Servant.Auth.Server (SetCookie)
 
@@ -40,9 +44,11 @@ data LoginCheckResponse = LoginCheckResponse
   }
   deriving (Show, Eq, Generic)
 
-instance ToJSON LoginCheckResponse where
-  toJSON (LoginCheckResponse li user) =
-    A.object
-      [ "loggedIn" .= li,
-        "user" .= user
-      ]
+instance HasCodec LoginCheckResponse where
+  codec =
+    object "LoginCheckResponse" $
+      LoginCheckResponse
+        <$> requiredField' "loggedIn" .= loggedIn
+        <*> requiredField' "user" .= loginUser
+
+instance ToJSON LoginCheckResponse where toJSON = toJSONViaCodec
