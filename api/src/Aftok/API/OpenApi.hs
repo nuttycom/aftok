@@ -19,6 +19,13 @@ import Aftok.API.Billing
     SubscribeResponse,
   )
 import Aftok.API.Config (ClientConfig)
+import Aftok.API.GitHub
+  ( GitHubUsernameResponse,
+    LinkGitHubUsernameRequest,
+    LinkRepoRequest,
+    LinkRepoResponse,
+    RepoLinkInfo,
+  )
 import Aftok.API.PasswordReset
   ( PasswordResetConfirm,
     PasswordResetRequest,
@@ -64,7 +71,7 @@ import Aftok.API.Payments (BIP70Data (..))
 import Aftok.Auction (AuctionId (..))
 import Aftok.Billing (BillableId (..), SubscriptionId (..))
 import Aftok.Payments.Types (PaymentId (..))
-import Aftok.Types (ProjectId (..), UserId (..))
+import Aftok.Types (GitHubRepoLinkId (..), ProjectId (..), UserId (..))
 import Autodocodec.OpenAPI (declareNamedSchemaViaCodec)
 
 import Control.Lens ((.~), (?~))
@@ -295,4 +302,23 @@ instance ToSchema PasswordResetConfirm where
 
 -- Config
 instance ToSchema ClientConfig where
+  declareNamedSchema = declareNamedSchemaViaCodec
+
+-- GitHub
+instance ToSchema GitHubRepoLinkId where
+  declareNamedSchema = declareNamedSchemaViaCodec
+
+instance ToSchema LinkRepoRequest where
+  declareNamedSchema = declareNamedSchemaViaCodec
+
+instance ToSchema LinkRepoResponse where
+  declareNamedSchema = declareNamedSchemaViaCodec
+
+instance ToSchema RepoLinkInfo where
+  declareNamedSchema = declareNamedSchemaViaCodec
+
+instance ToSchema LinkGitHubUsernameRequest where
+  declareNamedSchema = declareNamedSchemaViaCodec
+
+instance ToSchema GitHubUsernameResponse where
   declareNamedSchema = declareNamedSchemaViaCodec

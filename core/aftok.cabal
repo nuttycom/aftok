@@ -86,12 +86,14 @@ library
     Aftok.Currency.Zcash.Payments
     Aftok.Currency.Zcash.Zip321
     Aftok.Database
+    Aftok.GitHub
     Aftok.Database.PostgreSQL
     Aftok.Database.PostgreSQL.Json
     Aftok.Database.PostgreSQL.Types
     Aftok.Database.PostgreSQL.Auctions
     Aftok.Database.PostgreSQL.Billing
     Aftok.Database.PostgreSQL.Events
+    Aftok.Database.PostgreSQL.GitHub
     Aftok.Database.PostgreSQL.PasswordReset
     Aftok.Database.PostgreSQL.Projects
     Aftok.Database.PostgreSQL.Users

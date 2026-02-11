@@ -1,0 +1,30 @@
+Description: Add github_webhook_events table for audit logging of webhook processing
+Created: 2026-02-08 12:00:02 UTC
+Depends: 2026-02-08_12-00-01_github-repo-links
+Apply: |
+  CREATE TYPE github_event_status AS ENUM ('processed', 'skipped', 'error');
+
+  CREATE TABLE github_webhook_events (
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    repo_link_id uuid NOT NULL REFERENCES github_repo_links(id) ON DELETE CASCADE,
+    github_delivery_id text NOT NULL UNIQUE,
+    event_type text NOT NULL,
+    pr_number integer,
+    pr_author_email text,
+    pr_author_github_login text,
+    time_spent_parsed interval,
+    status github_event_status NOT NULL,
+    error_message text,
+    work_event_id uuid REFERENCES work_events(id),
+    user_id uuid REFERENCES users(id),
+    user_created boolean NOT NULL DEFAULT false,
+    received_at timestamp with time zone NOT NULL DEFAULT now(),
+    processed_at timestamp with time zone
+  );
+
+  CREATE INDEX idx_github_webhook_events_repo_link_id ON github_webhook_events(repo_link_id);
+  CREATE INDEX idx_github_webhook_events_delivery_id ON github_webhook_events(github_delivery_id);
+
+Revert: |
+  DROP TABLE github_webhook_events;
+  DROP TYPE github_event_status;

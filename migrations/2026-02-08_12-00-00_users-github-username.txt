@@ -1,0 +1,10 @@
+Description: Add github_username column to users table for GitHub account linking
+Created: 2026-02-08 12:00:00 UTC
+Depends: 2026-02-07_00-00-00_address-change-events
+Apply: |
+  ALTER TABLE users ADD COLUMN github_username text UNIQUE;
+  CREATE INDEX idx_users_github_username ON users(github_username) WHERE github_username IS NOT NULL;
+
+Revert: |
+  DROP INDEX idx_users_github_username;
+  ALTER TABLE users DROP COLUMN github_username;

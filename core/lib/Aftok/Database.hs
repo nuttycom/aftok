@@ -32,9 +32,16 @@ import Aftok.TimeLog
   )
 import qualified Aftok.TimeLog as TL
 import Aftok.Password (PasswordHash)
+import Aftok.GitHub
+  ( GitHubRepoLink,
+    GitHubWebhookEvent,
+  )
 import Aftok.Types
   ( AccountId,
     Email,
+    GitHubRepoLinkId,
+    GitHubUsername,
+    GitHubWebhookEventId,
     PasswordResetToken,
     PasswordResetTokenId,
     ProjectId,
@@ -125,6 +132,17 @@ data DBOp a where
   -- Zcash address operations
   SetUserZcashAddress :: UserId -> Zcash.Address -> DBOp ()
   FindUserZcashAddress :: UserId -> DBOp (Maybe Zcash.Address)
+  -- GitHub integration operations
+  FindUserByGitHubUsername :: GitHubUsername -> DBOp (Maybe (UserId, User))
+  LinkGitHubUsername :: UserId -> GitHubUsername -> DBOp ()
+  UnlinkGitHubUsername :: UserId -> DBOp ()
+  GetUserGitHubUsername :: UserId -> DBOp (Maybe GitHubUsername)
+  CreateGitHubRepoLink :: GitHubRepoLink -> DBOp GitHubRepoLinkId
+  FindGitHubRepoLink :: Text -> Text -> DBOp (Maybe (GitHubRepoLinkId, GitHubRepoLink))
+  FindProjectGitHubRepoLinks :: ProjectId -> DBOp [(GitHubRepoLinkId, GitHubRepoLink)]
+  DeleteGitHubRepoLink :: GitHubRepoLinkId -> DBOp ()
+  RecordWebhookEvent :: GitHubRepoLinkId -> GitHubWebhookEvent -> DBOp GitHubWebhookEventId
+  IsDeliveryProcessed :: Text -> DBOp Bool
   RaiseDBError :: forall x y. DBError -> DBOp x -> DBOp y
 
 data InvitationError
@@ -376,6 +394,38 @@ findSubscriptionUnpaidRequests = liftdb . FindSubscriptionUnpaidRequests
 
 findPayment :: (MonadDB m) => Currency a c -> PaymentRequestId -> MaybeT m (Payment c)
 findPayment currency prid = MaybeT $ (fmap snd . headMay) <$> liftdb (FindPayments currency prid)
+
+-- GitHub integration ops
+
+findUserByGitHubUsername :: (MonadDB m) => GitHubUsername -> MaybeT m (UserId, User)
+findUserByGitHubUsername = MaybeT . liftdb . FindUserByGitHubUsername
+
+linkGitHubUsername :: (MonadDB m) => UserId -> GitHubUsername -> m ()
+linkGitHubUsername uid ghUser = liftdb $ LinkGitHubUsername uid ghUser
+
+unlinkGitHubUsername :: (MonadDB m) => UserId -> m ()
+unlinkGitHubUsername uid = liftdb $ UnlinkGitHubUsername uid
+
+getUserGitHubUsername :: (MonadDB m) => UserId -> m (Maybe GitHubUsername)
+getUserGitHubUsername = liftdb . GetUserGitHubUsername
+
+createGitHubRepoLink :: (MonadDB m) => GitHubRepoLink -> m GitHubRepoLinkId
+createGitHubRepoLink = liftdb . CreateGitHubRepoLink
+
+findGitHubRepoLink :: (MonadDB m) => Text -> Text -> MaybeT m (GitHubRepoLinkId, GitHubRepoLink)
+findGitHubRepoLink owner repo = MaybeT . liftdb $ FindGitHubRepoLink owner repo
+
+findProjectGitHubRepoLinks :: (MonadDB m) => ProjectId -> m [(GitHubRepoLinkId, GitHubRepoLink)]
+findProjectGitHubRepoLinks = liftdb . FindProjectGitHubRepoLinks
+
+deleteGitHubRepoLink :: (MonadDB m) => GitHubRepoLinkId -> m ()
+deleteGitHubRepoLink = liftdb . DeleteGitHubRepoLink
+
+recordWebhookEvent :: (MonadDB m) => GitHubRepoLinkId -> GitHubWebhookEvent -> m GitHubWebhookEventId
+recordWebhookEvent linkId ev = liftdb $ RecordWebhookEvent linkId ev
+
+isDeliveryProcessed :: (MonadDB m) => Text -> m Bool
+isDeliveryProcessed = liftdb . IsDeliveryProcessed
 
 -- Auction ops
 

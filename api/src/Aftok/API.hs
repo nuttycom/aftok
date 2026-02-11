@@ -20,6 +20,7 @@ module Aftok.API
     module Aftok.API.Payments,
     module Aftok.API.PasswordReset,
     module Aftok.API.Config,
+    module Aftok.API.GitHub,
 
     -- * Auth Types
     module Aftok.API.Auth,
@@ -33,6 +34,7 @@ import Aftok.API.Auth
 import Aftok.API.Auctions
 import Aftok.API.Billing
 import Aftok.API.Config
+import Aftok.API.GitHub
 import Aftok.API.PasswordReset
 import Aftok.API.Payments
 import Aftok.API.Projects
@@ -57,6 +59,8 @@ type VersionedAPI =
     :<|> PasswordResetAPI
     -- Client configuration endpoint (public)
     :<|> ConfigAPI
+    -- GitHub webhook endpoint (public, signature-verified)
+    :<|> GitHubWebhookAPI
     -- Protected endpoints (auth required)
     :<|> AftokAuth :> ProtectedAPI
 
@@ -76,6 +80,8 @@ type ProtectedAPI =
     :<|> ProtectedUsersAPI
     -- Session operations (login check)
     :<|> ProtectedSessionAPI
+    -- GitHub username linking (user profile)
+    :<|> "user" :> GitHubUserAPI
 
 -- | Proxy for the API (used for serving and client generation)
 aftokAPI :: Proxy AftokAPI

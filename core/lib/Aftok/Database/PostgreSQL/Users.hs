@@ -16,6 +16,11 @@ module Aftok.Database.PostgreSQL.Users
     updateUserPassword,
     setUserZcashAddress,
     findUserZcashAddress,
+    -- GitHub username operations
+    findUserByGitHubUsername,
+    linkGitHubUsername,
+    unlinkGitHubUsername,
+    getUserGitHubUsername,
   )
 where
 
@@ -243,3 +248,40 @@ setUserZcashAddress uid addr = do
     Nothing ->
       -- Insert a new primary account row
       linkZcashAccount uid addr
+
+-- | Find a user by their linked GitHub username
+findUserByGitHubUsername :: GitHubUsername -> DBM (Maybe (UserId, User))
+findUserByGitHubUsername (GitHubUsername ghUser) = do
+  headMay
+    <$> pquery
+      ((,) <$> idParser UserId <*> userParser)
+      [sql| SELECT id, handle, recovery_email, recovery_zaddr
+            FROM users
+            WHERE github_username = ? |]
+      (Only ghUser)
+
+-- | Link a GitHub username to a user account
+linkGitHubUsername :: UserId -> GitHubUsername -> DBM ()
+linkGitHubUsername (UserId uid) (GitHubUsername ghUser) =
+  void $
+    pexec
+      [sql| UPDATE users SET github_username = ? WHERE id = ? |]
+      (ghUser, uid)
+
+-- | Unlink a GitHub username from a user account
+unlinkGitHubUsername :: UserId -> DBM ()
+unlinkGitHubUsername (UserId uid) =
+  void $
+    pexec
+      [sql| UPDATE users SET github_username = NULL WHERE id = ? |]
+      (Only uid)
+
+-- | Get the GitHub username linked to a user account
+getUserGitHubUsername :: UserId -> DBM (Maybe GitHubUsername)
+getUserGitHubUsername (UserId uid) = do
+  results <-
+    pquery
+      (fmap GitHubUsername <$> field)
+      [sql| SELECT github_username FROM users WHERE id = ? |]
+      (Only uid)
+  pure $ join (headMay results)

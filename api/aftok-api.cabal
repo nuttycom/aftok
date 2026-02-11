@@ -41,6 +41,7 @@ library
     Aftok.API.Payments
     Aftok.API.PasswordReset
     Aftok.API.Config
+    Aftok.API.GitHub
     Aftok.API.OpenApi
 
   build-depends:

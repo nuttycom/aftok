@@ -31,6 +31,14 @@ import Aftok.Servant.Billing
   ( ProtectedBillingAPI,
     protectedBillingServer,
   )
+import Aftok.Servant.GitHub
+  ( gitHubUserServer,
+    gitHubWebhookServer,
+  )
+import Aftok.API.GitHub
+  ( GitHubUserAPI,
+    GitHubWebhookAPI,
+  )
 import Aftok.Servant.Payments
   ( ProtectedPaymentsAPI,
     protectedPaymentsServer,
@@ -122,6 +130,7 @@ type ProtectedAPI =
     :<|> ProtectedPaymentsAPI
     :<|> ProtectedUsersAPI
     :<|> ProtectedSessionAPI
+    :<|> "user" :> GitHubUserAPI
 
 -- | API server (without static files)
 apiServer ::
@@ -130,12 +139,13 @@ apiServer ::
   RegisterOps IO ->
   CaptchaConfig ->
   PasswordResetOps IO ->
-  ServerT (UsersAPI :<|> SessionAPI :<|> PasswordResetAPI :<|> ConfigAPI :<|> AftokAuth :> ProtectedAPI) AppM
+  ServerT (UsersAPI :<|> SessionAPI :<|> PasswordResetAPI :<|> ConfigAPI :<|> GitHubWebhookAPI :<|> AftokAuth :> ProtectedAPI) AppM
 apiServer btcCfg payCfg regOps captchaCfg pwResetOps =
   usersServer regOps captchaCfg
     :<|> sessionServer
     :<|> passwordResetServer pwResetOps
     :<|> configServer captchaCfg
+    :<|> gitHubWebhookServer
     :<|> protectedServer btcCfg payCfg regOps
 
 -- | Protected server (requires authentication)
@@ -153,6 +163,7 @@ protectedServer btcCfg payCfg regOps authResult =
     :<|> protectedPaymentsServer btcCfg payCfg authResult
     :<|> protectedUsersServer regOps authResult
     :<|> protectedSessionServer authResult
+    :<|> gitHubUserServer authResult
 
 -- | Protected users server
 protectedUsersServer ::

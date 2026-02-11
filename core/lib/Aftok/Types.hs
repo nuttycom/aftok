@@ -22,6 +22,10 @@ newtype Email = Email Text deriving (Show, Eq)
 
 makePrisms ''Email
 
+newtype GitHubUsername = GitHubUsername Text deriving (Show, Eq)
+
+makePrisms ''GitHubUsername
+
 data RecoverBy z
   = RecoverByEmail Email
   | RecoverByZAddr z
@@ -85,3 +89,12 @@ data DepreciationRules = DepreciationRules
   }
 
 makeLenses ''DepreciationRules
+
+-- GitHub integration types
+newtype GitHubRepoLinkId = GitHubRepoLinkId UUID deriving (Show, Eq, Ord)
+
+makePrisms ''GitHubRepoLinkId
+
+newtype GitHubWebhookEventId = GitHubWebhookEventId UUID deriving (Show, Eq, Ord)
+
+makePrisms ''GitHubWebhookEventId
