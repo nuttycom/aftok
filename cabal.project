@@ -1,21 +1,14 @@
 packages:
-    ./
+    core/
+    api/
+    executables/
 
 source-repository-package
     type: git
     location: https://github.com/aftok/bippy.git
-    tag: e809e5a63a251b87d61d55bfc08a5a89c695ef8e
+    tag: 1108583dc3211f9685ab5b3f04a99c7f9d84d544
 
 source-repository-package
     type: git
     location: https://github.com/nuttycom/lrzhs.git
-    tag: 65ee43717492fe6f2e086c331439b9d61abcdfc7
-
-source-repository-package
-    type: git
-    location: https://github.com/nuttycom/snaplet-postgresql-simple.git
-    tag: c314c6f64bc00d05dab9630f30f269740da6ea9e
-
-allow-newer:
-    snaplet-postgresql-simple:lens,
-    snaplet-postgresql-simple:bytestring
+    tag: 51838a296afc0f0b8c8ec7cf0018dc12f989ecc5

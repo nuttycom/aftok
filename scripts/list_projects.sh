@@ -1,19 +1,9 @@
 #!/bin/bash
 
-if [ -f ".env" ]; then
-  source .env
-fi
-
-if [ -z "${AFTOK_HOST}" ]; then 
-  AFTOK_HOST="aftok.com"
-fi
-
-if [ -z "${USER}" ]; then 
-  read -p "Username: " USER
-  echo
-fi
+source "$(dirname "$0")/_common.sh"
+setup_auth
 
 curl \
   ${ALLOW_INSECURE} \
-  --user $USER \
-  "https://$AFTOK_HOST/api/projects"
+  ${AUTH_OPTS} \
+  "${AFTOK_URL}/api/projects"

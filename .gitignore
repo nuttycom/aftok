@@ -1,6 +1,7 @@
 cabal.sandbox.config
 .cabal-sandbox
 .stack-work
+.direnv
 Setup
 dist-newstyle
 result
@@ -24,6 +25,6 @@ docker/fix-attrs.d
 client/.pulp-cache
 moo.cfg
 site_key.txt
-.env*
+.env-*
 
 client/node_modules.old/

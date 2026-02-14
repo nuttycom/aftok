@@ -1,13 +1,15 @@
 #!/bin/bash
 
-if [ -f ".env" ]; then
-  source .env
-fi
+source "$(dirname "$0")/_common.sh"
 
-if [ -z "${AFTOK_HOST}" ]; then 
-  AFTOK_HOST="aftok.com"
-fi
-
+# Logout and clear the cookies file
 curl --verbose \
   ${ALLOW_INSECURE} \
-  "https://$AFTOK_HOST/api/logout"
+  -b cookies.txt \
+  -c cookies.txt \
+  -X POST \
+  "${AFTOK_URL}/api/logout"
+
+# Remove the cookies file
+rm -f cookies.txt
+echo "Logged out and removed cookies.txt"

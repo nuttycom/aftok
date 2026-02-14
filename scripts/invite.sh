@@ -1,29 +1,26 @@
 #!/bin/bash
 
-if [ -f ".env" ]; then
-  source .env
-fi
-
-if [ -z "${AFTOK_HOST}" ]; then 
-  AFTOK_HOST="aftok.com"
-fi
-
-if [ -z "${USER}" ]; then 
-  read -p "Username: " USER
-  echo
-fi
+source "$(dirname "$0")/_common.sh"
+setup_auth
 
 if [ -z "${PID}" ]; then
   read -p "Project UUID: " PID
-  echo
 fi
 
-read -p "Invite: " EMAIL
-echo
+read -p "Invite Name: " GREET_NAME
+read -p "Email: " EMAIL
+
+BODY=$(cat <<END_BODY
+{
+  "greetName": "$GREET_NAME",
+  "inviteBy": {"email": "$EMAIL"}
+}
+END_BODY
+)
 
 curl --verbose \
   ${ALLOW_INSECURE} \
-  --user $USER \
+  ${AUTH_OPTS} \
   --header "Content-Type: application/json" \
-  --data '{}' \
-  "https://$AFTOK_HOST/api/projects/$PID/invite?email=$EMAIL"
+  --data "$BODY" \
+  "${AFTOK_URL}/api/projects/${PID}/invite"

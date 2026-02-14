@@ -1,34 +1,20 @@
 #!/bin/bash
 
-if [ -f ".env" ]; then
-  source .env
-fi
-
-if [ -z "${AFTOK_HOST}" ]; then 
-  AFTOK_HOST="aftok.com"
-fi
-
-if [ -z "${USER}" ]; then 
-  read -p "Username: " USER
-  echo
-fi
+source "$(dirname "$0")/_common.sh"
+setup_auth
 
 read -p "Event ID: " EID
 
 while [ -z "${ATYPE}" ]
-do 
+do
   read -p "Amendment Type: " ATYPE
   case $ATYPE in
-    # "CREDIT_TO")
-    #   AVALUE="creditToChange"
-    #   read -p "Raise amount, in Bitcoin satoshis: " AMOUNT
-    #   ;;
     "TIME")
       AVALUE="timeChange"
       read -p "Event Timestamp (yyyy-MM-ddTHH:mm:ssZ): " ATIME
       ;;
     *)
-      echo "$ATYPE is not a amendment type. Please choose \"TIME\"" # or \"CREDIT_TO\""
+      echo "$ATYPE is not a amendment type. Please choose \"TIME\""
       ATYPE=""
       ;;
   esac
@@ -45,8 +31,8 @@ END_BODY
 
 curl --verbose \
   ${ALLOW_INSECURE} \
-  --user $USER \
+  ${AUTH_OPTS} \
   --header "Content-Type: application/json" \
   --request PUT \
   --data "$BODY" \
-  "https://$AFTOK_HOST/api/events/$EID/amend"
+  "${AFTOK_URL}/api/events/${EID}/amend"

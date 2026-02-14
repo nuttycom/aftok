@@ -1,0 +1,148 @@
+cabal-version: 3.0
+Name:          aftok-executables
+Version:       0.1
+Synopsis:      Executables for the Aftok Collaboration Platform
+Description:   Server and daemon executables for the Aftok time logging and payment distribution service.
+License:       AGPL-3.0-or-later
+Author:        Kris Nuttycombe
+Maintainer:    kris@aftok.com
+Stability:     Experimental
+Category:      Web
+Build-type:    Simple
+
+common buildenv
+  default-language:   Haskell2010
+  ghc-options:        -Wall -Werror
+  default-extensions:
+    GADTs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    OverloadedStrings
+    RankNTypes
+    ScopedTypeVariables
+
+common base-deps
+  build-depends:
+    base >= 4.15.1 && < 4.21,
+    relude >= 1.1.0 && < 1.3,
+    aeson >= 2.0.3 && < 2.3,
+    attoparsec >= 0.14.4 && < 0.15,
+    bifunctors >= 5.5.15 && < 5.7,
+    bippy >= 0.3 && < 0.4,
+    bytestring >= 0.11.4 && < 0.13,
+    cereal >= 0.5.8 && < 0.6,
+    configurator >= 0.3.0 && < 0.4,
+    containers >= 0.6.5 && < 0.8,
+    cryptonite >= 0.30 && < 0.31,
+    either >= 5.0.2 && < 5.1,
+    errors >= 2.3.0 && < 2.4,
+    from-sum >= 0.2.3 && < 0.3,
+    HStringTemplate >= 0.8.8 && < 0.9,
+    HsOpenSSL >= 0.11.7 && < 0.12,
+    haskoin-core >= 1.0 && < 1.3,
+    hourglass >= 0.2.12 && < 0.3,
+    http-client >= 0.7.13 && < 0.8,
+    http-types >= 0.12.3 && < 0.13,
+    iso8601-time >= 0.1.5 && < 0.2,
+    lens >= 5.1.1 && < 5.4,
+    lrzhs >= 0.1,
+    mtl >= 2.2.2 && < 2.4,
+    network >= 3.1.2 && < 3.3,
+    network-uri >= 2.6.4 && < 2.7,
+    postgresql-simple >= 0.6.4 && < 0.8,
+    protobuf >= 0.2.1 && < 0.3,
+    secp256k1-haskell >= 1.0 && < 2.0,
+    semigroups >= 0.20 && < 0.21,
+    smtp-mail >= 0.3.0 && < 0.6,
+    system-filepath >= 0.4.14 && < 0.5,
+    template-haskell >= 2.18.0 && < 2.23,
+    text >= 1.2.5 && < 2.2,
+    thyme >= 0.4 && < 0.5,
+    transformers >= 0.5.6 && < 0.7,
+    uuid >= 1.3.15 && < 1.4,
+    unordered-containers >= 0.2.19 && < 0.3,
+    vector-space >= 0.16 && < 0.20,
+    x509 >= 1.7.7 && < 1.8,
+    x509-store >= 1.6.9 && < 1.7,
+  mixins:
+    base hiding (Prelude),
+    relude (Relude as Prelude),
+
+common service-deps
+  build-depends:
+    base64-bytestring >= 1.2.1 && < 1.3,
+    http-client-openssl >= 0.3.3 && < 0.4,
+    mime-mail >= 0.5.1 && < 0.6,
+    optparse-applicative >= 0.17.0 && < 0.19,
+
+Executable aftok-server
+  import:             buildenv, base-deps, service-deps
+  ghc-options:        -Wall -Werror
+  hs-source-dirs:     server
+  main-is:            Main.hs
+
+  other-modules:
+    Aftok.ServerConfig
+    Aftok.Servant.App
+    Aftok.Servant.Auth
+    Aftok.Servant.API
+    Aftok.Servant.Config
+    Aftok.Servant.Json
+    Aftok.Servant.PasswordReset
+    Aftok.Servant.Server
+    Aftok.Servant.Session
+    Aftok.Servant.Users
+    Aftok.Servant.Projects
+    Aftok.Servant.WorkLog
+    Aftok.Servant.Auctions
+    Aftok.Servant.Billing
+    Aftok.Servant.Payments
+
+  build-depends:
+    aftok,
+    aftok-api,
+    directory                 >= 1.3.6,
+    http-client-tls           >= 0.3.6,
+    jose                      >= 0.10 && < 0.12,
+    resource-pool             >= 0.4 && < 0.5,
+    time                      >= 1.12 && < 1.15,
+    servant                   >= 0.20 && < 0.21,
+    servant-server            >= 0.20 && < 0.21,
+    servant-auth              >= 0.4 && < 0.5,
+    servant-auth-server       >= 0.4 && < 0.5,
+    wai                       >= 3.2 && < 3.3,
+    warp                      >= 3.3 && < 3.5,
+    wai-extra                 >= 3.1 && < 3.2,
+    wai-cors                  >= 0.2 && < 0.3,
+
+Executable aftok-openapi
+  import:             buildenv
+  hs-source-dirs:     openapi
+  main-is:            Main.hs
+  build-depends:
+    base >= 4.15.1 && < 4.21,
+    relude >= 1.1.0 && < 1.3,
+    aftok,
+    aftok-api,
+    aeson >= 2.0.3 && < 2.3,
+    aeson-pretty >= 0.8 && < 0.9,
+    bytestring >= 0.11.4 && < 0.13,
+    openapi3 >= 3.2 && < 3.3,
+    servant >= 0.20 && < 0.21,
+    servant-openapi3 >= 2.0 && < 2.1,
+  mixins:
+    base hiding (Prelude),
+    relude (Relude as Prelude),
+
+Executable aftok-daemon
+  import:             buildenv, base-deps, service-deps
+  hs-source-dirs:     daemon
+  main-is:            Main.hs
+
+  other-modules:
+    AftokD
+    AftokD.AftokM
+
+  build-depends:
+    aftok

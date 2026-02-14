@@ -1,24 +1,13 @@
 #!/bin/bash
 
-if [ -f ".env" ]; then
-  source .env
-fi
-
-if [ -z "${AFTOK_HOST}" ]; then 
-  AFTOK_HOST="aftok.com"
-fi
-
-if [ -z "${USER}" ]; then 
-  read -p "Username: " USER
-  echo
-fi
+source "$(dirname "$0")/_common.sh"
+setup_auth
 
 if [ -z "${PID}" ]; then
   read -p "Project UUID: " PID
-  echo
 fi
 
 curl --verbose \
   ${ALLOW_INSECURE} \
-  --user $USER \
-  "https://$AFTOK_HOST/api/user/projects/$PID/workIndex?limit=100&before=$(date -Iseconds)"
+  ${AUTH_OPTS} \
+  "${AFTOK_URL}/api/user/projects/${PID}/workIndex?limit=100&before=$(date -Iseconds)"

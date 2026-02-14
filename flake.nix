@@ -1,27 +1,29 @@
 {
   description = "The Aftok Collaboration Server";
 
+  nixConfig.allow-import-from-derivation = true;
+
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/release-24.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/release-25.11";
     flake-utils.url = "github:numtide/flake-utils";
     dbmigrations = {
-      url = "github:nuttycom/dbmigrations/74ef9388b45ae73a1d9c737d9644e076fe832672";
+      url = "github:haskell-github-trust/dbmigrations/e2840f47f819252f1cc9c6010b5c7bff5d4df763";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     dbmigrations-postgresql = {
-      url = "github:nuttycom/dbmigrations-postgresql/3c9477e45e923b28d9677dc6291e35bb7c833c28";
+      url = "github:nuttycom/dbmigrations-postgresql/6c6dffaba5a7a51b21a7f9d5862ea02bb899f3ee";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     dbmigrations-postgresql-simple = {
-      url = "github:nuttycom/dbmigrations-postgresql-simple/d51bbc5a0b7d91f7c8a12fc28e5ecbe7ac326221";
+      url = "github:nuttycom/dbmigrations-postgresql-simple/f26b9e1ab27b9ff8f269c6541a7606bcbc22e02a";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     bippy = {
-      url = "github:aftok/bippy/8166b7e";
+      url = "github:aftok/bippy/1108583";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     lrzhs = {
-      url = "github:nuttycom/lrzhs/d29ab9a";
+      url = "github:nuttycom/lrzhs/51838a296afc0f0b8c8ec7cf0018dc12f989ecc5";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -38,22 +40,19 @@
     ...
   }: let
     haskell-overlay = final: prev: hfinal: hprev: let
-      jailbreakUnbreak = pkg:
-        final.haskell.lib.doJailbreak (pkg.overrideAttrs (_: {meta = {};}));
       unbreak = pkg:
         pkg.overrideAttrs (_: {meta = {};});
     in {
-      # Pin resource-pool to 0.2.x for compatibility with snaplet-postgresql-simple
-      resource-pool = hfinal.callHackageDirect {
-        pkg = "resource-pool";
-        ver = "0.2.3.2";
-        sha256 = "sha256-Ieg9Vfhoh1Gd5eX5L8usLPHkklCdy6Kwi79ufJSj9I0=";
-      } {};
-      snaplet-postgresql-simple = jailbreakUnbreak hprev.snaplet-postgresql-simple;
       thyme = unbreak hprev.thyme;
-      dbmigrations = dbmigrations.defaultPackage.${final.system};
-      dbmigrations-postgresql-simple = dbmigrations-postgresql-simple.defaultPackage.${final.system};
-      aftok = hfinal.callCabal2nix "aftok" ./. {};
+      # Unbreak servant-auth packages for nixpkgs 24.11
+      servant-auth = unbreak hprev.servant-auth;
+      servant-auth-server = unbreak hprev.servant-auth-server;
+      dbmigrations = dbmigrations.packages.${final.stdenv.hostPlatform.system}.default;
+      dbmigrations-postgresql = dbmigrations-postgresql.packages.${final.stdenv.hostPlatform.system}.default;
+      dbmigrations-postgresql-simple = dbmigrations-postgresql-simple.packages.${final.stdenv.hostPlatform.system}.default;
+      aftok = hfinal.callCabal2nix "aftok" ./core {};
+      aftok-api = hfinal.callCabal2nix "aftok-api" ./api {};
+      aftok-executables = hfinal.callCabal2nix "aftok-executables" ./executables {};
     };
 
     overlay = final: prev: {
@@ -76,24 +75,48 @@
       in {
         packages = {
           aftok = pkgs.haskellPackages.aftok;
-          aftok-server-dockerImage = pkgs.dockerTools.buildImage {
+          aftok-api = pkgs.haskellPackages.aftok-api;
+          aftok-executables = pkgs.haskellPackages.aftok-executables;
+          templates = pkgs.runCommand "aftok-templates" {} ''
+            mkdir -p $out/opt/aftok/server/templates
+            cp ${./executables/server/templates}/* $out/opt/aftok/server/templates/
+          '';
+          dockerImage = pkgs.dockerTools.buildImage {
             name = "aftok/aftok-server";
             tag = "latest";
+            copyToRoot = pkgs.buildEnv {
+              name = "aftok-server-root";
+              paths = [
+                self.packages.${system}.templates
+                pkgs.cacert  # CA certificates for HTTPS connections
+              ];
+              pathsToLink = [ "/opt" "/etc" ];
+            };
             config = {
-              Entrypoint = ["${self.packages.${system}.aftok}/bin/aftok-server" "--conf=/etc/aftok/aftok-server.cfg"];
+              Entrypoint = ["${self.packages.${system}.aftok-executables}/bin/aftok-server" "--conf=/etc/aftok/aftok-server.cfg"];
+              Env = [
+                "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
+              ];
             };
           };
-          default = self.packages.${system}.aftok-server-dockerImage;
+          default = self.packages.${system}.dockerImage;
         };
 
         devShells.default = pkgs.haskellPackages.shellFor {
           name = "aftok-server-shell";
-          packages = p: [p.aftok];
-          buildInputs = [
+          packages = p: [p.aftok p.aftok-api p.aftok-executables];
+          nativeBuildInputs = [
             pkgs.cabal-install
-            lrzhs.packages.${system}.lrzhs_ffi
+            pkgs.pkg-config
+            pkgs.haskellPackages.haskell-language-server
             pkgs.haskellPackages.ormolu
-            (pkgs.haskell.lib.dontCheck dbmigrations-postgresql.defaultPackage.${system})
+            pkgs.haskellPackages.dbmigrations-postgresql
+            (pkgs.writeShellScriptBin "format" ''
+              find core api executables -name '*.hs' -exec ormolu --mode inplace {} +
+            '')
+          ];
+          buildInputs = [
+            lrzhs.packages.${system}.lrzhs_ffi
           ];
           withHoogle = true;
         };

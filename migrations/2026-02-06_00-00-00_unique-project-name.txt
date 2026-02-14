@@ -1,0 +1,7 @@
+Description: Add unique constraint on project names per user.
+Created: 2026-02-06 00:00:00.000000 UTC
+Depends: 2026-01-26_00-05-02_password-reset-tokens
+Apply: |
+  ALTER TABLE projects ADD CONSTRAINT projects_initiator_project_name_unique UNIQUE (initiator_id, project_name);
+Revert: |
+  ALTER TABLE projects DROP CONSTRAINT projects_initiator_project_name_unique;
