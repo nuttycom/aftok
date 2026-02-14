@@ -74,7 +74,6 @@ type InvitedUID = UserId
 data Limit = Limit Word32
 
 data DBOp a where
-  CreateUser :: User -> DBOp UserId
   CreateUserWithPassword :: User -> PasswordHash -> DBOp UserId
   FindUser :: UserId -> DBOp (Maybe User)
   FindUserProjectDetail :: UserId -> ProjectId -> DBOp (Maybe (User, C.UTCTime))
@@ -168,9 +167,6 @@ raiseSubjectNotFound :: (MonadDB m) => DBOp y -> m x
 raiseSubjectNotFound op = liftdb $ RaiseDBError SubjectNotFound op
 
 -- User ops
-
-createUser :: (MonadDB m) => User -> m UserId
-createUser = liftdb . CreateUser
 
 createUserWithPassword :: (MonadDB m) => User -> PasswordHash -> m UserId
 createUserWithPassword user pwd = liftdb $ CreateUserWithPassword user pwd

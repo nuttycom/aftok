@@ -4,8 +4,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 
 module Aftok.Database.PostgreSQL.Users
-  ( createUser,
-    createUserWithPassword,
+  ( createUserWithPassword,
     findUser,
     findUserByName,
     findUserByNameWithPassword,
@@ -52,22 +51,6 @@ userParser = do
   remail <- fmap (RecoverByEmail . Email) <$> field
   rzaddr <- fmap (RecoverByZAddr . Zcash.Address) <$> field
   User uname <$> maybe empty pure (remail <|> rzaddr)
-
-createUser :: User -> DBM UserId
-createUser user' = do
-  uid <-
-    pinsert
-      UserId
-      [sql| INSERT INTO users (handle, recovery_email, recovery_zaddr)
-          VALUES (?, ?, ?) RETURNING id |]
-      ( user' ^. (username . _UserName),
-        user' ^? userAccountRecovery . _RecoverByEmail . _Email,
-        user' ^? userAccountRecovery . _RecoverByZAddr . Zcash._Address
-      )
-  case user' ^. userAccountRecovery of
-    RecoverByZAddr addr -> linkZcashAccount uid addr
-    RecoverByEmail _ -> pure ()
-  pure uid
 
 createUserWithPassword :: User -> PasswordHash -> DBM UserId
 createUserWithPassword user' pwdHash = do
