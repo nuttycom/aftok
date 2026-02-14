@@ -3,11 +3,17 @@
 
 module Main where
 
-import qualified Aftok.Config as C
 import Aftok.Config (SmtpConfig (..))
+import qualified Aftok.Config as C
 import Aftok.Currency.Zcash (zcashNetwork)
 import qualified Aftok.Currency.Zcash as Zcash
 import Aftok.Database.PostgreSQL (QDBM)
+import Aftok.Servant.PasswordReset (PasswordResetOps (..))
+import Aftok.Servant.Server (aftokApp, mkAppEnv)
+import Aftok.Servant.Users
+  ( AddressInvalid (..),
+    RegisterOps (..),
+  )
 import Aftok.ServerConfig
   ( ServerConfig,
     billingConfig,
@@ -24,14 +30,9 @@ import Aftok.ServerConfig
     templatePath,
     zcashConfig,
   )
-import Aftok.Servant.PasswordReset (PasswordResetOps (..))
-import Aftok.Servant.Server (aftokApp, mkAppEnv)
-import Aftok.Servant.Users
-  ( AddressInvalid (..),
-    RegisterOps (..),
-  )
 import Aftok.Types (Email (..), _Email)
 import Control.Lens ((^.))
+import Data.List (lookup)
 import Data.Pool (defaultPoolConfig, newPool)
 import Database.PostgreSQL.Simple (close, connectPostgreSQL)
 import Filesystem.Path.CurrentOS (decodeString, encodeString)
@@ -40,31 +41,30 @@ import Lrzhs (isValidShieldedAddress)
 import Network.Mail.Mime (Mail, plainPart)
 import qualified Network.Mail.Mime as Mime
 import qualified Network.Mail.SMTP as SMTP
-import Data.List (lookup)
 import Network.Wai (requestHeaders)
 import Network.Wai.Handler.Warp (run)
 import Network.Wai.Middleware.Cors
-  ( cors,
-    corsOrigins,
-    corsMethods,
-    corsRequestHeaders,
+  ( CorsResourcePolicy (..),
+    cors,
     corsExposedHeaders,
-    corsMaxAge,
-    corsVaryOrigin,
-    corsRequireOrigin,
     corsIgnoreFailures,
-    CorsResourcePolicy(..),
+    corsMaxAge,
+    corsMethods,
+    corsOrigins,
+    corsRequestHeaders,
+    corsRequireOrigin,
+    corsVaryOrigin,
     simpleHeaders,
     simpleMethods,
   )
 import Network.Wai.Middleware.RequestLogger
-  ( mkRequestLogger,
+  ( Destination (..),
+    IPAddrSource (..),
+    OutputFormat (..),
     defaultRequestLoggerSettings,
-    outputFormat,
-    OutputFormat(..),
     destination,
-    Destination(..),
-    IPAddrSource(..),
+    mkRequestLogger,
+    outputFormat,
   )
 import Options.Applicative
   ( Parser,
@@ -117,10 +117,12 @@ main = do
   let env = mkAppEnv nmode pool cfg jwk
 
   -- Create request logger (Apache format - doesn't log request bodies)
-  requestLogger <- mkRequestLogger defaultRequestLoggerSettings
-    { outputFormat = Apache FromSocket
-    , destination = Handle stdout
-    }
+  requestLogger <-
+    mkRequestLogger
+      defaultRequestLoggerSettings
+        { outputFormat = Apache FromSocket,
+          destination = Handle stdout
+        }
 
   -- Create WAI application with CORS that supports credentials
   -- corsOrigins = Just (origins, allowCredentials) - the Bool enables Access-Control-Allow-Credentials
@@ -130,18 +132,20 @@ main = do
         let maybeOrigin = lookup "Origin" (requestHeaders req)
             originText = decodeUtf8 <$> maybeOrigin
             isAllowed = maybe False (`elem` allowedOrigins) originText
-        in Just CorsResourcePolicy
-          { corsOrigins = if isAllowed
-                          then fmap (\origin -> ([origin], True)) maybeOrigin
-                          else Nothing  -- Deny credentials for unknown origins
-          , corsMethods = simpleMethods <> ["PUT", "DELETE", "PATCH"]
-          , corsRequestHeaders = simpleHeaders <> ["Content-Type", "X-XSRF-TOKEN", "Authorization"]
-          , corsExposedHeaders = Just ["Set-Cookie"]
-          , corsMaxAge = Just 86400  -- Cache preflight for 24 hours
-          , corsVaryOrigin = True  -- Important: vary response by Origin header
-          , corsRequireOrigin = False
-          , corsIgnoreFailures = False
-          }
+         in Just
+              CorsResourcePolicy
+                { corsOrigins =
+                    if isAllowed
+                      then fmap (\origin -> ([origin], True)) maybeOrigin
+                      else Nothing, -- Deny credentials for unknown origins
+                  corsMethods = simpleMethods <> ["PUT", "DELETE", "PATCH"],
+                  corsRequestHeaders = simpleHeaders <> ["Content-Type", "X-XSRF-TOKEN", "Authorization"],
+                  corsExposedHeaders = Just ["Set-Cookie"],
+                  corsMaxAge = Just 86400, -- Cache preflight for 24 hours
+                  corsVaryOrigin = True, -- Important: vary response by Origin header
+                  corsRequireOrigin = False,
+                  corsIgnoreFailures = False
+                }
       app = requestLogger $ corsPolicy $ aftokApp env btcCfg paymentsConfig rops captchaCfg pwResetOps staticDir
 
   -- Run server

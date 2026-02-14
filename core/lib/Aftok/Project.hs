@@ -29,8 +29,8 @@ import Crypto.Random.Types
   ( MonadRandom,
     getRandomBytes,
   )
-import Data.ByteString.Base64.URL as B64
 import Data.Base64.Types (extractBase64)
+import Data.ByteString.Base64.URL as B64
 import Data.Thyme.Clock as C
 
 type ProjectName = Text

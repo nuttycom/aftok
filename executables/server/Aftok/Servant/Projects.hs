@@ -61,19 +61,18 @@ import Aftok.API.Projects
     pdContributors,
     pdProject,
   )
+import Aftok.API.WorkLog
+  ( IntervalResponse (..),
+    KeyedLogEntryResponse (..),
+    WorkIndexEntry (..),
+    WorkIndexResponse (..),
+  )
 import Aftok.Config (SmtpConfig (..))
 import qualified Aftok.Currency.Zcash as Zcash
 import qualified Aftok.Currency.Zcash.Zip321 as Zip321
-import Aftok.Database
-  ( createInvitation,
-    createProject,
-    findUserProject,
-    findUserProjectDetail,
-    findUserProjects,
-    listProjectContributors,
-    readWorkIndex,
-  )
+import Aftok.Database (KeyedLogEntry (..), createInvitation, createProject, findUserProject, findUserProjectDetail, findUserProjects, listProjectContributors, readWorkIndex)
 import Aftok.Database.PostgreSQL (QDBM)
+import Aftok.Interval (Interval (..))
 import Aftok.Json (creditToJSON, obj)
 import Aftok.Payments (PaymentsConfig)
 import Aftok.Project
@@ -84,23 +83,15 @@ import Aftok.Project
     projectName,
     renderInvCode,
   )
+import Aftok.Servant.App (AppM, envConfig, runDB)
+import qualified Aftok.Servant.Auctions as Auctions
+import Aftok.Servant.Auth (AuthenticatedUser (..))
+import qualified Aftok.Servant.Billing as Billing
 import Aftok.ServerConfig (ServerConfig)
 import qualified Aftok.ServerConfig as QC
-import Aftok.Servant.App (AppM, envConfig, runDB)
-import Aftok.Servant.Auth (AuthenticatedUser (..))
-import qualified Aftok.Servant.Auctions as Auctions
-import qualified Aftok.Servant.Billing as Billing
-import Aftok.API.WorkLog
-  ( IntervalResponse (..),
-    KeyedLogEntryResponse (..),
-    WorkIndexEntry (..),
-    WorkIndexResponse (..),
-  )
-import Aftok.Interval (Interval (..))
-import Aftok.Database (KeyedLogEntry (..))
-import Aftok.TimeLog (LogEntry (LogEntry))
 import Aftok.TimeLog
-  ( WorkIndex (..),
+  ( LogEntry (LogEntry),
+    WorkIndex (..),
     WorkShare,
     WorkShares,
     creditToShares,
@@ -110,14 +101,13 @@ import Aftok.TimeLog
     wsLogged,
     wsShare,
   )
-import qualified Data.List.NonEmpty as L
 import Aftok.Types
   ( CreditTo (..),
     DepreciationRules (..),
     Email (..),
     ProjectId,
-    _Email,
     username,
+    _Email,
   )
 import Aftok.Util (fromMaybeT)
 import Control.Lens ((^.))
@@ -129,6 +119,7 @@ import Data.Aeson
     (.=),
   )
 import qualified Data.Aeson as A
+import qualified Data.List.NonEmpty as L
 import qualified Data.Map.Strict as M
 import qualified Data.Thyme.Clock as C
 import Filesystem.Path.CurrentOS (encodeString)
@@ -353,7 +344,8 @@ projectInviteHandler (Authenticated user) pid req = do
                         <> greetName req
                         <> "\n"
                         <> maybe "" (<> "\n") (pirMessage req)
-                        <> baseUrl <> "/app/signup?invcode="
+                        <> baseUrl
+                        <> "/app/signup?invcode="
                         <> renderInvCode invCode
                         <> "&zaddr="
                         <> zaddr,

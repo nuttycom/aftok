@@ -25,7 +25,7 @@ import Servant.API
 -- | Newtype wrapper for BIP70 protobuf binary data.
 -- This is needed because openapi3 refuses to provide a ToSchema
 -- instance for raw ByteString and requires a newtype wrapper.
-newtype BIP70Data = BIP70Data { unBIP70Data :: ByteString }
+newtype BIP70Data = BIP70Data {unBIP70Data :: ByteString}
   deriving (MimeRender OctetStream, MimeUnrender OctetStream)
 
 --------------------------------------------------------------------------------

@@ -98,7 +98,7 @@ qdbmEval p = do
     \conn -> liftIO $ runExceptT (runQDBM nmode conn p)
   either handleDBError pure e
 
-snapError :: MonadSnap m => Int -> Text -> m a
+snapError :: (MonadSnap m) => Int -> Text -> m a
 snapError c t = do
   let errBytes = encodeUtf8 t
   logError errBytes
@@ -114,12 +114,12 @@ snapErrorJS c t err = do
   writeLBS errBytes
   getResponse >>= finishWith
 
-ok :: MonadSnap m => m a
+ok :: (MonadSnap m) => m a
 ok = do
   modifyResponse $ setResponseCode 200
   getResponse >>= finishWith
 
-requireParam :: MonadSnap m => Text -> m ByteString
+requireParam :: (MonadSnap m) => Text -> m ByteString
 requireParam name = do
   maybeBytes <- getParam (encodeUtf8 name)
   maybe
@@ -128,7 +128,7 @@ requireParam name = do
     maybeBytes
 
 parseParam ::
-  MonadSnap m =>
+  (MonadSnap m) =>
   -- | the name of the parameter to be parsed
   Text ->
   -- | parser for the value of the parameter
@@ -148,7 +148,7 @@ parseParam name parser = do
     (parseOnly parser bytes)
 
 requireId ::
-  MonadSnap m =>
+  (MonadSnap m) =>
   -- | name of the parameter
   Text ->
   -- | constructor for the identifier
@@ -157,8 +157,7 @@ requireId ::
 requireId name f = do
   maybeId <- parseParam name idParser
   maybe
-    ( snapError 400 $ "Value of parameter \"" <> name <> "\" is not a valid UUID"
-    )
+    (snapError 400 $ "Value of parameter \"" <> name <> "\" is not a valid UUID")
     pure
     maybeId
   where
@@ -166,7 +165,7 @@ requireId name f = do
       bs <- takeByteString
       pure $ f <$> fromASCIIBytes bs
 
-readRequestJSON :: MonadSnap m => Word64 -> m A.Value
+readRequestJSON :: (MonadSnap m) => Word64 -> m A.Value
 readRequestJSON len = do
   requestBody <- A.decode <$> readRequestBody len
   maybe
@@ -174,8 +173,8 @@ readRequestJSON len = do
     pure
     requestBody
 
-requireProjectId :: MonadSnap m => m ProjectId
+requireProjectId :: (MonadSnap m) => m ProjectId
 requireProjectId = requireId "projectId" ProjectId
 
-requireAuctionId :: MonadSnap m => m AuctionId
+requireAuctionId :: (MonadSnap m) => m AuctionId
 requireAuctionId = requireId "auctionId" AuctionId

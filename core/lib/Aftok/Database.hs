@@ -14,6 +14,7 @@ import Aftok.Currency (Amount, Currency)
 import Aftok.Currency.Bitcoin.Payments (PaymentKey)
 import qualified Aftok.Currency.Zcash as Zcash
 import Aftok.Interval (RangeQuery)
+import Aftok.Password (PasswordHash)
 import Aftok.Payments.Types
   ( Payment,
     PaymentId,
@@ -31,7 +32,6 @@ import Aftok.TimeLog
     WorkIndex,
   )
 import qualified Aftok.TimeLog as TL
-import Aftok.Password (PasswordHash)
 import Aftok.Types
   ( AccountId,
     Email,
@@ -157,7 +157,7 @@ class (Monad m) => MonadDB (m :: Type -> Type) where
 instance MonadDB (Program DBOp) where
   liftdb = fc
 
-instance MonadDB m => MonadDB (ExceptT e m) where
+instance (MonadDB m) => MonadDB (ExceptT e m) where
   liftdb = lift . liftdb
 
 raiseOpForbidden :: (MonadDB m) => UserId -> OpForbiddenReason -> DBOp x -> m x
@@ -257,7 +257,7 @@ checkProjectAuth pid uid act = do
     then pure ()
     else void $ raiseOpForbidden uid UserNotProjectMember act
 
-listProjectContributors :: MonadDB m => ProjectId -> UserId -> m [(UserId, UserName, C.UTCTime)]
+listProjectContributors :: (MonadDB m) => ProjectId -> UserId -> m [(UserId, UserName, C.UTCTime)]
 listProjectContributors pid uid =
   withProjectAuth pid uid (ListProjectContributors pid)
 

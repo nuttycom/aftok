@@ -17,6 +17,6 @@ import Control.Lens ((^.))
 import Servant (ServerT)
 
 -- | Config server implementation
-configServer :: Applicative m => CaptchaConfig -> ServerT ConfigAPI m
+configServer :: (Applicative m) => CaptchaConfig -> ServerT ConfigAPI m
 configServer captchaCfg =
   pure $ ClientConfig (captchaCfg ^. captchaSiteKey)

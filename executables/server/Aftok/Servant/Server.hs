@@ -12,24 +12,27 @@ module Aftok.Servant.Server
   )
 where
 
+import Aftok.API.Types ()
 import qualified Aftok.Config as AC
 import Aftok.Currency.Bitcoin (NetworkMode)
 import Aftok.Database.PostgreSQL (QDBM)
 import Aftok.Payments (PaymentsConfig)
-import Aftok.ServerConfig (ServerConfig, secureCookies)
-import Control.Lens ((^.))
 import Aftok.Servant.API (AftokAPI, aftokAPI)
-import Aftok.Servant.Config (ConfigAPI, configServer)
 import Aftok.Servant.App (AppEnv (..), AppM, appToHandler)
-import Aftok.API.Types ()
-import Aftok.Servant.Auth (AftokAuth, AuthenticatedUser)
 import Aftok.Servant.Auctions
   ( ProtectedAuctionsAPI,
     protectedAuctionsServer,
   )
+import Aftok.Servant.Auth (AftokAuth, AuthenticatedUser)
 import Aftok.Servant.Billing
   ( ProtectedBillingAPI,
     protectedBillingServer,
+  )
+import Aftok.Servant.Config (ConfigAPI, configServer)
+import Aftok.Servant.PasswordReset
+  ( PasswordResetAPI,
+    PasswordResetOps,
+    passwordResetServer,
   )
 import Aftok.Servant.Payments
   ( ProtectedPaymentsAPI,
@@ -38,6 +41,12 @@ import Aftok.Servant.Payments
 import Aftok.Servant.Projects
   ( ProtectedProjectsAPI,
     protectedProjectsServer,
+  )
+import Aftok.Servant.Session
+  ( ProtectedSessionAPI,
+    SessionAPI,
+    protectedSessionServer,
+    sessionServer,
   )
 import Aftok.Servant.Users
   ( CaptchaConfig,
@@ -49,18 +58,9 @@ import Aftok.Servant.Users
     setPaymentAddressHandler,
     usersServer,
   )
-import Aftok.Servant.Session
-  ( ProtectedSessionAPI,
-    SessionAPI,
-    protectedSessionServer,
-    sessionServer,
-  )
-import Aftok.Servant.PasswordReset
-  ( PasswordResetAPI,
-    PasswordResetOps,
-    passwordResetServer,
-  )
 import Aftok.Servant.WorkLog (WorkLogAPI, workLogServer)
+import Aftok.ServerConfig (ServerConfig, secureCookies)
+import Control.Lens ((^.))
 import Crypto.JOSE.JWK (JWK)
 import Data.Pool (Pool)
 import Database.PostgreSQL.Simple (Connection)
@@ -88,15 +88,18 @@ mkAppEnv nmode pool cfg jwk =
     { _envNetworkMode = nmode,
       _envDbPool = pool,
       _envConfig = cfg,
-      _envCookieSettings = defaultCookieSettings
-        { cookieIsSecure = if cfg ^. secureCookies then Secure else NotSecure
-        , cookieSameSite = SameSiteStrict
-        , cookiePath = Just "/"
-        , cookieMaxAge = Just 86400  -- 24 hours
-        , cookieXsrfSetting = Just defaultXsrfCookieSettings
-            { xsrfExcludeGet = True  -- Don't require XSRF token for GET requests
-            }
-        },
+      _envCookieSettings =
+        defaultCookieSettings
+          { cookieIsSecure = if cfg ^. secureCookies then Secure else NotSecure,
+            cookieSameSite = SameSiteStrict,
+            cookiePath = Just "/",
+            cookieMaxAge = Just 86400, -- 24 hours
+            cookieXsrfSetting =
+              Just
+                defaultXsrfCookieSettings
+                  { xsrfExcludeGet = True -- Don't require XSRF token for GET requests
+                  }
+          },
       _envJWTSettings = defaultJWTSettings jwk
     }
 

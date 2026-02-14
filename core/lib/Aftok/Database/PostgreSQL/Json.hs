@@ -42,8 +42,7 @@ parseBip70PaymentRequestJSON = \case
     o <- wrapper .: "bip70_request"
     Bitcoin.PaymentRequest
       <$> (Bitcoin.PaymentKey <$> o .: "paymentKey")
-      <*> ( either (fail . toString) pure . Bip70.fromBase64Proto =<< (o .: "payment_request_protobuf_64")
-          )
+      <*> (either (fail . toString) pure . Bip70.fromBase64Proto =<< (o .: "payment_request_protobuf_64"))
   nonobject ->
     fail $ "Value " <> show nonobject <> " is not a JSON object."
 
@@ -84,8 +83,7 @@ parseBitcoinPaymentJSON nmode = \case
       <*> (o .:? "txid")
       <*> (traverse (parseBtcAddr nmode) =<< o .:? "address")
       <*> (Bitcoin.PaymentKey <$> o .: "paymentKey")
-      <*> ( either (fail . unpack) pure . Bip70.fromBase64Proto =<< (o .: "payment_protobuf_64")
-          )
+      <*> (either (fail . unpack) pure . Bip70.fromBase64Proto =<< (o .: "payment_protobuf_64"))
   nonobject ->
     fail $ "Value " <> show nonobject <> " is not a JSON object."
 

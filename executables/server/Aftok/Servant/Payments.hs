@@ -13,7 +13,8 @@ module Aftok.Servant.Payments
   )
 where
 
-import Aftok.API.Payments (PaymentsAPI, ProtectedPaymentsAPI, BIP70Data (..))
+import Aftok.API.Payments (BIP70Data (..), PaymentsAPI, ProtectedPaymentsAPI)
+import Aftok.Billing (SubscriptionId (..))
 import qualified Aftok.Config as AC
 import qualified Aftok.Currency.Bitcoin.Payments as Bitcoin
 import Aftok.Database
@@ -22,11 +23,11 @@ import Aftok.Database
     liftdb,
   )
 import Aftok.Database.PostgreSQL (QDBM)
-import qualified Aftok.Payments as Payments
 import Aftok.Payments
   ( PaymentsConfig,
     SomePaymentRequest (..),
   )
+import qualified Aftok.Payments as Payments
 import Aftok.Payments.Types
   ( NativePayment (..),
     NativeRequest (..),
@@ -37,7 +38,6 @@ import Aftok.Payments.Types
 import Aftok.Servant.App (AppM, runDB)
 import Aftok.Servant.Auth (AuthenticatedUser (..))
 import Aftok.Servant.Billing (toPaymentRequestResponse)
-import Aftok.Billing (SubscriptionId (..))
 import Aftok.Util (fromMaybeT)
 import Control.Lens ((^.))
 import Control.Monad.Trans.Maybe (mapMaybeT)

@@ -84,7 +84,7 @@ instance Ord LogEntry where
     let ordElems e = (e ^. event, e ^. creditTo)
      in ordElems a `compare` ordElems b
 
-instance {-# OVERLAPPABLE #-} HasLogEntry a => HasEventTime a where
+instance {-# OVERLAPPABLE #-} (HasLogEntry a) => HasEventTime a where
   eventTime = event . leEventTime
 
 newtype EventId = EventId UUID deriving (Show, Eq, Ord)
@@ -199,10 +199,10 @@ payouts depf payoutDate (WorkIndex widx) =
       withShareFraction t =
         t
           & wsShare
-            .~ ( if totalTime == 0
-                   then 0
-                   else (C.toSeconds (t ^. wsDepreciated) / C.toSeconds totalTime)
-               )
+          .~ ( if totalTime == 0
+                 then 0
+                 else (C.toSeconds (t ^. wsDepreciated) / C.toSeconds totalTime)
+             )
    in WorkShares totalTime (fmap withShareFraction keyTimes)
 
 workIndex :: (Foldable f, HasLogEntry le, Ord o) => (le -> o) -> f le -> WorkIndex le
@@ -227,7 +227,7 @@ type RawIndex le = Map CreditTo [Either le (Interval le)]
 
 appendLogEntry ::
   forall le.
-  HasLogEntry le =>
+  (HasLogEntry le) =>
   RawIndex le ->
   le ->
   RawIndex le

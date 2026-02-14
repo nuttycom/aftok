@@ -18,8 +18,8 @@ import Data.Attoparsec.Text
     takeTill,
     takeWhile1,
   )
-import Data.ByteString.Base64.URL (decodeBase64Untyped, encodeBase64Unpadded)
 import Data.Base64.Types (extractBase64)
+import Data.ByteString.Base64.URL (decodeBase64Untyped, encodeBase64Unpadded)
 import Data.Char (isAlpha, isAscii, isDigit)
 import Data.List.NonEmpty (zip)
 import qualified Data.Map.Strict as M

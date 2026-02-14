@@ -10,6 +10,7 @@ module Aftok.Database.PostgreSQL.PasswordReset
   )
 where
 
+import qualified Aftok.Currency.Zcash as Zcash
 import Aftok.Database.PostgreSQL.Types
   ( DBM,
     idParser,
@@ -22,13 +23,12 @@ import Aftok.Types
   ( Email (..),
     PasswordResetToken (..),
     PasswordResetTokenId (..),
-    UserId (..),
-    User (..),
-    UserName (..),
     RecoverBy (..),
+    User (..),
+    UserId (..),
+    UserName (..),
     _Email,
   )
-import qualified Aftok.Currency.Zcash as Zcash
 import Control.Lens ((^.))
 import qualified Data.Thyme.Clock as C
 import Data.Thyme.Time.Core (fromThyme, toThyme)

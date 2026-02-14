@@ -22,12 +22,13 @@ module Aftok.API.Billing
   )
 where
 
+import Aftok.API.Types ()
 import Aftok.Billing (BillableId (..), Recurrence (..), SubscriptionId)
 import Aftok.Payments.Types (PaymentRequestId (..))
 import Data.Aeson
   ( FromJSON (..),
-    ToJSON (..),
     Object,
+    ToJSON (..),
     Value (..),
     (.:),
     (.:?),
@@ -40,7 +41,6 @@ import qualified Data.Thyme.Clock as C
 import Data.Thyme.Format.Aeson ()
 import qualified Data.UUID as UUID
 import Servant.API
-import Aftok.API.Types ()
 
 --------------------------------------------------------------------------------
 -- Data Types

@@ -46,13 +46,13 @@ data RangeQuery
 
 makeLenses ''RangeQuery
 
-interval :: Ord t => t -> t -> Interval t
+interval :: (Ord t) => t -> t -> Interval t
 interval s e = if s < e then Interval s e else Interval e s
 
 rangeQuery :: C.UTCTime -> C.UTCTime -> RangeQuery
 rangeQuery s e = if s < e then During s e else During e s
 
-containsInclusive :: Ord t => t -> Interval t -> Bool
+containsInclusive :: (Ord t) => t -> Interval t -> Bool
 containsInclusive t (Interval s e) = t >= s && t <= e
 
 ilen :: Interval C.UTCTime -> C.NominalDiffTime

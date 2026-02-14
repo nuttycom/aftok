@@ -53,10 +53,10 @@ import Servant
 
 -- | Operations needed for password reset
 data PasswordResetOps m = PasswordResetOps
-  { sendPasswordResetEmail :: Email -> Text -> Text -> Text -> m (),
-    -- ^ Send password reset email (to email, username, reset URL, expiry hours)
+  { -- | Send password reset email (to email, username, reset URL, expiry hours)
+    sendPasswordResetEmail :: Email -> Text -> Text -> Text -> m (),
+    -- | Generate the password reset URL from the token
     generateResetUrl :: Text -> Text
-    -- ^ Generate the password reset URL from the token
   }
 
 -- Token validity period in seconds (24 hours)
@@ -109,7 +109,6 @@ requestPasswordResetHandler ops req = do
           liftIO $ sendPasswordResetEmail ops email uname resetUrl "24"
 
           pure $ PasswordResetResponse successMsg
-
         RecoverByZAddr _ ->
           -- User has Zcash address for recovery, not email
           -- For now, we can't send password reset via Zcash

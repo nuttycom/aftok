@@ -58,12 +58,12 @@ data AuctionResult c
   | InsufficientBids c
   deriving (Eq)
 
-bidsTotal :: Monoid c => [Bid c] -> c
+bidsTotal :: (Monoid c) => [Bid c] -> c
 bidsTotal = foldMap (view bidAmount)
 
 bidOrder ::
   forall c.
-  IsCurrency c =>
+  (IsCurrency c) =>
   Bid c ->
   Bid c ->
   Ordering
@@ -73,12 +73,12 @@ bidOrder = comparing costRatio <> comparing (^. bidTime)
     costRatio bid = (toRational $ bid ^. bidSeconds) / (toRational $ bid ^. bidAmount . _Units)
 
 -- lowest bids of seconds/btc win
-runAuction :: IsCurrency c => Auction c -> [Bid c] -> AuctionResult c
+runAuction :: (IsCurrency c) => Auction c -> [Bid c] -> AuctionResult c
 runAuction auction = runAuction' (auction ^. raiseAmount)
 
 runAuction' ::
   forall c.
-  IsCurrency c =>
+  (IsCurrency c) =>
   c ->
   [Bid c] ->
   AuctionResult c

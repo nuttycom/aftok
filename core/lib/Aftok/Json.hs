@@ -52,7 +52,7 @@ printVersion Version {..} =
 versionParser :: PC.Parser Version
 versionParser = Version <$> PC.decimal <*> (PC.char '.' >> PC.decimal)
 
-parseVersion :: MonadFail m => ByteString -> m Version
+parseVersion :: (MonadFail m) => ByteString -> m Version
 parseVersion = fromEitherM fail . PC.parseOnly versionParser
 
 v :: QuasiQuoter

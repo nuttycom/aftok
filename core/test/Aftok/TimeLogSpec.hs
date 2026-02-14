@@ -12,6 +12,22 @@ where
 import Aftok.Generators (genUUID)
 import qualified Aftok.Interval as I
 import Aftok.TimeLog
+  ( CreditTo (CreditToUser),
+    HasEventTime (eventTime),
+    HasLogEntry (event),
+    LogEntry (LogEntry),
+    LogEvent (StartWork, StopWork),
+    WorkIndex (..),
+    WorkShares (WorkShares),
+    creditToShares,
+    daysToNDT,
+    linearDepreciation,
+    loggedTotal,
+    payouts,
+    toDepF,
+    workIndex,
+    wsShare,
+  )
 import Aftok.Types (DepreciationFunction (..), DepreciationRules (..), UserId (..))
 import Control.Lens (to, view, (^.))
 import Data.AffineSpace ((.+^))
@@ -22,10 +38,10 @@ import Data.Maybe (fromJust)
 import Data.Ratio ((%))
 import qualified Data.Thyme.Clock as C
 import qualified Data.Thyme.Time as C
-import Data.Time.ISO8601
-import qualified Data.UUID as U
-import Test.Hspec
 import qualified Data.Time as Time
+import Data.Time.ISO8601 (parseISO8601)
+import qualified Data.UUID as U
+import Test.Hspec (Spec, describe, hspec, it, shouldBe, xit)
 import Test.QuickCheck (Gen, choose, forAll, listOf, sample', suchThat)
 import Prelude hiding (head, tail)
 

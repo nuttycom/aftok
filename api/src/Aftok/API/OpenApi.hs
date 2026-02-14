@@ -7,7 +7,11 @@
 -- | OpenAPI 3 schema instances for all Aftok API types.
 module Aftok.API.OpenApi () where
 
-import qualified Data.Aeson as A
+import Aftok.API.Auctions
+  ( AuctionCreateRequest,
+    AuctionCreateResponse,
+    BidCreateRequest,
+  )
 import Aftok.API.Auth (AuthenticatedUser (..), LoginRequest (..))
 import Aftok.API.Billing
   ( BillableCreateRequest,
@@ -24,6 +28,7 @@ import Aftok.API.PasswordReset
     PasswordResetRequest,
     PasswordResetResponse,
   )
+import Aftok.API.Payments (BIP70Data (..))
 import Aftok.API.Projects
   ( CommsAddress,
     ProjectCreateRequest,
@@ -54,18 +59,12 @@ import Aftok.API.WorkLog
     WorkIndexEntry,
     WorkIndexResponse,
   )
-import Aftok.API.Auctions
-  ( AuctionCreateRequest,
-    AuctionCreateResponse,
-    BidCreateRequest,
-  )
-import Aftok.API.Payments (BIP70Data (..))
 import Aftok.Auction (AuctionId (..))
 import Aftok.Billing (BillableId (..), SubscriptionId (..))
 import Aftok.Payments.Types (PaymentId (..))
 import Aftok.Types (ProjectId (..), UserId (..))
-
 import Control.Lens ((.~), (?~))
+import qualified Data.Aeson as A
 import Data.OpenApi
   ( NamedSchema (..),
     ToParamSchema (..),
@@ -87,17 +86,23 @@ import Servant.OpenApi (HasOpenApi (..))
 instance (HasOpenApi api) => HasOpenApi (Auth auths a :> api) where
   toOpenApi _ =
     toOpenApi (Proxy @api)
-      & OA.security .~ [OA.SecurityRequirement mempty]
-      & OA.components . OA.securitySchemes .~ OA.SecurityDefinitions mempty
+      & OA.security
+      .~ [OA.SecurityRequirement mempty]
+        & OA.components
+        . OA.securitySchemes
+      .~ OA.SecurityDefinitions mempty
 
 --------------------------------------------------------------------------------
 -- ToParamSchema instances for ID types (used in URL captures)
 --------------------------------------------------------------------------------
 
 uuidParamSchema :: OA.Schema
-uuidParamSchema = mempty
-  & OA.type_ ?~ OA.OpenApiString
-  & OA.format ?~ "uuid"
+uuidParamSchema =
+  mempty
+    & OA.type_
+    ?~ OA.OpenApiString
+      & OA.format
+    ?~ "uuid"
 
 instance ToParamSchema ProjectId where
   toParamSchema _ = uuidParamSchema
@@ -113,9 +118,12 @@ instance ToParamSchema SubscriptionId where
 
 -- | thyme UTCTime as query parameter (ISO 8601 string)
 instance ToParamSchema C.UTCTime where
-  toParamSchema _ = mempty
-    & OA.type_ ?~ OA.OpenApiString
-    & OA.format ?~ "date-time"
+  toParamSchema _ =
+    mempty
+      & OA.type_
+      ?~ OA.OpenApiString
+        & OA.format
+      ?~ "date-time"
 
 --------------------------------------------------------------------------------
 -- ToSchema instances for core types
@@ -143,7 +151,7 @@ instance ToSchema PaymentId where
 instance ToSchema C.UTCTime where
   declareNamedSchema _ = do
     s <- declareNamedSchema (Proxy @Time.UTCTime)
-    pure $ s { _namedSchemaName = Just "UTCTime" }
+    pure $ s {_namedSchemaName = Just "UTCTime"}
 
 --------------------------------------------------------------------------------
 -- ToSchema instances for API request/response types
@@ -154,8 +162,10 @@ instance ToSchema C.UTCTime where
 --------------------------------------------------------------------------------
 
 freeformObject :: Text -> OA.NamedSchema
-freeformObject name = NamedSchema (Just name)
-  (mempty & OA.type_ ?~ OA.OpenApiObject)
+freeformObject name =
+  NamedSchema
+    (Just name)
+    (mempty & OA.type_ ?~ OA.OpenApiObject)
 
 -- | Aeson Value as freeform JSON — used by untyped response endpoints
 instance ToSchema A.Value where

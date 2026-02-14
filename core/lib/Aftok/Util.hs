@@ -14,7 +14,7 @@ newtype Program (f :: Type -> Type) (a :: Type) = Program
   deriving (Functor, Applicative, Monad)
 
 -- Shouldn't this exist already in a library somewhere?
-interpret :: Monad m => (forall x. f x -> m x) -> Program f a -> m a
+interpret :: (Monad m) => (forall x. f x -> m x) -> Program f a -> m a
 interpret nt p =
   let eval (Coyoneda cf cm) = nt cm >>= cf in iterM eval (runProgram p)
 
@@ -29,5 +29,5 @@ traverseKeys f m =
 fromMaybeT :: (Monad m) => m a -> MaybeT m a -> m a
 fromMaybeT a m = maybeT a pure m
 
-traceWith :: Show b => (a -> b) -> a -> a
+traceWith :: (Show b) => (a -> b) -> a -> a
 traceWith f a = T.trace (show $ f a) a

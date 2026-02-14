@@ -185,9 +185,10 @@ createPaymentRequestHandler cfg (Authenticated user) pid bid _ = do
               pool = env ^. envDbPool
           res <- liftIO $
             withResource pool $ \conn ->
-              runExceptT $ runQDBM nmode conn $
-                runExceptT $
-                  createPaymentRequest ops now bid (b & B.amount .~ v) billDay
+              runExceptT $
+                runQDBM nmode conn $
+                  runExceptT $
+                    createPaymentRequest ops now bid (b & B.amount .~ v) billDay
           case res of
             Left dbErr ->
               throwError err500 {errBody = "Database error: " <> show dbErr}

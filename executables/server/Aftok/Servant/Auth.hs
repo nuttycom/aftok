@@ -25,12 +25,12 @@ import Control.Error.Util (hush)
 import Control.Lens ((^.))
 import Data.Pool (withResource)
 import Servant (err401, err403)
+import Servant.API.BasicAuth (BasicAuthData (..))
 import Servant.Auth.Server
   ( AuthResult (..),
     BasicAuthCfg,
     FromBasicAuthData (..),
   )
-import Servant.API.BasicAuth (BasicAuthData (..))
 import Servant.Server (ServerError (..))
 
 -- | Type alias for BasicAuth config (needed by servant-auth-server)
@@ -42,8 +42,10 @@ instance FromBasicAuthData AuthenticatedUser where
     let nmode = _envNetworkMode env
         pool = _envDbPool env
     result <- withResource pool $ \conn ->
-      runExceptT $ runQDBM nmode conn $
-        runMaybeT $ findUserByNameWithPassword (UserName $ decodeUtf8 usernameBytes)
+      runExceptT $
+        runQDBM nmode conn $
+          runMaybeT $
+            findUserByNameWithPassword (UserName $ decodeUtf8 usernameBytes)
     case hush result of
       Nothing -> pure Indefinite
       Just Nothing -> pure NoSuchUser

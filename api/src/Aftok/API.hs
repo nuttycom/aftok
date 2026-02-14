@@ -29,8 +29,8 @@ module Aftok.API
   )
 where
 
-import Aftok.API.Auth
 import Aftok.API.Auctions
+import Aftok.API.Auth
 import Aftok.API.Billing
 import Aftok.API.Config
 import Aftok.API.PasswordReset

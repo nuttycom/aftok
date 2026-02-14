@@ -153,17 +153,18 @@ auctionCreateHandler (Authenticated user) pid req = do
   amount <- case parseEither parseAmountJSON (acrRaiseAmount req) of
     Left err -> throwError err400 {errBody = "Invalid raise amount: " <> encodeUtf8 (toText err)}
     Right a -> pure a
-  aid <- runDB $
-    createAuction $
-      Auction
-        pid
-        uid
-        now
-        (acrName req)
-        (acrDescription req)
-        amount
-        (acrAuctionStart req)
-        (acrAuctionEnd req)
+  aid <-
+    runDB $
+      createAuction $
+        Auction
+          pid
+          uid
+          now
+          (acrName req)
+          (acrDescription req)
+          amount
+          (acrAuctionStart req)
+          (acrAuctionEnd req)
   pure $ AuctionCreateResponse aid
 auctionCreateHandler _ _ _ =
   throwError err401 {errBody = "Authentication required"}

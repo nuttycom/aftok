@@ -57,8 +57,10 @@ import System.Environment (getEnvironment)
 
 -- | Captcha configuration for reCAPTCHA
 data CaptchaConfig = CaptchaConfig
-  { _captchaSiteKey :: Text,    -- ^ Public site key (sent to client)
-    _captchaSecretKey :: Text   -- ^ Secret key (server-side verification)
+  { -- | Public site key (sent to client)
+    _captchaSiteKey :: Text,
+    -- | Secret key (server-side verification)
+    _captchaSecretKey :: Text
   }
 
 makeLenses ''CaptchaConfig
@@ -80,11 +82,16 @@ mkDbConfig cfg = do
   db <- C.require cfg "db"
   let connStr =
         C8.pack $
-          "host=" <> host
-            <> " port=" <> show dbPort
-            <> " user=" <> user
-            <> " password=" <> password
-            <> " dbname=" <> db
+          "host="
+            <> host
+            <> " port="
+            <> show dbPort
+            <> " user="
+            <> user
+            <> " password="
+            <> password
+            <> " dbname="
+            <> db
   pure $ DbConfig connStr
 
 -- | Create DbConfig from a DATABASE_URL environment variable

@@ -31,7 +31,8 @@ instance Eq (Currency' c) where
 instance Show (Currency' c) where
   show (Currency' c) = show c
 
-data Amount = forall a c.
+data Amount
+  = forall a c.
   Amount
   { currency :: !(Currency a c),
     value :: !c

@@ -21,7 +21,6 @@ where
 import Aftok.Currency (Currency (..))
 import qualified Aftok.Currency.Zcash as Zcash
 import Aftok.Database ()
-import Aftok.Password (PasswordHash (..))
 import Aftok.Database.PostgreSQL.Types
   ( DBM,
     askNetworkMode,
@@ -34,6 +33,7 @@ import Aftok.Database.PostgreSQL.Types
     zcashAddressParser,
     zcashIvkParser,
   )
+import Aftok.Password (PasswordHash (..))
 import Aftok.Types
 import Control.Lens
 import qualified Data.Thyme.Clock as C

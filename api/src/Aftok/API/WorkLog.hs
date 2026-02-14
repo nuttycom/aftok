@@ -23,8 +23,9 @@ module Aftok.API.WorkLog
   )
 where
 
-import Aftok.Json (parseCreditToV2, creditToJSON)
-import Aftok.TimeLog (EventId (..), LogEvent (..), eventName, eventTime, AmendmentId (..))
+import Aftok.API.Types ()
+import Aftok.Json (creditToJSON, parseCreditToV2)
+import Aftok.TimeLog (AmendmentId (..), EventId (..), LogEvent (..), eventName, eventTime)
 import Aftok.Types (CreditTo (..), ProjectId, UserId)
 import Control.Lens ((^.))
 import Data.Aeson
@@ -36,14 +37,13 @@ import Data.Aeson
     (.:?),
     (.=),
   )
+import Data.Aeson.Key (fromText)
 import Data.Aeson.Types (Pair)
 import qualified Data.Text as T
 import qualified Data.Thyme.Clock as C
 import Data.Thyme.Format.Aeson ()
-import Data.Aeson.Key (fromText)
 import qualified Data.UUID as UUID
 import Servant.API
-import Aftok.API.Types ()
 
 -- | WorkLog API for user-specific project operations
 type WorkLogAPI =

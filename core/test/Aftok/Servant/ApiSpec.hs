@@ -232,8 +232,8 @@ spec = do
                   (Time.secondsToDiffTime $ fromIntegral $ hour * 3600 + minute * 60 + sec')
               thymeUtc :: C.UTCTime
               thymeUtc = toThyme timeUtc
-              -- Compare via Time.UTCTime since thyme's UTCTime Eq instance may not be visible
-           in case parseUrlPiece (toUrlPiece thymeUtc) :: Either Text C.UTCTime of
+           in -- Compare via Time.UTCTime since thyme's UTCTime Eq instance may not be visible
+              case parseUrlPiece (toUrlPiece thymeUtc) :: Either Text C.UTCTime of
                 Left _ -> property False
                 Right result -> fromThyme result === timeUtc
 

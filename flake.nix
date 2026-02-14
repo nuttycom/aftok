@@ -108,8 +108,12 @@
           nativeBuildInputs = [
             pkgs.cabal-install
             pkgs.pkg-config
+            pkgs.haskellPackages.haskell-language-server
             pkgs.haskellPackages.ormolu
             pkgs.haskellPackages.dbmigrations-postgresql
+            (pkgs.writeShellScriptBin "format" ''
+              find core api executables -name '*.hs' -exec ormolu --mode inplace {} +
+            '')
           ];
           buildInputs = [
             lrzhs.packages.${system}.lrzhs_ffi

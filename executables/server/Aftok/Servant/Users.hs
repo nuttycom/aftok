@@ -62,6 +62,7 @@ import Aftok.API.Users
     username,
   )
 import Aftok.Currency.Zcash (Address (..))
+import qualified Aftok.Currency.Zcash as Zcash
 import Aftok.Database
   ( acceptInvitation,
     createUserWithPassword,
@@ -70,19 +71,18 @@ import Aftok.Database
     findUserZcashAddress,
     setUserZcashAddress,
   )
-import qualified Aftok.Currency.Zcash as Zcash
 import Aftok.Password (hashPassword)
 import Aftok.Project (parseInvCode)
-import Aftok.ServerConfig (CaptchaConfig (..), captchaSecretKey)
 import Aftok.Servant.App (AppM, runDB)
 import Aftok.Servant.Auth (AuthenticatedUser (..))
+import Aftok.ServerConfig (CaptchaConfig (..), captchaSecretKey)
 import Aftok.Types
   ( Email (..),
     RecoverBy (..),
     User (..),
     UserName (..),
   )
-import Control.Lens ((^.), view)
+import Control.Lens (view, (^.))
 import qualified Data.Aeson as A
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T

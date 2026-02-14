@@ -144,7 +144,7 @@ toPaymentsConfig cfg = do
       }
 
 _btcMemoGen ::
-  MonadDB m =>
+  (MonadDB m) =>
   B.Billable Satoshi ->
   Day ->
   UTCTime ->
@@ -176,7 +176,7 @@ _zcashMemoGen _ _ _ _ = do
   pure $ Just (Memo $ encodeUtf8 pkey)
 
 _payloadGen ::
-  Monad m =>
+  (Monad m) =>
   B.Billable Satoshi ->
   Day ->
   UTCTime ->
@@ -186,7 +186,7 @@ _payloadGen _ _ _ = pure Nothing
 -- The same URL is used for retrieving a BIP-70 payment request and for submitting
 -- the response.
 _uriGen ::
-  Monad m =>
+  (Monad m) =>
   NS.HostName ->
   Bitcoin.PaymentKey ->
   m (Maybe URI)

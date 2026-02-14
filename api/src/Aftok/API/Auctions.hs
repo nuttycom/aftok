@@ -16,8 +16,8 @@ module Aftok.API.Auctions
   )
 where
 
+import Aftok.API.Types ()
 import Aftok.Auction (AuctionId)
-import Data.Thyme.Format.Aeson ()
 import Data.Aeson
   ( FromJSON (..),
     ToJSON (..),
@@ -27,8 +27,8 @@ import Data.Aeson
   )
 import qualified Data.Aeson as A
 import qualified Data.Thyme.Clock as C
+import Data.Thyme.Format.Aeson ()
 import Servant.API
-import Aftok.API.Types ()
 
 --------------------------------------------------------------------------------
 -- Data Types

@@ -84,14 +84,20 @@ invitationParser =
 createProject :: Project -> DBM ProjectId
 createProject p = do
   conn <- asks snd
-  result <- lift . lift $ (try $ query conn
-    [sql| INSERT INTO projects (project_name, inception_date, initiator_id, depreciation_fn)
+  result <-
+    lift . lift $
+      ( try $
+          query
+            conn
+            [sql| INSERT INTO projects (project_name, inception_date, initiator_id, depreciation_fn)
           VALUES (?, ?, ?, ?) RETURNING id |]
-    ( p ^. projectName,
-      p ^. (inceptionDate . to C.fromThyme),
-      p ^. (initiator . _UserId),
-      toJSON $ p ^. depRules . depf . to SerDepFunction
-    ) :: IO (Either SqlError [Only UUID]))
+            ( p ^. projectName,
+              p ^. (inceptionDate . to C.fromThyme),
+              p ^. (initiator . _UserId),
+              toJSON $ p ^. depRules . depf . to SerDepFunction
+            ) ::
+          IO (Either SqlError [Only UUID])
+      )
   case result of
     Left e
       | sqlState e == "23505" ->

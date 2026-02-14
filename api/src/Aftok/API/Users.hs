@@ -34,6 +34,7 @@ module Aftok.API.Users
   )
 where
 
+import Aftok.API.Types ()
 import Aftok.Project (InvitationCode, parseInvCode)
 import Aftok.Types
   ( Email (..),
@@ -51,7 +52,6 @@ import Data.Aeson
   )
 import qualified Data.Aeson as A
 import Servant.API
-import Aftok.API.Types ()
 
 --------------------------------------------------------------------------------
 -- Data Types
