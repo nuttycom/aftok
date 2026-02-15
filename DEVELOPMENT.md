@@ -1,7 +1,7 @@
 Local Builds with Nix
 =====================
 
-The simplest way to get the server building is currently to use [nix](https://nixos.org/manual/nixos/stable/).
+The simplest way to get the server building is to use [nix](https://nixos.org/manual/nixos/stable/).
 
 Once you've installed nix, from the root of the project, run:
 
@@ -13,119 +13,162 @@ This will download and compile all dependencies, the aftok source, and create a 
 file). To load the resulting docker file into docker, run `docker load < result`. For convenience, this set of steps is
 already defined for the `build-server-image` target in the `Makefile`.
 
-Local Development with docker-compose
-=====================================
+Local Development with Helm
+===========================
 
-The easiest way to run local aftok infrastructure is using Docker and
-docker-compose. Several steps are necessary to set up your local environment
-for development.
+Local development uses Helm and minikube for running the full aftok stack
+(server, client, site, PostgreSQL, nginx). All the deployment tooling lives in
+the public [aftok-chart](https://github.com/aftok/aftok-chart) repository,
+which provides a Nix flake with kubectl, helm, minikube, and helper scripts.
 
-Docker Permissions
-------------------
+Prerequisites
+-------------
 
-The first step is to ensure that you have proper permissions to access and
-execute docker commands. On OSX, if you've installed Docker Desktop then this
-should already be the case. On Linux, you can either add your user to the
-`docker` group, or you can use `sudo` for commands.
+- [Nix](https://nixos.org/download/) with flakes enabled
+- [Docker](https://docs.docker.com/get-docker/) running
 
-Configuration Files
--------------------
+Setting Up the Chart Repository
+--------------------------------
 
-A number of configuration files are required for docker-compose to be able
-to run all of the necessary containers successfully. You should create
-a `local` directory, which will have the following contents:
+Clone the chart repo alongside the server repo. The rebuild scripts expect a
+specific directory layout, so place it as a sibling:
 
 ~~~
-local
-├── conf
-│   ├── nginx
-│   │   ├── mime.types
-│   │   └── nginx.conf
-│   ├── nginx-certs
-│   │   ├── aftok.crt
-│   │   └── aftok.key
-│   └── server
-│       ├── aftok.bip70-chain.cert.pem
-│       ├── aftok.bip70.key.pem
-│       ├── aftok.cfg
-│       ├── aftok-migrations.cfg
-│       └── snap-site-key
-└── db-dumps
-    └── aftok.sample.plsql
+aftok/
+├── server/canon/       # this repo (server worktree)
+├── client/work/        # client worktree (if doing frontend work)
+├── aftok.com/work/     # static site worktree (if doing site work)
+└── aftok-chart/        # <-- clone this
 ~~~
-
-Sample default versions of each of these files can be found in the `conf`
-directory; you can simply use the following to set up your local environment:
 
 ~~~bash
-mkdir local
-cp -r conf local
+# From the aftok/ parent directory:
+git clone https://github.com/aftok/aftok-chart.git
 ~~~
 
-Database Initialization
------------------------
-
-When you first set up your local docker environment for aftok development, the
-database that is created by `docker-compose up` will not be initialized.  The
-easiest way to get it set up is to bootstrap from an existing database dump. 
-
-First, you'll need to start the servers. Expect aftok-server and aftok-nginx to
-both fail to start; they won't work properly until the database is initialized,
-but that's okay.
-
-Also, if you have a copy of postgres already running at localhost:5432 you may
-need to change the exposed port in docker-compose.yml so as to avoid conflicts.
-
-~~~bash
-docker-compose up
-docker ps
-~~~
-
-At this point, the `aftok-db` container should be the only one that's running;
-the other two will have failed on startup.
-
-Initializing With an Existing Dump
-----------------------------------
-
-Assuming that you have such a dump at `local/postgres/db-dumps/aftok.dump`, use the
-`deploy/dbinit.sh` script to initialize the database. The postgres user's password 
-can be specified in the docker-compose file. 
-
-~~~bash
-./deploy/dbinit.sh local/postgres/db-dumps/aftok.dump
-~~~
-
-Initializing From Scratch
--------------------------
-
-We first need to create the PostgreSQL accounts, which you can do with the
-`dbinit.sh` script:
-
-~~~bash
-./deploy/dbinit.sh
-~~~
-
-Restarting the Application
+Setting Up a Local Cluster
 --------------------------
 
-Now, you should be able to shut down docker-compose using ^C and 
-restart it with `docker-compose up`.
-
-Database Configuration
-----------------------
-
-All database DDL state is handled using the Haskell dbmigrations tool.
-
-Once all the containers are up, you'll need to run the existing database
-migrations as follows:
-
 ~~~bash
-stack install dbmigrations-postgresql
-moo-postgresql upgrade --config-file ./local/server/conf/aftok-migrations.cfg
+cd aftok-chart
+
+# Enter the development shell (provides kubectl, helm, minikube, k9s, etc.)
+nix develop
+
+# Start minikube and enable required addons
+setup-local-cluster
 ~~~
 
-New migrations can be created with:
+This starts a minikube cluster with Docker driver, 4 CPUs, and 8GB RAM, and
+enables the ingress, metrics-server, and dashboard addons. It will also print
+instructions for configuring `/etc/hosts` so you can access the app at
+`http://aftok.local`.
+
+Deploying to the Local Cluster
+------------------------------
 
 ~~~bash
-moo-postgresql new --config-file ./local/server/conf/aftok-migrations.cfg kebab-case-descriptive-name
+# From the aftok-chart/ directory, inside `nix develop`:
+
+# Deploy with local dev defaults (builds chart deps, configures PostgreSQL, etc.)
+deploy-dev
 ~~~
+
+This starts minikube if needed, builds chart dependencies, and deploys the full
+stack with sensible local defaults (dev passwords, `imagePullPolicy: Never`,
+NodePort service on port 30080, mailpit for email capture). After deployment it
+prints the URL to access the application.
+
+For custom configuration, create a `values-local.yaml` file and deploy with
+helm directly:
+
+~~~bash
+build-chart
+helm upgrade --install aftok-dev ./aftok \
+  --namespace aftok-dev \
+  --create-namespace \
+  --values values-local.yaml \
+  --wait
+~~~
+
+See `examples/values-example.yaml` in the chart repo for a complete reference.
+
+Rebuilding After Code Changes
+-----------------------------
+
+The chart repo's dev shell provides `rebuild-*` commands that handle the full
+cycle: staging git changes (so nix can see them), building images, loading them
+into minikube's Docker daemon, and restarting pods.
+
+~~~bash
+# From the aftok-chart/ directory, inside `nix develop`:
+
+# Rebuild and redeploy server
+rebuild-server ../server/canon aftok-dev
+
+# Rebuild and redeploy client (if working on frontend)
+rebuild-client ../client/work aftok-dev
+
+# Rebuild and redeploy static site
+rebuild-site ../aftok.com/work aftok-dev
+
+# Rebuild all components
+rebuild-all aftok-dev
+~~~
+
+The paths above assume the sibling directory layout described in "Setting Up the
+Chart Repository". Adjust the first argument if your layout differs.
+
+**Why use `rebuild-*` instead of raw kubectl?** Raw `kubectl delete pod`
+commands are unreliable for picking up new images because minikube's Docker
+cache may serve stale images. The `rebuild-*` commands solve this by building
+fresh images, loading them directly into minikube's Docker daemon, and
+force-deleting pods.
+
+Useful Commands
+---------------
+
+These are all available inside `nix develop` in the chart repo:
+
+~~~bash
+# View application logs
+show-logs aftok-dev server
+show-logs aftok-dev nginx
+
+# Backup database
+backup-db aftok-dev
+
+# Restore database from backup
+restore-db aftok-dev ./backups/aftok-backup-aftok-dev-20240101-120000.sql
+
+# Clean up the dev deployment entirely
+cleanup-dev
+
+# Open Kubernetes dashboard
+minikube dashboard
+
+# Terminal-based Kubernetes UI
+k9s
+~~~
+
+Database Migrations
+-------------------
+
+Database migrations are applied **automatically** when the server starts up.
+The server uses the `dbmigrations` library to check for and apply any pending
+migrations from the bundled `migrations/` directory before accepting requests.
+
+New migrations can be created with the `moo-postgresql` tool available in
+the nix development shell:
+
+~~~bash
+nix develop
+
+moo-postgresql new \
+  --config-file ./local/server/conf/aftok-server-migrations.cfg \
+  kebab-case-descriptive-name
+~~~
+
+Migration files use YAML format with `Created`, `Description`, `Depends`,
+`Apply`, and `Revert` fields. Files are stored in the `migrations/` directory
+with timestamp prefixes.

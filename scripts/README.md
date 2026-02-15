@@ -14,9 +14,6 @@ Bash scripts for exercising the Aftok API endpoints.
    # For local minikube development:
    AFTOK_HOST="$(minikube ip):$(kubectl get svc aftok-dev-nginx -n aftok-dev -o jsonpath='{.spec.ports[0].nodePort}')"
 
-   # For local docker-compose:
-   AFTOK_HOST="localhost:8000"
-
    # For production:
    AFTOK_HOST="aftok.com"
    ```
