@@ -1,7 +1,9 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | Users API types for the Aftok API.
 module Aftok.API.Users
@@ -34,6 +36,7 @@ module Aftok.API.Users
   )
 where
 
+import Aftok.API.Codec ()
 import Aftok.API.Types ()
 import Aftok.Project (InvitationCode, parseInvCode)
 import Aftok.Types
@@ -42,13 +45,15 @@ import Aftok.Types
     UserId,
     UserName (..),
   )
+import Autodocodec (HasCodec (..), object, optionalField', requiredField')
+import qualified Autodocodec as AC
+import Autodocodec.Aeson (parseJSONViaCodec, toJSONViaCodec)
 import Control.Lens (makeLenses)
 import Data.Aeson
   ( FromJSON (..),
     ToJSON (..),
     (.:),
     (.:?),
-    (.=),
   )
 import qualified Data.Aeson as A
 import Servant.API
@@ -59,11 +64,17 @@ import Servant.API
 
 -- | Registration response
 data RegisterResponse = RegisterResponse
-  { userId :: UserId
+  { rrUserId :: UserId
   }
   deriving (Generic)
 
-instance ToJSON RegisterResponse
+instance HasCodec RegisterResponse where
+  codec =
+    object "RegisterResponse" $
+      RegisterResponse
+        <$> requiredField' "userId" AC..= rrUserId
+
+instance ToJSON RegisterResponse where toJSON = toJSONViaCodec
 
 -- | Address validation error
 data AddressInvalid = AddressInvalid
@@ -120,11 +131,11 @@ data RegisterError
 instance ToJSON RegisterError where
   toJSON = \case
     RegParseError msg ->
-      A.object ["parseError" .= msg]
+      A.object ["parseError" A..= msg]
     RegCaptchaError e ->
-      A.object ["captchaError" .= (show e :: Text)]
+      A.object ["captchaError" A..= (show e :: Text)]
     RegZAddrError zerr ->
-      A.object ["zaddrError" .= (show zerr :: Text)]
+      A.object ["zaddrError" A..= (show zerr :: Text)]
 
 -- | Username check response
 data UsernameCheckResponse = UsernameCheckResponse
@@ -133,7 +144,14 @@ data UsernameCheckResponse = UsernameCheckResponse
   }
   deriving (Show, Eq, Generic)
 
-instance ToJSON UsernameCheckResponse
+instance HasCodec UsernameCheckResponse where
+  codec =
+    object "UsernameCheckResponse" $
+      UsernameCheckResponse
+        <$> requiredField' "usernameAvailable" AC..= usernameAvailable
+        <*> optionalField' "usernameMessage" AC..= usernameMessage
+
+instance ToJSON UsernameCheckResponse where toJSON = toJSONViaCodec
 
 -- | Z-address check response
 data ZAddrCheckResponse = ZAddrCheckResponse
@@ -142,7 +160,14 @@ data ZAddrCheckResponse = ZAddrCheckResponse
   }
   deriving (Show, Eq, Generic)
 
-instance ToJSON ZAddrCheckResponse
+instance HasCodec ZAddrCheckResponse where
+  codec =
+    object "ZAddrCheckResponse" $
+      ZAddrCheckResponse
+        <$> requiredField' "zaddrValid" AC..= zaddrValid
+        <*> optionalField' "zaddrMessage" AC..= zaddrMessage
+
+instance ToJSON ZAddrCheckResponse where toJSON = toJSONViaCodec
 
 -- | Captcha errors
 data CaptchaError
@@ -184,12 +209,14 @@ data AccountSettingsResponse = AccountSettingsResponse
   }
   deriving (Show, Eq, Generic)
 
-instance ToJSON AccountSettingsResponse where
-  toJSON (AccountSettingsResponse uname zaddr) =
-    A.object
-      [ "username" .= uname,
-        "zcashAddress" .= zaddr
-      ]
+instance HasCodec AccountSettingsResponse where
+  codec =
+    object "AccountSettingsResponse" $
+      AccountSettingsResponse
+        <$> requiredField' "username" AC..= asrUsername
+        <*> optionalField' "zcashAddress" AC..= asrZcashAddress
+
+instance ToJSON AccountSettingsResponse where toJSON = toJSONViaCodec
 
 -- | Set payment address request
 data SetPaymentAddressRequest = SetPaymentAddressRequest
@@ -197,10 +224,13 @@ data SetPaymentAddressRequest = SetPaymentAddressRequest
   }
   deriving (Show, Eq, Generic)
 
-instance FromJSON SetPaymentAddressRequest where
-  parseJSON (A.Object v) =
-    SetPaymentAddressRequest <$> v .: "zcashAddress"
-  parseJSON _ = mzero
+instance HasCodec SetPaymentAddressRequest where
+  codec =
+    object "SetPaymentAddressRequest" $
+      SetPaymentAddressRequest
+        <$> requiredField' "zcashAddress" AC..= sparZcashAddress
+
+instance FromJSON SetPaymentAddressRequest where parseJSON = parseJSONViaCodec
 
 --------------------------------------------------------------------------------
 -- API Types

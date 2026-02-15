@@ -1,6 +1,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | Password Reset API types for the Aftok API.
 module Aftok.API.PasswordReset
@@ -14,8 +16,10 @@ module Aftok.API.PasswordReset
   )
 where
 
-import Data.Aeson (FromJSON (..), ToJSON (..), (.:), (.=))
-import qualified Data.Aeson as A
+import Autodocodec (HasCodec (..), object, optionalField', requiredField')
+import qualified Autodocodec as AC
+import Autodocodec.Aeson (parseJSONViaCodec, toJSONViaCodec)
+import Data.Aeson (FromJSON (..), ToJSON (..))
 import Servant.API
 
 -- | Password reset API
@@ -43,13 +47,14 @@ data PasswordResetRequest = PasswordResetRequest
   }
   deriving (Show, Eq, Generic)
 
-instance FromJSON PasswordResetRequest where
-  parseJSON = A.withObject "PasswordResetRequest" $ \o ->
-    PasswordResetRequest
-      <$> o .:? "username"
-      <*> o .:? "email"
-    where
-      (.:?) obj key = obj .: key <|> pure Nothing
+instance HasCodec PasswordResetRequest where
+  codec =
+    object "PasswordResetRequest" $
+      PasswordResetRequest
+        <$> optionalField' "username" AC..= prrUsername
+        <*> optionalField' "email" AC..= prrEmail
+
+instance FromJSON PasswordResetRequest where parseJSON = parseJSONViaCodec
 
 -- | Response for password reset request (always success for security)
 data PasswordResetResponse = PasswordResetResponse
@@ -57,9 +62,13 @@ data PasswordResetResponse = PasswordResetResponse
   }
   deriving (Show, Eq, Generic)
 
-instance ToJSON PasswordResetResponse where
-  toJSON (PasswordResetResponse msg) =
-    A.object ["message" .= msg]
+instance HasCodec PasswordResetResponse where
+  codec =
+    object "PasswordResetResponse" $
+      PasswordResetResponse
+        <$> requiredField' "message" AC..= prsMessage
+
+instance ToJSON PasswordResetResponse where toJSON = toJSONViaCodec
 
 -- | Confirm password reset with token
 data PasswordResetConfirm = PasswordResetConfirm
@@ -68,8 +77,11 @@ data PasswordResetConfirm = PasswordResetConfirm
   }
   deriving (Show, Eq, Generic)
 
-instance FromJSON PasswordResetConfirm where
-  parseJSON = A.withObject "PasswordResetConfirm" $ \o ->
-    PasswordResetConfirm
-      <$> o .: "token"
-      <*> o .: "newPassword"
+instance HasCodec PasswordResetConfirm where
+  codec =
+    object "PasswordResetConfirm" $
+      PasswordResetConfirm
+        <$> requiredField' "token" AC..= prcToken
+        <*> requiredField' "newPassword" AC..= prcNewPassword
+
+instance FromJSON PasswordResetConfirm where parseJSON = parseJSONViaCodec

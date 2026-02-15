@@ -1,6 +1,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | WorkLog API types for the Aftok API.
 module Aftok.API.WorkLog
@@ -23,26 +25,23 @@ module Aftok.API.WorkLog
   )
 where
 
+import Aftok.API.Codec ()
 import Aftok.API.Types ()
-import Aftok.Json (creditToJSON, parseCreditToV2)
-import Aftok.TimeLog (AmendmentId (..), EventId (..), LogEvent (..), eventName, eventTime)
+import Aftok.Json (parseCreditToV2)
+import Aftok.TimeLog (AmendmentId (..), EventId (..), LogEvent (..))
 import Aftok.Types (CreditTo (..), ProjectId, UserId)
-import Control.Lens ((^.))
+import Autodocodec (HasCodec (..), object, optionalField', requiredField')
+import qualified Autodocodec as AC
+import Autodocodec.Aeson (parseJSONViaCodec, toJSONViaCodec)
 import Data.Aeson
   ( FromJSON (..),
     ToJSON (..),
     Value (Object),
-    object,
     (.:),
-    (.:?),
-    (.=),
   )
-import Data.Aeson.Key (fromText)
-import Data.Aeson.Types (Pair)
 import qualified Data.Text as T
 import qualified Data.Thyme.Clock as C
 import Data.Thyme.Format.Aeson ()
-import qualified Data.UUID as UUID
 import Servant.API
 
 -- | WorkLog API for user-specific project operations
@@ -77,12 +76,14 @@ data LogStartRequest = LogStartRequest
   }
   deriving (Generic)
 
-instance FromJSON LogStartRequest where
-  parseJSON (Object o) = do
-    creditTo' <- o .:? "creditTo" >>= maybe (pure Nothing) (fmap Just . parseCreditToV2)
-    eventMeta' <- o .:? "eventMeta"
-    pure $ LogStartRequest creditTo' eventMeta'
-  parseJSON _ = mzero
+instance FromJSON LogStartRequest where parseJSON = parseJSONViaCodec
+
+instance HasCodec LogStartRequest where
+  codec =
+    object "LogStartRequest" $
+      LogStartRequest
+        <$> optionalField' "creditTo" AC..= lsrCreditTo
+        <*> optionalField' "eventMeta" AC..= lsrEventMeta
 
 -- | Log end request
 data LogEndRequest = LogEndRequest
@@ -91,12 +92,14 @@ data LogEndRequest = LogEndRequest
   }
   deriving (Generic)
 
-instance FromJSON LogEndRequest where
-  parseJSON (Object o) = do
-    creditTo' <- o .:? "creditTo" >>= maybe (pure Nothing) (fmap Just . parseCreditToV2)
-    eventMeta' <- o .:? "eventMeta"
-    pure $ LogEndRequest creditTo' eventMeta'
-  parseJSON _ = mzero
+instance FromJSON LogEndRequest where parseJSON = parseJSONViaCodec
+
+instance HasCodec LogEndRequest where
+  codec =
+    object "LogEndRequest" $
+      LogEndRequest
+        <$> optionalField' "creditTo" AC..= lerCreditTo
+        <*> optionalField' "eventMeta" AC..= lerEventMeta
 
 -- | Event amendment request
 data EventAmendmentRequest = EventAmendmentRequest
@@ -135,13 +138,18 @@ data ExtendedLogEntryResponse = ExtendedLogEntryResponse
     elrEventMeta :: Maybe Value
   }
 
-instance ToJSON ExtendedLogEntryResponse where
-  toJSON r =
-    object $
-      [ "projectId" .= elrProjectId r,
-        "loggedBy" .= elrLoggedBy r
-      ]
-        <> keyedLogEntryFields (elrEventId r) (elrCreditTo r) (elrEvent r) (elrEventMeta r)
+instance HasCodec ExtendedLogEntryResponse where
+  codec =
+    object "ExtendedLogEntryResponse" $
+      ExtendedLogEntryResponse
+        <$> requiredField' "projectId" AC..= elrProjectId
+        <*> requiredField' "loggedBy" AC..= elrLoggedBy
+        <*> requiredField' "eventId" AC..= elrEventId
+        <*> requiredField' "creditTo" AC..= elrCreditTo
+        <*> requiredField' "event" AC..= elrEvent
+        <*> requiredField' "eventMeta" AC..= elrEventMeta
+
+instance ToJSON ExtendedLogEntryResponse where toJSON = toJSONViaCodec
 
 -- | Response for events list items
 data KeyedLogEntryResponse = KeyedLogEntryResponse
@@ -151,17 +159,29 @@ data KeyedLogEntryResponse = KeyedLogEntryResponse
     klrEventMeta :: Maybe Value
   }
 
-instance ToJSON KeyedLogEntryResponse where
-  toJSON r =
-    object $ keyedLogEntryFields (klrEventId r) (klrCreditTo r) (klrEvent r) (klrEventMeta r)
+instance HasCodec KeyedLogEntryResponse where
+  codec =
+    object "KeyedLogEntryResponse" $
+      KeyedLogEntryResponse
+        <$> requiredField' "eventId" AC..= klrEventId
+        <*> requiredField' "creditTo" AC..= klrCreditTo
+        <*> requiredField' "event" AC..= klrEvent
+        <*> requiredField' "eventMeta" AC..= klrEventMeta
+
+instance ToJSON KeyedLogEntryResponse where toJSON = toJSONViaCodec
 
 -- | Work index response
 data WorkIndexResponse = WorkIndexResponse
   { wirWorkIndex :: [WorkIndexEntry]
   }
 
-instance ToJSON WorkIndexResponse where
-  toJSON r = object ["workIndex" .= wirWorkIndex r]
+instance HasCodec WorkIndexResponse where
+  codec =
+    object "WorkIndexResponse" $
+      WorkIndexResponse
+        <$> requiredField' "workIndex" AC..= wirWorkIndex
+
+instance ToJSON WorkIndexResponse where toJSON = toJSONViaCodec
 
 -- | Work index entry (per credit-to)
 data WorkIndexEntry = WorkIndexEntry
@@ -169,12 +189,14 @@ data WorkIndexEntry = WorkIndexEntry
     wieIntervals :: [IntervalResponse]
   }
 
-instance ToJSON WorkIndexEntry where
-  toJSON r =
-    object
-      [ "creditTo" .= creditToJSON (wieCreditTo r),
-        "intervals" .= wieIntervals r
-      ]
+instance HasCodec WorkIndexEntry where
+  codec =
+    object "WorkIndexEntry" $
+      WorkIndexEntry
+        <$> requiredField' "creditTo" AC..= wieCreditTo
+        <*> requiredField' "intervals" AC..= wieIntervals
+
+instance ToJSON WorkIndexEntry where toJSON = toJSONViaCodec
 
 -- | Interval in the work index
 data IntervalResponse = IntervalResponse
@@ -182,8 +204,14 @@ data IntervalResponse = IntervalResponse
     irEnd :: KeyedLogEntryResponse
   }
 
-instance ToJSON IntervalResponse where
-  toJSON r = object ["start" .= irStart r, "end" .= irEnd r]
+instance HasCodec IntervalResponse where
+  codec =
+    object "IntervalResponse" $
+      IntervalResponse
+        <$> requiredField' "start" AC..= irStart
+        <*> requiredField' "end" AC..= irEnd
+
+instance ToJSON IntervalResponse where toJSON = toJSONViaCodec
 
 -- | Event amendment result
 data AmendEventResponse = AmendEventResponse
@@ -191,27 +219,11 @@ data AmendEventResponse = AmendEventResponse
     aerAmendmentId :: AmendmentId
   }
 
-instance ToJSON AmendEventResponse where
-  toJSON r =
-    object
-      [ "replacement_event" .= (let EventId u = aerReplacementEvent r in UUID.toText u),
-        "amendment_id" .= (let AmendmentId u = aerAmendmentId r in UUID.toText u)
-      ]
+instance HasCodec AmendEventResponse where
+  codec =
+    object "AmendEventResponse" $
+      AmendEventResponse
+        <$> requiredField' "replacement_event" AC..= aerReplacementEvent
+        <*> requiredField' "amendment_id" AC..= aerAmendmentId
 
---------------------------------------------------------------------------------
--- Serialization Helpers
---------------------------------------------------------------------------------
-
--- | Serialize a log event to JSON
-logEventToJSON :: LogEvent -> Value
-logEventToJSON ev =
-  object [fromText (eventName ev) .= object ["eventTime" .= (ev ^. eventTime)]]
-
--- | Common fields for keyed log entries
-keyedLogEntryFields :: EventId -> CreditTo -> LogEvent -> Maybe Value -> [Pair]
-keyedLogEntryFields eid ct ev meta =
-  [ "eventId" .= (let EventId u = eid in UUID.toText u),
-    "creditTo" .= creditToJSON ct,
-    "event" .= logEventToJSON ev,
-    "eventMeta" .= meta
-  ]
+instance ToJSON AmendEventResponse where toJSON = toJSONViaCodec

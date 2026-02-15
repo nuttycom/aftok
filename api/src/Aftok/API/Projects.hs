@@ -1,7 +1,10 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | Projects API types for the Aftok API.
 module Aftok.API.Projects
@@ -36,10 +39,10 @@ where
 
 import Aftok.API.Auctions (ProjectAuctionsAPI)
 import Aftok.API.Billing (ProjectBillablesAPI)
+import Aftok.API.Codec ()
 import Aftok.API.Types ()
 import qualified Aftok.Currency.Zcash.Zip321 as Zip321
 import Aftok.Project (Project (..))
-import Aftok.TimeLog.Serialization (depfFromJSON)
 import Aftok.Types
   ( DepreciationFunction (..),
     DepreciationRules (..),
@@ -47,20 +50,20 @@ import Aftok.Types
     UserId (..),
     UserName (..),
   )
+import Autodocodec (HasCodec (..), object, optionalField', requiredField')
+import qualified Autodocodec as AC
+import Autodocodec.Aeson (parseJSONViaCodec, toJSONViaCodec)
 import Control.Lens (makeLenses)
 import Data.Aeson
   ( FromJSON (..),
     ToJSON (..),
     Value (..),
-    object,
-    (.:),
-    (.:?),
     (.=),
   )
 import qualified Data.Aeson as A
 import qualified Data.Map.Strict as M
+import Data.Ratio ((%))
 import qualified Data.Thyme.Clock as C
-import qualified Data.UUID as UUID
 import Servant.API
 import Time.Types (Hours (..))
 
@@ -74,10 +77,14 @@ data ProjectCreateRequest = ProjectCreateRequest
     cpdepf :: DepreciationFunction
   }
 
-instance FromJSON ProjectCreateRequest where
-  parseJSON (A.Object v) =
-    ProjectCreateRequest <$> v .: "projectName" <*> (depfFromJSON =<< v .: "depf")
-  parseJSON _ = mzero
+instance FromJSON ProjectCreateRequest where parseJSON = parseJSONViaCodec
+
+instance HasCodec ProjectCreateRequest where
+  codec =
+    object "ProjectCreateRequest" $
+      ProjectCreateRequest
+        <$> requiredField' "projectName" AC..= cpn
+        <*> requiredField' "depf" AC..= cpdepf
 
 -- | Contributor record for project detail
 data Contributor = Contributor
@@ -104,6 +111,22 @@ data CommsAddress
   = EmailComms Text
   | ZcashComms Text
 
+instance HasCodec CommsAddress where
+  codec =
+    AC.dimapCodec fromEither toEither $
+      AC.disjointEitherCodec emailCodec zAddrCodec
+    where
+      emailCodec = object "EmailComms" $ requiredField' "email" AC..= id
+      zAddrCodec = object "ZcashComms" $ requiredField' "zaddr" AC..= id
+      fromEither :: Either Text Text -> CommsAddress
+      fromEither = \case
+        Left e -> EmailComms e
+        Right z -> ZcashComms z
+      toEither :: CommsAddress -> Either Text Text
+      toEither = \case
+        EmailComms e -> Left e
+        ZcashComms z -> Right z
+
 -- | Project invitation request
 data ProjectInviteRequest = ProjectInviteRequest
   { greetName :: Text,
@@ -111,17 +134,15 @@ data ProjectInviteRequest = ProjectInviteRequest
     inviteBy :: CommsAddress
   }
 
-instance FromJSON ProjectInviteRequest where
-  parseJSON (A.Object v) = do
-    name <- v .: "greetName"
-    msg <- v .:? "message"
-    comms <- v .: "inviteBy"
-    emailComms <- fmap EmailComms <$> (comms .:? "email")
-    zcashComms <- fmap ZcashComms <$> (comms .:? "zaddr")
-    case emailComms <|> zcashComms of
-      Nothing -> mzero
-      Just addr -> pure $ ProjectInviteRequest name msg addr
-  parseJSON _ = mzero
+instance FromJSON ProjectInviteRequest where parseJSON = parseJSONViaCodec
+
+instance HasCodec ProjectInviteRequest where
+  codec =
+    object "ProjectInviteRequest" $
+      ProjectInviteRequest
+        <$> requiredField' "greetName" AC..= greetName
+        <*> optionalField' "message" AC..= pirMessage
+        <*> requiredField' "inviteBy" AC..= inviteBy
 
 -- | Project invitation response
 data ProjectInviteResponse = ProjectInviteResponse
@@ -130,9 +151,9 @@ data ProjectInviteResponse = ProjectInviteResponse
   deriving (Generic)
 
 instance ToJSON ProjectInviteResponse where
-  toJSON (ProjectInviteResponse Nothing) = object []
+  toJSON (ProjectInviteResponse Nothing) = A.object []
   toJSON (ProjectInviteResponse (Just r)) =
-    object ["zip321_request" .= (A.toJSON . Zip321.toURI $ r)]
+    A.object ["zip321_request" .= (A.toJSON . Zip321.toURI $ r)]
 
 --------------------------------------------------------------------------------
 -- Response Types (defined after TH splices)
@@ -140,19 +161,65 @@ instance ToJSON ProjectInviteResponse where
 
 -- | Project creation response
 data ProjectCreateResponse = ProjectCreateResponse
-  { projectId :: ProjectId
+  { pcrProjectId :: ProjectId
   }
   deriving (Generic)
 
-instance ToJSON ProjectCreateResponse
+instance HasCodec ProjectCreateResponse where
+  codec =
+    object "ProjectCreateResponse" $
+      ProjectCreateResponse
+        <$> requiredField' "projectId" AC..= pcrProjectId
+
+instance ToJSON ProjectCreateResponse where toJSON = toJSONViaCodec
+
+-- | Helper codec for serializing a Project to a flat JSON object
+projectCodec :: AC.JSONObjectCodec ProjectFields
+projectCodec =
+  ProjectFields
+    <$> requiredField' "projectName" AC..= pfName
+    <*> requiredField' "inceptionDate" AC..= pfInceptionDate
+    <*> requiredField' "initiator" AC..= pfInitiator
+    <*> requiredField' "depf" AC..= pfDepf
+
+data ProjectFields = ProjectFields
+  { pfName :: Text,
+    pfInceptionDate :: C.UTCTime,
+    pfInitiator :: UserId,
+    pfDepf :: DepreciationFunction
+  }
+
+instance HasCodec ProjectFields where
+  codec = object "Project" projectCodec
+
+projectToFields :: Project -> ProjectFields
+projectToFields p =
+  ProjectFields
+    { pfName = _projectName p,
+      pfInceptionDate = _inceptionDate p,
+      pfInitiator = _initiator p,
+      pfDepf = _depf (_depRules p)
+    }
 
 -- | Project response for GET /projects/:pid (flat project fields)
 data ProjectResponse = ProjectResponse
   { prProject :: Project
   }
 
-instance ToJSON ProjectResponse where
-  toJSON (ProjectResponse p) = projectToJSON p
+instance HasCodec ProjectResponse where
+  codec =
+    AC.dimapCodec (ProjectResponse . fieldsToProject) (projectToFields . prProject) $
+      codec @ProjectFields
+    where
+      fieldsToProject pf =
+        Project
+          { _projectName = pfName pf,
+            _inceptionDate = pfInceptionDate pf,
+            _initiator = pfInitiator pf,
+            _depRules = DepreciationRules (pfDepf pf) Nothing
+          }
+
+instance ToJSON ProjectResponse where toJSON = toJSONViaCodec
 
 -- | Project summary for GET /projects list (with projectId)
 data ProjectSummary = ProjectSummary
@@ -160,63 +227,100 @@ data ProjectSummary = ProjectSummary
     psProject :: Project
   }
 
-instance ToJSON ProjectSummary where
-  toJSON (ProjectSummary pid p) =
-    object
-      [ "projectId" .= pid,
-        "project" .= projectToJSON p
-      ]
+instance HasCodec ProjectSummary where
+  codec =
+    object "ProjectSummary" $
+      (\pid pf -> ProjectSummary pid (fieldsToProject pf))
+        <$> requiredField' "projectId" AC..= psProjectId
+        <*> requiredField' "project" AC..= (projectToFields . psProject)
+    where
+      fieldsToProject pf =
+        Project
+          { _projectName = pfName pf,
+            _inceptionDate = pfInceptionDate pf,
+            _initiator = pfInitiator pf,
+            _depRules = DepreciationRules (pfDepf pf) Nothing
+          }
+
+instance ToJSON ProjectSummary where toJSON = toJSONViaCodec
+
+-- | Contributor serialization helper
+data ContributorFields = ContributorFields
+  { cfUserId :: UserId,
+    cfUsername :: Text,
+    cfJoinedOn :: C.UTCTime,
+    cfLoggedHours :: Int64,
+    cfDepreciatedHours :: Int64,
+    cfRevenueShare :: RationalFields
+  }
+
+data RationalFields = RationalFields
+  { rfNumerator :: Integer,
+    rfDenominator :: Integer
+  }
+
+instance HasCodec RationalFields where
+  codec =
+    object "RationalFields" $
+      RationalFields
+        <$> requiredField' "numerator" AC..= rfNumerator
+        <*> requiredField' "denominator" AC..= rfDenominator
+
+instance HasCodec ContributorFields where
+  codec =
+    object "Contributor" $
+      ContributorFields
+        <$> requiredField' "userId" AC..= cfUserId
+        <*> requiredField' "username" AC..= cfUsername
+        <*> requiredField' "joinedOn" AC..= cfJoinedOn
+        <*> requiredField' "loggedHours" AC..= cfLoggedHours
+        <*> requiredField' "depreciatedHours" AC..= cfDepreciatedHours
+        <*> requiredField' "revenueShare" AC..= cfRevenueShare
+
+contributorToFields :: Contributor -> ContributorFields
+contributorToFields c =
+  ContributorFields
+    { cfUserId = _cUserId c,
+      cfUsername = let UserName n = _cHandle c in n,
+      cfJoinedOn = _cJoinedOn c,
+      cfLoggedHours = let Hours h = _cLoggedHours c in h,
+      cfDepreciatedHours = let Hours h = _cDepreciatedHours c in h,
+      cfRevenueShare = RationalFields (numerator $ _cRevenueShare c) (denominator $ _cRevenueShare c)
+    }
 
 -- | Project detail response for GET /projects/:pid/detail
 data ProjectDetailResponse = ProjectDetailResponse
   { pdrDetail :: ProjectDetail
   }
 
-instance ToJSON ProjectDetailResponse where
-  toJSON (ProjectDetailResponse detail) =
-    object
-      [ "project" .= projectToJSON (_pdProject detail),
-        "contributors" .= (M.elems $ fmap contributorToJSON (_pdContributors detail))
-      ]
+instance HasCodec ProjectDetailResponse where
+  codec =
+    object "ProjectDetailResponse" $
+      (\pf cs -> ProjectDetailResponse (ProjectDetail (fieldsToProject pf) (rebuildContributorMap cs)))
+        <$> requiredField' "project" AC..= (projectToFields . _pdProject . pdrDetail)
+        <*> requiredField' "contributors" AC..= (fmap contributorToFields . M.elems . _pdContributors . pdrDetail)
+    where
+      fieldsToProject pf =
+        Project
+          { _projectName = pfName pf,
+            _inceptionDate = pfInceptionDate pf,
+            _initiator = pfInitiator pf,
+            _depRules = DepreciationRules (pfDepf pf) Nothing
+          }
+      rebuildContributorMap :: [ContributorFields] -> M.Map UserId Contributor
+      rebuildContributorMap =
+        M.fromList . fmap (\cf -> (cfUserId cf, fieldsToContributor cf))
+      fieldsToContributor cf =
+        Contributor
+          { _cUserId = cfUserId cf,
+            _cHandle = UserName (cfUsername cf),
+            _cJoinedOn = cfJoinedOn cf,
+            _cLoggedHours = Hours (cfLoggedHours cf),
+            _cDepreciatedHours = Hours (cfDepreciatedHours cf),
+            _cRevenueShare = rfNumerator (cfRevenueShare cf) % rfDenominator (cfRevenueShare cf)
+          }
 
---------------------------------------------------------------------------------
--- JSON serialization helpers
---------------------------------------------------------------------------------
-
--- | Serialize a Project to JSON
-projectToJSON :: Project -> Value
-projectToJSON p =
-  object
-    [ "projectName" .= _projectName p,
-      "inceptionDate" .= _inceptionDate p,
-      "initiator" .= (let UserId u = _initiator p in UUID.toText u),
-      "depf" .= depfToJSON (_depf $ _depRules p)
-    ]
-
--- | Serialize a DepreciationFunction to JSON
-depfToJSON :: DepreciationFunction -> Value
-depfToJSON = \case
-  LinearDepreciation undep dep ->
-    object
-      [ "type" .= ("LinearDepreciation" :: Text),
-        "arguments" .= object ["undep" .= undep, "dep" .= dep]
-      ]
-
--- | Serialize a Contributor to JSON
-contributorToJSON :: Contributor -> Value
-contributorToJSON c =
-  object
-    [ "userId" .= _cUserId c,
-      "username" .= (let UserName n = _cHandle c in n),
-      "joinedOn" .= _cJoinedOn c,
-      "loggedHours" .= (let Hours h = _cLoggedHours c in h),
-      "depreciatedHours" .= (let Hours h = _cDepreciatedHours c in h),
-      "revenueShare"
-        .= object
-          [ "numerator" .= numerator (_cRevenueShare c),
-            "denominator" .= denominator (_cRevenueShare c)
-          ]
-    ]
+instance ToJSON ProjectDetailResponse where toJSON = toJSONViaCodec
 
 --------------------------------------------------------------------------------
 -- API Types

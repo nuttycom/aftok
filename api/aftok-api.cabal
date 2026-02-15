@@ -29,6 +29,7 @@ library
   hs-source-dirs:     src
   exposed-modules:
     Aftok.API
+    Aftok.API.Codec
     Aftok.API.Types
     Aftok.API.Auth
     Aftok.API.Users
@@ -47,6 +48,8 @@ library
     relude >= 1.1.0 && < 1.3,
     aftok,
     aeson >= 2.0.3 && < 2.3,
+    autodocodec >= 0.4 && < 0.6,
+    autodocodec-openapi3 >= 0.2 && < 0.4,
     bytestring >= 0.11.4 && < 0.13,
     containers >= 0.6.5 && < 0.8,
     hourglass >= 0.2.12 && < 0.3,
