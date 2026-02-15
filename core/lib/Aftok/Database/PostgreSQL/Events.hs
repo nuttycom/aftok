@@ -309,7 +309,7 @@ amendEvent pid uid kle amendment = ptransact $ do
           pinsert
             AmendmentId
             [sql| INSERT INTO event_time_amendments
-                  (work_event_id, amended_at, event_time)
+                  (event_id, amended_at, event_time)
                   VALUES (?, ?, ?) RETURNING id |]
             (kle ^. workId . _EventId, fromThyme $ mt ^. _ModTime, fromThyme t)
         pure (aid, set (logEntry . event . leEventTime) t kle, "amend_event_time")
@@ -318,7 +318,7 @@ amendEvent pid uid kle amendment = ptransact $ do
           pinsert
             AmendmentId
             [sql| INSERT INTO event_credit_to_amendments
-                  (work_event_id, amended_at, credit_to_type, credit_to_account)
+                  (event_id, amended_at, credit_to_type, credit_to_account)
                   VALUES (?, ?, ?, ?) RETURNING id |]
             (kle ^. workId . _EventId, fromThyme $ mt ^. _ModTime, creditToName c, acctId ^. _AccountId)
         pure (aid, set (logEntry . creditTo) c kle, "amend_credit_to")
@@ -327,7 +327,7 @@ amendEvent pid uid kle amendment = ptransact $ do
           pinsert
             AmendmentId
             [sql| INSERT INTO event_credit_to_amendments
-                  (work_event_id, amended_at, credit_to_type, credit_to_project_id)
+                  (event_id, amended_at, credit_to_type, credit_to_project_id)
                   VALUES (?, ?, ?, ?) RETURNING id |]
             (kle ^. workId . _EventId, fromThyme $ mt ^. _ModTime, creditToName c, cpid ^. _ProjectId)
         pure (aid, set (logEntry . creditTo) c kle, "amend_credit_to")
@@ -336,7 +336,7 @@ amendEvent pid uid kle amendment = ptransact $ do
           pinsert
             AmendmentId
             [sql| INSERT INTO event_credit_to_amendments
-                  (work_event_id, amended_at, credit_to_type, credit_to_user_id)
+                  (event_id, amended_at, credit_to_type, credit_to_user_id)
                   VALUES (?, ?, ?, ?) RETURNING id |]
             (kle ^. workId . _EventId, fromThyme $ mt ^. _ModTime, creditToName c, cuid ^. _UserId)
         pure (aid, set (logEntry . creditTo) c kle, "amend_credit_to")
@@ -345,7 +345,7 @@ amendEvent pid uid kle amendment = ptransact $ do
           pinsert
             AmendmentId
             [sql| INSERT INTO event_metadata_amendments
-                  (work_event_id, amended_at, event_metadata)
+                  (event_id, amended_at, event_metadata)
                   VALUES (?, ?, ?) RETURNING id |]
             (kle ^. workId . _EventId, fromThyme $ mt ^. _ModTime, v)
         pure (aid, set (logEntry . eventMeta) (Just v) kle, "amend_metadata")

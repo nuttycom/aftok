@@ -115,6 +115,7 @@
             pkgs.pkg-config
             pkgs.haskellPackages.haskell-language-server
             pkgs.haskellPackages.ormolu
+            pkgs.haskellPackages.hspec-discover
             pkgs.haskellPackages.dbmigrations-postgresql
             (pkgs.writeShellScriptBin "format" ''
               find core api executables -name '*.hs' -exec ormolu --mode inplace {} +

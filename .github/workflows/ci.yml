@@ -24,7 +24,7 @@ jobs:
             accept-flake-config = true
 
       - name: Run Haskell tests
-        run: nix develop --command cabal test
+        run: nix develop --command bash -c "cabal update && cabal test all --enable-tests"
 
   # Only runs on tag pushes
   publish:
