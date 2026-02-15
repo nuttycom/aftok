@@ -7,15 +7,15 @@
     nixpkgs.url = "github:NixOS/nixpkgs/release-25.11";
     flake-utils.url = "github:numtide/flake-utils";
     dbmigrations = {
-      url = "github:haskell-github-trust/dbmigrations/e2840f47f819252f1cc9c6010b5c7bff5d4df763";
+      url = "github:haskell-github-trust/dbmigrations/6d641f169b60ecb9e9de6e7e82d4bafbcaac62ff";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     dbmigrations-postgresql = {
-      url = "github:nuttycom/dbmigrations-postgresql/6c6dffaba5a7a51b21a7f9d5862ea02bb899f3ee";
+      url = "github:nuttycom/dbmigrations-postgresql/5a6a69e2b1134fdef18242091e9ee8d9eea48328";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     dbmigrations-postgresql-simple = {
-      url = "github:nuttycom/dbmigrations-postgresql-simple/f26b9e1ab27b9ff8f269c6541a7606bcbc22e02a";
+      url = "github:nuttycom/dbmigrations-postgresql-simple/ab0ea9d7ac53359642239989ea5257c7b93dda37";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     bippy = {
@@ -81,6 +81,10 @@
             mkdir -p $out/opt/aftok/server/templates
             cp ${./executables/server/templates}/* $out/opt/aftok/server/templates/
           '';
+          migrations = pkgs.runCommand "aftok-migrations" {} ''
+            mkdir -p $out/opt/aftok/migrations
+            cp ${./migrations}/* $out/opt/aftok/migrations/
+          '';
           dockerImage = pkgs.dockerTools.buildImage {
             name = "aftok/aftok-server";
             tag = "latest";
@@ -88,6 +92,7 @@
               name = "aftok-server-root";
               paths = [
                 self.packages.${system}.templates
+                self.packages.${system}.migrations
                 pkgs.cacert  # CA certificates for HTTPS connections
               ];
               pathsToLink = [ "/opt" "/etc" ];

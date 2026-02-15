@@ -31,6 +31,7 @@ module Aftok.ServerConfig
     dbConnStr,
     smtpConfig,
     billingConfig,
+    migrationsPath,
     templatePath,
     staticAssetPath,
     recaptchaSecret,
@@ -107,6 +108,7 @@ data ServerConfig = ServerConfig
     _dbConfig :: DbConfig,
     _smtpConfig :: SmtpConfig,
     _billingConfig :: BillingConfig,
+    _migrationsPath :: FilePath,
     _templatePath :: P.FilePath,
     _staticAssetPath :: P.FilePath,
     _recaptchaSecret :: CaptchaConfig,
@@ -134,6 +136,7 @@ readServerConfig cfg pc =
     <*> maybe (mkDbConfig $ C.subconfig "db" cfg) pure pc
     <*> readSmtpConfig cfg
     <*> (readBillingConfig $ C.subconfig "billing" cfg)
+    <*> C.lookupDefault "/opt/aftok/migrations" cfg "migrationsPath"
     <*> ( fromText
             <$> C.lookupDefault
               "/opt/aftok/server/templates/"

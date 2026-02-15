@@ -10,5 +10,15 @@ source-repository-package
 
 source-repository-package
     type: git
+    location: https://github.com/haskell-github-trust/dbmigrations.git
+    tag: 6d641f169b60ecb9e9de6e7e82d4bafbcaac62ff
+
+source-repository-package
+    type: git
+    location: https://github.com/nuttycom/dbmigrations-postgresql-simple.git
+    tag: ab0ea9d7ac53359642239989ea5257c7b93dda37
+
+source-repository-package
+    type: git
     location: https://github.com/nuttycom/lrzhs.git
     tag: 51838a296afc0f0b8c8ec7cf0018dc12f989ecc5

@@ -22,6 +22,7 @@ import Aftok.ServerConfig
     dbConnStr,
     hostname,
     loadServerConfig,
+    migrationsPath,
     port,
     recaptchaSecret,
     secureCookies,
@@ -32,9 +33,16 @@ import Aftok.ServerConfig
   )
 import Aftok.Types (Email (..), _Email)
 import Control.Lens ((^.))
+import Control.Monad.Trans.Except (except, withExceptT)
 import Data.List (lookup)
-import Data.Pool (defaultPoolConfig, newPool)
+import Data.Pool (defaultPoolConfig, newPool, withResource)
 import Database.PostgreSQL.Simple (close, connectPostgreSQL)
+import qualified Database.PostgreSQL.Simple as PG
+import Database.Schema.Migrations (ensureBootstrappedBackend, migrationsToApply, missingMigrations)
+import Database.Schema.Migrations.Backend (Backend, applyMigration, commitBackend)
+import qualified Database.Schema.Migrations.Backend.PostgreSQL as PGM
+import Database.Schema.Migrations.Filesystem (FilesystemStoreSettings (..), filesystemStore)
+import Database.Schema.Migrations.Store (MapValidationError, StoreData, loadMigrations, storeLookup)
 import Filesystem.Path.CurrentOS (decodeString, encodeString)
 import qualified Filesystem.Path.CurrentOS as P
 import Lrzhs (isValidShieldedAddress)
@@ -90,6 +98,31 @@ data CmdArgs = CmdArgs {cfgFile :: String}
 args :: Parser CmdArgs
 args = CmdArgs <$> strOption (long "conf" <> short 'c' <> help "Configuration file")
 
+data MigrationError
+  = MigrationNotFound Text
+  | MigrationInvalid [MapValidationError]
+  deriving (Show)
+
+runMigrations :: FilePath -> PG.Connection -> ExceptT MigrationError IO ()
+runMigrations path conn = do
+  let store = filesystemStore $ FSStore {storePath = path}
+      backend = PGM.backend conn
+
+  storeData <- withExceptT MigrationInvalid . ExceptT $ loadMigrations store
+  lift $ PG.begin conn
+  lift $ ensureBootstrappedBackend backend
+  lift $ commitBackend backend
+  lift $ PG.begin conn
+  migrationNames <- lift $ missingMigrations backend storeData
+  traverse_ (applyOneMigration storeData backend) migrationNames
+  lift $ commitBackend backend
+  where
+    applyOneMigration :: StoreData -> Backend -> Text -> ExceptT MigrationError IO ()
+    applyOneMigration storeData backend migrationName = do
+      m <- except . maybe (Left $ MigrationNotFound migrationName) Right $ storeLookup storeData migrationName
+      toApply <- lift $ migrationsToApply storeData backend m
+      lift $ traverse_ (applyMigration backend) toApply
+
 main :: IO ()
 main = do
   opts <- execParser $ info (args <**> helper) (header "The Aftok collaboration server")
@@ -98,6 +131,16 @@ main = do
   -- Create database connection pool
   let connStr = cfg ^. dbConfig . dbConnStr
   pool <- newPool $ defaultPoolConfig (connectPostgreSQL connStr) close 60 10
+
+  -- Run database migrations before starting the server
+  putStrLn $ "Running database migrations from " <> (cfg ^. migrationsPath)
+  migrationResult <- withResource pool (runExceptT . runMigrations (cfg ^. migrationsPath))
+  case migrationResult of
+    Left err -> do
+      putStrLn $ "Database migration failed: " <> show err
+      exitFailure
+    Right () ->
+      putStrLn "Database migrations completed successfully."
 
   -- Create payments configuration
   paymentsConfig <- C.toPaymentsConfig @QDBM (cfg ^. billingConfig)
