@@ -1,0 +1,48 @@
+Description: Apply review fixes to GitHub PR tracking schema (lowercase usernames, drop unused columns/indexes, change time_spent column type, add processing status)
+Created: 2026-02-08 12:00:03 UTC
+Depends: 2026-02-08_12-00-02_github-webhook-events
+Apply: |
+  -- 1. Normalize existing github_username values to lowercase. GitHub
+  --    treats logins case-insensitively; storing the canonical lowercase
+  --    form lets us avoid CITEXT or LOWER() comparisons at every lookup.
+  UPDATE users SET github_username = lower(github_username)
+    WHERE github_username IS NOT NULL;
+
+  -- 2. Drop the redundant explicit index on github_delivery_id; the UNIQUE
+  --    constraint already creates one.
+  DROP INDEX IF EXISTS idx_github_webhook_events_delivery_id;
+
+  -- 3. Drop the unused pr_author_email column. Nothing populates it; the
+  --    GitHub webhook payload only exposes the author's login, not their
+  --    email, so this column was always NULL.
+  ALTER TABLE github_webhook_events DROP COLUMN pr_author_email;
+
+  -- 4. Replace the interval-typed time_spent_parsed with a bigint count
+  --    of seconds. postgresql-simple has no built-in Int64 -> interval
+  --    conversion, so the previous column type was effectively unusable
+  --    via the Haskell client. A bigint of seconds round-trips trivially.
+  ALTER TABLE github_webhook_events DROP COLUMN time_spent_parsed;
+  ALTER TABLE github_webhook_events ADD COLUMN time_spent_parsed bigint;
+
+  -- 5. Add a 'processing' state to github_event_status. We insert a claim
+  --    row in this state at the start of webhook processing (via
+  --    ON CONFLICT DO NOTHING on github_delivery_id) to guarantee that
+  --    two concurrent deliveries of the same id cannot both create work
+  --    events. The claim row is updated to a terminal state when
+  --    processing finishes.
+  ALTER TYPE github_event_status ADD VALUE IF NOT EXISTS 'processing' BEFORE 'processed';
+
+  -- TODO: webhook_secret in github_repo_links is currently stored in
+  -- plaintext. Defense-in-depth encryption at rest would require
+  -- introducing a server master key and a wrapping scheme; leaving as a
+  -- follow-up.
+
+Revert: |
+  -- Note: removing an enum value isn't directly supported in PostgreSQL;
+  -- a true revert would need to rebuild the enum. We leave 'processing'
+  -- in place on revert.
+  ALTER TABLE github_webhook_events DROP COLUMN time_spent_parsed;
+  ALTER TABLE github_webhook_events ADD COLUMN time_spent_parsed interval;
+  ALTER TABLE github_webhook_events ADD COLUMN pr_author_email text;
+  CREATE INDEX idx_github_webhook_events_delivery_id
+    ON github_webhook_events(github_delivery_id);

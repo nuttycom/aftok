@@ -29,6 +29,7 @@ common base-deps
     relude >= 1.1.0 && < 1.3,
     aeson >= 2.0.3 && < 2.3,
     attoparsec >= 0.14.4 && < 0.15,
+    base16-bytestring >= 1.0 && < 1.1,
     bifunctors >= 5.5.15 && < 5.7,
     bippy >= 0.3 && < 0.4,
     bytestring >= 0.11.4 && < 0.13,
@@ -36,6 +37,7 @@ common base-deps
     configurator >= 0.3.0 && < 0.4,
     containers >= 0.6.5 && < 0.8,
     cryptonite >= 0.30 && < 0.31,
+    memory >= 0.18 && < 0.19,
     either >= 5.0.2 && < 5.1,
     errors >= 2.3.0 && < 2.4,
     from-sum >= 0.2.3 && < 0.3,
@@ -86,12 +88,14 @@ library
     Aftok.Currency.Zcash.Payments
     Aftok.Currency.Zcash.Zip321
     Aftok.Database
+    Aftok.GitHub
     Aftok.Database.PostgreSQL
     Aftok.Database.PostgreSQL.Json
     Aftok.Database.PostgreSQL.Types
     Aftok.Database.PostgreSQL.Auctions
     Aftok.Database.PostgreSQL.Billing
     Aftok.Database.PostgreSQL.Events
+    Aftok.Database.PostgreSQL.GitHub
     Aftok.Database.PostgreSQL.PasswordReset
     Aftok.Database.PostgreSQL.Projects
     Aftok.Database.PostgreSQL.Users
@@ -136,6 +140,7 @@ Test-Suite spec
   other-modules:
     Aftok.AuctionSpec
     Aftok.Generators
+    Aftok.GitHubSpec
     Aftok.PaymentsSpec
     Aftok.Servant.ApiSpec
     Aftok.TimeLogSpec

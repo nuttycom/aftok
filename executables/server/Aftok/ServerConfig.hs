@@ -18,6 +18,11 @@ module Aftok.ServerConfig
     captchaSiteKey,
     captchaSecretKey,
 
+    -- * GitHub OAuth Configuration
+    GitHubOAuthConfig (..),
+    ghOAuthClientId,
+    ghOAuthClientSecret,
+
     -- * Zcash Configuration
     readZcashConfig,
 
@@ -36,6 +41,8 @@ module Aftok.ServerConfig
     staticAssetPath,
     recaptchaSecret,
     zcashConfig,
+    gitHubOAuthConfig,
+    externalPort,
   )
 where
 
@@ -65,6 +72,14 @@ data CaptchaConfig = CaptchaConfig
   }
 
 makeLenses ''CaptchaConfig
+
+-- | GitHub OAuth application credentials
+data GitHubOAuthConfig = GitHubOAuthConfig
+  { _ghOAuthClientId :: Text,
+    _ghOAuthClientSecret :: Text
+  }
+
+makeLenses ''GitHubOAuthConfig
 
 -- | Database configuration
 data DbConfig = DbConfig
@@ -112,7 +127,9 @@ data ServerConfig = ServerConfig
     _templatePath :: P.FilePath,
     _staticAssetPath :: P.FilePath,
     _recaptchaSecret :: CaptchaConfig,
-    _zcashConfig :: ZcashConfig
+    _zcashConfig :: ZcashConfig,
+    _gitHubOAuthConfig :: Maybe GitHubOAuthConfig,
+    _externalPort :: Maybe Int
   }
 
 makeLenses ''ServerConfig
@@ -151,6 +168,8 @@ readServerConfig cfg pc =
         )
     <*> (CaptchaConfig <$> C.require cfg "recaptchaSiteKey" <*> C.require cfg "recaptchaSecret")
     <*> (readZcashConfig $ C.subconfig "zcash" cfg)
+    <*> readGitHubOAuthConfig (C.subconfig "github" cfg)
+    <*> C.lookup cfg "externalPort"
 
 instance CT.Configured Network where
   convert = \case
@@ -162,3 +181,9 @@ readZcashConfig :: CT.Config -> IO ZcashConfig
 readZcashConfig cfg =
   ZcashConfig
     <$> (C.require cfg "network")
+
+readGitHubOAuthConfig :: CT.Config -> IO (Maybe GitHubOAuthConfig)
+readGitHubOAuthConfig cfg = do
+  mClientId <- C.lookup cfg "oauthClientId"
+  mClientSecret <- C.lookup cfg "oauthClientSecret"
+  pure $ GitHubOAuthConfig <$> mClientId <*> mClientSecret

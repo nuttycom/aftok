@@ -13,6 +13,10 @@ import Aftok.Billing as B
 import Aftok.Currency (Amount, Currency)
 import Aftok.Currency.Bitcoin.Payments (PaymentKey)
 import qualified Aftok.Currency.Zcash as Zcash
+import Aftok.GitHub
+  ( GitHubRepoLink,
+    GitHubWebhookEvent,
+  )
 import Aftok.Interval (RangeQuery)
 import Aftok.Password (PasswordHash)
 import Aftok.Payments.Types
@@ -35,6 +39,9 @@ import qualified Aftok.TimeLog as TL
 import Aftok.Types
   ( AccountId,
     Email,
+    GitHubRepoLinkId,
+    GitHubUsername,
+    GitHubWebhookEventId,
     PasswordResetToken,
     PasswordResetTokenId,
     ProjectId,
@@ -74,6 +81,7 @@ type InvitedUID = UserId
 data Limit = Limit Word32
 
 data DBOp a where
+  CreateUser :: User -> DBOp UserId
   CreateUserWithPassword :: User -> PasswordHash -> DBOp UserId
   FindUser :: UserId -> DBOp (Maybe User)
   FindUserProjectDetail :: UserId -> ProjectId -> DBOp (Maybe (User, C.UTCTime))
@@ -124,6 +132,19 @@ data DBOp a where
   -- Zcash address operations
   SetUserZcashAddress :: UserId -> Zcash.Address -> DBOp ()
   FindUserZcashAddress :: UserId -> DBOp (Maybe Zcash.Address)
+  -- GitHub integration operations
+  FindUserByGitHubUsername :: GitHubUsername -> DBOp (Maybe (UserId, User))
+  LinkGitHubUsername :: UserId -> GitHubUsername -> DBOp ()
+  UnlinkGitHubUsername :: UserId -> DBOp ()
+  GetUserGitHubUsername :: UserId -> DBOp (Maybe GitHubUsername)
+  CreateGitHubRepoLink :: GitHubRepoLink -> DBOp GitHubRepoLinkId
+  FindGitHubRepoLink :: Text -> Text -> DBOp (Maybe (GitHubRepoLinkId, GitHubRepoLink))
+  FindProjectGitHubRepoLinks :: ProjectId -> DBOp [(GitHubRepoLinkId, GitHubRepoLink)]
+  DeleteGitHubRepoLink :: GitHubRepoLinkId -> DBOp ()
+  RecordWebhookEvent :: GitHubRepoLinkId -> GitHubWebhookEvent -> DBOp GitHubWebhookEventId
+  ClaimWebhookDelivery :: GitHubRepoLinkId -> Text -> Text -> C.UTCTime -> DBOp (Maybe GitHubWebhookEventId)
+  FinalizeWebhookDelivery :: GitHubWebhookEventId -> GitHubWebhookEvent -> DBOp ()
+  IsDeliveryProcessed :: Text -> DBOp Bool
   RaiseDBError :: forall x y. DBError -> DBOp x -> DBOp y
 
 data InvitationError
@@ -167,6 +188,9 @@ raiseSubjectNotFound :: (MonadDB m) => DBOp y -> m x
 raiseSubjectNotFound op = liftdb $ RaiseDBError SubjectNotFound op
 
 -- User ops
+
+createUser :: (MonadDB m) => User -> m UserId
+createUser user = liftdb $ CreateUser user
 
 createUserWithPassword :: (MonadDB m) => User -> PasswordHash -> m UserId
 createUserWithPassword user pwd = liftdb $ CreateUserWithPassword user pwd
@@ -372,6 +396,56 @@ findSubscriptionUnpaidRequests = liftdb . FindSubscriptionUnpaidRequests
 
 findPayment :: (MonadDB m) => Currency a c -> PaymentRequestId -> MaybeT m (Payment c)
 findPayment currency prid = MaybeT $ (fmap snd . headMay) <$> liftdb (FindPayments currency prid)
+
+-- GitHub integration ops
+
+findUserByGitHubUsername :: (MonadDB m) => GitHubUsername -> MaybeT m (UserId, User)
+findUserByGitHubUsername = MaybeT . liftdb . FindUserByGitHubUsername
+
+linkGitHubUsername :: (MonadDB m) => UserId -> GitHubUsername -> m ()
+linkGitHubUsername uid ghUser = liftdb $ LinkGitHubUsername uid ghUser
+
+unlinkGitHubUsername :: (MonadDB m) => UserId -> m ()
+unlinkGitHubUsername uid = liftdb $ UnlinkGitHubUsername uid
+
+getUserGitHubUsername :: (MonadDB m) => UserId -> m (Maybe GitHubUsername)
+getUserGitHubUsername = liftdb . GetUserGitHubUsername
+
+createGitHubRepoLink :: (MonadDB m) => GitHubRepoLink -> m GitHubRepoLinkId
+createGitHubRepoLink = liftdb . CreateGitHubRepoLink
+
+findGitHubRepoLink :: (MonadDB m) => Text -> Text -> MaybeT m (GitHubRepoLinkId, GitHubRepoLink)
+findGitHubRepoLink owner repo = MaybeT . liftdb $ FindGitHubRepoLink owner repo
+
+findProjectGitHubRepoLinks :: (MonadDB m) => ProjectId -> m [(GitHubRepoLinkId, GitHubRepoLink)]
+findProjectGitHubRepoLinks = liftdb . FindProjectGitHubRepoLinks
+
+deleteGitHubRepoLink :: (MonadDB m) => GitHubRepoLinkId -> m ()
+deleteGitHubRepoLink = liftdb . DeleteGitHubRepoLink
+
+recordWebhookEvent :: (MonadDB m) => GitHubRepoLinkId -> GitHubWebhookEvent -> m GitHubWebhookEventId
+recordWebhookEvent linkId ev = liftdb $ RecordWebhookEvent linkId ev
+
+-- | Atomically claim a webhook delivery for processing. Returns the row id
+-- on first claim, or 'Nothing' if some other concurrent caller already
+-- inserted the row for the same delivery id. The companion
+-- 'finalizeWebhookDelivery' updates the row to its terminal state.
+claimWebhookDelivery ::
+  (MonadDB m) =>
+  GitHubRepoLinkId ->
+  Text ->
+  Text ->
+  C.UTCTime ->
+  m (Maybe GitHubWebhookEventId)
+claimWebhookDelivery linkId deliveryId eventType receivedAt =
+  liftdb $ ClaimWebhookDelivery linkId deliveryId eventType receivedAt
+
+-- | Finalize a previously claimed webhook delivery row.
+finalizeWebhookDelivery :: (MonadDB m) => GitHubWebhookEventId -> GitHubWebhookEvent -> m ()
+finalizeWebhookDelivery rowId ev = liftdb $ FinalizeWebhookDelivery rowId ev
+
+isDeliveryProcessed :: (MonadDB m) => Text -> m Bool
+isDeliveryProcessed = liftdb . IsDeliveryProcessed
 
 -- Auction ops
 

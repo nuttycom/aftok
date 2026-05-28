@@ -46,6 +46,7 @@ import Database.Schema.Migrations.Store (MapValidationError, StoreData, loadMigr
 import Filesystem.Path.CurrentOS (decodeString, encodeString)
 import qualified Filesystem.Path.CurrentOS as P
 import Lrzhs (isValidShieldedAddress)
+import Network.HTTP.Client.TLS (newTlsManager)
 import Network.Mail.Mime (Mail, plainPart)
 import qualified Network.Mail.Mime as Mime
 import qualified Network.Mail.SMTP as SMTP
@@ -156,8 +157,11 @@ main = do
       pwResetOps = passwordResetOps cfg
       staticDir = encodeString $ cfg ^. staticAssetPath
 
+  -- Create TLS-capable HTTP manager for outbound API calls
+  httpManager <- newTlsManager
+
   -- Create application environment
-  let env = mkAppEnv nmode pool cfg jwk
+  let env = mkAppEnv nmode pool cfg jwk httpManager
 
   -- Create request logger (Apache format - doesn't log request bodies)
   requestLogger <-

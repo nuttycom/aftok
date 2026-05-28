@@ -10,6 +10,7 @@ module Aftok.Servant.App
     envConfig,
     envCookieSettings,
     envJWTSettings,
+    envHttpManager,
     appToHandler,
     runDB,
     dbErrorToServerError,
@@ -25,6 +26,7 @@ import Control.Monad.Except (MonadError, throwError)
 import Data.Aeson (encode)
 import Data.Pool (Pool, withResource)
 import Database.PostgreSQL.Simple (Connection)
+import qualified Network.HTTP.Client as HTTP
 import Servant (Handler, ServerError, err403, err404, err409, err500, errBody)
 import Servant.Auth.Server (CookieSettings, JWTSettings)
 
@@ -34,7 +36,8 @@ data AppEnv = AppEnv
     _envDbPool :: !(Pool Connection),
     _envConfig :: !ServerConfig,
     _envCookieSettings :: !CookieSettings,
-    _envJWTSettings :: !JWTSettings
+    _envJWTSettings :: !JWTSettings,
+    _envHttpManager :: !HTTP.Manager
   }
 
 makeLenses ''AppEnv

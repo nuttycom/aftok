@@ -87,6 +87,7 @@ import Aftok.Servant.App (AppM, envConfig, runDB)
 import qualified Aftok.Servant.Auctions as Auctions
 import Aftok.Servant.Auth (AuthenticatedUser (..))
 import qualified Aftok.Servant.Billing as Billing
+import qualified Aftok.Servant.GitHub as GitHub
 import Aftok.ServerConfig (ServerConfig)
 import qualified Aftok.ServerConfig as QC
 import Aftok.TimeLog
@@ -165,6 +166,7 @@ singleProjectServer payCfg authResult pid =
     :<|> projectInviteHandler authResult pid
     :<|> Auctions.projectAuctionsServer authResult pid
     :<|> Billing.projectBillablesServer payCfg authResult pid
+    :<|> GitHub.gitHubProjectServer authResult pid
 
 -- | List all projects for the authenticated user
 projectListHandler :: AuthResult AuthenticatedUser -> AppM [ProjectSummary]

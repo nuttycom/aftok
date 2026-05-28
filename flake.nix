@@ -123,6 +123,10 @@
           ];
           buildInputs = [
             lrzhs.packages.${system}.lrzhs_ffi
+            pkgs.openssl
+            pkgs.postgresql
+            pkgs.zlib
+            pkgs.zstd
           ];
           withHoogle = true;
         };

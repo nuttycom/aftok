@@ -14,6 +14,7 @@ import Aftok.Database
 import qualified Aftok.Database.PostgreSQL.Auctions as Q
 import qualified Aftok.Database.PostgreSQL.Billing as Q
 import qualified Aftok.Database.PostgreSQL.Events as Q
+import qualified Aftok.Database.PostgreSQL.GitHub as Q
 import qualified Aftok.Database.PostgreSQL.PasswordReset as Q
 import qualified Aftok.Database.PostgreSQL.Projects as Q
 import qualified Aftok.Database.PostgreSQL.Users as Q
@@ -53,6 +54,7 @@ pgEval =
     (ListAuctions pid rq l) -> Q.listAuctions pid rq l
     (CreateBid aucId bid) -> Q.createBid aucId bid
     (FindBids aucId) -> Q.findBids aucId
+    (CreateUser user') -> Q.createUser user'
     (CreateUserWithPassword user' pwd) -> Q.createUserWithPassword user' pwd
     (FindUser uid) -> Q.findUser uid
     (FindUserProjectDetail uid pid) -> Q.findUserProjectDetail uid pid
@@ -101,4 +103,18 @@ pgEval =
     -- Zcash address operations
     (SetUserZcashAddress uid addr) -> Q.setUserZcashAddress uid addr
     (FindUserZcashAddress uid) -> Q.findUserZcashAddress uid
+    -- GitHub integration operations
+    (FindUserByGitHubUsername ghUser) -> Q.findUserByGitHubUsername ghUser
+    (LinkGitHubUsername uid ghUser) -> Q.linkGitHubUsername uid ghUser
+    (UnlinkGitHubUsername uid) -> Q.unlinkGitHubUsername uid
+    (GetUserGitHubUsername uid) -> Q.getUserGitHubUsername uid
+    (CreateGitHubRepoLink link) -> Q.createGitHubRepoLink link
+    (FindGitHubRepoLink owner repo) -> Q.findGitHubRepoLink owner repo
+    (FindProjectGitHubRepoLinks pid) -> Q.findProjectGitHubRepoLinks pid
+    (DeleteGitHubRepoLink linkId) -> Q.deleteGitHubRepoLink linkId
+    (RecordWebhookEvent linkId ev) -> Q.recordWebhookEvent linkId ev
+    (ClaimWebhookDelivery linkId deliveryId eventType receivedAt) ->
+      Q.claimWebhookDelivery linkId deliveryId eventType receivedAt
+    (FinalizeWebhookDelivery rowId ev) -> Q.finalizeWebhookDelivery rowId ev
+    (IsDeliveryProcessed deliveryId) -> Q.isDeliveryProcessed deliveryId
     (RaiseDBError err _) -> lift . throwE $ err

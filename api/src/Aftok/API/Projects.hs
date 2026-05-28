@@ -40,6 +40,7 @@ where
 import Aftok.API.Auctions (ProjectAuctionsAPI)
 import Aftok.API.Billing (ProjectBillablesAPI)
 import Aftok.API.Codec ()
+import Aftok.API.GitHub (GitHubProjectAPI)
 import Aftok.API.Types ()
 import qualified Aftok.Currency.Zcash.Zip321 as Zip321
 import Aftok.Project (Project (..))
@@ -356,3 +357,5 @@ type SingleProjectAPI =
     :<|> "auctions" :> ProjectAuctionsAPI
     -- GET/POST /projects/:projectId/billables
     :<|> "billables" :> ProjectBillablesAPI
+    -- GitHub repo management
+    :<|> GitHubProjectAPI

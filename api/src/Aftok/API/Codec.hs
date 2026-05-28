@@ -15,6 +15,9 @@ import Aftok.Types
   ( AccountId (..),
     CreditTo (..),
     DepreciationFunction (..),
+    GitHubRepoLinkId (..),
+    GitHubUsername (..),
+    GitHubWebhookEventId (..),
     ProjectId (..),
     UserId (..),
     UserName (..),
@@ -77,6 +80,12 @@ instance HasCodec PaymentRequestId where
 instance HasCodec PaymentId where
   codec = uuidCodec (\(PaymentId u) -> u) PaymentId "PaymentId UUID"
 
+instance HasCodec GitHubRepoLinkId where
+  codec = uuidCodec (\(GitHubRepoLinkId u) -> u) GitHubRepoLinkId "GitHubRepoLinkId UUID"
+
+instance HasCodec GitHubWebhookEventId where
+  codec = uuidCodec (\(GitHubWebhookEventId u) -> u) GitHubWebhookEventId "GitHubWebhookEventId UUID"
+
 --------------------------------------------------------------------------------
 -- Thyme UTCTime
 --------------------------------------------------------------------------------
@@ -90,6 +99,9 @@ instance HasCodec C.UTCTime where
 
 instance HasCodec UserName where
   codec = dimapCodec UserName (\(UserName t) -> t) codec
+
+instance HasCodec GitHubUsername where
+  codec = dimapCodec GitHubUsername (\(GitHubUsername t) -> t) codec
 
 --------------------------------------------------------------------------------
 -- CreditTo

@@ -12,6 +12,11 @@ module Aftok.Servant.Server
   )
 where
 
+import Aftok.API.GitHub
+  ( GitHubOAuthCallbackAPI,
+    GitHubUserAPI,
+    GitHubWebhookAPI,
+  )
 import Aftok.API.Types ()
 import qualified Aftok.Config as AC
 import Aftok.Currency.Bitcoin (NetworkMode)
@@ -29,6 +34,11 @@ import Aftok.Servant.Billing
     protectedBillingServer,
   )
 import Aftok.Servant.Config (ConfigAPI, configServer)
+import Aftok.Servant.GitHub
+  ( gitHubOAuthCallbackHandler,
+    gitHubUserServer,
+    gitHubWebhookServer,
+  )
 import Aftok.Servant.PasswordReset
   ( PasswordResetAPI,
     PasswordResetOps,
@@ -64,6 +74,7 @@ import Control.Lens ((^.))
 import Crypto.JOSE.JWK (JWK)
 import Data.Pool (Pool)
 import Database.PostgreSQL.Simple (Connection)
+import qualified Network.HTTP.Client as HTTP
 import Servant
 import Servant.Auth.Server
   ( AuthResult (..),
@@ -82,8 +93,9 @@ mkAppEnv ::
   Pool Connection ->
   ServerConfig ->
   JWK ->
+  HTTP.Manager ->
   AppEnv
-mkAppEnv nmode pool cfg jwk =
+mkAppEnv nmode pool cfg jwk mgr =
   AppEnv
     { _envNetworkMode = nmode,
       _envDbPool = pool,
@@ -100,7 +112,8 @@ mkAppEnv nmode pool cfg jwk =
                   { xsrfExcludeGet = True -- Don't require XSRF token for GET requests
                   }
           },
-      _envJWTSettings = defaultJWTSettings jwk
+      _envJWTSettings = defaultJWTSettings jwk,
+      _envHttpManager = mgr
     }
 
 -- | Full Aftok server
@@ -125,6 +138,7 @@ type ProtectedAPI =
     :<|> ProtectedPaymentsAPI
     :<|> ProtectedUsersAPI
     :<|> ProtectedSessionAPI
+    :<|> "user" :> GitHubUserAPI
 
 -- | API server (without static files)
 apiServer ::
@@ -133,12 +147,14 @@ apiServer ::
   RegisterOps IO ->
   CaptchaConfig ->
   PasswordResetOps IO ->
-  ServerT (UsersAPI :<|> SessionAPI :<|> PasswordResetAPI :<|> ConfigAPI :<|> AftokAuth :> ProtectedAPI) AppM
+  ServerT (UsersAPI :<|> SessionAPI :<|> PasswordResetAPI :<|> ConfigAPI :<|> GitHubWebhookAPI :<|> GitHubOAuthCallbackAPI :<|> AftokAuth :> ProtectedAPI) AppM
 apiServer btcCfg payCfg regOps captchaCfg pwResetOps =
   usersServer regOps captchaCfg
     :<|> sessionServer
     :<|> passwordResetServer pwResetOps
     :<|> configServer captchaCfg
+    :<|> gitHubWebhookServer
+    :<|> gitHubOAuthCallbackHandler
     :<|> protectedServer btcCfg payCfg regOps
 
 -- | Protected server (requires authentication)
@@ -156,6 +172,7 @@ protectedServer btcCfg payCfg regOps authResult =
     :<|> protectedPaymentsServer btcCfg payCfg authResult
     :<|> protectedUsersServer regOps authResult
     :<|> protectedSessionServer authResult
+    :<|> gitHubUserServer authResult
 
 -- | Protected users server
 protectedUsersServer ::

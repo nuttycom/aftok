@@ -10,7 +10,7 @@ import Aftok.API.Codec ()
 import Aftok.Auction (AuctionId (..))
 import Aftok.Billing (BillableId (..), SubscriptionId (..))
 import Aftok.Payments.Types (PaymentId (..))
-import Aftok.Types (ProjectId (..), UserId (..))
+import Aftok.Types (GitHubRepoLinkId (..), GitHubUsername (..), GitHubWebhookEventId (..), ProjectId (..), UserId (..))
 import Autodocodec.Aeson (parseJSONViaCodec, toJSONViaCodec)
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Thyme.Clock as C
@@ -90,3 +90,15 @@ instance FromJSON AuctionId where parseJSON = parseJSONViaCodec
 instance ToJSON PaymentId where toJSON = toJSONViaCodec
 
 instance FromJSON PaymentId where parseJSON = parseJSONViaCodec
+
+instance ToJSON GitHubRepoLinkId where toJSON = toJSONViaCodec
+
+instance FromJSON GitHubRepoLinkId where parseJSON = parseJSONViaCodec
+
+instance ToJSON GitHubWebhookEventId where toJSON = toJSONViaCodec
+
+instance FromJSON GitHubWebhookEventId where parseJSON = parseJSONViaCodec
+
+instance ToJSON GitHubUsername where toJSON = toJSONViaCodec
+
+instance FromJSON GitHubUsername where parseJSON = parseJSONViaCodec

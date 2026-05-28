@@ -4,7 +4,8 @@
 {-# LANGUAGE QuasiQuotes #-}
 
 module Aftok.Database.PostgreSQL.Users
-  ( createUserWithPassword,
+  ( createUser,
+    createUserWithPassword,
     findUser,
     findUserByName,
     findUserByNameWithPassword,
@@ -15,12 +16,17 @@ module Aftok.Database.PostgreSQL.Users
     updateUserPassword,
     setUserZcashAddress,
     findUserZcashAddress,
+    -- GitHub username operations
+    findUserByGitHubUsername,
+    linkGitHubUsername,
+    unlinkGitHubUsername,
+    getUserGitHubUsername,
   )
 where
 
 import Aftok.Currency (Currency (..))
 import qualified Aftok.Currency.Zcash as Zcash
-import Aftok.Database ()
+import Aftok.Database (DBError (..))
 import Aftok.Database.PostgreSQL.Types
   ( DBM,
     askNetworkMode,
@@ -33,9 +39,12 @@ import Aftok.Database.PostgreSQL.Types
     zcashAddressParser,
     zcashIvkParser,
   )
+import Aftok.GitHub (normalizeGitHubUsername)
 import Aftok.Password (PasswordHash (..))
 import Aftok.Types
+import qualified Control.Exception as Ex
 import Control.Lens
+import Control.Monad.Trans.Except (throwE)
 import qualified Data.Thyme.Clock as C
 import Database.PostgreSQL.Simple
 import Database.PostgreSQL.Simple.FromRow
@@ -51,6 +60,22 @@ userParser = do
   remail <- fmap (RecoverByEmail . Email) <$> field
   rzaddr <- fmap (RecoverByZAddr . Zcash.Address) <$> field
   User uname <$> maybe empty pure (remail <|> rzaddr)
+
+createUser :: User -> DBM UserId
+createUser user' = do
+  uid <-
+    pinsert
+      UserId
+      [sql| INSERT INTO users (handle, recovery_email, recovery_zaddr)
+          VALUES (?, ?, ?) RETURNING id |]
+      ( user' ^. (username . _UserName),
+        user' ^? userAccountRecovery . _RecoverByEmail . _Email,
+        user' ^? userAccountRecovery . _RecoverByZAddr . Zcash._Address
+      )
+  case user' ^. userAccountRecovery of
+    RecoverByZAddr addr -> linkZcashAccount uid addr
+    RecoverByEmail _ -> pure ()
+  pure uid
 
 createUserWithPassword :: User -> PasswordHash -> DBM UserId
 createUserWithPassword user' pwdHash = do
@@ -226,3 +251,56 @@ setUserZcashAddress uid addr = do
     Nothing ->
       -- Insert a new primary account row
       linkZcashAccount uid addr
+
+-- | Find a user by their linked GitHub username (case-insensitive).
+findUserByGitHubUsername :: GitHubUsername -> DBM (Maybe (UserId, User))
+findUserByGitHubUsername (GitHubUsername ghUser) = do
+  let normalized = normalizeGitHubUsername ghUser
+  headMay
+    <$> pquery
+      ((,) <$> idParser UserId <*> userParser)
+      [sql| SELECT id, handle, recovery_email, recovery_zaddr
+            FROM users
+            WHERE github_username = ? |]
+      (Only normalized)
+
+-- | Link a GitHub username to a user account. Stores the canonical
+-- lowercased form so that subsequent lookups match GitHub's
+-- case-insensitive login semantics. Raises 'DuplicateRecord' on the
+-- 'users.github_username' unique-constraint violation.
+linkGitHubUsername :: UserId -> GitHubUsername -> DBM ()
+linkGitHubUsername (UserId uid) (GitHubUsername ghUser) = do
+  let normalized = normalizeGitHubUsername ghUser
+  conn <- asks snd
+  result <-
+    liftIO $
+      Ex.try $
+        execute
+          conn
+          [sql| UPDATE users SET github_username = ? WHERE id = ? |]
+          (normalized, uid)
+  case result of
+    Right _ -> pure ()
+    Left (e :: SqlError) ->
+      -- Postgres unique_violation: SQLSTATE 23505
+      if sqlState e == "23505"
+        then lift $ throwE $ DuplicateRecord "github_username already linked to another account"
+        else liftIO (Ex.throwIO e)
+
+-- | Unlink a GitHub username from a user account
+unlinkGitHubUsername :: UserId -> DBM ()
+unlinkGitHubUsername (UserId uid) =
+  void $
+    pexec
+      [sql| UPDATE users SET github_username = NULL WHERE id = ? |]
+      (Only uid)
+
+-- | Get the GitHub username linked to a user account
+getUserGitHubUsername :: UserId -> DBM (Maybe GitHubUsername)
+getUserGitHubUsername (UserId uid) = do
+  results <-
+    pquery
+      (fmap GitHubUsername <$> field)
+      [sql| SELECT github_username FROM users WHERE id = ? |]
+      (Only uid)
+  pure $ join (headMay results)

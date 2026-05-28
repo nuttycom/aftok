@@ -1,0 +1,19 @@
+Description: Add github_repo_links table to link GitHub repositories to projects
+Created: 2026-02-08 12:00:01 UTC
+Depends: 2026-02-08_12-00-00_users-github-username
+Apply: |
+  CREATE TABLE github_repo_links (
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    github_owner text NOT NULL,
+    github_repo text NOT NULL,
+    webhook_secret text NOT NULL,
+    created_by uuid NOT NULL REFERENCES users(id),
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    UNIQUE (github_owner, github_repo)
+  );
+
+  CREATE INDEX idx_github_repo_links_project_id ON github_repo_links(project_id);
+
+Revert: |
+  DROP TABLE github_repo_links;

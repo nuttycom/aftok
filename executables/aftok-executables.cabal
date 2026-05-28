@@ -97,14 +97,17 @@ Executable aftok-server
     Aftok.Servant.WorkLog
     Aftok.Servant.Auctions
     Aftok.Servant.Billing
+    Aftok.Servant.GitHub
     Aftok.Servant.Payments
 
   build-depends:
     aftok,
     aftok-api,
+    base16-bytestring         >= 1.0 && < 1.1,
     dbmigrations              >= 3.0 && < 3.1,
     dbmigrations-postgresql-simple >= 0.1 && < 0.2,
     directory                 >= 1.3.6,
+    memory                    >= 0.18 && < 0.19,
     http-client-tls           >= 0.3.6,
     jose                      >= 0.10 && < 0.12,
     resource-pool             >= 0.4 && < 0.5,
